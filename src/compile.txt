@@ -1,0 +1,1 @@
+g++ main.cpp -o pba.out -lpthread -O2 -std=c++17 -Wall -g -lstdc++fs -lpthread -fopenmp

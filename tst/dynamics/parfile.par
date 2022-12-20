@@ -1,0 +1,16 @@
+*
+*   This is an example parfile for the PyBlastAfterglowMag code
+*
+
+* Model Parameters
+
+Parameter1 = 10
+Parameter2 = 11.1
+Parameter3 = 12.3
+
+* Model Settings
+
+Setting1 = Value1
+Setting2 = Value2
+path_to_ejecta_id = ../../tst/dynamics/corr_vel_inf_theta.h5
+
