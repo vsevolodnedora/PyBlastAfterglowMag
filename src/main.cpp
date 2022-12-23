@@ -23,11 +23,11 @@
 // . g++ main.cpp -o pba.out -O2 -std=c++17 -Wall -g -lstdc++fs -lpthread -fopenmp -lhdf5_cpp -lhdf5
 // . h5c++ main.cpp -o pba.out -O2 -std=c++17 -Wall -g -lstdc++fs -lpthread -fopenmp -lhdf5_cpp -lhdf5
 // . gcc main.cpp -o pba.out -O2 -std=c++17 -Wall -g -lstdc++fs -lpthread -fopenmp -lhdf5_cpp -lhdf5 -lstdc++
-// | g++ main.cpp -o pba.out -O2 -std=c++17 -Wall -g -lstdc++fs -lpthread -fopenmp -lhdf5_hl -lhdf5 -lhdf5_cpp -v
+// | g++ main.cpp -o pba.out -O2 -std=c++17 -Wall -g -lstdc++fs -lpthread -fopenmp -lhdf5_hl -lhdf5 -lhdf5_cpp -vv
 //
 // Usage
 // . ./pba.out ../tst/dynamics/parfile.par
-// All of the analysis output will be done in the current directory
+//
 //
 // Assumptions
 // . Many...
@@ -38,29 +38,9 @@
 // Issues:
 
 // include necessary files
-#include <algorithm> // for std::copy
-#include <unordered_map>
-#include <fstream>   // for std::ifstream
-#include <iostream>  // for std::cout
-#include <iterator>  // for std::ostream_iterator
-#include <map>       // for std::map
-#include <string>    // for std::string
-#include <vector>    // for std::vector
-#include <cctype>
-#include "omp.h"
-#include <stdexcept>
-#include <experimental/filesystem>// for std::filesystem::exists
-
-#include "H5Easy.h" // "external" lib with simple read/write funcs for hdf files
-#include "Logger.h"
-
-//#include "hdf5.h"
-// #include "H5Cpp.h"
-// #include "H5LTpublic.h"
-
-// #include <hdf5.h>
-// #include <hdf5_hl.h>
-
+#include "utils.h"
+#include "model.h"
+#include "H5Easy.h"
 
 // -------------- Code configuration ------------------
 struct {
@@ -70,22 +50,16 @@ struct {
 } const config =
 #include "main.cfg"
 
-// ------------- Main Model Parameters -----------------
-struct Parameters{
-    std::string m_path_to_ejecta_id;
-};
-
 // -------------- Read H5 table with ID ------------------
-#define MYH5CHECK(ierr) if (ierr < 0) { throw std::runtime_error("Error in the HDF5 library"); }
 class ReadH5ThetaVinfCorrelationFile{
-    std::vector<double> m_vel_inf;
-    std::vector<double> m_theta;
-    std::vector<double> m_mass;
-    std::unique_ptr<Logger> p_log;
+    Vector m_vel_inf;
+    Vector m_theta;
+    VecVector m_ek;
+    std::unique_ptr<logger> p_log;
 public:
-    void loadTable(Parameters & pars, int loglevel){
-        p_log = std::make_unique<Logger>(std::cout, std::cerr, loglevel, "ReadH5ThetaVinfCorrelationFile");
-        auto path_to_table = pars.m_path_to_ejecta_id;
+    void loadTable(std::string path_to_table, int loglevel){
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "ReadH5ThetaVinfCorrelationFile");
+//        auto path_to_table = pars.m_path_to_ejecta_id;
 //        path_to_table = "../../tst/dynamics/corr_vel_inf_theta.h5";
         if (!std::experimental::filesystem::exists(path_to_table))
             throw std::runtime_error("File not found. " + path_to_table);
@@ -93,120 +67,317 @@ public:
         LoadH5 ldata;
         ldata.setFileName(path_to_table);
         ldata.setVarName("vel_inf");
-        std::vector<double> vinf = ldata.getData();
+        m_vel_inf = ldata.getData();
 
         ldata.setVarName("theta");
-        std::vector<double> theta = ldata.getData();
+        m_theta = ldata.getData();
 
-        ldata.setVarName("mass");
-        std::vector<std::vector<double>> mass = ldata.getData2Ddouble();
+        ldata.setVarName("ek");
+        m_ek = ldata.getData2Ddouble();
 
         (*p_log)(LOG_INFO, AT)
-            << "h5table loaded [vinf="<<vinf.size()<<", theta="
-            << theta.size()<<", mass="<<mass.size()<< "x" << mass[0].size()<<"] \n";
+            << "h5table loaded [vinf="<<m_vel_inf.size()<<", theta="
+            << m_theta.size()<<", ek="<<m_ek.size()<< "x" << m_ek[0].size()<<"] \n";
 
-        std::cout << "[Info] Ejecta ID loaded.\n";
+        (*p_log)(LOG_INFO, AT) << "Ejecta ID loaded.\n";
+
     }
-
+    Vector & getVelInf(){ return m_vel_inf; }
+    Vector & getTheta(){ return m_theta; }
+    VecVector & getEk(){ return m_ek; }
 };
 
-// ---------- Read text file with model parameters -----
-void readParFile(std::unordered_map<std::string, double> pars,
-                 std::unordered_map<std::string, std::string> opts,
-                 std::string parfile_path, Parameters & parameters){
+void readParFile2(std::unordered_map<std::string, double> & pars,
+                 std::unordered_map<std::string, std::string> & opts,
+                 std::string parfile_path,
+                 std::string from_line, std::string until_line
+                 ){
 
-    if (!std::experimental::filesystem::exists(parfile_path))
-        throw std::runtime_error("File not found. " + parfile_path);
-    else
-        std::cout << "[Info] Parfile loaded.\n";
-
-    std::string key_after_which_to_look_for_parameters = "* Model Parameters";
-    std::string key_after_which_to_look_for_settings = "* Model Settings";
+    std::string key_after_which_to_look_for_parameters = "* Parameters";
+    std::string key_after_which_to_look_for_settings = "* Settings";
     char char_that_separaters_name_and_value = '=';
+    char char_that_separaters_value_and_comment = '#';
+
+    std::unique_ptr<logger> p_log;
+    p_log = std::make_unique<logger>(std::cout, std::cerr, CurrLogLevel, "readParFile2");
+    if (!std::experimental::filesystem::exists(parfile_path))
+        (*p_log)(LOG_ERR, AT) << " File not found. " + parfile_path << "\n";
 
     std::ifstream fin(parfile_path);
     std::string line;
 
+    bool is_in_the_reqired_block = false;
     bool reading_pars = false;
     bool reading_opts = false;
     while (std::getline(fin, line)) {
+        /// check if reading the required block of parfile
+        if (line == from_line)
+            is_in_the_reqired_block = true;
+        if (line == until_line)
+            is_in_the_reqired_block = false;
+        if (!is_in_the_reqired_block)
+            continue;
+
+        /// read parameters (double) and settings (str) separately
         if (line == key_after_which_to_look_for_parameters) {
             reading_pars = true; reading_opts = false;
         }
         if (line == key_after_which_to_look_for_settings) {
             reading_pars = false; reading_opts = true;
         }
-
+        if (line[0] == char_that_separaters_value_and_comment)
+            continue;
+        /// read parameters (double) and settings (str) separately
         if (reading_pars and (line.length() > 1) and (line != key_after_which_to_look_for_parameters)) {
             unsigned long pos = line.find_first_of(char_that_separaters_name_and_value);
-            std::string val = line.substr(pos + 1),
-                    par = line.substr(0, pos);
+            std::string val = line.substr(pos + 1), par = line.substr(0, pos);
             par.erase(std::remove_if(par.begin(), par.end(), ::isspace), par.end());
+//            val.erase(std::remove_if(val.begin(), val.end(), ::isspace), val.end());
+            if (val.find(char_that_separaters_value_and_comment) != std::string::npos){
+                unsigned long _pos = val.find_first_of(char_that_separaters_value_and_comment);
+                std::string _comment = val.substr(_pos + 1), _val = val.substr(0, _pos);
+                val = _val;
+            }
             val.erase(std::remove_if(val.begin(), val.end(), ::isspace), val.end());
             double value = std::stod(val);
             pars.insert(std::pair<std::string, double>(par, value));
         }
-
         if (reading_opts and (line.length() > 1) and (line != key_after_which_to_look_for_settings)) {
             unsigned long pos = line.find_first_of(char_that_separaters_name_and_value);
             std::string val = line.substr(pos + 1),
                     par = line.substr(0, pos);
             par.erase(std::remove_if(par.begin(), par.end(), ::isspace), par.end());
+//            val.erase(std::remove_if(val.begin(), val.end(), ::isspace), val.end());
+            if (val.find(char_that_separaters_value_and_comment) != std::string::npos){
+                unsigned long _pos = val.find_first_of(char_that_separaters_value_and_comment);
+                std::string _comment = val.substr(_pos + 1), _val = val.substr(0, _pos);
+                val = _val;
+            }
             val.erase(std::remove_if(val.begin(), val.end(), ::isspace), val.end());
 //            double value = std::stod(val);
             opts.insert(std::pair<std::string, std::string>(par, val));
         }
     }
-    std::cout << "[Info] --------------------------------------- \n";
-    std::cout << "[Info] Model parameters:\n";
-    for (auto &&[ch, v]: pars) {
-        std::cout << '\t' << ch << char_that_separaters_name_and_value << v << "\n";
-    }
-    std::cout << "[Info] --------------------------------------- \n";
-    std::cout << "[Info] Model options:\n";
-    for (auto &&[ch, v]: opts) {
-        std::cout << '\t' << ch << char_that_separaters_name_and_value << v << "\n";
-    }
-    std::cout << "[Info] --------------------------------------- \n";
 
-    // -------------------------------------------------------------
-    parameters.m_path_to_ejecta_id = opts.at("path_to_ejecta_id");
 }
-
-
-
 // driver function
 int main(int argc, char** argv) {
 
+    int loglevel = CurrLogLevel;
+
     /// get path to parfile
-    std::unique_ptr<Logger>(p_log);
-    p_log = std::make_unique<Logger>(std::cout, std::cerr, CurrLogLevel, "main");
+    std::unique_ptr<logger>(p_log);
+    p_log = std::make_unique<logger>(std::cout, std::cerr, CurrLogLevel, "main");
 
     std::string parfile_path;
-    if (argc==1){
-        parfile_path = "../../tst/dynamics/parfile.par";
-        (*p_log)(LOG_WARN,AT) << "Path to parfile is not given. Using debug file: " <<parfile_path<<"\n";
-    }
-    else if (argc>2){
+    std::string parfile_arrs_path;
+    if (argc==2){
         std::cerr << "args="<<argc<<"\n";
         std::cerr << argv[0] << " " << argv[1] << "\n";
-        (*p_log)(LOG_WARN,AT) << "Code requires 1 argument (path to parfile). Given: " << argc << " parameters\n";
+        (*p_log)(LOG_WARN,AT) << "Code requires 2 argument (paths to parfile, arrs). Given: " << argc << " pr\n";
+//        throw std::invalid_argument("Code requires 1 argument (path to parfile)");
+    }
+    if (argc==1){
+        parfile_path = "../../tst/dynamics/parfile.par";
+        parfile_arrs_path = "../../tst/dynamics/parfile_arrs.h5";
+        (*p_log)(LOG_WARN,AT) << "Paths to parfile/arrs are not given. Using debug files: "
+                                         << parfile_path << ", " << parfile_arrs_path <<"\n";
+    }
+    else if (argc>3){
+        std::cerr << "args="<<argc<<"\n";
+        std::cerr << argv[0] << " " << argv[1] << "\n";
+        (*p_log)(LOG_WARN,AT) << "Code requires 1 argument (path to parfile). Given: " << argc << " pr\n";
 //        throw std::invalid_argument("Code requires 1 argument (path to parfile)");
     }
     else{
         parfile_path = argv[1]; // "../../tst/dynamics/parfile.par"
+        parfile_arrs_path = argv[2]; // "../../tst/dynamics/parfile_arrs.par"
+    }
+
+    /// initialize the model
+    PyBlastAfterglow pba(loglevel);
+
+    /// read main parameters of the model
+    StrDbMap main_pars;
+    StrStrMap main_opts;
+    readParFile2(main_pars, main_opts, parfile_path,
+                 "# -------------------------- main ---------------------------",
+                 "# --------------------------- END ---------------------------");
+    pba.setModelPars(main_pars, main_opts);
+
+
+    /// read main parameters of the magnetar # TODO
+//    StrDbMap mag_pars;
+//    StrStrMap mag_opts;
+//    readParFile2(mag_pars, mag_opts, parfile_path,
+//                 "# ------------------------ Magnetar -------------------------",
+//                 "# --------------------------- END ---------------------------");
+//    pba.setMagnetarPars(mag_pars, mag_opts);
+
+    /// read grb afterglow parameters
+    bool run_jet_bws = getBoolOpt("run_jet_bws", main_opts, AT, p_log, false, true);
+    bool save_j_dynamics = getBoolOpt("save_j_dynamics", main_opts, AT, p_log, false, true);
+    bool do_j_ele = getBoolOpt("do_j_ele", main_opts, AT, p_log, false, true);
+    bool do_j_spec = getBoolOpt("do_j_spec", main_opts, AT, p_log, false, true);
+    bool do_j_lc = getBoolOpt("do_j_lc", main_opts, AT, p_log, false, true);
+    bool do_j_skymap = getBoolOpt("do_j_skymap", main_opts, AT, p_log, false, true);
+    StrDbMap grb_pars; StrStrMap grb_opts;
+    if (run_jet_bws) {
+        readParFile2(grb_pars, grb_opts, parfile_path,
+                     "# ---------------------- GRB afterglow ----------------------",
+                     "# --------------------------- END ---------------------------");
+        pba.setJetStructAnalytic(grb_pars, grb_opts);
+        pba.setJetBwPars(grb_pars, grb_opts);
     }
 
 
-    /// read parfile
-    std::unordered_map<std::string, double> pars;
-    std::unordered_map<std::string, std::string> opts;
-    Parameters parameters;
-    readParFile(pars, opts, parfile_path, parameters);
+    /// read kn afterglow parameters
+    bool run_ejecta_bws = getBoolOpt("run_ejecta_bws", main_opts, AT, p_log, false, true);
+    bool save_ej_dynamics = getBoolOpt("save_ej_dynamics", main_opts, AT, p_log, false, true);
+    bool do_ej_ele = getBoolOpt("do_ej_ele", main_opts, AT, p_log, false, true);
+    bool do_ej_spec = getBoolOpt("do_ej_spec", main_opts, AT, p_log, false, true);
+    bool do_ej_lc = getBoolOpt("do_ej_lc", main_opts, AT, p_log, false, true);
+    bool do_ej_skymap = getBoolOpt("do_ej_skymap", main_opts, AT, p_log, false, true);
+    StrDbMap kn_pars; StrStrMap kn_opts;
+    if (run_ejecta_bws) {
+        readParFile2(kn_pars, kn_opts, parfile_path,
+                     "# ----------------------- kN afterglow ----------------------",
+                     "# --------------------------- END ---------------------------");
 
-    ReadH5ThetaVinfCorrelationFile ejecta_id;
-    ejecta_id.loadTable(parameters, CurrLogLevel);
+        std::string path_to_arrs = getStrOpt("path_to_ejecta_id", kn_opts, AT, p_log, "", true);
+        if (!std::experimental::filesystem::exists(path_to_arrs)){
+            (*p_log)(LOG_ERR, AT) << " File not found. " + path_to_arrs << "\n";
+            exit(1);
+        }
+        ReadH5ThetaVinfCorrelationFile dfile;
+        dfile.loadTable(path_to_arrs, loglevel);
+        pba.setEjectaStructNumeric(dfile.getTheta(), dfile.getVelInf(),
+                                   dfile.getEk(), 2., false);
+        pba.setEjectaBwPars(kn_pars, kn_opts);
+    }
+
+
+    /// evolve ODEs
+    pba.run();
+
+
+    /// work on GRB afterglow
+    if (save_j_dynamics)
+        pba.saveJetBWsDynamics(
+                getStrOpt("fpath_dyn", grb_opts, AT, p_log, "", true),
+                (int)getDoublePar("save_dyn_every_it", grb_pars, AT, p_log, 1, true) );
+
+    if (run_jet_bws and do_j_ele)
+        pba.setPreComputeJetAnalyticElectronsPars();
+
+    if (run_jet_bws and (do_j_lc or do_j_skymap)) {
+        LoadH5 pars_arrs;
+        pars_arrs.setFileName(parfile_arrs_path);
+        pars_arrs.setVarName("light_curve_times");
+        Vector times = pars_arrs.getDataVDouble();
+        pars_arrs.setVarName("light_curve_freqs");
+        Vector freqs = pars_arrs.getDataVDouble();
+
+        if (do_j_lc)
+            pba.computeSaveJetLightCurveAnalytic(
+                    getStrOpt("fpath_light_curve", grb_opts, AT, p_log, "", true),
+                    times, freqs);
+        if (do_j_skymap)
+            pba.computeSaveJetSkyImagesAnalytic(
+                    getStrOpt("fpath_sky_map", grb_opts, AT, p_log, "", true),
+                    times, freqs);
+    }
+
+
+    /// work on kN afterglow
+    if (save_ej_dynamics)
+        pba.saveEjectaBWsDynamics(
+                getStrOpt("fpath_dyn", kn_opts, AT, p_log, "", true),
+                (int)getDoublePar("save_dyn_every_it", kn_pars, AT, p_log, 1, true) );
+    if (run_ejecta_bws and do_ej_ele)
+        pba.setPreComputeEjectaAnalyticElectronsPars();
+
+    if (run_ejecta_bws and (do_ej_lc or do_ej_skymap)) {
+        LoadH5 pars_arrs;
+        pars_arrs.setFileName(parfile_arrs_path);
+        pars_arrs.setVarName("light_curve_times");
+        Vector times = pars_arrs.getDataVDouble();
+        pars_arrs.setVarName("light_curve_freqs");
+        Vector freqs = pars_arrs.getDataVDouble();
+        if (do_ej_lc)
+            pba.computeSaveJetLightCurveAnalytic(
+                    getStrOpt("fpath_light_curve", kn_opts, AT, p_log, "", true),
+                    times, freqs);
+        if (do_ej_skymap)
+            pba.computeSaveEjectaSkyImagesAnalytic(
+                    getStrOpt("fpath_sky_map", grb_opts, AT, p_log, "", true),
+                    times, freqs);
+    }
+
+}
+
+
+//
+//    std::unordered_map<std::string, double> pars;
+//    std::unordered_map<std::string, std::string> opts;
+//    loadParFile(pars, opts, parfile_path);
+//
+//
+//
+//
+//    std::unordered_map<std::string, double> pars;
+//    std::unordered_map<std::string, std::string> opts;
+//    loadParFile(pars, opts, parfile_path);
+//
+//    /// initialize the model
+//    PyBlastAfterglow pba(loglevel);
+//
+//    bool do_grb_dyn = getBoolOpt("do_grb_dyn", opts, AT, p_log, false, true);
+//    if (do_grb_dyn){
+//        pba.setJetStructAnalytic(pars, opts);
+//    }
+//
+//    pba.setModelPars(pars, opts);
+//
+//    if (do_grb_dyn){
+//        pba.setJetBwPars(pars, opts);
+//    }
+//
+//    bool do_kn_syn_an_lc = getBoolOpt("do_kn_syn_an_lc", opts, AT, p_log, false, true);
+//    bool do_kn_syn_an_skymap = getBoolOpt("do_kn_syn_an_skymap", opts, AT, p_log, false, true);
+//    if (do_kn_syn_an_lc or do_kn_syn_an_skymap){
+//        pba.setPreComputeEjectaAnalyticElectronsPars();
+//    }
+//
+//    LoadH5 pars_arrs;
+//    pars_arrs.setFileName(parfile_arrs_path);
+//    pars_arrs.setVarName("light_curve_times");
+//    Vector times = pars_arrs.getDataVDouble();
+//    pars_arrs.setVarName("light_curve_freqs");
+//    Vector freqs = pars_arrs.getDataVDouble();
+//    if (do_kn_syn_an_lc){
+//        pba.computeSaveJetLightCurveAnalytic(
+//                getStrOpt("fpath_grb_light_curve", opts, AT, p_log, "", true),
+//                times, freqs );
+//    }
+
+//
+//    pr.m_path_to_ejecta_id = getStrOpt("path_to_ejecta_id", opts, AT, p_log, "", true);
+//    ReadH5ThetaVinfCorrelationFile ejecta_id;
+//    ejecta_id.loadTable(pr, CurrLogLevel);
+//
+//
+//    ///
+//    pr.m_task = getStrOpt("task", opts, AT, p_log, "", true);
+//    if (pr.m_task == "evolve_gaussian_bws"){
+//        (*p_log)(LOG_INFO, AT) << "Starting task: '" << pr.m_task << "'\n";
+//        pr.initGaussianStructure(pars, opts);
+//    }
+
+
+
+
 
 //    std::cout << config.dynamics.n_vals_ode << "\n";
 
-}
+//}
