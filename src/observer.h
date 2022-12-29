@@ -146,9 +146,9 @@ public:
     }
 //    ~LatStruct(){ delete p_log; }
 
-    static std::vector<std::string> listParsUniformStruct() {
-        return {"Eiso", "Gamma0", "theta_h", "M0", "nlayers_pw"};}
-    static std::vector<std::string> listParsGaussianStruct() {
+//    static std::vector<std::string> listParsUniformStruct() {
+//        return {"Eiso", "Gamma0", "theta_h", "M0", "nlayers_pw"};}
+    static std::vector<std::string> listParametersAnalyticBlastWave() {
         return {"Eiso_c", "Gamma0c", "theta_c", "theta_w", "M0c", "nlayers_pw", "nlayers_a"};
     }
     static std::vector<std::string> listParsCustomStruct() {
@@ -163,7 +163,8 @@ public:
 //        size_t n_layers = 0;
         nlayers_pw = (size_t)getDoublePar("nlayers_pw", pars, AT, p_log, 0, true);
         nlayers_a = (size_t)getDoublePar("nlayers_a", pars, AT, p_log, 0, true);
-        std::cout << "Initializing analytic lateral structure...\n";
+        (*p_log)(LOG_INFO,AT) << "Initializing analytic lateral structure ["
+                                         << method_eats<<", nlpw="<<nlayers_pw<<", nla="<<nlayers_a<<"] \n";
 //        std::string opt = "eats_method";
 //        if ( opts.find(opt) == opts.end() ){
 //            std::cerr << " option for: " << opt
@@ -181,33 +182,41 @@ public:
 
 
         if (opts.find("type")==opts.end()){
-            std::cerr << " type of the lateral structure is not set\n"
-                      << " Exiting...";
-            std::cerr << AT << "\n";
+            (*p_log)(LOG_ERR,AT) << " type of the lateral structure is not set. " << "Exiting...";
             exit(1);
         }
         if (opts.at("type") == "uniform"){
             // uniform structure
-            for (auto & v_n : listParsUniformStruct()){
+            for (auto & v_n : listParametersAnalyticBlastWave()){
                 if (pars.find(v_n) == pars.end()){
-                    std::cerr << " not given parameter:" << v_n << " that is required for "
-                              << " uniform " << " structures " << "\n"
-                              << " Exiting...\n";
-                    std::cerr << AT << "\n";
+                    (*p_log)(LOG_ERR,AT) << " not given parameter:" << v_n << " that is required for "
+                              << " uniform " << " structures. " << " Exiting...\n";
                     exit(1);
                 }
             }
-            initUniform( getDoublePar("Eiso", pars, AT, p_log, 0, true),//(double)pars.at("Eiso"),
-                         getDoublePar("Gamma0", pars, AT, p_log, 0, true),//(double)pars.at("Gamma0"),
-                         getDoublePar("theta_h", pars, AT, p_log, 0, true),//(double)pars.at("theta_h"),
-                         getDoublePar("M0", pars, AT, p_log, -1, false),//(double)pars.at("M0"),
+            double _theta_c = getDoublePar("theta_c", pars, AT, p_log, 0, true);
+            double _theta_w = getDoublePar("theta_w", pars, AT, p_log, 0, true);
+            if (nlayers_a!=1){
+                (*p_log)(LOG_ERR, AT) << " nlayers_a must be 1 for uniform blastwave Given = "
+                    << nlayers_a <<"\n";
+                exit(1);
+            }
+            if (_theta_c!=_theta_w){
+                (*p_log)(LOG_ERR, AT) << " theta_c must be equal theta_w for uniform blast wave. Given: "
+                    << "theta_c = " << _theta_c << " theta_w = "<<_theta_w<<"\n";
+                exit(1);
+            }
+            initUniform( getDoublePar("Eiso_c", pars, AT, p_log, 0, true),//(double)pars.at("Eiso"),
+                         getDoublePar("Gamma0c", pars, AT, p_log, 0, true),//(double)pars.at("Gamma0"),
+                         getDoublePar("theta_w", pars, AT, p_log, 0, true),//(double)pars.at("theta_h"),
+                         getDoublePar("M0c", pars, AT, p_log, -1, false),//(double)pars.at("M0"),
                          nlayers,
                          method_eats//pars.at("nlayers_pw")
             );
         }
         else if (opts.at("type") == "gaussian"){
             // gaussian structure
-            for (auto & v_n : listParsGaussianStruct()){
+            for (auto & v_n : listParametersAnalyticBlastWave()){
                 if (pars.find(v_n) == pars.end()){
                     std::cerr << " not given parameter:" << v_n << " that is required for "
                               << " gaussian " << " structures " << "\n"

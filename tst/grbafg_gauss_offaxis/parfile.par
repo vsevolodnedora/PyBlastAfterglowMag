@@ -12,13 +12,23 @@
 
 * Parameters
 
-tb0 = 1.e4
+tb0 = 1.e3
 tb1 = 1.e11
 ntb = 1000
 rtol = 1e-8
 nmax = 1000
 
+n_ism = 0.00031
+d_l = 1.27e+26
+z = 0.0099
+theta_obs = 0.3752
+
 * Settings
+
+lc_freqs = array 9.9e8 1.e9 1.1e9 3.e9 4.5e9
+lc_times = array logspace 1.e4 1.e10 150
+skymap_freqs = array 9.9e8 1.e9 1.1e9 3.e9 4.5e9
+skymap_times = array logspace 8.e5 2e9 50
 
 run_jet_bws = yes
 save_j_dynamics = yes
@@ -59,18 +69,14 @@ theta_w = 0.2618
 nlayers_pw = 350
 nlayers_a = 10
 
+a = 1.0
+fraction_of_Gamma0_when_spread = 0.1
 
-a = 1
-n_ism = 0.00031
 eps_e = 0.0708
 eps_b = 0.0052
 eps_t = 0.
 p = 2.16
 ksi_n = 1.
-d_l = 1.27e+26
-z = 0.0099
-theta_obs = 0.3752
-fraction_of_Gamma0_when_spread = .1,
 
 freq1 = 1.e5
 freq2 = 1.e22
@@ -83,14 +89,14 @@ save_dyn_every_it = 10
 type = gaussian
 gflat = no
 
-fpath_dyn = ../../tst/dynamics/dyn_grb_gauss.h5
-fpath_light_curve = ../../tst/dynamics/lc_grb_gauss.h5
-fpath_sky_map = ../../tst/dynamics/skymap_grb_gauss.h5
+fname_dyn = dyn_grb_gauss.h5
+fname_light_curve = lc_grb_gauss.h5
+fname_sky_map = skymap_grb_gauss.h5
 
 method_spread = AA
 method_dgdr = our
 method_eos = Nava13
-method_GammaSh = useJKwithGammaRel  # default -- "useGamma",
+method_GammaSh = useJKwithGammaRel  # default -- "useGamma"
 method_Up = useEint2
 method_Delta = useJoh06
 use_adiabLoss = yes
@@ -105,7 +111,7 @@ method_tau = smooth
 use_ssa = yes
 emissivity = em
 absorption = abs
-method_comp_mode = observFlux   # "comovSpec",
+method_comp_mode = observFlux   # "comovSpec"
 method_quad = CADRE
 
 # --------------------------- END ---------------------------
@@ -117,65 +123,6 @@ method_quad = CADRE
 * Settings
 
 type = numeric
-path_to_ejecta_id = ../../tst/dynamics/corr_vel_inf_theta.h5
+fpath_ejecta_id = corr_vel_inf_theta.h5
 
 # --------------------------- END ---------------------------
-
-
-
-
-
-
-
-* Model Parameters
-
-# Analytic structure (gaussian)
-
-Eiso_c = 5.e51
-Gamma0c = 100.
-theta_c = 0.05235987755982988   #   3.*CGS::pi/180.
-theta_w = 0.17453292519943295   #   10.*CGS::pi/180
-M0c = -1
-layers_pw = 100
-nalyers_a = 10
-
-# Analytic structure (uniform)
-
-Eiso = 1e53.        # Energy
-Gamma0 = 1000.      # LF
-theta_h = 0.1       # Open. Angle
-M0 = -1             # Mass
-n_layers_pw = 100
-n_layers_a = 1
-
-# ------------------------ kN afterglow ----------------------
-
-n_ism = 0.000031    # cm^-3
-eps_e = 0.070794
-eps_b = 0.005248
-
-# -----------------------------------------------------------
-* Model Settings
-
-analytic_structure_type = gaussian      # which analytic structure to use
-
-eats_method = piece-wise    # how do discretize blast waves into 'layers_pw' or 'nlayers_a' angular elements
-gflat = yes           # for structured blastwave : use flat Gamma distribution
-
-path_to_ejecta_id = ../../tst/dynamics/corr_vel_inf_theta.h5
-
-# ------------------------------------------------------------
-# Tasks
-
-do_grb_dyn = yes
-do_grb_ele = yes
-do_grb_syn_an_lc = yes
-do_grb_syn_an_skymap = yes
-
-do_kn_dyn = yes
-do_kn_ele = yes
-do_kn_syn_an_lc = yes
-do_kn_syn_an_skymap = yes
-
-fpath_grb_light_curve = "../../tst/dynamics/lcs.h5"
-

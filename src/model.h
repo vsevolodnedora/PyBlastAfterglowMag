@@ -58,8 +58,8 @@ public:
     }
 
     /// set jet lateral structure
-    static auto listParsUniformJetStruct(){ return LatStruct::listParsUniformStruct(); }
-    static auto listParsGaussianJetStruct(){ return LatStruct::listParsGaussianStruct(); }
+//    static auto listParsUniformJetStruct(){ return LatStruct::listParametersAnalyticBlastWave(); }
+    static auto listParametersAnalyticBlastWave(){ return LatStruct::listParametersAnalyticBlastWave(); }
     static auto listJetStructOpts(){ return LatStruct::listStructOpts(); }
     void setJetStructAnalytic(StrDbMap pars, StrStrMap opts){
         jetStruct.initAnalytic( pars, opts, p_pars->method_eats, p_pars->loglevel );

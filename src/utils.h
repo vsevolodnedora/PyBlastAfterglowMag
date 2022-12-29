@@ -305,7 +305,7 @@ std::ostream& stream_arr(std::ostream& os, vecarr &data, std::vector<std::string
 
     tmp.insert(tmp.begin(), "# ");
 
-    // print the first row of var names_lc with '#' for (for python read)
+    // print the first row of var names_lc with '#' for (for PyBlastAfterglow read)
     for (size_t i = 0 ; i < n_names+1; i++){
         os << tmp[i]<<" ";
     }
@@ -349,7 +349,7 @@ void remove_file_if_existis(const std::string &fname){
 
 
 /*
- * Print Array in a form to copy-past in python
+ * Print Array in a form to copy-past in PyBlastAfterglow
  */
 static void print_xy_as_numpy(double * x_arr, double * y_arr, int nxy, int ever_i=10) {
     int i = 0;

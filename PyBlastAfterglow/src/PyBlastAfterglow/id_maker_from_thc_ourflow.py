@@ -1,4 +1,4 @@
-#! /usr/python/python3
+#! /usr/PyBlastAfterglow/python3
 
 '''
     This script reads output files from postprocessing outflowed.cc code that
