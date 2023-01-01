@@ -83,16 +83,14 @@ public:
         exit(1);
     }
     static std::vector<std::string> listParsNumericEjectaStruct(){ return VelocityAngularStruct::list_pars_v_ns(); }
-    void setEjectaStructNumericUniformInTheta(Vector & dist_thetas0, Vector & dist_EEs,
-                                              Vector & dist_Gam0s, Vector & dist_MM0s, size_t nlayers, double mfac=1.,
-                                              std::string method_eats="piece-wise"){
-        ejectaStructs.initUniform(dist_thetas0,dist_EEs,dist_Gam0s,dist_MM0s,nlayers,mfac,
-                                  method_eats);
+    void setEjectaStructNumericUniformInTheta(Vector & dist_thetas0, Vector & dist_betas, Vector & dist_ek,
+                                              size_t nlayers, double mfac){
+        ejectaStructs.initUniform(dist_thetas0,dist_betas,dist_ek, nlayers,mfac,
+                                  p_pars->method_eats, p_pars->loglevel);
         p_pars->is_ejecta_struct_set = true;
     }
-    void setEjectaStructNumeric(Vector dist_thetas, Vector dist_betas,
-                                VecVector dist_ek, double mfac, bool force_grid){
-        ejectaStructs.initCustom(dist_thetas, dist_betas, dist_ek, mfac, force_grid,
+    void setEjectaStructNumeric(Vector dist_thetas, Vector dist_betas, VecVector dist_ek, bool force_grid){
+        ejectaStructs.initCustom(dist_thetas, dist_betas, dist_ek, force_grid,
                                  p_pars->method_eats, p_pars->loglevel);
         p_pars->is_ejecta_struct_set = true;
     }

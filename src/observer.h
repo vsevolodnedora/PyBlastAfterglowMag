@@ -275,6 +275,7 @@ public:
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "LatStruct");
 
         m_method_eats = setEatsMethod(eats_method);
+//        nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
 
         if (dist_thetas.empty() || dist_EEs.empty() || dist_Gam0s.empty()
             //            || dist_Beta0s.empty()
@@ -304,22 +305,41 @@ public:
             exit(1);
         }
 
+        if (dist_thetas[dist_thetas.size()-1] > CGS::pi/2.){
+            (*p_log)(LOG_ERR,AT) << "wrong initial data dist_thetas[-1]="
+                                 << dist_thetas[dist_thetas.size()-1]<<" > pi/2.="<<CGS::pi/2.<<"\n";
+            exit(1);
+        }
+        if (dist_thetas[0] < 0.){
+            (*p_log)(LOG_ERR,AT) << "wrong initial data dist_thetas[]="
+                                 << dist_thetas[dist_thetas.size()-1]<<" < 0.\n";
+            exit(1);
+        }
+
         method = iCustom;
         m_theta_w = dist_thetas[dist_thetas.size()-1];
         m_theta_c = dist_thetas[dist_thetas.size()-1];
 
-
-
         // set piece-wise
         nlayers_pw = dist_thetas.size();
         nlayers_a = dist_thetas.size();
-        dist_E0_pw.resize( nlayers_pw );
-        dist_G0_pw.resize( nlayers_pw );
-        dist_M0_pw.resize( nlayers_pw );
+        nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
+        dist_E0_pw.resize( nlayers );
+        dist_G0_pw.resize( nlayers );
+        dist_M0_pw.resize( nlayers );
         setThetaGridPW();
-        if ((!force_grid) && (cthetas0[0] != dist_thetas[0] || cthetas0[nlayers_pw-1] != dist_thetas[nlayers_pw-1])){
-            std::cerr << "Angular grid mismatch. Interpolating. No. Exititng...";
-            std::cerr << AT << "\n";
+        if ((!force_grid) && (cthetas0[0] != dist_thetas[0] || cthetas0[nlayers-1] != dist_thetas[nlayers-1])){
+            std::cerr << "force_grid="<<force_grid<<"\n";
+            std::cerr << "dist_thetas.size()="<<dist_thetas.size()<<" cthetas0.size()="<<cthetas0.size()<< "\n";
+            std::cerr << "dist_thetas = " << dist_thetas << "\n";
+            std::cerr << "cthetas0    = " << cthetas0 << "\n";
+            (*p_log)(LOG_ERR,AT) << "angular grid mismatch: "
+                << "cthetas0[0]="<<cthetas0[0]<<" != dist_thetas[0]="<<dist_thetas[0]
+                <<" OR cthetas[nlayers-1]="<<cthetas0[nlayers-1]
+                <<" != dist_thetas[nlayers_pw-1]="<<dist_thetas[nlayers-1]
+                <<" [nlayers="<<nlayers<<", " << eats_method << "]\n";
+//            std::cerr << "Angular grid mismatch. Interpolating. No. Exititng...";
+//            std::cerr << AT << "\n";
             exit(1);
 
             Array arr_cthetas ( dist_thetas.data(), dist_thetas.size() );
@@ -343,7 +363,7 @@ public:
             dist_M0_pw = dist_MM0s;
         }
 
-        for (size_t i = 0; i < nlayers_pw; ++i){
+        for (size_t i = 0; i < nlayers; ++i){
             dist_E0_pw[i] /= (double)CellsInLayer(i);
             dist_M0_pw[i] /= (double)CellsInLayer(i);
         }
@@ -352,7 +372,7 @@ public:
         // TODO IMPLEMENT ! But it might require re-inteprolation of angular dostributions as [a] and [pw] thetagrids differ
 
 
-        nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
+//        nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
 
     }
 
@@ -412,7 +432,7 @@ private:
         cthetas0.resize( nlayers_pw );
         for (size_t i = 0; i < nlayers_pw + 1; i++){
             double fac = (double)i / (double)nlayers_pw;
-            theta_pw[i] = 2.0 * asin( fac * sin(m_theta_w / 2.0 ) );
+            theta_pw[i] = 2.0 * std::asin( fac * std::sin(m_theta_w / 2.0 ) );
         }
 
         thetas_h0_pw.resize(nlayers_pw );
@@ -541,7 +561,7 @@ public:
     static std::vector<std::string> list_arr_v_ns() { return {"dist_thetas", "dist_EEs", "dist_Gam0s", "dist_MM0s"}; }
     static std::vector<std::string> list_pars_v_ns() { return {"nlayers", "mfac"}; };
     static std::vector<std::string> list_opts_v_ns() { return {"force_grid"}; }
-    void initUniform( Vector & dist_thetas0, Vector & dist_EEs, Vector & dist_Gam0s, Vector & dist_MM0s, size_t nlayers, double mfac=1.,
+    void initUniform( Vector & dist_thetas0, Vector & dist_betas, Vector & dist_ek, size_t nlayers, double mfac=1.,
                       std::string eats_method="piece-wise", unsigned loglevel=CurrLogLevel){
 
 //        p_log = new logger(std::cout, CurrLogLevel, "LatStruct");
@@ -549,40 +569,46 @@ public:
 //        p_log->set_log_level(loglevel);
 
         method = iUniform;
-        if ( dist_EEs.empty() || dist_Gam0s.empty()
-             //            || dist_Beta0s.empty()
-             || dist_MM0s.empty()){
-            std::cerr << " One of the input arrays is empty: "
-                      << "dist_thetas0(" << dist_thetas0.size()
-                      << ") dist_EEs(" << dist_EEs.size()
-                      << ") dist_Gam0s(" << dist_Gam0s.size()
-                      //                                  << ") dist_Beta0s(" << dist_Beta0s.size()
-                      << ") dist_MM0s(" << dist_MM0s.size() << ")\n"
+        if ( dist_ek.empty() || dist_betas.empty()){
+            (*p_log)(LOG_ERR,AT) << " One of the input arrays is empty: "
+                      << "dist_thetas(" << dist_thetas0.size()
+                      << ") dist_betas(" << dist_betas.size()
                       << " Exiting...\n";
-            std::cerr << AT << "\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
 
-        if ( dist_Gam0s.size()  != dist_EEs.size()
-             //            || dist_Beta0s.size() != dist_EEs.size()
-             || dist_MM0s.size()   != dist_EEs.size() ){
-            std::cerr << " Mismatch in input array size "
+        if ( (dist_betas.size()  != dist_ek.size()) || (dist_betas.size() != dist_thetas0.size()) ){
+            (*p_log)(LOG_ERR,AT) << " Mismatch in input array size "
                       << "dist_thetas0(" << dist_thetas0.size()
-                      << ") dist_EEs(" << dist_EEs.size()
-                      << ") dist_Gam0s(" << dist_Gam0s.size()
-                      //                                  << ") dist_Beta0s(" << dist_Beta0s.size()
-                      << ") dist_MM0s(" << dist_MM0s.size() << ")\n"
-                      << " Exiting...\n";
-            std::cerr << AT << "\n";
+                      << ") dist_ek(" << dist_ek.size()
+                      << ") dist_betas(" << dist_betas.size()
+                      << ") Exiting...\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
-        nshells = dist_EEs.size();
+        for (size_t i = 0; i < dist_betas.size(); i++){
+            if (dist_betas[i] <= 0.0){
+                (*p_log)(LOG_ERR,AT)<<"bad value in initial data: beta["<<i<<"] = "<<dist_betas[i]<<"\n";
+                exit(1);
+            }
+        }
+
+        Vector dist_gams ( dist_betas.size(), 0.0 );
+        for (size_t i = 0; i < dist_betas.size(); i++)
+            dist_gams[i] = EQS::Gamma(dist_betas[i]);
+
+        Vector dist_masses ( dist_betas.size(), 0.0 );
+        for (size_t i = 0; i < dist_betas.size(); i++) // _mass * cgs.solar_m * (_vinf * _vinf * cgs.c * cgs.c)
+            dist_masses[i] = dist_ek[i]/(dist_betas[i]*dist_betas[i]*CGS::c*CGS::c);
+
+        nshells = dist_ek.size();
         for (size_t ibeta = 0; ibeta < nshells; ibeta++){
             structs.emplace_back( LatStruct() );
-            structs[ibeta].initUniform(dist_EEs[ibeta]*mfac,
-                                       dist_Gam0s[ibeta],
+            structs[ibeta].initUniform(dist_ek[ibeta]*mfac,
+                                       dist_gams[ibeta],
                                        dist_thetas0[ibeta],
-                                       dist_MM0s[ibeta]*mfac,
+                                       dist_masses[ibeta]*mfac,
                                        nlayers,
                                        eats_method);
 
@@ -595,7 +621,7 @@ public:
      * @param dist_ek      VecVec[n_betas][n_thetas]
      * @param mfac
      */
-    void initCustom( Vector & dist_thetas, Vector & dist_betas, VecVector & dist_ek, double mfac=1., bool force_grid=true,
+    void initCustom( Vector & dist_thetas, Vector & dist_betas, VecVector & dist_ek, bool force_grid=true,
                      std::string method_eats="piece-wise", unsigned loglevel=CurrLogLevel){
 
 //        p_log = new logger(std::cout, CurrLogLevel, "LatStruct");
@@ -690,9 +716,9 @@ public:
                 mass_layer[ith] = ek_layer[ith] / (dist_betas[ibeta] * dist_betas[ibeta] * CGS::c * CGS::c);
             }
             /// emplace the layer grid
-            structs.emplace_back( LatStruct() );
+            structs.emplace_back( LatStruct() );// TODO this is necessary to avoid segfault but should be replaced.
             structs[structs.size()-1].initCustom(dist_thetas, ek_layer, gammas, mass_layer,
-                                                 force_grid,method_eats,loglevel);
+                                                    force_grid,method_eats,loglevel);
             n_shells += 1;
 
 #if 0

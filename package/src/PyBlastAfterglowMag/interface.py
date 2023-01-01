@@ -24,6 +24,23 @@ def latex_float(f, format="{0:.2g}"):
     else:
         return float_str
 
+def make_prefix_for_pars(pars, keys=("n_ism", "theta_obs", "eps_e", "eps_b", "p", "eps_t", "nlayers", "d_l")):
+    fname = ""
+    for key in keys:
+        if ((key == "theta_obs")or(key=="theta_c")or(key=="theta_w")):
+            val = "{:.1f}".format( float(pars[key]/np.pi*180.) )
+        elif (key == "d_l"):
+            val = pars[key] / 1.e9 / cgs.pc
+        else:
+            val = pars[key]
+        if len(str(val)) > 7:
+            val = "{:.5f}".format(val)
+        val = str(val).replace(".", "")
+        fname+=key.replace("_","")
+        fname+=val
+        fname+="_"
+    return fname
+
 class cgs:
 
     pi = 3.141592653589793
@@ -180,7 +197,7 @@ class PBA_BASE:
         Pars initial data and parameters into C++ code interface
         Load result files
     '''
-    def __init__(self, workingdir, readparfileforpaths=True):
+    def __init__(self, workingdir, readparfileforpaths=True,parfile="pafile.par"):
 
         if not os.path.isdir(workingdir):
             raise IOError("Working directory not found {}".format(workingdir))
@@ -192,14 +209,14 @@ class PBA_BASE:
         self.kn_prefix = "kn_"
         # ------------------ MAIN
         if readparfileforpaths:
-            self.main_pars, self.main_opts = self.read_main_part_parfile()
+            self.main_pars, self.main_opts = self.read_main_part_parfile(parfile)
         # ------------------ GRB
         self.fpath_grb_dyn = None
         self.fpath_grb_spec = None
         self.fpath_grb_light_curve = None
         self.fpath_grb_sky_map = None
         if readparfileforpaths:
-            self.grb_pars, self.grb_opts = self.read_grb_part_parfile()
+            self.grb_pars, self.grb_opts = self.read_grb_part_parfile(parfile)
         else:
             self.fpath_grb_dyn = self.res_dir_kn + self.grb_prefix + "dynamics_layers.h5"
             self.fpath_grb_spec = self.res_dir_kn + self.grb_prefix + "spectra.h5"
@@ -211,7 +228,7 @@ class PBA_BASE:
         self.fpath_kn_light_curve = None
         self.fpath_kn_sky_map = None
         if readparfileforpaths:
-            self.kn_pars, self.kn_opts = self.read_kn_part_parfile()
+            self.kn_pars, self.kn_opts = self.read_kn_part_parfile(parfile)
         else:
             self.fpath_kn_dyn = self.res_dir_kn + self.kn_prefix + "dynamics_layers.h5"
             self.fpath_kn_spec = self.res_dir_kn + self.kn_prefix + "spectra_layers.h5"
@@ -256,13 +273,13 @@ class PBA_BASE:
         if (not self.kn_skymap_dfile is None):
             self.kn_skymap_dfile.close()
             self.kn_skymap_dfile = None
-    def read_main_part_parfile(self):
-        main_pars, main_opts = read_parfile(workingdir=self.workingdir,fname="parfile.par",comment="#",
+    def read_main_part_parfile(self, parfile="parfile.par"):
+        main_pars, main_opts = read_parfile(workingdir=self.workingdir,fname=parfile,comment="#",
                                           sep1="# -------------------------- main ---------------------------",
                                           sep2="# --------------------------- END ---------------------------")
         return (main_pars,main_opts)
-    def read_grb_part_parfile(self):
-        grb_pars, grb_opts = read_parfile(workingdir=self.workingdir,fname="parfile.par",comment="#",
+    def read_grb_part_parfile(self,parfile="parfile.par"):
+        grb_pars, grb_opts = read_parfile(workingdir=self.workingdir, fname=parfile,comment="#",
                                           sep1="# ---------------------- GRB afterglow ----------------------",
                                           sep2="# --------------------------- END ---------------------------")
         if "fname_dyn" in grb_opts.keys(): self.fpath_grb_dyn = self.res_dir_grb + grb_opts["fname_dyn"]
@@ -270,8 +287,8 @@ class PBA_BASE:
         if "fname_light_curve" in grb_opts.keys(): self.fpath_grb_light_curve = self.res_dir_grb + grb_opts["fname_light_curve"]
         if "fname_sky_map" in grb_opts.keys(): self.fpath_grb_sky_map = self.res_dir_grb + grb_opts["fname_sky_map"]
         return (grb_pars,grb_opts)
-    def read_kn_part_parfile(self):
-        kn_pars, kn_opts = read_parfile(workingdir=self.workingdir,fname="parfile.par",comment="#",
+    def read_kn_part_parfile(self,parfile="parfile.par"):
+        kn_pars, kn_opts = read_parfile(workingdir=self.workingdir, fname=parfile,comment="#",
                                           sep1="# ----------------------- kN afterglow ----------------------",
                                           sep2="# --------------------------- END ---------------------------")
         if "fname_dyn" in kn_opts.keys(): self.fpath_kn_dyn = self.res_dir_kn + kn_opts["fname_dyn"]
@@ -279,33 +296,55 @@ class PBA_BASE:
         if "fname_light_curve" in kn_opts.keys(): self.fpath_kn_light_curve = self.res_dir_kn + kn_opts["fname_light_curve"]
         if "fname_sky_map" in kn_opts.keys(): self.fpath_kn_sky_map = self.res_dir_kn + kn_opts["fname_sky_map"]
         return (kn_pars,kn_opts)
-    def modify_main_part_parfile(self, newpars : dict, newopts : dict, reload_parfile=True):
-        modify_parfile(newpars=newpars,newopts=newopts,workingdir=self.workingdir,comment="#",fname="parfile.par",
+    # def modify_parfile(self, base_parfile,
+    #                    new_main_pars:dict, new_main_opts:dict,
+    #                    new_grb_pars:dict, new_grb_opts:dict,
+    #                    new_kn_pars:dict, new_kn_opts:dict):
+    #     if(len(new_main_pars.keys())+len(new_main_opts.keys())>0):
+    #         modify_parfile(newpars=new_main_pars,newopts=new_main_opts,workingdir=self.workingdir,
+    #                        comment="#",fname=de,
+    #                        newfname="parfile2.par",
+    #                        sep1="# -------------------------- main ---------------------------",
+    #                        sep2="# --------------------------- END ---------------------------")
+    #         copyfile(self.workingdir+"parfile.par",self.workingdir+"old_parfile.par")
+    #         copyfile(self.workingdir+"parfile2.par",self.workingdir+"parfile.par")
+    #         os.remove(self.workingdir+"parfile2.par")
+    #
+    #
+    #
+    #
+    #     if (reload_parfile): self.main_pars, self.main_opts = self.read_main_part_parfile()
+    def modify_main_part_parfile(self, newpars : dict, newopts : dict, parfile="parfile.par"):
+        modify_parfile(newpars=newpars,newopts=newopts,workingdir=self.workingdir,comment="#",fname=parfile,
                        newfname="parfile2.par",
                        sep1="# -------------------------- main ---------------------------",
                        sep2="# --------------------------- END ---------------------------")
         copyfile(self.workingdir+"parfile.par",self.workingdir+"old_parfile.par")
         copyfile(self.workingdir+"parfile2.par",self.workingdir+"parfile.par")
         os.remove(self.workingdir+"parfile2.par")
-        if (reload_parfile): self.main_pars, self.main_opts = self.read_main_part_parfile()
-    def modify_grb_part_parfile(self, newpars : dict, newopts : dict, reload_parfile=True):
-        modify_parfile(newpars=newpars,newopts=newopts,workingdir=self.workingdir,comment="#",fname="parfile.par",
+        # if (reload_parfile): self.main_pars, self.main_opts = self.read_main_part_parfile()
+    def modify_grb_part_parfile(self, newpars : dict, newopts : dict,parfile="parfile.par"):
+        modify_parfile(newpars=newpars,newopts=newopts,workingdir=self.workingdir,comment="#",fname=parfile,
                        newfname="parfile2.par",
                        sep1="# ---------------------- GRB afterglow ----------------------",
                        sep2="# --------------------------- END ---------------------------")
         copyfile(self.workingdir+"parfile.par",self.workingdir+"old_parfile.par")
         copyfile(self.workingdir+"parfile2.par",self.workingdir+"parfile.par")
         os.remove(self.workingdir+"parfile2.par")
-        if (reload_parfile): self.grb_pars, self.grb_opts = self.read_grb_part_parfile()
-    def modify_kn_part_parfile(self, newpars : dict, newopts : dict, reload_parfile=True):
-        modify_parfile(newpars=newpars,newopts=newopts,workingdir=self.workingdir,comment="#",fname="parfile.par",
+        # if (reload_parfile): self.grb_pars, self.grb_opts = self.read_grb_part_parfile()
+    def modify_kn_part_parfile(self, newpars : dict, newopts : dict,parfile="parfile.par"):
+        modify_parfile(newpars=newpars,newopts=newopts,workingdir=self.workingdir,comment="#",fname=parfile,
                        newfname="parfile2.par",
                        sep1="# ----------------------- kN afterglow ----------------------",
                        sep2="# --------------------------- END ---------------------------")
         copyfile(self.workingdir+"parfile.par",self.workingdir+"old_parfile.par")
         copyfile(self.workingdir+"parfile2.par",self.workingdir+"parfile.par")
         os.remove(self.workingdir+"parfile2.par")
-        if (reload_parfile): self.kn_pars, self.kn_opts = self.read_kn_part_parfile()
+        # if (reload_parfile): self.kn_pars, self.kn_opts = self.read_kn_part_parfile()
+    def reload_parfile(self):
+        self.main_pars, self.main_opts = self.read_main_part_parfile()
+        self.grb_pars, self.grb_opts = self.read_grb_part_parfile()
+        self.kn_pars, self.kn_opts = self.read_kn_part_parfile()
     def run(self):
         # this mess is because I did not figure out how $PATH thing works...
         curdir = os.getcwd()
@@ -439,8 +478,8 @@ class BPA_METHODS(PBA_BASE):
     '''
         Process output_uniform_grb files: load, extract for a specific way
     '''
-    def __init__(self, workingdir,readparfileforpaths=True):
-        super().__init__(workingdir=workingdir,readparfileforpaths=readparfileforpaths)
+    def __init__(self, workingdir,readparfileforpaths=True,parfile="parfile.par"):
+        super().__init__(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile)
 
     # jet dynamics
 

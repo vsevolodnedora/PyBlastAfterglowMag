@@ -1,6 +1,5 @@
-#! /usr/PyBlastAfterglow/python3
-
 '''
+
     This script reads output files from postprocessing outflowed.cc code that
     in turn postprocesses the output of the WhiskyTHC NR GRHD code.
     Input files can be: * hist_vel_inf.dat or "corr_vel_inf_theta.h5" *
@@ -22,6 +21,9 @@ import copy
 import os
 import sys
 import argparse
+
+# import package.src.PyBlastAfterglowMag.rebin
+# from .rebin import rebin
 
 
 rebin_paths = [
@@ -267,7 +269,7 @@ def prepare_kn_ej_id_2d(nlayers, corr_fpath, outfpath):
                                             reinterpolate_theta=True,
                                             new_theta_len=nlayers if nlayers > 0 else None)
 
-    theta_corr, vinf_corr, mass_corr = clean_data_corr(thetas, betas, masses, True)
+    theta_corr, vinf_corr, mass_corr = clean_data_corr(thetas, betas, masses, remove_pi_over_2=True)
     ek_corr = compute_ek_corr(vinf_corr, mass_corr).T  # [n_beta, n_theta]
     print(theta_corr.shape, vinf_corr.shape, ek_corr.shape)
     # EjectaEk.plot_corr(theta_corr, vinf_corr, ek_corr)
@@ -279,14 +281,16 @@ def prepare_kn_ej_id_2d(nlayers, corr_fpath, outfpath):
 
     # self.o_pba.setEjectaStructNumeric(theta_corr2, vinf_corr2, ek_corr2, fac, True, self.pars_kn["eats_method"])
 
+    print(len(theta_corr2), theta_corr2)
     dfile = h5py.File(outfpath, "w")
     dfile.create_dataset("theta",data=theta_corr2)
     dfile.create_dataset("vel_inf",data=vinf_corr2)
     dfile.create_dataset("ek",data=ek_corr2)
     dfile.close()
+    print("file saved: {}".format(outfpath))
 def prepare_kn_ej_id_1d(nlayers, hist_fpath, outfpath):
     betas, masses = load_vinf_hist(hist_fpath=hist_fpath)
-    thetas = np.full_like(betas, np.pi / 2.)
+    # thetas = np.full_like(betas, np.pi / 2.)
 
     # vinf_hist, mass_hist = o_data.load_vinf_hist()
     assert len(betas) == len(masses)
@@ -294,8 +298,8 @@ def prepare_kn_ej_id_1d(nlayers, hist_fpath, outfpath):
     ek_hist = compute_ek_hist(vinf_hist, mass_hist)
     # ek_hist = np.cumsum(ek_hist)
     # vinf_hist = np.sqrt(ek_hist/mass_hist/cgs.solar_m)/cgs.c
-    theta_hist = np.zeros_like(ek_hist)
-    theta_hist.fill(thetas)
+    # theta_hist = np.zeros_like(ek_hist)
+    theta_hist = np.full_like(vinf_hist, np.pi / 2.)
     gam_hist = get_Gamma(vinf_hist)
     if (len(gam_hist[~np.isfinite(gam_hist)]) > 0):
         raise ValueError("nan in gammas for beta={}".format(vinf_hist))
@@ -306,9 +310,10 @@ def prepare_kn_ej_id_1d(nlayers, hist_fpath, outfpath):
 
     dfile = h5py.File(outfpath, "w")
     dfile.create_dataset("theta", data=theta_hist)
-    dfile.create_dataset("vel_inf", data=ek_hist)
+    dfile.create_dataset("vel_inf", data=vinf_hist)
     dfile.create_dataset("ek", data=ek_hist)
     dfile.close()
+    print("file saved: {}".format(outfpath))
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
