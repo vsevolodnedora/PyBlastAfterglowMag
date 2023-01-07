@@ -17,6 +17,75 @@ struct LatStruct{
 private:
 //    logger * p_log;
     std::unique_ptr<logger> p_log;
+
+private:
+
+    /**
+     * Computes the number of 'phi' cell in each 'theta' layer
+     *
+     * @param i_layer index of the 'theta' layer
+     * @return
+     */
+
+    void setThetaGridPW(){
+        theta_pw.resize( nlayers_pw + 1 );
+        cthetas0.resize( nlayers_pw );
+        for (size_t i = 0; i < nlayers_pw + 1; i++){
+            double fac = (double)i / (double)nlayers_pw;
+            theta_pw[i] = 2.0 * std::asin( fac * std::sin(m_theta_w / 2.0 ) );
+        }
+
+        thetas_h0_pw.resize(nlayers_pw );
+        for (size_t i = 0; i < nlayers_pw; ++i){
+            cthetas0[i] = 0.5 * ( theta_pw[i+1] + theta_pw[i] );
+            thetas_h0_pw[i] = theta_pw[i + 1];
+        }
+//        ncells_pw = 0;
+
+        /// compute the number of phi cells in each 'theta' layer
+        cil.resize( nlayers_pw );
+        for (size_t i = 0; i < nlayers_pw; i++)
+            cil[i] = CellsInLayer(i);
+        ncells = cil.sum(); /// total number of cells
+
+//        std::cout << thetas << "\n";
+//        std::cout << cthetas0 << "\n";
+//        exit(1);
+
+
+//        cil.resize( nlayers_pw );
+//        for (size_t i = 0; i < nlayers_pw; i++){ cil[i] = CellsInLayer(i); }
+//        for (size_t i = 1; i < nlayers_pw; i++){ cil[i] += cil[i-1]; }
+//        ncells = cil.sum();
+
+    }
+
+    void setThetaGridA() {
+
+        thetas_c_l.resize( nlayers_a );
+        thetas_c_h.resize( nlayers_a );
+        thetas_c.resize( nlayers_a );
+
+        double dtheta = m_theta_w / (double) nlayers_a;
+//        double _tmp=0;
+        for (size_t i = 0; i < nlayers_a; i++) {
+
+            /// account for geometry
+            double theta_c_i = (double)i * dtheta + dtheta / 2.;
+            double i_theta_c_l = (double) i * dtheta;
+            double i_theta_c_h = (double) (i + 1) * dtheta;
+//            double i_theta_h = i_theta_c_h;
+
+            thetas_c[i] = theta_c_i ;
+            thetas_c_l[i] = i_theta_c_l ;
+            thetas_c_h[i] = i_theta_c_h ;
+//            std::cout << "ilayer=" << i << "theta"
+//            _tmp+=i_theta_c_h;
+        }
+//        std::cout << "theta_w="<<m_theta_w<<" thetas_c_h[-1]=" << thetas_c_h[thetas_c_h.m_size()-1] << "\n";
+//        exit(0);
+    }
+
 public:
 
     enum METHOD_eats{i_pw, i_adap};
@@ -109,15 +178,14 @@ public:
         dist_G0_pw.resize( nlayers_pw );
         dist_M0_pw.resize( nlayers_pw );
         setThetaGridPW();
-        double ang_size_layer = 2.0 * CGS::pi * ( 2.0 * sin(0.5 * theta_w) * sin(0.5 * theta_w) );
+        double ang_size_layer = 2.0 * CGS::pi * ( 2.0 * std::sin(0.5 * theta_w) * std::sin(0.5 * theta_w) );
         for (size_t i = 0; i < cthetas0.size(); i++){
-            dist_E0_pw[i] = E_iso_c * ang_size_layer / (4.0 * CGS::pi) * exp( -1. * cthetas0[i] * cthetas0[i] / (theta_c * theta_c) );
+            dist_E0_pw[i] = E_iso_c * ang_size_layer / (4.0 * CGS::pi) * std::exp( -1. * cthetas0[i] * cthetas0[i] / (theta_c * theta_c) );
             if (gflat)
                 dist_G0_pw[i] = Gamma0c;
             else
-                dist_G0_pw[i] = 1. + (Gamma0c - 1.) * exp( -1. * cthetas0[i] * cthetas0[i] / (2. * theta_c * theta_c) );
+                dist_G0_pw[i] = 1. + (Gamma0c - 1.) * std::exp( -1. * cthetas0[i] * cthetas0[i] / (2. * theta_c * theta_c) );
             dist_M0_pw[i] = dist_E0_pw[i] / (dist_G0_pw[i] * CGS::c * CGS::c);
-
             dist_E0_pw[i] /= (double)ncells;
             dist_M0_pw[i] /= (double)ncells;
         }
@@ -128,10 +196,9 @@ public:
         dist_E0_a.resize( nlayers_a );
         dist_G0_a.resize( nlayers_a );
         dist_M0_a.resize( nlayers_a );
-        setThetaGridPW();
         for (size_t i = 0; i < nlayers_a; i++) {
-            double frac_of_solid_ang = 2 * sin(0.5 * thetas_c_h[i]) * sin(0.5 * thetas_c_h[i]);
-            dist_E0_a[i] = E_iso_c * exp(-0.5 * ( thetas_c[i] * thetas_c[i] / theta_c / theta_c ) );
+            double frac_of_solid_ang = 2 * std::sin(0.5 * thetas_c_h[i]) * std::sin(0.5 * thetas_c_h[i]);
+            dist_E0_a[i] = E_iso_c * std::exp(-0.5 * ( thetas_c[i] * thetas_c[i] / theta_c / theta_c ) );
             if (gflat)
                 dist_G0_a[i] = Gamma0c;
             else
@@ -328,7 +395,8 @@ public:
         dist_G0_pw.resize( nlayers );
         dist_M0_pw.resize( nlayers );
         setThetaGridPW();
-        if ((!force_grid) && (cthetas0[0] != dist_thetas[0] || cthetas0[nlayers-1] != dist_thetas[nlayers-1])){
+        if ((!force_grid) &&
+            (cthetas0[0] != dist_thetas[0] || cthetas0[nlayers-1] != dist_thetas[nlayers-1])){
             std::cerr << "force_grid="<<force_grid<<"\n";
             std::cerr << "dist_thetas.size()="<<dist_thetas.size()<<" cthetas0.size()="<<cthetas0.size()<< "\n";
             std::cerr << "dist_thetas = " << dist_thetas << "\n";
@@ -370,6 +438,34 @@ public:
 
         // set adaptive
         // TODO IMPLEMENT ! But it might require re-inteprolation of angular dostributions as [a] and [pw] thetagrids differ
+//        nlayers_a = n_layers_a;
+        setThetaGridA();
+        if ((!force_grid) &&
+            (thetas_c[0] != dist_thetas[0] || thetas_c[nlayers-1] != dist_thetas[nlayers-1])){
+            std::cerr << "force_grid="<<force_grid<<"\n";
+            std::cerr << "thetas_c.size()="<<dist_thetas.size()<<" thetas_c.size()="<<cthetas0.size()<< "\n";
+            std::cerr << "dist_thetas = " << dist_thetas << "\n";
+            std::cerr << "thetas_c    = " << thetas_c << "\n";
+            (*p_log)(LOG_ERR,AT) << "angular grid mismatch: "
+                                 << "thetas_c[0]="<<thetas_c[0]<<" != dist_thetas[0]="<<dist_thetas[0]
+                                 <<" OR thetas_c[nlayers-1]="<<thetas_c[nlayers-1]
+                                 <<" != dist_thetas[nlayers_a-1]="<<dist_thetas[nlayers-1]
+                                 <<" [nlayers="<<nlayers<<", " << eats_method << "]\n";
+//            std::cerr << "Angular grid mismatch. Interpolating. No. Exititng...";
+//            std::cerr << AT << "\n";
+            exit(1);
+        }
+        dist_E0_a = dist_EEs;
+        dist_G0_a = dist_Gam0s;
+        dist_M0_a = dist_MM0s;
+
+        for (size_t i = 0; i < nlayers_a; i++) {
+            double frac_of_solid_ang = 2 * std::sin(0.5 * thetas_c_h[i]) * std::sin(0.5 * thetas_c_h[i]);
+//            dist_M0_a[i] = dist_E0_a[i] / (( dist_G0_a[i] - 1.0) * CGS::c*CGS::c );
+            dist_E0_a[i] *= ( frac_of_solid_ang / 2. );
+            dist_M0_a[i] *= ( frac_of_solid_ang / 2. );
+//            ncells = (double)frac_of_solid_ang;
+        }
 
 
 //        nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
@@ -418,73 +514,7 @@ public:
 //        return cthetas0[ilayer] + 0.5 * (2.0 * theta - 2.0 * m_theta_w);
 //    }
 
-private:
 
-    /**
-     * Computes the number of 'phi' cell in each 'theta' layer
-     *
-     * @param i_layer index of the 'theta' layer
-     * @return
-     */
-
-    void setThetaGridPW(){
-        theta_pw.resize( nlayers_pw + 1 );
-        cthetas0.resize( nlayers_pw );
-        for (size_t i = 0; i < nlayers_pw + 1; i++){
-            double fac = (double)i / (double)nlayers_pw;
-            theta_pw[i] = 2.0 * std::asin( fac * std::sin(m_theta_w / 2.0 ) );
-        }
-
-        thetas_h0_pw.resize(nlayers_pw );
-        for (size_t i = 0; i < nlayers_pw; ++i){
-            cthetas0[i] = 0.5 * ( theta_pw[i+1] + theta_pw[i] );
-            thetas_h0_pw[i] = theta_pw[i + 1];
-        }
-//        ncells_pw = 0;
-
-        /// compute the number of phi cells in each 'theta' layer
-        cil.resize( nlayers_pw );
-        for (size_t i = 0; i < nlayers_pw; i++)
-            cil[i] = CellsInLayer(i);
-        ncells = cil.sum(); /// total number of cells
-
-//        std::cout << thetas << "\n";
-//        std::cout << cthetas0 << "\n";
-//        exit(1);
-
-
-//        cil.resize( nlayers_pw );
-//        for (size_t i = 0; i < nlayers_pw; i++){ cil[i] = CellsInLayer(i); }
-//        for (size_t i = 1; i < nlayers_pw; i++){ cil[i] += cil[i-1]; }
-//        ncells = cil.sum();
-
-    }
-
-    void setThetaGridA() {
-
-        thetas_c_l.resize( nlayers_a );
-        thetas_c_h.resize( nlayers_a );
-        thetas_c.resize( nlayers_a );
-
-        double dtheta = m_theta_w / (double) nlayers_a;
-//        double _tmp=0;
-        for (size_t i = 0; i < nlayers_a; i++) {
-
-            /// account for geometry
-            double theta_c_i = (double)i * dtheta + dtheta / 2.;
-            double i_theta_c_l = (double) i * dtheta;
-            double i_theta_c_h = (double) (i + 1) * dtheta;
-//            double i_theta_h = i_theta_c_h;
-
-            thetas_c[i] = theta_c_i ;
-            thetas_c_l[i] = i_theta_c_l ;
-            thetas_c_h[i] = i_theta_c_h ;
-//            std::cout << "ilayer=" << i << "theta"
-//            _tmp+=i_theta_c_h;
-        }
-//        std::cout << "theta_w="<<m_theta_w<<" thetas_c_h[-1]=" << thetas_c_h[thetas_c_h.m_size()-1] << "\n";
-//        exit(0);
-    }
 
 public:
 

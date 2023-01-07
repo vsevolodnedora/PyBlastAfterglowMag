@@ -13,7 +13,7 @@
     python3 ./id_maker_from_thc_outflow.py -i path/to/hist_or_corr.h5 -o path/to/output.h5 -m corr_or_hist -l 30 --factor 2.
 
 '''
-
+import matplotlib.pyplot as plt
 import numpy as np
 import h5py
 from scipy import interpolate
@@ -99,12 +99,37 @@ def _generate_grid_cthetas(nlayers, theta0):
     thetas = 2. * np.arcsin(fac * np.sin(theta0 / 2.))
     cthetas = 0.5 * (thetas[1:] + thetas[:-1])
     return (thetas, cthetas)
-
-def reinterpolate_hist(thetas_pol_edges, mass_2d_hist, new_theta_len=None):
+def _generate_grid_cthetas2(nlayers, theta0, theta1):
+    dtheta = theta1 / (nlayers + 1)
+    thetas_l, thetas_h, cthetas = [], [], []
+    for i in range(nlayers+1):
+        cthetas.append(i * dtheta + dtheta / 2.) # = (double)i * dtheta + dtheta / 2.;
+        thetas_l.append(i * dtheta)# = (double) i * dtheta;
+        thetas_h.append((i + 1) * dtheta) # double i_theta_c_h = (double) (i + 1) * dtheta;
+    cthetas = np.array(cthetas)
+    thetas_h = np.array(thetas_h)
+    thetas_l = np.array(thetas_l)
+    # fac = np.arange(0, nlayers + 1) / float(nlayers)
+    # thetas = 2. * np.arcsin(fac * np.sin(theta0 / 2.))
+    # cthetas = 0.5 * (thetas[1:] + thetas[:-1])
+    return (thetas_h, cthetas)
+def reinterpolate_hist(thetas_pol_edges, mass_2d_hist, new_theta_len=None, dist="pw"):
     print("Rebinning historgram")
     if (new_theta_len is None):
         new_theta_len = len(thetas_pol_edges)
-    new_thetas_edges, new_theta_centers = _generate_grid_cthetas(new_theta_len - 1, np.pi / 2.)
+    # if ()
+    if dist == "pw":
+        new_thetas_edges, new_theta_centers = _generate_grid_cthetas(new_theta_len - 1, theta0=np.pi / 2.)
+    elif dist == "a":
+        new_thetas_edges, new_theta_centers = _generate_grid_cthetas2(new_theta_len-1, theta0=0., theta1=np.pi / 2.)
+    else:
+        raise KeyError("Only 'pw' or 'a' are supported")
+    # x = range(new_thetas_edges)
+    # plt.close()
+    # plt.plot(range(len(new_thetas_edges)), new_thetas_edges, ls='none', marker='x',  color="black")
+    # plt.plot(range(len(new_thetas_edges2)), new_thetas_edges2, ls='none', marker='.', color="red")
+    # plt.axhline(y=np.pi/2.)
+    # plt.show()
     if (len(thetas_pol_edges) - 1 != len(mass_2d_hist[:, 0])):
         raise ValueError("something is wrong")
 
@@ -124,7 +149,8 @@ def reinterpolate_hist(thetas_pol_edges, mass_2d_hist, new_theta_len=None):
 def load_corr_file2(corr_fpath,
                     reinterpolate_theta=True,
                     new_theta_len=None,
-                    beta_min=0., beta_max=0.
+                    beta_min=0., beta_max=0.,
+                    dist="pw",
                     ):
     # load the corr file
     dfile = h5py.File(corr_fpath, mode="r")
@@ -187,7 +213,7 @@ def load_corr_file2(corr_fpath,
 
     if (reinterpolate_theta):
         print("Rebinning historgram")
-        thetas_pol_edges, mass = reinterpolate_hist(thetas_pol_edges, mass, new_theta_len)
+        thetas_pol_edges, mass = reinterpolate_hist(thetas_pol_edges, mass, new_theta_len, dist=dist)
 
     thetas_pol_centers = 0.5 * (thetas_pol_edges[1:] + thetas_pol_edges[:-1])
     vinf_centers = 0.5 * (vinf_edges[1:] + vinf_edges[:-1])
@@ -264,10 +290,11 @@ def compute_ek_corr(_vinf, _mass):
     assert res.shape == _mass.shape
     return res
 
-def prepare_kn_ej_id_2d(nlayers, corr_fpath, outfpath):
+def prepare_kn_ej_id_2d(nlayers, corr_fpath, outfpath, dist="pw"):
     thetas, betas, masses = load_corr_file2(corr_fpath=corr_fpath,
                                             reinterpolate_theta=True,
-                                            new_theta_len=nlayers if nlayers > 0 else None)
+                                            new_theta_len=nlayers if nlayers > 0 else None,
+                                            dist=dist)
 
     theta_corr, vinf_corr, mass_corr = clean_data_corr(thetas, betas, masses, remove_pi_over_2=True)
     ek_corr = compute_ek_corr(vinf_corr, mass_corr).T  # [n_beta, n_theta]
@@ -345,7 +372,7 @@ if __name__ == '__main__':
     if (mode == "hist"):
         prepare_kn_ej_id_1d(nlayers, hist_fpath=infpath, outfpath=outfpath)
     elif (mode == "corr"):
-        prepare_kn_ej_id_2d(nlayers=nlayers, corr_fpath=infpath, outfpath=outfpath)
+        prepare_kn_ej_id_2d(nlayers=nlayers, corr_fpath=infpath, outfpath=outfpath, dist="a")
     else:
         exit(1)
     # ---

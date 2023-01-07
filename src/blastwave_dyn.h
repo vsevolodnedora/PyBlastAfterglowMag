@@ -18,7 +18,7 @@
 #include "blastwave_base.h"
 #include "blastwave_rad.h"
 
-/// specific set of equations for a blast wave (Nava+2013)
+/// specific set of equations for a blast wave
 class DynRadBlastWave : public RadBlastWave{
     struct FsolvePars{
 
@@ -588,7 +588,7 @@ public:
         // ****************************************
         // Get ISM density and its velocity
 //        double rho, m_drhodr;
-        double ctheta_ =ctheta(theta);// = p_pars->ctheta0 + 0.5 * (2. * theta - 2. * p_pars->theta_w);
+        double ctheta_ = ctheta(theta);// = p_pars->ctheta0 + 0.5 * (2. * theta - 2. * p_pars->theta_w);
 //        p_dens->getDrhoDr( rho, m_drhodr, R,ctheta );
 //        rho /= p_pars->M0;
 //        m_drhodr /= p_pars->M0;
@@ -1360,8 +1360,8 @@ public:
                   << " dthetaJ0="<< p_pars->theta_c_h - p_pars->theta_c_l
                   << " dthetaEJ0="<< p_pars2->theta_c_h - p_pars2->theta_c_l
                   << " \n"
-                  << " dthetaJ="<< theta1(Y[i+Q_SOL::itheta]) - p_pars->theta_c_l
-                  << " dthetaEJ="<<other->theta1(Y[other_i+Q_SOL::itheta]) - p_pars2->theta_c_l
+//                  << " dthetaJ="<< theta1(Y[i+Q_SOL::itheta]) - p_pars->theta_c_l
+//                  << " dthetaEJ="<<other->theta1(Y[other_i+Q_SOL::itheta]) - p_pars2->theta_c_l
                   << "\n";
         std::cout << "------------------------------------------------------\n";
 

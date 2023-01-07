@@ -24,24 +24,25 @@ def main():
     pba = PBA(workingdir=os.getcwd()+'/',readparfileforpaths=True)
 
     tasks = [
-        # {"hist_fpath":"hist_vel_inf_DD2_M135135_M0.dat",
-        #  "outfpath":os.getcwd()+'/'+"ejecta_id_DD2_M135135_M0.h5",
-        #  "new_main_pars":{"n_ism":1e-1,"d_l":100e6 * cgs.pc,"z":0.001},
-        #  "new_kn_pars":{"p":2.5,"eps_e":1.e-1,"eps_b":1e-1,"theta_obs":0.0},
-        #  "fname_light_curve":"lc_DD2_M135135_M0.h5",
-        #  "fname_ejecta_id":"ejecta_id_DD2_M135135_M0.h5",
-        #  "fpath_kenta_res":os.getcwd()+'/'+"DD2_n01_100Mpc.dat",
-        #  "color":"blue","label":"DD2 M135135 M0"
-        #  },
-        {"hist_fpath":"hist_vel_inf_BHBlp_M135135_LK.dat",
-         "outfpath":os.getcwd()+'/'+"ejecta_id_BHBlp_M135135_LK.h5",
+        {"corr_fpath":"corr_vel_inf_theta_DD2_M135135_M0.h5",
+         "hist_fpath":"hist_vel_inf_DD2_M135135_M0.dat",
+         "outfpath":os.getcwd()+'/'+"ejecta_id_DD2_M135135_M0.h5",
          "new_main_pars":{"n_ism":1e-1,"d_l":100e6 * cgs.pc,"z":0.001},
-         "new_kn_pars":{"p":2.5,"eps_e":1.e-1,"eps_b":1e-1,"theta_obs":90.0},
-         "fname_light_curve":"lc_BHBlp_M135135_LK.h5",
-         "fname_ejecta_id":"ejecta_id_BHBlp_M135135_LK.h5",
-         "fpath_kenta_res":os.getcwd()+'/'+"BHBlp_n01_100Mpc.dat",
-         "color":"green","label":"BHBlp M135135 M0"
-         }
+         "new_kn_pars":{"p":2.5,"eps_e":1.e-1,"eps_b":1e-1,"theta_obs":0.0},
+         "fname_light_curve":"lc_DD2_M135135_M0.h5",
+         "fname_ejecta_id":"ejecta_id_DD2_M135135_M0.h5",
+         "fpath_kenta_res":os.getcwd()+'/'+"DD2_n01_100Mpc.dat",
+         "color":"blue","label":"DD2 M135135 M0"
+         },
+        # {"hist_fpath":"corr_vel_inf_theta_BHBlp_M135135_M0.h5",
+        #  "outfpath":os.getcwd()+'/'+"ejecta_id_BHBlp_M135135_M0.h5",
+        #  "new_main_pars":{"n_ism":1e-1,"d_l":100e6 * cgs.pc,"z":0.001},
+        #  "new_kn_pars":{"p":2.5,"eps_e":1.e-1,"eps_b":1e-1,"theta_obs":90.0},
+        #  "fname_light_curve":"lc_BHBlp_M135135_M0.h5",
+        #  "fname_ejecta_id":"ejecta_id_BHBlp_M135135_M0.h5",
+        #  "fpath_kenta_res":os.getcwd()+'/'+"BHBlp_n01_100Mpc.dat",
+        #  "color":"green","label":"BHBlp M135135 M0"
+        #  }
         # {"hist_fpath":"hist_vel_inf_SFHo_M135135_M0.dat",
         #  "outfpath":os.getcwd()+'/'+"ejecta_id_SFHo_M135135_M0.h5",
         #  "new_main_pars":{"n_ism":5e-3,"d_l":41.6e6 * cgs.pc,"z":0.0099},
@@ -60,7 +61,11 @@ def main():
         kenta_t, kenta_f = np.loadtxt(task["fpath_kenta_res"], unpack=True, usecols=(0, 2))
         ax.plot(kenta_t[1:-1], kenta_f[1:-1], **{"color": task["color"], "ls": ":", "lw": 0.8, "label": task["label"]})
 
-        prepare_kn_ej_id_1d(nlayers=30,hist_fpath=task["hist_fpath"],outfpath=task["outfpath"])
+        # prepare_kn_ej_id_1d(nlayers=30,hist_fpath=task["hist_fpath"],outfpath=task["outfpath"])
+        prepare_kn_ej_id_2d(nlayers=5,corr_fpath=task["corr_fpath"],outfpath=task["outfpath"], dist="a")
+        # prepare_kn_ej_id_1d(nlayers=30,hist_fpath=task["hist_fpath"],outfpath=task["outfpath"])
+
+
         pba.modify_main_part_parfile(newpars=task["new_main_pars"],newopts={})
         pba.modify_kn_part_parfile(newpars=task["new_kn_pars"],
                                    newopts={"method_eos":"Nava13","method_GammaSh":"useJKwithGammaRel",

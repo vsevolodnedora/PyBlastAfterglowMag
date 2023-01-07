@@ -25,10 +25,16 @@ public:
     enum METHOD_RSh { isameAsR, iuseGammaSh };
     enum METHOD_dmdr{ iusingA, iusingdthdR };
     enum METHOD_dgdr{ iour, ipeer };
+
+    enum METHODS_SHOCK_VEL { isameAsBW, ishockVel };
+    enum METHOD_NE{ iusenprime, iuseNe };
+    enum METHODS_RAD { icomovspec, iobservflux };
 protected:
     struct Pars{
+        // set a reference to the data container
+        explicit Pars(VecArray & m_data) : m_data(m_data) { }
+        VecArray & m_data; // data container ( for use in static EATS interators)
         // initial conditions (settings)
-
         bool is_init = false;
         METHODS_Up m_method_up{};
         METHOD_Delta m_method_Delta{};
@@ -124,6 +130,46 @@ protected:
         size_t i0_failed_image = 0;
         long n_failed_images = 0;
 
+        /// -------------------------------
+
+        // set
+        bool use_t_e = false;
+        double z{}, d_l{}, nu_obs{}, t_obs{}, theta_obs{};
+        double (* obsangle)(const double &, const double &, const double &) = nullptr;
+        double (* im_xxs)( const double &, const double &, const double & ) = nullptr;
+        double (* im_yys)( const double &, const double &, const double & ) = nullptr;
+        // --- for adaptive quad. method
+        int nmax_phi=-1, nmax_theta=-1;
+        double rtol_theta=-1., rtol_phi=-1.;
+        double atol_theta=-1., atol_phi=-1.;
+        int error = 0;
+        double current_phi_hi=-1.;
+        double current_phi_low=-1.;
+        double current_theta_cone_hi=-1;
+        double current_theta_cone_low=-1.;
+        double cos_theta_obs=-1.;
+        double sin_theta_obs=-1.;
+        double phi = -1.;
+        double cos_phi = -1.;
+        double theta=-1., o_phi=-1, o_theta=-1., o_gam=-1, o_mu=-1, o_r=-1, o_flux=-1, o_theta_j=-1; // for map
+        double freq1=-1.0, freq2=-1.0;
+        size_t nfreq=0;
+        METHODS_QUADRATURES method_quad{};
+        METHODS_SHOCK_VEL method_shock_vel{};
+        METHOD_NE m_method_ne{};
+        METHODS_RAD m_method_rad{};
+//        METHOD_TAU method_tau{};
+        bool counter_jet = true;
+        int spread_method = 1; // TODO this is the only option!
+        long nevals = 0; // counter for how many times the integrand was evaluated
+        // ---
+//        VecArray & m_data;
+//        size_t nr =-1;
+        Array m_freq_arr{};
+        Array m_synch_em{};
+        Array m_synch_abs{};
+        std::unique_ptr<SynchrotronAnalytic> p_syn{};
+        std::unique_ptr<logger> p_log;
 
     };
     Pars * p_pars;
@@ -147,7 +193,8 @@ public:
             }
         }
         // ---------------------- Methods
-        p_pars = new Pars{};
+        p_pars = new Pars(m_data);
+        p_pars->p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "pars");
         p_spread = new LatSpread();
         p_eos = new EOSadi();
         p_dens = new RhoISM();
@@ -203,7 +250,7 @@ public:
     static constexpr size_t NVALS = 43; // number of variables to save
     // ---------------------------------------------------------
     void setPars(double E0, double M0, double Gamma0, double tb0, double theta_a, double theta_b0,
-                 double theta_0, double theta_1, double theta_w, double theta_max, double epsilon_e_rad,
+                 double theta_c_l, double theta_c_h, double theta_w, double theta_max, double epsilon_e_rad,
                  size_t ii_eq,
                  double ncells){
         if (theta_b0 > theta_max){
@@ -211,16 +258,17 @@ public:
             std::cerr << AT << "\n";
             exit(1);
         }
+
         p_pars->E0      = E0;
         p_pars->M0      = M0;
         p_pars->Gamma0  = Gamma0;
         p_pars->tb0     = tb0;
         p_pars->theta_a = theta_a;
         p_pars->theta_b0= theta_b0;
-        p_pars->ctheta0 = 0.5 * (theta_1 + theta_0);
+        p_pars->ctheta0 = 0.5 * (theta_c_l + theta_c_h);
 //        p_pars->theta_h0= theta_c_h;
-        p_pars->theta_c_l = theta_0;
-        p_pars->theta_c_h = theta_1;
+        p_pars->theta_c_l = theta_c_l;
+        p_pars->theta_c_h = theta_c_h;
         p_pars->theta_w = theta_w; //
         p_pars->theta_max = theta_max;
         p_pars->ncells  = ncells;
@@ -280,14 +328,14 @@ public:
         }
         return ctheta;
     }
-    inline double theta0(double theta){
-        // cthetas = 0.5*(2.*arcsin(facs[0]*sin(self.joAngles[:,layer-1]/2.)) + 2.*arcsin(facs[1]*sin(self.joAngles[:,layer-1]/2.)))
-        return p_pars->theta_c_l + 0.5 * (2. * theta - 2. * p_pars->theta_w);
-    }
-    inline double theta1(double theta){
-        // cthetas = 0.5*(2.*arcsin(facs[0]*sin(self.joAngles[:,layer-1]/2.)) + 2.*arcsin(facs[1]*sin(self.joAngles[:,layer-1]/2.)))
-        return p_pars->theta_c_h + 0.5 * (2. * theta - 2. * p_pars->theta_w);
-    }
+//    inline double theta0(double theta){
+//        // cthetas = 0.5*(2.*arcsin(facs[0]*sin(self.joAngles[:,layer-1]/2.)) + 2.*arcsin(facs[1]*sin(self.joAngles[:,layer-1]/2.)))
+//        return p_pars->theta_c_l + 0.5 * (2. * theta - 2. * p_pars->theta_w);
+//    }
+//    inline double theta1(double theta){
+//        // cthetas = 0.5*(2.*arcsin(facs[0]*sin(self.joAngles[:,layer-1]/2.)) + 2.*arcsin(facs[1]*sin(self.joAngles[:,layer-1]/2.)))
+//        return p_pars->theta_c_h + 0.5 * (2. * theta - 2. * p_pars->theta_w);
+//    }
     inline Array & getArr(Q var){ return m_data[var]; }
     inline double & getVal(Q var, size_t ix){ return m_data[var][ix]; }
     inline double & getLastVal(Q var){ return m_data[var][p_pars->comp_ix]; }

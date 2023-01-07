@@ -1341,17 +1341,18 @@ private:
         Image image;
         for (size_t ilayer = 0; ilayer < n_layers_j; ilayer++){
             auto & model = p_bws_jet[ilayer];
-            for (size_t it = 0; it < obs_times.size(); it++) {
-                if (model->getPars()->m_method_eats == LatStruct::i_pw) {
-//                    auto image = model->evalImagePW(obs_times[it], obs_freqs[it]);
-                    model->evalImagePW(image, obs_times[it], obs_freqs[it]);
-                    light_curves[ilayer][it] += image.m_f_tot;
-                }
-                else{
-                    double atol = light_curves[ilayer][it] * rtol / (double)n_layers_j;
-                    light_curves[ilayer][it] += model->evalFluxDensA(obs_times[it], obs_freqs[it], atol);
-                }
-            }
+            model->evalLightCurve(light_curves[ilayer], obs_times, obs_freqs);
+//            for (size_t it = 0; it < obs_times.size(); it++) {
+//                if (model->getPars()->m_method_eats == LatStruct::i_pw) {
+////                    auto image = model->evalImagePW(obs_times[it], obs_freqs[it]);
+//                    model->evalImagePW(image, obs_times[it], obs_freqs[it]);
+//                    light_curves[ilayer][it] += image.m_f_tot;
+//                }
+//                else{
+//                    double atol = light_curves[ilayer][it] * rtol / (double)n_layers_j;
+//                    light_curves[ilayer][it] += model->evalFluxDensA(obs_times[it], obs_freqs[it], atol);
+//                }
+//            }
         }
         return std::move( light_curves );
     }
@@ -1366,17 +1367,26 @@ private:
         }
         double flux_pj, flux_cj; size_t ii = 0;
         Image image;
+        double rtol = 1e-2;
         for (size_t ishell = 0; ishell < ejectaStructs.nshells; ishell++){
             auto &struc = ejectaStructs.structs[ishell];
             size_t n_layers_ej = ejectaStructs.structs[ishell].nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? struc.nlayers_pw : struc.nlayers_a ;
             for (size_t ilayer = 0; ilayer < n_layers_ej; ilayer++) {
                 auto & model = p_bws_ej[ii];//ejectaModels[ishell][ilayer];
 //                model->setEatsPars( pars, opts );
-                for (size_t it = 0; it < obs_times.size(); it++) {
-//                    auto tmp = model->evalImagePW(obs_times[it], obs_freqs[it] );
-                    model->evalImagePW(image, obs_times[it], obs_freqs[it] );
-                    light_curves[ishell][ilayer][it] += image.m_f_tot;
-                }
+                model->evalLightCurve(light_curves[ishell][ilayer], obs_times, obs_freqs);
+
+//                for (size_t it = 0; it < obs_times.size(); it++) {
+//                    if (model->getPars()->m_method_eats == LatStruct::i_pw) {
+//                        //                    auto tmp = model->evalImagePW(obs_times[it], obs_freqs[it] );
+//                        model->evalImagePW(image, obs_times[it], obs_freqs[it] );
+//                        light_curves[ishell][ilayer][it] += image.m_f_tot;
+//                    }
+//                    else{
+//                        double atol = light_curves[ishell][ilayer][it] * rtol / (double)n_layers_ej;
+//                        light_curves[ishell][ilayer][it] += model->evalFluxDensA(obs_times[it], obs_freqs[it], atol);
+//                    }
+//                }
                 ii ++;
             }
         }
@@ -1715,6 +1725,24 @@ private:
         switch (latStruct.m_method_eats) {
 
             case LatStruct::i_pw:
+                if ( latStruct.dist_E0_pw.empty() || latStruct.dist_M0_pw.empty() || latStruct.dist_G0_pw.empty() ||
+                     latStruct.theta_pw.empty()){
+                    (*p_log)(LOG_ERR, AT) << "one of the blast-wave initial data arrays is empty. \n";
+                    exit(1);
+                }
+                (*p_log)(LOG_INFO,AT)<<"Init. [pw] "
+                    << " E0="<<latStruct.dist_E0_pw[ilayer]
+                    << " M0="<<latStruct.dist_M0_pw[ilayer]
+                    << " G0="<<latStruct.dist_G0_pw[ilayer]
+                    << " beta0="<<EQS::Beta(latStruct.dist_G0_pw[ilayer])
+                    << " tb0="<<t_grid[0]
+                    << " thetab0="<<latStruct.m_theta_w
+                    << " theta0="<<latStruct.theta_pw[ilayer]
+                    << " theta1="<<latStruct.theta_pw[ilayer]
+                    << " theta_w="<<latStruct.m_theta_w
+                    << " ii_eq="<<ii_eq
+                    << " ncells="<<latStruct.ncells
+                    << "\n";
                 bw_obj.setPars(latStruct.dist_E0_pw[ilayer], latStruct.dist_M0_pw[ilayer],
                                latStruct.dist_G0_pw[ilayer], t_grid[0], 0.,
                                latStruct.m_theta_w, latStruct.theta_pw[ilayer],
@@ -1722,12 +1750,33 @@ private:
                                latStruct.m_theta_w, theta_max, epsilon_e_rad, ii_eq, (double) latStruct.ncells);
                 break;
             case LatStruct::i_adap:
-                bw_obj.setPars(latStruct.dist_E0_a[ilayer], latStruct.dist_M0_a[ilayer],
-                               latStruct.dist_G0_a[ilayer], t_grid[0], 0.,
+                if ( latStruct.dist_E0_a.empty() || latStruct.dist_M0_a.empty() || latStruct.dist_G0_a.empty() ||
+                    latStruct.thetas_c_h.empty()){
+                    (*p_log)(LOG_ERR, AT) << "one of the blast-wave initial data arrays is empty. \n";
+                    exit(1);
+                }
+                (*p_log)(LOG_INFO,AT)<<"Init. [a] "
+                                     << " E0="<<latStruct.dist_E0_a[ilayer]
+                                     << " M0="<<latStruct.dist_M0_a[ilayer]
+                                     << " G0="<<latStruct.dist_G0_a[ilayer]
+                                     << " beta0="<<EQS::Beta(latStruct.dist_G0_a[ilayer])
+                                     << " tb0="<<t_grid[0]
+                                     << " thetab0="<<latStruct.thetas_c_h[ilayer]
+                                     << " theta0="<<latStruct.thetas_c_l[ilayer]
+                                     << " theta1="<<latStruct.thetas_c_h[ilayer]
+                                     << " theta_w="<<latStruct.m_theta_w
+                                     << " ii_eq="<<ii_eq
+                                     << " ncells="<<1.
+                                     << "\n";
+                double fac = 2 * std::sin(0.5 * latStruct.thetas_c_h[ilayer]) * std::sin(0.5 * latStruct.thetas_c_h[ilayer]);
+                bw_obj.setPars(latStruct.dist_E0_a[ilayer],
+                               latStruct.dist_M0_a[ilayer],
+                               latStruct.dist_G0_a[ilayer], t_grid[0],
+                               0.,
                                latStruct.thetas_c_h[ilayer],
                                latStruct.thetas_c_l[ilayer],
                                latStruct.thetas_c_h[ilayer],//latStruct.cthetas0[ilayer],
-                               0., theta_max, epsilon_e_rad, ii_eq, 1);
+                               0., theta_max, epsilon_e_rad, ii_eq, 1.);
                 break;
         }
 
