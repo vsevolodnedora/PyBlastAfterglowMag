@@ -27,6 +27,7 @@ curdir = os.getcwd() + '/' #"/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglow_dev
 
 def main():
     pba = PBA(workingdir=os.curdir+'/',readparfileforpaths=True)
+    pba.run()
     print(pba.fpath_kn_light_curve)
     print(pba.get_jet_lc_totalflux(freq=1e9))
 

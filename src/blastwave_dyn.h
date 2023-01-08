@@ -66,7 +66,7 @@ public:
         pfsolvePars->p_eos = p_eos;
     }
     ~DynRadBlastWave(){ delete pfsolvePars; }
-    FsolvePars *& getCombPars(){ return pfsolvePars; }
+//    FsolvePars *& getCombPars(){ return pfsolvePars; }
     // RHS settings
     const static int neq = 11;
     std::vector<std::string> vars { "R", "Rsh", "tt", "tcomov", "Gamma", "Eint2", "theta", "Erad2", "Esh2", "Ead2", "M2" };
@@ -1117,7 +1117,7 @@ public:
         p_dens->m_CS_CBM = 0;
     }
     void prepareDensProfileFromJet(double * out_Y, size_t i, double x, double const * Y,
-                                   std::vector<std::unique_ptr<RadBlastWave>> & others, size_t evaled_ix){
+                                   std::vector<std::unique_ptr<BlastWaveBase>> & others, size_t evaled_ix){
         // --- current ejecta bw
         double ej_Gamma  = Y[p_pars->ii_eq + DynRadBlastWave::Q_SOL::iGamma];
         if (ej_Gamma < 1.) ej_Gamma = 1.0000000099999;
@@ -1289,7 +1289,7 @@ public:
 //        }
     }
     void evaluateRhsDensModel2(double * out_Y, size_t i, double x, double const * Y,
-                               std::vector<std::unique_ptr<RadBlastWave>> & others, size_t evaled_ix) override {
+                               std::vector<std::unique_ptr<BlastWaveBase>> & others, size_t evaled_ix) override {
 
         /// do not evaluate RHS if the evolution was terminated
         if (p_pars->end_evolution) {
@@ -1330,7 +1330,7 @@ public:
 
     /// ---
     void evaluateCollision(double * out_Y, size_t i, double x, double const * Y,
-                           std::unique_ptr<RadBlastWave> & other, size_t other_i ) override {
+                           std::unique_ptr<BlastWaveBase> & other, size_t other_i ) override {
         //
         auto & p_pars2 = other->getPars();
         auto & p_eos2 = other->getEos();

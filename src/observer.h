@@ -218,10 +218,10 @@ public:
     static std::vector<std::string> listParametersAnalyticBlastWave() {
         return {"Eiso_c", "Gamma0c", "theta_c", "theta_w", "M0c", "nlayers_pw", "nlayers_a"};
     }
-    static std::vector<std::string> listParsCustomStruct() {
-        return {"dist_thetas", "dist_EEs", "dist_Gam0s", "dist_MM0s"}; }
-    static std::vector<std::string> listStructOpts() {
-        return {"type", "gflat"}; }
+//    static std::vector<std::string> listParsCustomStruct() {
+//        return {"dist_thetas", "dist_EEs", "dist_Gam0s", "dist_MM0s"}; }
+//    static std::vector<std::string> listStructOpts() {
+//        return {"type", "gflat"}; }
 
     void initAnalytic(StrDbMap & pars, StrStrMap & opts, std::string method_eats,  unsigned loglevel){
 //        p_log = new logger(std::cout, CurrLogLevel, "LatStruct");
@@ -588,9 +588,9 @@ public:
         }
     }
 
-    static std::vector<std::string> list_arr_v_ns() { return {"dist_thetas", "dist_EEs", "dist_Gam0s", "dist_MM0s"}; }
-    static std::vector<std::string> list_pars_v_ns() { return {"nlayers", "mfac"}; };
-    static std::vector<std::string> list_opts_v_ns() { return {"force_grid"}; }
+//    static std::vector<std::string> list_arr_v_ns() { return {"dist_thetas", "dist_EEs", "dist_Gam0s", "dist_MM0s"}; }
+//    static std::vector<std::string> list_pars_v_ns() { return {"nlayers", "mfac"}; };
+//    static std::vector<std::string> list_opts_v_ns() { return {"force_grid"}; }
     void initUniform( Vector & dist_thetas0, Vector & dist_betas, Vector & dist_ek, size_t nlayers, double mfac=1.,
                       std::string eats_method="piece-wise", unsigned loglevel=CurrLogLevel){
 
@@ -799,11 +799,12 @@ public:
 //        exit(1);
     }
 
-
     std::vector<LatStruct> structs;
     size_t nshells;
     METHODS method;
 };
+
+
 
 struct Image {
 

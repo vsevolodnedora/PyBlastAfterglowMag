@@ -49,7 +49,7 @@
 #include "model.h"
 #include "H5Easy.h"
 
-// -------------- Code configuration ------------------
+/// -------------- Code configuration ------------------
 struct {
     struct {
         double n_vals_ode;
@@ -57,7 +57,7 @@ struct {
 } const config =
 #include "main.cfg"
 
-// -------------- Read H5 table with ID ------------------
+/// -------------- Read H5 table with ID ------------------
 class ReadH5ThetaVinfCorrelationFile{
     Vector m_vel_inf;
     Vector m_theta;
@@ -267,8 +267,6 @@ struct Timer {
 // driver function
 int main(int argc, char** argv) {
 
-
-
     int loglevel = CurrLogLevel;
 
     /// get path to parfile
@@ -324,12 +322,15 @@ int main(int argc, char** argv) {
     Vector skymap_times = makeVecFromString(getStrOpt("skymap_times",main_opts,AT,p_log,"",true), p_log);
 
     /// read main parameters of the magnetar # TODO
-//    StrDbMap mag_pars;
-//    StrStrMap mag_opts;
-//    readParFile2(mag_pars, mag_opts, working_dir + parfilename,
-//                 "# ------------------------ Magnetar -------------------------",
-//                 "# --------------------------- END ---------------------------");
-//    pba.setMagnetarPars(mag_pars, mag_opts);
+    StrDbMap mag_pars;
+    StrStrMap mag_opts;
+    bool run_magnetar = getBoolOpt("run_magnetar", main_opts, AT, p_log, false, true);
+    bool save_magnetar = getBoolOpt("save_magnetar", main_opts, AT, p_log, false, true);
+    readParFile2(mag_pars, mag_opts, working_dir + parfilename,
+                 "# ------------------------ Magnetar -------------------------",
+                 "# --------------------------- END ---------------------------");
+    if (run_magnetar)
+        pba.setMagnetarPars(mag_pars, mag_opts);
 
     /// read grb afterglow parameters
     bool run_jet_bws = getBoolOpt("run_jet_bws", main_opts, AT, p_log, false, true);
@@ -387,6 +388,13 @@ int main(int argc, char** argv) {
 
     (*p_log)(LOG_INFO, AT) << "evolution finished [" << timer.checkPoint() << " s]" << "\n";
 
+    /// save Magnetar data
+    if (save_magnetar){
+        pba.saveMagnetarEvolution(
+                working_dir+getStrOpt("fname_dyn", grb_opts, AT, p_log, "", true),
+                (int)getDoublePar("save_dyn_every_it", grb_pars, AT, p_log, 1, true) );
+    }
+
     /// work on GRB afterglow
     if (save_j_dynamics)
         pba.saveJetBWsDynamics(
@@ -412,11 +420,10 @@ int main(int argc, char** argv) {
     }
 
     /// work on kN afterglow
-    if (save_ej_dynamics) {
+    if (save_ej_dynamics)
         pba.saveEjectaBWsDynamics(
                 working_dir + getStrOpt("fname_dyn", kn_opts, AT, p_log, "", true),
                 (int) getDoublePar("save_dyn_every_it", kn_pars, AT, p_log, 1, true));
-    }
     if (run_ejecta_bws and do_ej_ele) {
         pba.setPreComputeEjectaAnalyticElectronsPars();
         (*p_log)(LOG_INFO, AT) << "ejecta analytic synch. electrons finished [" << timer.checkPoint() << " s]" << "\n";

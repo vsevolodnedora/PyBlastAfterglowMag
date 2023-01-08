@@ -62,7 +62,7 @@ def main():
         ax.plot(kenta_t[1:-1], kenta_f[1:-1], **{"color": task["color"], "ls": ":", "lw": 0.8, "label": task["label"]})
 
         # prepare_kn_ej_id_1d(nlayers=30,hist_fpath=task["hist_fpath"],outfpath=task["outfpath"])
-        prepare_kn_ej_id_2d(nlayers=5,corr_fpath=task["corr_fpath"],outfpath=task["outfpath"], dist="a")
+        prepare_kn_ej_id_2d(nlayers=30,corr_fpath=task["corr_fpath"],outfpath=task["outfpath"], dist="a")
         # prepare_kn_ej_id_1d(nlayers=30,hist_fpath=task["hist_fpath"],outfpath=task["outfpath"])
 
 
@@ -136,7 +136,7 @@ def main():
     ax.set_ylabel(r"$F_{\nu}$ [$\mu$Jy]")
     ax.set_xlim(1e1, 1e4)
     ax.set_ylim(1e-1, 1e3)
-    # ax.legend()
+    ax.legend()
     plt.tight_layout()
     # if save_figs: plt.savefig(figdir + save, dpi=256)
     # if save_figs: plt.savefig(PAPERPATH + "figname" + ".pdf")

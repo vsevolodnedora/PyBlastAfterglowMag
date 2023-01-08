@@ -32,7 +32,7 @@ public:
 protected:
     struct Pars{
         // set a reference to the data container
-        explicit Pars(VecArray & m_data) : m_data(m_data) { }
+        explicit Pars(VecArray & m_data, std::unique_ptr<SynchrotronAnalytic> & p_syn) : m_data(m_data), p_syn(p_syn) { }
         VecArray & m_data; // data container ( for use in static EATS interators)
         // initial conditions (settings)
         bool is_init = false;
@@ -168,7 +168,7 @@ protected:
         Array m_freq_arr{};
         Array m_synch_em{};
         Array m_synch_abs{};
-        std::unique_ptr<SynchrotronAnalytic> p_syn{};
+        std::unique_ptr<SynchrotronAnalytic> & p_syn;
         std::unique_ptr<logger> p_log;
 
     };
@@ -193,7 +193,8 @@ public:
             }
         }
         // ---------------------- Methods
-        p_pars = new Pars(m_data);
+        p_syn = std::make_unique<SynchrotronAnalytic>(loglevel);// SynchrotronAnalytic(loglevel);
+        p_pars = new Pars(m_data, p_syn);
         p_pars->p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "pars");
         p_spread = new LatSpread();
         p_eos = new EOSadi();
@@ -485,6 +486,76 @@ public:
             exit(1);
         }
     }
+    virtual void evaluateCollision(double * out_Y, size_t i, double x, double const * Y,
+                                   std::unique_ptr<BlastWaveBase> & other, size_t other_i ) = 0;
+    virtual void evaluateRhsDensModel2(double * out_Y, size_t i, double x, double const * Y,
+                                       std::vector<std::unique_ptr<BlastWaveBase>> & others, size_t prev_ix) = 0;
+
+//    virtual void evaluateRhsDensModel2(double * out_Y, size_t i, double x, double const * Y,
+//                                       std::vector<std::unique_ptr<RadBlastWave>> & others, size_t prev_ix) = 0;
+//    class ISMbehindJet{
+//        std::vector<std::unique_ptr<RadBlastWave>> & j_bws;
+//        std::unique_ptr<RadBlastWave> & ej_bw;
+////        std::unique_ptr<logger> p_log;
+//        Array j_cthetas{};
+//        Array j_rs{};
+//        VecArray m_rho{};
+//    public:
+//        explicit ISMbehindJet(std::vector<std::unique_ptr<RadBlastWave>> & j_bws,
+//                              std::unique_ptr<RadBlastWave> & ej_bw, unsigned loglevel) : j_bws(j_bws), ej_bw(ej_bw) {
+////            p_log = std::make_unique<logger>(std::cout, loglevel, "ISMbehindJet");
+//            j_cthetas.resize( j_bws.size() );
+//            j_rs.resize(j_bws.size() );
+//            m_rho.resize( j_bws.size() );
+//            for (size_t i = 0; i < j_bws.size(); ++i){
+//                m_rho[i].resize( j_bws[i]->getTbGrid().size() );
+//            }
+//        }
+//        void evaluateDensProf(){
+//            std::cout  <<" \n" << "evaluating density profile up to it=" << ej_bw->getPars()->comp_ix << "\n";
+//            for (size_t i = 0; i < j_bws.size(); ++i){
+//                j_cthetas[i] = j_bws[i]->ctheta(j_bws[i]->getLastVal(Q::itheta));
+//                j_rs[i] = j_bws[i]->getLastVal(Q::iR);
+//                for (size_t j = 0; j < j_bws[i]->getPars()->comp_ix; ++j){
+//
+//                }
+//            }
+//        }
+//        void setCurrentJet( std::unique_ptr<RadBlastWave> & ej ){
+//            for (size_t i = 0; i < j_bws.size(); ++i){
+//                j_cthetas[i] = j_bws[i]->ctheta(j_bws[i]->getLastVal(Q::itheta));
+//                j_rs[i] = j_bws[i]->getLastVal(Q::iR);
+//                for (size_t j = 0; j < ej->getTbGrid().size(); ++j){
+//                    //
+//
+//
+//                    //
+////                m_rho[i][j] = i_rho;
+//                }
+//            }
+//
+//        }
+//        void evalDens(RhoISM *& p_dens, double ctheta, double R){
+//            for (size_t i = 0; i < j_bws.size(); ++i){
+//                if (j_rs[i] <= R){
+//                    std::cerr  <<" j_rs[i] <= R \n Exiting..." << "\n";
+//                    std::cerr << AT << "\n";
+//                    exit(1);
+//                }
+//
+//            }
+//        }
+//    };
+//    RadBlastWave::ISMbehindJet * p_dens_jet = nullptr;
+//    void setDensJet( std::vector<std::unique_ptr<RadBlastWave>> & j_bws,
+//                     std::unique_ptr<RadBlastWave> & ej_bw ){
+//        p_dens_jet = new RadBlastWave::ISMbehindJet(j_bws, ej_bw, m_loglevel);
+//    }
+//    ~RadBlastWave(){
+//        delete p_dens_jet;
+//        delete p_eats; // removing EATS_pars for simplicity
+//    }
+
 protected:
     Array m_tb_arr{};
     VecArray m_data{}; // container for the solution of the evolution
@@ -493,6 +564,7 @@ protected:
     RhoISM * p_dens = nullptr;
     SedovTaylor * p_sedov = nullptr;
     BlandfordMcKee2 * p_bm = nullptr;
+    std::unique_ptr<SynchrotronAnalytic> p_syn{};
     int m_loglevel;
 };
 

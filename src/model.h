@@ -21,6 +21,7 @@ class PyBlastAfterglow{
         // ---
         std::string method_eats = "";
         // ---
+        bool run_magnetar = false;
         bool run_jet_bws = false;
         bool run_ejecta_bws = false;
         // ---
@@ -31,6 +32,8 @@ class PyBlastAfterglow{
         bool is_ejecta_anal_synch_computed = false;
         bool is_jet_obs_pars_set = false;
         bool is_ejecta_obs_pars_set = false;
+        bool is_jet_obsrad_pars_set = false;
+        bool is_ejecta_obsrad_pars_set = false;
         bool is_jet_struct_set = false;
         bool is_ejecta_struct_set = false;
         bool is_main_pars_set = false;
@@ -59,14 +62,14 @@ public:
 
     /// set jet lateral structure
 //    static auto listParsUniformJetStruct(){ return LatStruct::listParametersAnalyticBlastWave(); }
-    static auto listParametersAnalyticBlastWave(){ return LatStruct::listParametersAnalyticBlastWave(); }
-    static auto listJetStructOpts(){ return LatStruct::listStructOpts(); }
+//    static auto listParametersAnalyticBlastWave(){ return LatStruct::listParametersAnalyticBlastWave(); }
+//    static auto listJetStructOpts(){ return LatStruct::listStructOpts(); }
     void setJetStructAnalytic(StrDbMap pars, StrStrMap opts){
         jetStruct.initAnalytic( pars, opts, p_pars->method_eats, p_pars->loglevel );
         p_pars->is_jet_struct_set = true;
     }
 
-    static auto listParsNumericJetStruct(){ return LatStruct::listParsCustomStruct(); }
+//    static auto listParsNumericJetStruct(){ return LatStruct::listParsCustomStruct(); }
     void setJetStructNumeric( Vector & dist_thetas, Vector & dist_EEs, Vector & dist_Gam0s, Vector & dist_MM0s,
                               bool force_grid, std::string eats_method ){
         jetStruct.initCustom( dist_thetas, dist_EEs, dist_Gam0s, dist_MM0s, force_grid, eats_method,
@@ -76,13 +79,13 @@ public:
 
 
     /// set ejecta lateral & velocity structure
-    static auto listParsAnalyticEjectaStruct(){ std::cerr << AT << " not implemented\n"; exit(1); }
+//    static auto listParsAnalyticEjectaStruct(){ std::cerr << AT << " not implemented\n"; exit(1); }
     void setEjectaStructAnalytic(StrDbMap pars, StrStrMap opts){
         std::cerr << " not implimeneted\n Exiting...";
         std::cerr << AT << "\n";
         exit(1);
     }
-    static std::vector<std::string> listParsNumericEjectaStruct(){ return VelocityAngularStruct::list_pars_v_ns(); }
+//    static std::vector<std::string> listParsNumericEjectaStruct(){ return VelocityAngularStruct::list_pars_v_ns(); }
     void setEjectaStructNumericUniformInTheta(Vector & dist_thetas0, Vector & dist_betas, Vector & dist_ek,
                                               size_t nlayers, double mfac){
         ejectaStructs.initUniform(dist_thetas0,dist_betas,dist_ek, nlayers,mfac,
@@ -97,24 +100,9 @@ public:
 
 
     /// list and set parameters that the whole model has (time grid, solver, general settings)
-    static std::vector<std::string> list_pars(){ return { "tb0", "tb1", "ntb", "rtol"}; }
-    static std::vector<std::string> list_opts(){ return { "integrator", "run_jet_bws", "run_ejecta_bws" }; }; //, "jet_eats", "ejecta_eats"
+//    static std::vector<std::string> list_pars(){ return { "tb0", "tb1", "ntb", "rtol"}; }
+//    static std::vector<std::string> list_opts(){ return { "integrator", "run_jet_bws", "run_ejecta_bws" }; }; //, "jet_eats", "ejecta_eats"
     void setModelPars(StrDbMap pars, StrStrMap opts) {
-
-//        if (!p_pars->is_jet_struct_set){
-//            std::cout << "jet structure was not set. Cannot initialize the model. Jet WILL NOT BE evolved\n";
-////            exit(1);
-//        }
-//        if (!p_pars->is_ejecta_struct_set){
-//            std::cout << "ejecta structure was not set. Cannot initialize the model. Ejecta WILL NOT BE evolved\n";
-////            exit(1);
-//        }
-//        if((!p_pars->is_jet_struct_set)&&(!p_pars->is_ejecta_struct_set)){
-//            std::cerr << "\n jet structure was not set. Cannot initialize the model. AND "
-//                      << " ejecta structure was not set. Cannot initialize the model. \n Exiting...\n";
-//            std::cerr << AT << "\n";
-//            exit(1);
-//        }
 
         /// check if parameters present
         p_pars->tb0 = getDoublePar("tb0",pars,AT,p_log,-1,true);//pars.at("tb0");
@@ -125,13 +113,6 @@ public:
         p_pars->nmax = (int)getDoublePar("nmax",pars,AT,p_log,100000,false);//(double) pars.at("rtol");
         p_pars->method_eats = getStrOpt("method_eats", opts, AT, p_log, "", true);
 
-        /// check if parameters present
-//        for (auto &key: list_opts()) {
-//            if (pars.find(key) == pars.end()) {
-//                std::cerr << AT << " Option:" << key << " is not set\n";
-//                exit(1);
-//            }
-//        }
         // set options
         std::string opt = "integrator";
         Integrators::METHODS val;
@@ -157,48 +138,6 @@ public:
         }
         p_pars->integrator = val;
 
-        /// method for EATS (piece-wise (AKA G. Lamb et al) or Adaptive (AKA vanEarten et al)
-//        opt = "jet_eats";
-//        LatStruct::METHOD_eats jet_method_eats;
-//        if ( opts.find(opt) == opts.end() )
-//            jet_method_eats = LatStruct::METHOD_eats::i_pw;
-//        else{
-//            if(opts.at(opt) == "piece-wise")
-//                jet_method_eats = LatStruct::METHOD_eats::i_pw;
-//            else if(opts.at(opt) == "adaptive")
-//                jet_method_eats = LatStruct::METHOD_eats::i_adap;
-//            else{
-//                std::cerr << AT << " option for: " << opt
-//                          <<" given: " << opts.at(opt)
-//                          << " is not recognized \n";
-//                std::cerr << "Possible options: "
-//                          << " piece-wise " << " adaptive " << "\n";
-//                exit(1);
-//            }
-//        }
-//        p_pars->jet_method_eats = jet_method_eats;
-//
-//        opt = "ejecta_eats";
-//        LatStruct::METHOD_eats ej_method_eats;
-//        if ( opts.find(opt) == opts.end() )
-//            ej_method_eats = LatStruct::METHOD_eats::i_pw;
-//        else{
-//            if(opts.at(opt) == "piece-wise")
-//                ej_method_eats = LatStruct::METHOD_eats::i_pw;
-//            else if(opts.at(opt) == "adaptive")
-//                ej_method_eats = LatStruct::METHOD_eats::i_adap;
-//            else{
-//                std::cerr << AT << " option for: " << opt
-//                          <<" given: " << opts.at(opt)
-//                          << " is not recognized \n";
-//                std::cerr << "Possible options: "
-//                          << " piece-wise " << " adaptive " << "\n";
-//                exit(1);
-//            }
-//        }
-//        p_pars->ej_method_eats = ej_method_eats;
-
-
         p_pars->run_jet_bws = getBoolOpt("run_jet_bws", opts, AT,p_log,true);
         p_pars->run_ejecta_bws = getBoolOpt("run_ejecta_bws", opts, AT,p_log,true);
 
@@ -208,14 +147,24 @@ public:
 
         // -------------------------------------------------------------
         p_pars->is_main_pars_set = true;
-        std::cout << "setting model pars...\n";
+//        std::cout << "setting model pars...\n";
         //std::cout << pars << "\n";
     }
 
+    ///
+    void setMagnetarPars(StrDbMap pars, StrStrMap opts){
+        if (!p_pars->is_main_pars_set){
+            std::cerr << "\n model parameters were not set. Cannot run model. \n Exiting...\n";
+            std::cerr << AT << "\n";
+            exit(1);
+        }
+        p_magnetar = std::make_unique<Magnetar>(t_grid, p_pars->loglevel);
+//        p_model->getPars()->p_magnetar->setPars(pars, opts);
+    }
 
     /// list and set parameters that each blast wave needs (dynamics); interaction with others
-    static auto listBwPars(){ return listBwPars_(); }
-    static auto listBwOpts(){ return listBwOpts_(); }
+//    static auto listBwPars(){ return listBwPars_(); }
+//    static auto listBwOpts(){ return listBwOpts_(); }
     void setJetBwPars(StrDbMap pars, StrStrMap opts){
 
         if (!p_pars->is_main_pars_set){
@@ -223,7 +172,12 @@ public:
             std::cerr << AT << "\n";
             exit(1);
         }
+
         size_t ii_eq = 0;
+
+        if (p_pars->run_magnetar)
+            ii_eq += p_magnetar->getNeq();
+
         size_t n_layers = jetStruct.nlayers;//(p_pars->jet_method_eats == LatStruct::i_pw) ? jetStruct.nlayers_pw : jetStruct.nlayers_a ;
         for(size_t i = 0; i < n_layers; i++){
 //            DynRadBlastWave x(t_grid, 0, i, p_pars->loglevel);
@@ -237,6 +191,7 @@ public:
         p_pars->is_jet_obs_pars_set = true;
         p_pars->is_jBW_init = true;
     }
+
     void setEjectaBwPars(StrDbMap pars, StrStrMap opts){
         if (!p_pars->is_main_pars_set){
             std::cerr<< "\n model parameters were not set. Cannot run model. \n Exiting...\n";
@@ -245,9 +200,15 @@ public:
         }
 
         size_t ii_eq = 0;
+
+        if (p_pars->run_magnetar)
+            ii_eq += p_magnetar->getNeq();
+
         size_t n_layers_jet = jetStruct.nlayers;//(p_pars->jet_method_eats == LatStruct::i_pw) ? jetStruct.nlayers_pw : jetStruct.nlayers_a ;
         if (p_pars->run_jet_bws)
-            for(size_t i = 0; i < n_layers_jet; i++){ ii_eq += p_bws_jet[i]->getNeq(); } // offset
+            for(size_t i = 0; i < n_layers_jet; i++){
+                ii_eq += p_bws_jet[i]->getNeq();
+            } // offset
 
         size_t ii = 0;
         bool is_within = false;
@@ -372,15 +333,16 @@ public:
             exit(1);
         }
 
-        p_model = std::make_unique<SetDynRadBlastWaves>(p_bws_jet, p_bws_ej, p_pars->run_jet_bws, p_pars->run_ejecta_bws,
-                                                        t_grid, 0, ejectaStructs.nshells,
-                                                        n_layers_j, n_layers_ej,
-                                                        p_pars->integrator, p_pars->loglevel);
+        p_model = std::make_unique<SetDynRadBlastWaves>(
+                p_magnetar, p_bws_jet, p_bws_ej,
+                p_pars->run_magnetar, p_pars->run_jet_bws, p_pars->run_ejecta_bws,
+                t_grid, 0, ejectaStructs.nshells,
+                n_layers_j, n_layers_ej, p_pars->integrator, p_pars->loglevel);
         p_model->pIntegrator()->pPars()->rtol = p_pars->rtol;
         p_model->pIntegrator()->pPars()->atol = p_pars->rtol;
         p_model->pIntegrator()->pPars()->nmax = p_pars->nmax;
         p_model->setInitialConditions(p_pars->tb0);
-        std::cout << "initial conditions set. Starting evolution\n";
+        (*p_log)(LOG_INFO, AT) << "all initial conditions set. Starting evolution\n";
         // evolve
         double dt;
         for (size_t it = 1; it < t_grid.size(); it++){
@@ -388,6 +350,84 @@ public:
             dt = t_grid[it] - t_grid[it - 1];
             p_model->evolve(dt, it);
         }
+        (*p_log)(LOG_INFO, AT) << "evolution is completed\n";
+    }
+
+    /// save magnetar evolution
+    void saveMagnetarEvolution(std::string fpath, size_t every_it){
+        std::cout << "Saving magnetar evolution...\n";
+
+        if (every_it < 1){
+            std::cerr << " every_it must be > 1; Given every_it="<<every_it<<"\n Exiting...";
+            std::cerr << AT << "\n";
+            exit(1);
+        }
+
+        auto & magnetar = p_magnetar;
+//        std::vector<
+//                std::vector<
+//                        std::vector<double>>> tot_dyn_out ( models.size() );
+        std::vector<std::vector<double>>  tot_mag_out{};
+        std::vector<std::string> tot_names {};
+        std::unordered_map<std::string,double> group_attrs{};
+
+        auto & mag_v_ns = magnetar->m_vnames;
+        auto t_arr = magnetar->getTbGrid(every_it);
+
+        tot_mag_out.resize( mag_v_ns.size() );
+        for (size_t ivar = 0; ivar < mag_v_ns.size(); ivar++){
+            for (size_t it = 0; it < magnetar->getTbGrid().size(); it = it + every_it)
+                tot_mag_out[ivar].emplace_back( (*magnetar)[ static_cast<Magnetar::Q>(ivar) ][it] );
+        }
+
+        std::unordered_map<std::string,double> attrs {};
+
+        p_out->Ve
+
+
+
+        for (size_t i = 0; i < models.size(); i++) {
+            tot_names.push_back("layer="+std::to_string(i));
+            tot_dyn_out[i].resize( dyn_v_ns.size() );
+            for (size_t ivar = 0; ivar < dyn_v_ns.size(); ivar++){
+                for (size_t it = 0; it < models[i]->getTbGrid().size(); it = it + every_it)
+                    tot_dyn_out[i][ivar].emplace_back( (*models[i])[ static_cast<BlastWaveBase::Q>(ivar) ][it] );
+            }
+            ///write attributes
+            auto & model = models[i];
+            std::unordered_map<std::string,double> group_attr{
+                    {"Gamma0",model->getPars()->Gamma0},
+                    {"M0",model->getPars()->M0},
+                    {"R0",model->getPars()->R0},
+                    {"theta0",model->getPars()->theta_b0},
+                    {"theta_max",model->getPars()->theta_max},
+                    {"tb0",model->getPars()->tb0},
+                    {"ijl",model->getPars()->ijl},
+                    {"ncells",model->getPars()->ncells},
+                    {"ilayer",model->getPars()->ilayer},
+                    {"ishell",model->getPars()->ishell},
+                    {"ctheta0",model->getPars()->ctheta0},
+                    {"E0",model->getPars()->E0},
+                    {"theta_c_l",model->getPars()->theta_c_l},
+                    {"theta_c_h",model->getPars()->theta_c_h},
+                    {"eps_rad",model->getPars()->eps_rad},
+                    {"entry_time",model->getPars()->entry_time},
+                    {"entry_r",model->getPars()->entry_r},
+                    {"first_entry_r",model->getPars()->first_entry_r},
+                    {"min_beta_terminate",model->getPars()->min_beta_terminate},
+                    {"every_it",every_it}
+            };
+            group_attrs.emplace_back( group_attr );
+        }
+//    VecVector other_data { latStruct.cthetas0 };
+//    std::vector<std::string> other_names { "cthetas0" };
+
+        std::unordered_map<std::string, double> attrs{
+                {"nlayers", models.size()}
+        };
+
+        p_out->VecVectorOfVectorsAsGroupsH5(tot_dyn_out, tot_names, dyn_v_ns,
+                                            fpath, attrs, group_attrs);
     }
 
     /// save dynamical evolution of the jet blast-waves
@@ -521,10 +561,10 @@ public:
     }
 
     /// list parameters for analytic synchrotron & observer
-    static auto listAnalyticSynchrotronPars(){ return SynchrotronAnalytic::listPars(); }
-    static auto listAnalyticSynchrotronOpts(){ return SynchrotronAnalytic::listOpts(); }
-    static auto listObsPars(){ return RadBlastWave::listPars(); }
-    static auto listObsOpts(){ return RadBlastWave::listOpts(); }
+//    static auto listAnalyticSynchrotronPars(){ return SynchrotronAnalytic::listPars(); }
+//    static auto listAnalyticSynchrotronOpts(){ return SynchrotronAnalytic::listOpts(); }
+//    static auto listObsPars(){ return RadBlastWave::listPars(); }
+//    static auto listObsOpts(){ return RadBlastWave::listOpts(); }
     /// set parameters for analytical electron/synchrotron calculations
     void setPreComputeJetAnalyticElectronsPars(){//(StrDbMap pars, StrStrMap opts){
         std::cout << "Computing Jet analytic electron pars...\n";
@@ -1394,41 +1434,41 @@ private:
     }
 
     /// getters
-    auto & getBWjetPtrs(){ return p_bws_jet; }
-    auto & getBWejectaPtrs(){ return p_bws_ej; }
-    auto & getStructJet(){ return jetStruct; }
-    auto & getStructEjecta(){ return ejectaStructs; }
-    auto & getBWjetUptr( size_t ilayer ){ return p_bws_jet[ilayer]; }
-    auto & getBWejUptr( size_t ishell, size_t ilayer ){ //x + m_nX * y
-        return p_bws_ej[ishell + ejectaStructs.nshells * ilayer];
-    }
+//    auto & getBWjetPtrs(){ return p_bws_jet; }
+//    auto & getBWejectaPtrs(){ return p_bws_ej; }
+//    auto & getStructJet(){ return jetStruct; }
+//    auto & getStructEjecta(){ return ejectaStructs; }
+//    auto & getBWjetUptr( size_t ilayer ){ return p_bws_jet[ilayer]; }
+//    auto & getBWejUptr( size_t ishell, size_t ilayer ){ //x + m_nX * y
+//        return p_bws_ej[ishell + ejectaStructs.nshells * ilayer];
+//    }
     /// main methods
 
 private:
     /// List of the parameters for each blast wave
-    static std::vector<std::string> listBwPars_(){ return { "nn","A0","s","r_ej","r_ism",
-                                                            "a", "theta_max", "epsilon_e_rad",
-                                                            "which_jet_layer_to_use",
-                                                            "steepnes_of_exp_decay",
-                                                            "Gamma_when_st_starts",
-                                                            "fraction_of_Gamma0_when_bm_for_bm"
-        };
-    }
-    static std::vector<std::string> listBwOpts_(){ return { "method_spread","method_eos",
-                                                            "use_dens_prof_behind_jet_for_ejecta",
-                                                            "use_exp_rho_decay_as_floor",
-                                                            "use_flat_dens_floor",
-                                                            "use_st_dens_profile",
-                                                            "use_bm_dens_profile",
-                                                            "method_GammaSh",
-                                                            "method_Up",
-                                                            "method_Delta",
-                                                            "use_adiabLoss",
-                                                            "method_Rsh",
-                                                            "method_dmdr",
-                                                            "method_dgdr"
-        };
-    }
+//    static std::vector<std::string> listBwPars_(){ return { "nn","A0","s","r_ej","r_ism",
+//                                                            "a", "theta_max", "epsilon_e_rad",
+//                                                            "which_jet_layer_to_use",
+//                                                            "steepnes_of_exp_decay",
+//                                                            "Gamma_when_st_starts",
+//                                                            "fraction_of_Gamma0_when_bm_for_bm"
+//        };
+//    }
+//    static std::vector<std::string> listBwOpts_(){ return { "method_spread","method_eos",
+//                                                            "use_dens_prof_behind_jet_for_ejecta",
+//                                                            "use_exp_rho_decay_as_floor",
+//                                                            "use_flat_dens_floor",
+//                                                            "use_st_dens_profile",
+//                                                            "use_bm_dens_profile",
+//                                                            "method_GammaSh",
+//                                                            "method_Up",
+//                                                            "method_Delta",
+//                                                            "use_adiabLoss",
+//                                                            "method_Rsh",
+//                                                            "method_dmdr",
+//                                                            "method_dgdr"
+//        };
+//    }
     void setAllParametersForOneLayer(LatStruct & latStruct, RadBlastWave & bw_obj,
                                      StrDbMap & pars, StrStrMap & opts,
                                      size_t ilayer, size_t ii_eq){
@@ -1721,6 +1761,8 @@ private:
             bw_obj.getSedov()->evaluate();
         }
 
+        /// set parameters for computing observed emission
+
         // set initials and costants for the blast wave
         switch (latStruct.m_method_eats) {
 
@@ -1790,6 +1832,7 @@ private:
 
 private:
     Array t_grid;
+    std::unique_ptr<Magnetar> p_magnetar;
     std::vector<std::unique_ptr<RadBlastWave>> p_bws_jet;
     std::vector<std::unique_ptr<RadBlastWave>> p_bws_ej;
 };
