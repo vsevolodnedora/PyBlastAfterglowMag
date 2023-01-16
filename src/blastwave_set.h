@@ -487,7 +487,7 @@ private:
             p_pars->p_bws_jet[i]->addOtherVars( it );
         }
         for(size_t i = 0; i < p_pars->n_ej_bws; i++){
-            p_pars->p_bws_ej[i]->addOtherVars(it );
+            p_pars->p_bws_ej[i]->addOtherVars( it );
         }
     }
     /// get offset of the equations in the combined solution vector for a given blast wave from its ilayer and ishell

@@ -286,6 +286,7 @@ int main(int argc, char** argv) {
         working_dir = "../../tst/grbafg_gauss_offaxis/";
         working_dir = "../../tst/grbafg_tophat_afgpy/";
         working_dir = "../../tst/knafg_nrinformed/";
+        working_dir = "../../tst/magnetar/";
 //        parfile_arrs_path = "../../tst/dynamics/parfile_arrs.h5";
         (*p_log)(LOG_WARN,AT) << "Paths to working dir is not given. Using "
                                          << working_dir <<"\n";
@@ -308,8 +309,7 @@ int main(int argc, char** argv) {
     PyBlastAfterglow pba(loglevel);
 
     /// read main parameters of the model
-    StrDbMap main_pars;
-    StrStrMap main_opts;
+    StrDbMap main_pars; StrStrMap main_opts;
     readParFile2(main_pars, main_opts, working_dir + parfilename,
                  "# -------------------------- main ---------------------------",
                  "# --------------------------- END ---------------------------");
@@ -321,16 +321,18 @@ int main(int argc, char** argv) {
     Vector skymap_freqs = makeVecFromString(getStrOpt("skymap_freqs",main_opts,AT,p_log,"",true), p_log);
     Vector skymap_times = makeVecFromString(getStrOpt("skymap_times",main_opts,AT,p_log,"",true), p_log);
 
-    /// read main parameters of the magnetar # TODO
-    StrDbMap mag_pars;
-    StrStrMap mag_opts;
+    /// read magnetar parameters of the magnetar # TODO
+    StrDbMap mag_pars; StrStrMap mag_opts;
     bool run_magnetar = getBoolOpt("run_magnetar", main_opts, AT, p_log, false, true);
     bool save_magnetar = getBoolOpt("save_magnetar", main_opts, AT, p_log, false, true);
-    readParFile2(mag_pars, mag_opts, working_dir + parfilename,
-                 "# ------------------------ Magnetar -------------------------",
-                 "# --------------------------- END ---------------------------");
-    if (run_magnetar)
+    if (run_magnetar) {
+        readParFile2(mag_pars, mag_opts, working_dir + parfilename,
+                     "# ------------------------ Magnetar -------------------------",
+                     "# --------------------------- END ---------------------------");
+
         pba.setMagnetarPars(mag_pars, mag_opts);
+    }
+
 
     /// read grb afterglow parameters
     bool run_jet_bws = getBoolOpt("run_jet_bws", main_opts, AT, p_log, false, true);
@@ -389,66 +391,70 @@ int main(int argc, char** argv) {
     (*p_log)(LOG_INFO, AT) << "evolution finished [" << timer.checkPoint() << " s]" << "\n";
 
     /// save Magnetar data
-    if (save_magnetar){
+    if (run_magnetar and save_magnetar){
         pba.saveMagnetarEvolution(
-                working_dir+getStrOpt("fname_dyn", grb_opts, AT, p_log, "", true),
-                (int)getDoublePar("save_dyn_every_it", grb_pars, AT, p_log, 1, true) );
+                working_dir+getStrOpt("fname_mag", mag_opts, AT, p_log, "", true),
+                (int)getDoublePar("save_mag_every_it", mag_pars, AT, p_log, 1, true) );
     }
 
     /// work on GRB afterglow
-    if (save_j_dynamics)
-        pba.saveJetBWsDynamics(
-                working_dir+getStrOpt("fname_dyn", grb_opts, AT, p_log, "", true),
-                (int)getDoublePar("save_dyn_every_it", grb_pars, AT, p_log, 1, true) );
-    if (run_jet_bws and do_j_ele) {
-        pba.setPreComputeJetAnalyticElectronsPars();
-        (*p_log)(LOG_INFO, AT) << "jet analytic synch. electrons finished [" << timer.checkPoint() << " s]" << "\n";
-    }
-    if (run_jet_bws and (do_j_lc or do_j_skymap)) {
-        if (do_j_lc) {
-            pba.computeSaveJetLightCurveAnalytic(
-                    working_dir + getStrOpt("fname_light_curve", grb_opts, AT, p_log, "", true),
-                    lc_times, lc_freqs);
-            (*p_log)(LOG_INFO, AT) << "jet analytic synch. light curve finished [" << timer.checkPoint() << " s]" << "\n";
+    if (run_jet_bws){
+        if (save_j_dynamics)
+            pba.saveJetBWsDynamics(
+                    working_dir+getStrOpt("fname_dyn", grb_opts, AT, p_log, "", true),
+                    (int)getDoublePar("save_dyn_every_it", grb_pars, AT, p_log, 1, true) );
+        if (do_j_ele) {
+            pba.setPreComputeJetAnalyticElectronsPars();
+            (*p_log)(LOG_INFO, AT) << "jet analytic synch. electrons finished [" << timer.checkPoint() << " s]" << "\n";
         }
-        if (do_j_skymap) {
-            pba.computeSaveJetSkyImagesAnalytic(
-                    working_dir + getStrOpt("fname_sky_map", grb_opts, AT, p_log, "", true),
-                    skymap_times, skymap_freqs);
-            (*p_log)(LOG_INFO, AT) << "jet analytic synch. sky map finished [" << timer.checkPoint() << " s]" << "\n";
+        if (do_j_lc or do_j_skymap) {
+            if (do_j_lc) {
+                pba.computeSaveJetLightCurveAnalytic(
+                        working_dir + getStrOpt("fname_light_curve", grb_opts, AT, p_log, "", true),
+                        lc_times, lc_freqs);
+                (*p_log)(LOG_INFO, AT) << "jet analytic synch. light curve finished [" << timer.checkPoint() << " s]" << "\n";
+            }
+            if (do_j_skymap) {
+                pba.computeSaveJetSkyImagesAnalytic(
+                        working_dir + getStrOpt("fname_sky_map", grb_opts, AT, p_log, "", true),
+                        skymap_times, skymap_freqs);
+                (*p_log)(LOG_INFO, AT) << "jet analytic synch. sky map finished [" << timer.checkPoint() << " s]" << "\n";
+            }
         }
     }
 
     /// work on kN afterglow
-    if (save_ej_dynamics)
-        pba.saveEjectaBWsDynamics(
-                working_dir + getStrOpt("fname_dyn", kn_opts, AT, p_log, "", true),
-                (int) getDoublePar("save_dyn_every_it", kn_pars, AT, p_log, 1, true));
-    if (run_ejecta_bws and do_ej_ele) {
-        pba.setPreComputeEjectaAnalyticElectronsPars();
-        (*p_log)(LOG_INFO, AT) << "ejecta analytic synch. electrons finished [" << timer.checkPoint() << " s]" << "\n";
+    if (run_ejecta_bws){
+        if (save_ej_dynamics)
+            pba.saveEjectaBWsDynamics(
+                    working_dir + getStrOpt("fname_dyn", kn_opts, AT, p_log, "", true),
+                    (int) getDoublePar("save_dyn_every_it", kn_pars, AT, p_log, 1, true));
+        if (do_ej_ele) {
+            pba.setPreComputeEjectaAnalyticElectronsPars();
+            (*p_log)(LOG_INFO, AT) << "ejecta analytic synch. electrons finished [" << timer.checkPoint() << " s]" << "\n";
 
-    }
-    if (run_ejecta_bws and (do_ej_lc or do_ej_skymap)) {
+        }
+        if (do_ej_lc or do_ej_skymap) {
 //        LoadH5 pars_arrs;
 //        pars_arrs.setFileName(parfile_arrs_path);
 //        pars_arrs.setVarName("light_curve_times");
 //        Vector times = pars_arrs.getDataVDouble();
 //        pars_arrs.setVarName("light_curve_freqs");
 //        Vector freqs = pars_arrs.getDataVDouble();
-        if (do_ej_lc) {
-            pba.computeSaveEjectaLightCurveAnalytic(
-                    working_dir + getStrOpt("fname_light_curve", kn_opts, AT, p_log, "", true),
-                    lc_times, lc_freqs);
-            (*p_log)(LOG_INFO, AT) << "ejecta analytic synch. light curve finished [" << timer.checkPoint() << " s]" << "\n";
+            if (do_ej_lc) {
+                pba.computeSaveEjectaLightCurveAnalytic(
+                        working_dir + getStrOpt("fname_light_curve", kn_opts, AT, p_log, "", true),
+                        lc_times, lc_freqs);
+                (*p_log)(LOG_INFO, AT) << "ejecta analytic synch. light curve finished [" << timer.checkPoint() << " s]" << "\n";
 
-        }
-        if (do_ej_skymap) {
-            pba.computeSaveEjectaSkyImagesAnalytic(
-                    working_dir + getStrOpt("fname_sky_map", grb_opts, AT, p_log, "", true),
-                    skymap_times, skymap_freqs);
-            (*p_log)(LOG_INFO, AT) << "ejecta analytic synch. sky map finished [" << timer.checkPoint() << " s]" << "\n";
+            }
+            if (do_ej_skymap) {
+                pba.computeSaveEjectaSkyImagesAnalytic(
+                        working_dir + getStrOpt("fname_sky_map", grb_opts, AT, p_log, "", true),
+                        skymap_times, skymap_freqs);
+                (*p_log)(LOG_INFO, AT) << "ejecta analytic synch. sky map finished [" << timer.checkPoint() << " s]" << "\n";
 
+            }
         }
     }
 

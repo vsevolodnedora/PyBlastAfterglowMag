@@ -37,6 +37,7 @@ class PyBlastAfterglow{
         bool is_jet_struct_set = false;
         bool is_ejecta_struct_set = false;
         bool is_main_pars_set = false;
+        bool is_mag_pars_set = false;
         // ---
 
     };
@@ -138,6 +139,7 @@ public:
         }
         p_pars->integrator = val;
 
+        p_pars->run_magnetar = getBoolOpt("run_magnetar", opts, AT,p_log,true);
         p_pars->run_jet_bws = getBoolOpt("run_jet_bws", opts, AT,p_log,true);
         p_pars->run_ejecta_bws = getBoolOpt("run_ejecta_bws", opts, AT,p_log,true);
 
@@ -160,6 +162,8 @@ public:
         }
         p_magnetar = std::make_unique<Magnetar>(t_grid, p_pars->loglevel);
 //        p_model->getPars()->p_magnetar->setPars(pars, opts);
+        p_magnetar->setPars(pars, opts);
+        p_pars->is_mag_pars_set = true;
     }
 
     /// list and set parameters that each blast wave needs (dynamics); interaction with others
@@ -313,13 +317,18 @@ public:
         }
 
         if (!p_pars->is_main_pars_set){
-            std::cerr << " model parameters were not set. Cannot run model. \n Exiting...\n";
-            std::cerr << AT << "\n";
+            (*p_log)(LOG_ERR,AT) << " model parameters were not set. Cannot run model. \n";
+//            std::cerr << AT << "\n";
+            exit(1);
+        }
+        if ((!p_pars->is_mag_pars_set)&&(p_pars->run_magnetar)){
+            (*p_log)(LOG_ERR,AT)  << "magnetar pars are not set\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
         if ((!p_pars->is_jBW_init)&&(p_pars->run_jet_bws)){
-            std::cerr << "jet BWs are not set \n Exiting...\n";
-            std::cerr << AT << "\n";
+            (*p_log)(LOG_ERR,AT)  << "jet BWs are not set \n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
         if ((!p_pars->is_ejBW_init)&&(p_pars->run_ejecta_bws)){
@@ -327,9 +336,9 @@ public:
             std::cerr << AT << "\n";
             exit(1);
         }
-        if ((!p_pars->is_jBW_init)&&(!p_pars->is_ejBW_init)){
-            std::cerr << " jet AND ejecta BWs are not set\n Exiting...\n";
-            std::cerr << AT << "\n";
+        if ((!p_pars->is_mag_pars_set)&&(!p_pars->is_jBW_init)&&(!p_pars->is_ejBW_init)){
+            (*p_log)(LOG_ERR,AT) << " magnetar AND jet AND ejecta BWs are not set\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
 
@@ -364,9 +373,7 @@ public:
         }
 
         auto & magnetar = p_magnetar;
-//        std::vector<
-//                std::vector<
-//                        std::vector<double>>> tot_dyn_out ( models.size() );
+
         std::vector<std::vector<double>>  tot_mag_out{};
         std::vector<std::string> tot_names {};
         std::unordered_map<std::string,double> group_attrs{};
@@ -382,52 +389,7 @@ public:
 
         std::unordered_map<std::string,double> attrs {};
 
-        p_out->Ve
-
-
-
-        for (size_t i = 0; i < models.size(); i++) {
-            tot_names.push_back("layer="+std::to_string(i));
-            tot_dyn_out[i].resize( dyn_v_ns.size() );
-            for (size_t ivar = 0; ivar < dyn_v_ns.size(); ivar++){
-                for (size_t it = 0; it < models[i]->getTbGrid().size(); it = it + every_it)
-                    tot_dyn_out[i][ivar].emplace_back( (*models[i])[ static_cast<BlastWaveBase::Q>(ivar) ][it] );
-            }
-            ///write attributes
-            auto & model = models[i];
-            std::unordered_map<std::string,double> group_attr{
-                    {"Gamma0",model->getPars()->Gamma0},
-                    {"M0",model->getPars()->M0},
-                    {"R0",model->getPars()->R0},
-                    {"theta0",model->getPars()->theta_b0},
-                    {"theta_max",model->getPars()->theta_max},
-                    {"tb0",model->getPars()->tb0},
-                    {"ijl",model->getPars()->ijl},
-                    {"ncells",model->getPars()->ncells},
-                    {"ilayer",model->getPars()->ilayer},
-                    {"ishell",model->getPars()->ishell},
-                    {"ctheta0",model->getPars()->ctheta0},
-                    {"E0",model->getPars()->E0},
-                    {"theta_c_l",model->getPars()->theta_c_l},
-                    {"theta_c_h",model->getPars()->theta_c_h},
-                    {"eps_rad",model->getPars()->eps_rad},
-                    {"entry_time",model->getPars()->entry_time},
-                    {"entry_r",model->getPars()->entry_r},
-                    {"first_entry_r",model->getPars()->first_entry_r},
-                    {"min_beta_terminate",model->getPars()->min_beta_terminate},
-                    {"every_it",every_it}
-            };
-            group_attrs.emplace_back( group_attr );
-        }
-//    VecVector other_data { latStruct.cthetas0 };
-//    std::vector<std::string> other_names { "cthetas0" };
-
-        std::unordered_map<std::string, double> attrs{
-                {"nlayers", models.size()}
-        };
-
-        p_out->VecVectorOfVectorsAsGroupsH5(tot_dyn_out, tot_names, dyn_v_ns,
-                                            fpath, attrs, group_attrs);
+        p_out->VectorOfVectorsH5(tot_mag_out, mag_v_ns, fpath, attrs);
     }
 
     /// save dynamical evolution of the jet blast-waves

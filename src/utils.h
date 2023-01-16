@@ -35,6 +35,8 @@ inline namespace CGS{
     const double &solar_m = 1.989e+33; // solar mass in g
     const double &deg2rad = 0.017453292;
     const double &cgs2mJy = 1.e26;
+    const double &gravconst = 6.67259e-8;// # cm^3 g^-1 s^-2
+
 };
 
 namespace TOOLS{
@@ -457,6 +459,7 @@ public:
         }
 
     }
+
 
     /**
  * Save vector of 2D vectors in a single h5
