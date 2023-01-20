@@ -203,16 +203,22 @@ public:
             exit(1);
         }
 
+        /// counter for total equations to be solved with ODE solver
         size_t ii_eq = 0;
 
+        /// offset counter for magnetar
         if (p_pars->run_magnetar)
             ii_eq += p_magnetar->getNeq();
 
+        /// offset counter for grb
         size_t n_layers_jet = jetStruct.nlayers;//(p_pars->jet_method_eats == LatStruct::i_pw) ? jetStruct.nlayers_pw : jetStruct.nlayers_a ;
         if (p_pars->run_jet_bws)
             for(size_t i = 0; i < n_layers_jet; i++){
                 ii_eq += p_bws_jet[i]->getNeq();
-            } // offset
+            }
+
+
+
 
         size_t ii = 0;
         bool is_within = false;

@@ -194,7 +194,7 @@ public:
             n_dip = - 1./6. * p_pars->mu*p_pars->mu * std::pow(omega,3.) / (CGS::c*CGS::c*CGS::c);
         }
         n_dip = omega < p_pars->omega_c ? 0. : n_dip; // Check if NS has collapse
-        return n_dip;
+        return n_dip ;
     }
     inline double torque_propeller(double omega, double fastness, double r_mag, double mdot){
         double e_rot = 0.5*p_pars->eos_i*omega*omega; // Rotational energy of the NS
@@ -208,16 +208,17 @@ public:
             else
                 n_acc = ((1. - omega/p_pars->omega_kep) * std::sqrt(CGS::gravconst*p_pars->ns_mass*r_mag) * mdot); // Eq. (7)
         }
-        return n_acc;
+        return n_acc ;
     }
     inline double torque_gws(double omega){
         /// compute Gravitational wave spindown torque (Zhang and Meszaros 2001)
         double n_grav = -32./5. * CGS::gravconst
+                        * std::pow(CGS::pi,6.)
                         * p_pars->eos_i*p_pars->eos_i
                         * p_pars->ns_ellipticity*p_pars->ns_ellipticity
-                        * std::pow(omega,5.) / std::pow(CGS::c,5.);
+                        * std::pow(omega,6.) / std::pow(CGS::c,5.);
         n_grav = omega < 1.e4 ? 0. : n_grav;
-        return n_grav;
+        return n_grav ;
     }
 
     void evaluateRhs( double * out_Y, size_t i, double x, double const * Y ){

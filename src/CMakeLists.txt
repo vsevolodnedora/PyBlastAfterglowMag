@@ -22,6 +22,6 @@ include_directories ( ${HDF5_INCLUDE_DIR} )
 #SET(MY_VARIABLE "option_value" CACHE STRING "../tst/dynamics/parfile.par")
 set_target_properties(${TARGET_NAME} PROPERTIES VS_DEBUGGER_COMMAND_ARGUMENTS "../tst/dynamics/parfile.par" )
 
-add_executable(src main.cpp Logger.h)
+add_executable(src main.cpp magnetar.h)
 
 target_link_libraries(${PROJECT_NAME} stdc++fs HDF5::HDF5)

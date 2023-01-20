@@ -1809,4 +1809,11 @@ public:
     }
 };
 
+class VelStructBlastWave{
+    VelStructBlastWave(){
+
+    }
+    std::vector<std::unique_ptr<RadBlastWave>> p_bw_ej;
+};
+
 #endif //SRC_BLASTWAVE_RAD_H

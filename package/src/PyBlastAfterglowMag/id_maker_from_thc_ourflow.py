@@ -69,6 +69,7 @@ class cgs:
     gamma_c_w_fac = 6 * np.pi * me * c / sigmaT
     rad_const = 4 * sigma_B / c   #### Radiation constant
     mppme = mp + me
+    gravconst = 6.67259e-8 # cm^3 g^-1 s^-2
 
     pc = 3.0857e18 # cm
     year= 3.154e+7 # sec

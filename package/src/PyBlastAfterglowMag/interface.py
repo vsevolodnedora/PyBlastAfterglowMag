@@ -203,6 +203,7 @@ class PBA_BASE:
             raise IOError("Working directory not found {}".format(workingdir))
 
         self.workingdir = workingdir
+        self.res_dir_mag = workingdir
         self.res_dir_kn = workingdir
         self.res_dir_grb = workingdir
         self.grb_prefix = "grb_"
@@ -210,6 +211,12 @@ class PBA_BASE:
         # ------------------ MAIN
         if readparfileforpaths:
             self.main_pars, self.main_opts = self.read_main_part_parfile(parfile)
+        # ------------------ MAGNETAR
+        self.fpath_mag = None
+        if readparfileforpaths:
+            self.mag_pars, self.mag_opts = self.read_magnetar_part_parfile(parfile)
+        else:
+            self.fpath_mag = self.res_dir_mag + "magnetar.h5"
         # ------------------ GRB
         self.fpath_grb_dyn = None
         self.fpath_grb_spec = None
@@ -237,6 +244,7 @@ class PBA_BASE:
         # ------------------- MAGNETAR
         # TODO
         # -----------------
+        self.mag_dfile = None
         self.grb_dyn_dfile = None
         self.grb_spec_dfile = None
         self.grb_lc_dfile = None
@@ -249,6 +257,9 @@ class PBA_BASE:
 
     def clear(self):
         # self.overwrite = True
+        if (not self.mag_dfile is None):
+            self.mag_dfile.close()
+            self.mag_dfile = None
         if (not self.grb_dyn_dfile is None):
             self.grb_dyn_dfile.close()
             self.grb_dyn_dfile = None
@@ -278,6 +289,12 @@ class PBA_BASE:
                                           sep1="# -------------------------- main ---------------------------",
                                           sep2="# --------------------------- END ---------------------------")
         return (main_pars,main_opts)
+    def read_magnetar_part_parfile(self, parfile="parfile.par"):
+        mag_pars, mag_opts = read_parfile(workingdir=self.workingdir,fname=parfile,comment="#",
+                                            sep1="# ------------------------ Magnetar -------------------------",
+                                            sep2="# --------------------------- END ---------------------------")
+        if "fname_mag" in mag_opts.keys(): self.fpath_mag = self.res_dir_mag + mag_opts["fname_mag"]
+        return (mag_pars, mag_opts)
     def read_grb_part_parfile(self,parfile="parfile.par"):
         grb_pars, grb_opts = read_parfile(workingdir=self.workingdir, fname=parfile,comment="#",
                                           sep1="# ---------------------- GRB afterglow ----------------------",
@@ -314,6 +331,7 @@ class PBA_BASE:
     #
     #
     #     if (reload_parfile): self.main_pars, self.main_opts = self.read_main_part_parfile()
+
     def modify_main_part_parfile(self, newpars : dict, newopts : dict, parfile="parfile.par"):
         modify_parfile(newpars=newpars,newopts=newopts,workingdir=self.workingdir,comment="#",fname=parfile,
                        newfname="parfile2.par",
@@ -327,6 +345,15 @@ class PBA_BASE:
         modify_parfile(newpars=newpars,newopts=newopts,workingdir=self.workingdir,comment="#",fname=parfile,
                        newfname="parfile2.par",
                        sep1="# ---------------------- GRB afterglow ----------------------",
+                       sep2="# --------------------------- END ---------------------------")
+        copyfile(self.workingdir+"parfile.par",self.workingdir+"old_parfile.par")
+        copyfile(self.workingdir+"parfile2.par",self.workingdir+"parfile.par")
+        os.remove(self.workingdir+"parfile2.par")
+        # if (reload_parfile): self.grb_pars, self.grb_opts = self.read_grb_part_parfile()
+    def modify_mag_part_parfile(self, newpars : dict, newopts : dict,parfile="parfile.par"):
+        modify_parfile(newpars=newpars,newopts=newopts,workingdir=self.workingdir,comment="#",fname=parfile,
+                       newfname="parfile2.par",
+                       sep1="# ------------------------ Magnetar -------------------------",
                        sep2="# --------------------------- END ---------------------------")
         copyfile(self.workingdir+"parfile.par",self.workingdir+"old_parfile.par")
         copyfile(self.workingdir+"parfile2.par",self.workingdir+"parfile.par")
@@ -359,10 +386,16 @@ class PBA_BASE:
         print("{} {}".format(path_to_cpp_executable, self.workingdir))
         # subprocess.run(path_to_cpp_executable, input=self.workingdir)
         subprocess.check_call([path_to_cpp_executable, self.workingdir])
+    ''' --------- magnetar ---------- '''
+    def _check_if_loaded_mag_obj(self):
+        if (self.fpath_mag is None):
+            raise IOError("self.fpath_mag is not set")
+        if (self.mag_dfile is None):
+            self.mag_dfile = h5py.File(self.fpath_mag)
     ''' --------- jet (only layers) -------------- '''
     # jet dynamics
     def _ckeck_if_loaded_j_dyn_obj(self):
-        if (self.fpath_grb_dyn):
+        if (self.fpath_grb_dyn is None):
             raise IOError("self.fpath_grb_dyn is not set")
         if (self.grb_dyn_dfile is None):
             self.grb_dyn_dfile = h5py.File(self.fpath_grb_dyn)
@@ -480,6 +513,12 @@ class BPA_METHODS(PBA_BASE):
     '''
     def __init__(self, workingdir,readparfileforpaths=True,parfile="parfile.par"):
         super().__init__(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile)
+
+    # magnetar
+    def get_mag_obj(self):
+        self._check_if_loaded_mag_obj()
+        return self.mag_dfile
+
 
     # jet dynamics
 
