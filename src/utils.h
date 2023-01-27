@@ -168,24 +168,20 @@ Vector arrToVec(Array & array){
     return std::move( vec );
 }
 
-/*
- * 'argsort'
- * https://stackoverflow.com/questions/1577475/c-sorting-and-keeping-track-of-indexes
- */
+/// https://stackoverflow.com/questions/1577475/c-sorting-and-keeping-track-of-indexes
 template <typename T>
 std::vector<size_t> sort_indexes(const std::vector<T> &v) {
 
     // initialize original index locations
     std::vector<size_t> idx(v.size());
-    std::iota(idx.begin(), idx.end(), 0);
+    iota(idx.begin(), idx.end(), 0);
 
-    // sort indexes based on comparing values in vv
+    // sort indexes based on comparing values in v
     // using std::stable_sort instead of std::sort
     // to avoid unnecessary index re-orderings
-    // when vv contains elements of equal values
-    std::stable_sort(idx.begin(), idx.end(),
-                     [&v](size_t i1, size_t i2)
-                     {return v[i1] < v[i2];});
+    // when v contains elements of equal values
+    stable_sort(idx.begin(), idx.end(),
+                [&v](size_t i1, size_t i2) {return v[i1] < v[i2];});
 
     return std::move( idx );
 }

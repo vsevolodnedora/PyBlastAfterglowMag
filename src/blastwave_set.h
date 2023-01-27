@@ -20,15 +20,66 @@
 #include "blastwave_rad.h"
 #include "blastwave_dyn.h"
 
+/*
+ * Class to hold blastwaves with the same angular coordinate (shells of the same layer)
+ * Here the velocity distribution, relative position and photosphere can be found.
+ */
+class CumulativeShell{
+    size_t m_nshells;
+    std::unique_ptr<logger> p_log;
+    std::vector<std::unique_ptr<RadBlastWave>> p_bws_ej;
+    std::vector<std::vector<size_t>> relative_position;
+    std::vector<size_t> current_indexes;
+public:
+    CumulativeShell( Array t_grid, size_t nshells, int ilayer, int loglevel ){
+        m_nshells = nshells;
+
+        p_log = std::make_unique<logger>(std::cout, std::cerr, CurrLogLevel, "LatStruct");
+        for (size_t ishell = 0; ishell < nshells; ishell++)
+            p_bws_ej.emplace_back( std::make_unique<DynRadBlastWave>(t_grid, ishell, ilayer, loglevel) );
+
+        relative_position.resize( nshells );
+        for (auto & arr : relative_position)
+            arr.resize( t_grid.size() );
+    }
+    std::unique_ptr<RadBlastWave> & getBW(size_t ish){
+        if (ish > p_bws_ej.size()){
+            (*p_log)(LOG_ERR, AT) << "invalid memory accessed\n"; exit(1);
+        }
+        return p_bws_ej[ish];
+    }
+    inline size_t nBWs() const {return p_bws_ej.size();}
+    inline std::vector<std::unique_ptr<RadBlastWave>> & gerBWs() {return p_bws_ej;}
+    inline std::vector<size_t> & getCurrentIndexes( ) { return current_indexes; }
+    inline void evalRelativePosition(double x, const double * Y){
+        Vector radii ( m_nshells );
+        for (size_t i=0; i<m_nshells; i++){
+            auto & bw = p_bws_ej[i];
+            double r = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+            radii[i] = r == 0. ? 1e90 : r;
+//            radii[i] = p_bws_ej[i]->getLastVal(std::static_pointer_cast<BlastWaveBase::Q>())
+        }
+//        std::cout << radii << "\n";
+        current_indexes = sort_indexes(radii);
+//        std::cout << idxes << "\n";
+//        if (idxes[0]!=0){
+//            std::cout << x << " " << x / CGS::day << " " << x / CGS::year;
+//            std::cout << radii << "\n" ;
+//            std::cout << idxes << "\n" ;
+//            exit(1);
+//        }
+    }
+};
+
 class SetDynRadBlastWaves{
     struct Pars{
         Pars(
                 std::unique_ptr<Magnetar> & p_magnetar,
                 std::vector<std::unique_ptr<RadBlastWave>> & p_bws_jet,
-                std::vector<std::unique_ptr<RadBlastWave>> & p_bws_ej,
+                std::vector<std::unique_ptr<CumulativeShell>> & p_ej,
                 bool run_magnetar, bool run_jet_bws, bool run_ej_bws,
                 Array & t_grid
-        ) : p_magnetar(p_magnetar), p_bws_jet(p_bws_jet), p_bws_ej(p_bws_ej),
+        ) : p_magnetar(p_magnetar), p_bws_jet(p_bws_jet), p_ej(p_ej),
             run_magnetar(run_magnetar), run_jet_bws(run_jet_bws), run_ej_bws(run_ej_bws), t_grid(t_grid){
             if (!p_bws_jet.empty()) {
                 n_j_bws = p_bws_jet.size();
@@ -38,9 +89,9 @@ class SetDynRadBlastWaves{
                 n_j_bws = 0;
                 n_eq_j_bws = 0;
             }
-            if(!p_bws_ej.empty()) {
-                n_ej_bws = p_bws_ej.size();
-                n_eq_ej_bws= p_bws_ej[0]->getNeq();
+            if(!p_ej.empty()) {
+                n_ej_bws = p_ej.size()*p_ej[0]->nBWs();//p_bws_ej.size();
+                n_eq_ej_bws= p_ej[0]->getBW(0)->getNeq();//p_bws_ej[0]->getNeq();
             }
             else {
                 n_ej_bws = 0;
@@ -67,7 +118,7 @@ class SetDynRadBlastWaves{
         Array & t_grid;
         std::unique_ptr<Magnetar> & p_magnetar;
         std::vector<std::unique_ptr<RadBlastWave>> & p_bws_jet;
-        std::vector<std::unique_ptr<RadBlastWave>> & p_bws_ej;
+        std::vector<std::unique_ptr<CumulativeShell>> & p_ej;
         bool run_magnetar{};
         bool run_jet_bws{};
         bool run_ej_bws{};
@@ -90,17 +141,17 @@ class SetDynRadBlastWaves{
         double r_ej_ent = -1;
         // ----
 
-        inline size_t idx_j(const size_t i){
-//            auto * p_pars = (struct Pars *) pars;
-            auto & bwPtr = p_bws_jet[i];
-            return bwPtr->getNeq() * (bwPtr->getPars()->ilayer + n_layers_j * bwPtr->getPars()->ishell);
-        }
-        inline size_t idx_ej(const size_t i){
-//            auto * p_pars = (struct Pars *) pars;
-            auto & bwPtr = p_bws_ej[i];
-            size_t _idx_j = n_eq_j_bws * n_j_bws;
-            return _idx_j + bwPtr->getNeq() * (bwPtr->getPars()->ilayer + n_layers_ej * bwPtr->getPars()->ishell);
-        }
+//        inline size_t idx_j(const size_t i){
+////            auto * p_pars = (struct Pars *) pars;
+//            auto & bwPtr = p_bws_jet[i];
+//            return bwPtr->getNeq() * (bwPtr->getPars()->ilayer + n_layers_j * bwPtr->getPars()->ishell);
+//        }
+//        inline size_t idx_ej(const size_t i){
+////            auto * p_pars = (struct Pars *) pars;
+//            auto & bwPtr = p_bws_ej[i];
+//            size_t _idx_j = n_eq_j_bws * n_j_bws;
+//            return _idx_j + bwPtr->getNeq() * (bwPtr->getPars()->ilayer + n_layers_ej * bwPtr->getPars()->ishell);
+//        }
         // ---
         size_t ix = 0;  // index latest solution
         double dx = 0;
@@ -119,13 +170,13 @@ class SetDynRadBlastWaves{
 public:
     SetDynRadBlastWaves(std::unique_ptr<Magnetar> & p_magnetar,
                         std::vector<std::unique_ptr<RadBlastWave>> & p_bws_jet,
-                        std::vector<std::unique_ptr<RadBlastWave>> & p_bws_ej,
+                        std::vector<std::unique_ptr<CumulativeShell>> & p_ej,
                         bool run_magnetar, bool run_jet_bws, bool run_ej_bws, Array & t_grid,
                         size_t n_shells_j, size_t n_shells_ej, size_t n_layers_j, size_t n_layers_ej,
                         const Integrators::METHODS integrator = Integrators::METHODS::RK4,
                         int loglevel = CurrLogLevel
     ){
-        p_pars = new Pars(p_magnetar, p_bws_jet, p_bws_ej, run_magnetar, run_jet_bws, run_ej_bws, t_grid);
+        p_pars = new Pars(p_magnetar, p_bws_jet, p_ej, run_magnetar, run_jet_bws, run_ej_bws, t_grid);
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "SetDynRadBlastWaves");
         p_pars->n_layers_j  = run_jet_bws ? n_layers_j : 0;
         p_pars->n_layers_ej = run_ej_bws ? n_layers_ej : 0;
@@ -184,10 +235,23 @@ public:
     void setRelativePositions(){
 
         auto & jet_bws = p_pars->p_bws_jet;
-        auto & ej_bws = p_pars->p_bws_ej;
+        auto & ej_bws = p_pars->p_ej;
 
         size_t i_j_l;// = which_layer_to_use;//jet_bws.size() - 1;
 
+        for (size_t il=0; il<ej_bws.size(); il++){
+            for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++){
+                auto & bw = ej_bws[il]->getBW(ish);
+                i_j_l = bw->getPars()->which_jet_layer_to_use;
+                double ej_ctheta = bw->getPars()->ctheta0;
+                double j_ctheta = jet_bws[i_j_l]->getPars()->ctheta0;
+                if (ej_ctheta < j_ctheta){
+                    bw->getPars()->is_within0 = true;
+                    bw->getPars()->ijl = i_j_l;
+                }
+            }
+        }
+#if 0
         for (size_t iej = 0; iej < ej_bws.size(); iej++){
             i_j_l = ej_bws[iej]->getPars()->which_jet_layer_to_use;
             double ej_ctheta = ej_bws[iej]->getPars()->ctheta0;
@@ -197,6 +261,7 @@ public:
                 ej_bws[iej]->getPars()->ijl = i_j_l;
             }
         }
+#endif
     }
 
     /// fill the 'm_InitData' - vector of initial conditions for all blast waves
@@ -204,7 +269,7 @@ public:
         size_t ii = 0;
         auto & magnetar = p_pars->p_magnetar;
         auto & jet_bws = p_pars->p_bws_jet;
-        auto & ej_bws = p_pars->p_bws_ej;
+        auto & ej_bws = p_pars->p_ej;
         // ***************************************
         if (p_pars->run_magnetar){
             magnetar->setInitConditions(m_InitData, ii);
@@ -226,24 +291,16 @@ public:
             setRelativePositions();
         // ***************************************
         if (p_pars->n_layers_ej > 0) {
-            for (size_t il = 0; il < p_pars->n_ej_bws; il++) {
-//            auto & ej_pars = ej_bws[il]->getPars();
-//            if (ej_pars->ctheta0 < jet_extend){
-//                double beta0 = EQS::Beta(ej_pars->Gamma0);
-//                double R0    = ej_pars->tb0 * beta0 * CGS::c;
-//                ej_bws[il]->getDensIsm()->evaluateRhoDrhoDr(R0, ej_pars->ctheta0);
-//                ej_bws[il]->getDensIsm()->m_rho *= 1e-20;
-//                ej_bws[il]->getDensIsm()->m_drhodr *= 0.;
-//            }
-//            else {
-//                double beta0 = EQS::Beta(ej_bws[il]->getPars()->Gamma0);
-//                double R0 = ej_bws[il]->getPars()->tb0 * beta0 * CGS::c;
-//                ej_bws[il]->getDensIsm()->evaluateRhoDrhoDr(R0, ej_pars->ctheta0);
-//            }
-//                std::cout << "Initializing blast wave (ejecta) layer=" << il << " (ii=" << ii << ")" << "\n";
-                ej_bws[il]->setInitConditions(m_InitData, ii);
-                ii += p_pars->n_eq_ej_bws;
+            for (size_t il=0; il<ej_bws.size(); il++){
+                for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++){
+                    ej_bws[il]->getBW(ish)->setInitConditions(m_InitData, ii);
+                    ii += p_pars->n_eq_ej_bws;
+                }
             }
+//            for (size_t il = 0; il < p_pars->n_ej_bws; il++) {
+//                ej_bws[il]->setInitConditions(m_InitData, ii);
+//                ii += p_pars->n_eq_ej_bws;
+//            }
         }
         // ***************************************
         for (size_t i = 0; i < p_pars->n_tot_eqs; i++){ m_CurSol[i] = m_InitData[i]; }
@@ -297,6 +354,7 @@ public:
         // ---
         Array & t_grid = p_pars->t_grid;
         if ( ix % 10 == 0 ) {
+            // std::cout << p_pars->p_ej[0]->getCurrentIndexes() << "\n";
             std::cout << "it=" << ix << "/" << t_grid.size() << " t=" << t_grid[ix] << "\n";
         }
 //        for(size_t i_ej = 0; i_ej < p_pars->p_bws_ej.size(); i_ej++){
@@ -350,7 +408,7 @@ private:
     void applyUnits(){
         auto & magnetar = p_pars->p_magnetar;
         auto & jet_bws = p_pars->p_bws_jet;
-        auto & ej_bws = p_pars->p_bws_ej;
+        auto & ej_bws = p_pars->p_ej;
         size_t ii = 0;
         if (p_pars->run_magnetar) {
             magnetar->applyUnits(m_CurSol, ii);
@@ -360,14 +418,20 @@ private:
             jet_bws[i]->applyUnits( m_CurSol, ii );
             ii += p_pars->n_eq_j_bws;
         }
-        for(size_t i = 0; i < p_pars->n_ej_bws; i++){
-            ej_bws[i]->applyUnits( m_CurSol, ii);
-            ii += p_pars->n_eq_ej_bws;
+        for (size_t il=0; il<ej_bws.size(); il++){
+            for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
+                ej_bws[il]->getBW(ish)->applyUnits(m_CurSol, ii);
+                ii += p_pars->n_eq_ej_bws;
+            }
         }
+//        for(size_t i = 0; i < p_pars->n_ej_bws; i++){
+//            ej_bws[i]->applyUnits( m_CurSol, ii);
+//            ii += p_pars->n_eq_ej_bws;
+//        }
     }
     bool isThereATermination(){
         auto & jet_bws = p_pars->p_bws_jet;
-        auto & ej_bws = p_pars->p_bws_ej;
+        auto & ej_bws = p_pars->p_ej;
         size_t ii = 0; bool is_ok = true;
         if (p_pars->run_jet_bws) {
             for (size_t i = 0; i < p_pars->n_j_bws; i++) {
@@ -385,18 +449,33 @@ private:
             }
         }
         if (p_pars->run_ej_bws) {
-            for (size_t i = 0; i < p_pars->n_ej_bws; i++) {
-                if (ej_bws[i]->isToTerminate(m_CurSol, ii)) {
-                    is_ok = false;
-                    std::cerr  << " Terminating ejecta BW layer=" << i << " (of all) failed "
-                               << " [ishell=" << ej_bws[i]->getPars()->ishell
-                               << " ilayer=" << ej_bws[i]->getPars()->ilayer
-                               << " ii_eq=" << ej_bws[i]->getPars()->ii_eq
-                               << " ] \n";
-                    ej_bws[i]->getPars()->end_evolution = true; // SET TO END
+            for (size_t il=0; il<ej_bws.size(); il++){
+                for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
+                    auto & bw = ej_bws[il]->getBW(ish);
+                    if (bw->isToTerminate(m_CurSol, ii)) {
+                        is_ok = false;
+                        bw->getPars()->end_evolution = true; // SET TO END
+                        std::cerr << " Terminating ejecta BW [ish=" << ish << " il=" << il << " "
+                                  << " ii_eq=" << bw->getPars()->ii_eq
+                                  << " ] \n";
+                    }
+                    ii += p_pars->n_eq_ej_bws;
                 }
-                ii += p_pars->n_eq_ej_bws;
             }
+
+
+//            for (size_t i = 0; i < p_pars->n_ej_bws; i++) {
+//                if (ej_bws[i]->isToTerminate(m_CurSol, ii)) {
+//                    is_ok = false;
+//                    std::cerr  << " Terminating ejecta BW layer=" << i << " (of all) failed "
+//                               << " [ishell=" << ej_bws[i]->getPars()->ishell
+//                               << " ilayer=" << ej_bws[i]->getPars()->ilayer
+//                               << " ii_eq=" << ej_bws[i]->getPars()->ii_eq
+//                               << " ] \n";
+//                    ej_bws[i]->getPars()->end_evolution = true; // SET TO END
+//                }
+//                ii += p_pars->n_eq_ej_bws;
+//            }
         }
         return is_ok;
     }
@@ -418,9 +497,9 @@ private:
     bool isSolutionOk(){
         auto & magnetar = p_pars->p_magnetar;
         auto & jet_bws = p_pars->p_bws_jet;
-        auto & ej_bws = p_pars->p_bws_ej;
+        auto & ej_bws = p_pars->p_ej;
         size_t ii = 0; bool is_ok = true;
-        if(p_pars->run_magnetar){
+        if (p_pars->run_magnetar){
             if (!magnetar->isSolutionOk(m_CurSol, ii)){
                 is_ok = false;
                 std::cerr  << " Magnetar evolution failed "
@@ -431,7 +510,7 @@ private:
             }
             ii += magnetar->getNeq();
         }
-        if(p_pars->run_jet_bws) {
+        if (p_pars->run_jet_bws) {
             for (size_t i = 0; i < p_pars->n_j_bws; i++) {
                 if (( !jet_bws[i]->getPars()->end_evolution ) && (!jet_bws[i]->isSolutionOk(m_CurSol, ii))) {
                     is_ok = false;
@@ -445,24 +524,38 @@ private:
             }
         }
         if (p_pars->run_ej_bws) {
-            for (size_t i = 0; i < p_pars->n_ej_bws; i++) {
-                if ((!ej_bws[i]->getPars()->end_evolution) && (!ej_bws[i]->isSolutionOk(m_CurSol, ii))) {
-                    is_ok = false;
-                    std::cerr  << " Dyn. evol. of ejecta BW layer=" << i << " (of all) failed "
-                               << " [ishell=" << ej_bws[i]->getPars()->ishell
-                               << " ilayer=" << ej_bws[i]->getPars()->ilayer
-                               << " ii_eq=" << ej_bws[i]->getPars()->ii_eq
-                               << " ] \n";
+            for (size_t il=0; il<ej_bws.size(); il++){
+                for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
+                    auto & bw = ej_bws[il]->getBW(ish);
+                    if ((!bw->getPars()->end_evolution) && (!bw->isSolutionOk(m_CurSol, ii))) {
+                        is_ok = false;
+                        std::cerr  << " Dyn. evol. of ejecta BW failed "
+                                   << " [ishell=" << ish
+                                   << " ilayer=" << il
+                                   << " ii_eq=" << bw->getPars()->ii_eq
+                                   << " ] \n";
+                    }
+                    ii += p_pars->n_eq_ej_bws;
                 }
-                ii += p_pars->n_eq_ej_bws;
             }
+//            for (size_t i = 0; i < p_pars->n_ej_bws; i++) {
+//                if ((!ej_bws[i]->getPars()->end_evolution) && (!ej_bws[i]->isSolutionOk(m_CurSol, ii))) {
+//                    is_ok = false;
+//                    std::cerr  << " Dyn. evol. of ejecta BW layer=" << i << " (of all) failed "
+//                               << " [ishell=" << ej_bws[i]->getPars()->ishell
+//                               << " ilayer=" << ej_bws[i]->getPars()->ilayer
+//                               << " ii_eq=" << ej_bws[i]->getPars()->ii_eq
+//                               << " ] \n";
+//                }
+//                ii += p_pars->n_eq_ej_bws;
+//            }
         }
         return is_ok;
     }
     void insertSolution(size_t it){
         auto & magnetar = p_pars->p_magnetar;
         auto & jet_bws = p_pars->p_bws_jet;
-        auto & ej_bws = p_pars->p_bws_ej;
+        auto & ej_bws = p_pars->p_ej;
         size_t ii = 0;
         if (p_pars->run_magnetar){
             magnetar->insertSolution(m_CurSol, it, ii);
@@ -474,10 +567,17 @@ private:
             }
         }
         if (p_pars->run_ej_bws) {
-            for (size_t i = 0; i < p_pars->n_ej_bws; i++) {
-                ej_bws[i]->insertSolution(m_CurSol, it, ii);
-                ii += p_pars->n_eq_ej_bws;
+            for (size_t il=0; il<ej_bws.size(); il++){
+                for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
+                    auto &bw = ej_bws[il]->getBW(ish);
+                    bw->insertSolution(m_CurSol, it, ii);
+                    ii += p_pars->n_eq_ej_bws;
+                }
             }
+//            for (size_t i = 0; i < p_pars->n_ej_bws; i++) {
+//                ej_bws[i]->insertSolution(m_CurSol, it, ii);
+//                ii += p_pars->n_eq_ej_bws;
+//            }
         }
     }
     void addOtherVariables(size_t it){
@@ -486,9 +586,18 @@ private:
         for(size_t i = 0; i < p_pars->n_j_bws; i++){
             p_pars->p_bws_jet[i]->addOtherVars( it );
         }
-        for(size_t i = 0; i < p_pars->n_ej_bws; i++){
-            p_pars->p_bws_ej[i]->addOtherVars( it );
+        auto & ej_bws = p_pars->p_ej;
+        for (size_t il=0; il<ej_bws.size(); il++){
+            for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
+                auto &bw = ej_bws[il]->getBW(ish);
+                bw->addOtherVars( it );
+            }
         }
+
+
+//        for(size_t i = 0; i < p_pars->n_ej_bws; i++){
+//            p_pars->p_bws_ej[i]->addOtherVars( it );
+//        }
     }
     /// get offset of the equations in the combined solution vector for a given blast wave from its ilayer and ishell
     static inline size_t idx(std::unique_ptr<RadBlastWave> & bwPtr, void *pars){
@@ -504,7 +613,7 @@ private:
         auto * p_pars = (struct Pars *) pars;
         auto & magnetar = p_pars->p_magnetar;
         auto & jet_bws = p_pars->p_bws_jet;
-        auto & ej_bws = p_pars->p_bws_ej;
+        auto & ej_bws = p_pars->p_ej;
 
         /// advance magnetar to the next timestep
         size_t ii = 0;
@@ -521,19 +630,33 @@ private:
                 ii += jet_bws[i]->getNeq();//n_eq_j_bws;
             }
         }
+
+        /// evaluate RHS for the ejecta (advance it to the next sub-step)
         if (p_pars->run_ej_bws){
-            for(size_t iej = 0; iej < p_pars->n_ej_bws; iej++) {
-//            if (ii!=ej_bws[iej]->getPars()->ii_eq){ // -------------- TO BE REMOVED
-//                std::cerr<<AT << ii << " != "<< ej_bws[iej]->getPars()->ii_eq << "\n";
-//                exit(1);
-//            }
-//            if (ej_bws[iej]->getPars()->end_evolution)
-//                continue;
-                ej_bws[iej]->evaluateRhsDensModel2(out_Y, ii, x, Y,
-                     reinterpret_cast<std::vector<std::unique_ptr<BlastWaveBase>> &>(jet_bws), p_pars->ix);
-//                ii += p_pars->n_eq_ej_bws;
-                ii += ej_bws[iej]->getNeq();
+            for (size_t il=0; il<ej_bws.size(); il++){
+                ej_bws[il]->evalRelativePosition(x, Y); // dEinjdt
+                for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
+                    auto &bw = ej_bws[il]->getBW(ish);
+                    bw->evaluateRhsDensModel2(out_Y, ii, x, Y,
+                                              reinterpret_cast<std::vector<std::unique_ptr<BlastWaveBase>> &>(jet_bws),
+                                              p_pars->ix);
+                    ii += bw->getNeq();
+                }
             }
+
+
+//            for(size_t iej = 0; iej < p_pars->n_ej_bws; iej++) {
+////            if (ii!=ej_bws[iej]->getPars()->ii_eq){ // -------------- TO BE REMOVED
+////                std::cerr<<AT << ii << " != "<< ej_bws[iej]->getPars()->ii_eq << "\n";
+////                exit(1);
+////            }
+////            if (ej_bws[iej]->getPars()->end_evolution)
+////                continue;
+//                ej_bws[iej]->evaluateRhsDensModel2(out_Y, ii, x, Y,
+//                     reinterpret_cast<std::vector<std::unique_ptr<BlastWaveBase>> &>(jet_bws), p_pars->ix);
+////                ii += p_pars->n_eq_ej_bws;
+//                ii += ej_bws[iej]->getNeq();
+//            }
         }
 
         // ****************************************

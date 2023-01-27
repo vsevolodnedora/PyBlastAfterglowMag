@@ -57,13 +57,14 @@ class DynRadBlastWave : public RadBlastWave{
 
     };
     FsolvePars * pfsolvePars;
-//    std::unique_ptr<logger> p_log;
+    std::unique_ptr<logger> p_log;
 public:
     explicit DynRadBlastWave(Array & tb_arr, size_t ishell, size_t ilayer, int loglevel )
             : RadBlastWave(tb_arr, ishell, ilayer, loglevel) {
 //        p_log = std::make_unique<logger>(std::cout, loglevel, "RadBlastWave");
         pfsolvePars = new FsolvePars;
         pfsolvePars->p_eos = p_eos;
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "DynRadBlastWave");
     }
     ~DynRadBlastWave(){ delete pfsolvePars; }
 //    FsolvePars *& getCombPars(){ return pfsolvePars; }
@@ -83,7 +84,9 @@ public:
 //                      << "[ishell=" << p_pars->ishell << " ilayer="<<p_pars->ilayer << "] "
 //                      <<" M0=0 and E0=0 -> Ignoring this layer.\n";
             p_pars->end_evolution = true;
-            for (size_t v = 0; v < neq; ++v){ ic_arr[i+v] = 0.; }
+            for (size_t v = 0; v < neq; ++v){
+                ic_arr[i+v] = 0.;
+            }
             return;
         }
 
@@ -113,7 +116,7 @@ public:
             p_dens->m_drhodr_=p_dens->m_drhodr_def;
         }
 
-        double m_M20 = (2.0 / 3.0) * CGS::pi * (cos(p_pars->theta_a) - cos(p_pars->theta_b0)) * \
+        double m_M20 = (2.0 / 3.0) * CGS::pi * (std::cos(p_pars->theta_a) - std::cos(p_pars->theta_b0)) * \
                p_dens->m_rho_ * std::pow(p_pars->R0, 3) / p_pars->ncells;
         double adi0 = p_eos->getGammaAdi(p_pars->Gamma0,EQS::Beta(p_pars->Gamma0));
         double GammaSh0 = EQS::GammaSh(p_pars->Gamma0,adi0);
@@ -121,71 +124,71 @@ public:
         if ((p_pars->M0 <= 0.) || (!std::isfinite(p_pars->M0))){
 //            std::cout << "[ WARNING ] " << "M0 < 0 Setting M0=E0/(Gamma0 c^2)\n";
             // REMOVING LOGGER
-            std::cout  << " M0 < 0 Setting M0=E0/(Gamma0 c^2)\n";
+            (*p_log)(LOG_WARN, AT)  << " M0 < 0 Setting M0=E0/(Gamma0 c^2)\n";
             p_pars->M0 = p_pars->E0 / (p_pars->Gamma0 * CGS::c * CGS::c);
         }
         if ((p_pars->R0 <= 1.) || (!std::isfinite(p_pars->R0))){
             // REMOVING LOGGER
-            std::cerr  << " R0 <= 0 (R0=" <<p_pars->R0 << ") " << "G0="<<p_pars->Gamma0
+            (*p_log)(LOG_ERR, AT)  << " R0 <= 0 (R0=" <<p_pars->R0 << ") " << "G0="<<p_pars->Gamma0
                        << " E0="<<p_pars->E0 << " tb0="<<p_pars->tb0 << " (offset i="<<i<<") \n"
-                       << " Exiting...\n";
-            std::cerr << AT  << "\n";
+                       << " \n";
+//            std::cerr << AT  << "\n";
             //std::cout << "[ Error ] " << "R0 <= 0 (R0=" <<R0 << ")\n";
             exit(1);
         }
         if ((p_dens->m_rho_) <= 0.|| (!std::isfinite(p_dens->m_rho_))){
             // REMOVING LOGGER
-            std::cerr  << " rho0 < 0 (rho0=" <<p_dens->m_rho_ << ") "
+            (*p_log)(LOG_ERR, AT)  << " rho0 < 0 (rho0=" <<p_dens->m_rho_ << ") "
                        << "G0="<<p_pars->Gamma0 << " E0="<<p_pars->E0
                        << " tb0="<<p_pars->tb0 << " (offset i="<<i<<")\n"
-                       << " Exiting...\n";
-            std::cerr << AT  << "\n";
+                       << " \n";
+//            std::cerr << AT  << "\n";
 
             //std::cout << "[ Error ] " << "rho0 < 0 (rho0=" <<rho0 << ")\n";
             exit(1);
         }
         if ((p_pars->E0 <= 0.) || (!std::isfinite(p_pars->E0))){
             // REMOVING LOGGER
-            std::cerr  << "[ Error ] " << "E0 <= 0 (E0=" <<p_pars->E0 << ") "
+            (*p_log)(LOG_ERR, AT)  << "E0 <= 0 (E0=" <<p_pars->E0 << ") "
                        << "G0="<<p_pars->Gamma0 << " E0="<<p_pars->E0
                        << " tb0="<<p_pars->tb0 << " (offset i="<<i<<")\n"
-                       << " Exiting...\n";
-            std::cerr << AT  << "\n";
+                       << " \n";
+//            std::cerr << AT  << "\n";
             //std::cout << "[ Error ] " << "E0 < 0 (E0=" <<E0 << ")\n";
             exit(1);
         }
         if ((p_pars->Gamma0 < 1.) || (!std::isfinite(p_pars->Gamma0))){
             // REMOVING LOGGER
-            std::cerr  << " Gamma0 < 1 (Gamma0=" <<p_pars->Gamma0 << ") "
+            (*p_log)(LOG_ERR, AT)  << " Gamma0 < 1 (Gamma0=" <<p_pars->Gamma0 << ") "
                        << "G0="<<p_pars->Gamma0 << " E0="<<p_pars->E0 << " tb0="<<p_pars->tb0 << " (offset i="<<i<<")\n"
-                       << " Exiting...\n";
+                       << " \n";
             //std::cout << "[ Error ] " << "Gamma0 < 0 (Gamma0=" <<Gamma0 << ")\n";
-            std::cerr << AT  << "\n";
+//            std::cerr << AT  << "\n";
             exit(1);
         }
         if ((p_pars->theta_b0 < 0.) || (!std::isfinite(p_pars->theta_b0))){
             // REMOVING LOGGER
-            std::cerr  << " theta_b0 < 0 (theta_b0=" <<p_pars->theta_b0 << ") "
+            (*p_log)(LOG_ERR, AT)  << " theta_b0 < 0 (theta_b0=" <<p_pars->theta_b0 << ") "
                        << "G0="<<p_pars->Gamma0 << " E0="<<p_pars->E0 << " tb0="<<p_pars->tb0 << " (offset i="<<i<<")\n"
-                       << " Exiting...\n";
+                       << " \n";
             //std::cout << "[ Error ] " << "theta_b0 < 0 (theta_b0=" <<theta_b0 << ")\n";
-            std::cerr << AT  << "\n";
+//            std::cerr << AT  << "\n";
             exit(1);
         }
         if ((p_pars->ncells < 1 )|| (!std::isfinite(p_pars->ncells))){
             // REMOVING LOGGER
-            std::cerr  << " ncells < 1 (ncells=" <<p_pars->ncells << ")\n"
-                       << " Exiting...\n";
+            (*p_log)(LOG_ERR, AT)  << " ncells < 1 (ncells=" <<p_pars->ncells << ")\n"
+                       << " \n";
             //std::cout << "[ Error ] " << "ncells < 1 (ncells=" <<ncells << ")\n";
             exit(1);
         }
         if (cos(p_pars->theta_a) <= cos(p_pars->theta_b0)){
             // REMOVING LOGGER
-            std::cerr  << " cos(theta_a) < cos(theta_b0) (theta_a="<<p_pars->theta_a
+            (*p_log)(LOG_ERR, AT)  << " cos(theta_a) < cos(theta_b0) (theta_a="<<p_pars->theta_a
                        << ", theta_b0="<<p_pars->theta_b0<<")\n"
-                       << " Exiting...\n";
+                       << " \n";
             //std::cout << "[ Error ] " <<" cos(theta_a) < cos(theta_b0) (theta_a="<<theta_a<<", theta_b0="<<theta_b0<<")\n";
-            std::cerr << AT  << "\n";
+//            std::cerr << AT  << "\n";
             exit(1);
         }
         bool use_spread = p_spread->m_method != LatSpread::METHODS::iNULL;
@@ -211,9 +214,9 @@ public:
         // ***************************************
         for (size_t v = 0; v < neq; ++v){
             if (!std::isfinite(ic_arr[i + v])){
-                std::cerr  << "\n NAN in initial data for shell="<<p_pars->ishell<<" ilayer="<<p_pars->ilayer
+                (*p_log)(LOG_ERR, AT)  << " NAN in initial data for shell="<<p_pars->ishell<<" ilayer="<<p_pars->ilayer
                            << " v_n="<<vars[v]<<" val="<<ic_arr[i + v]<<" Exiting...\n";
-                std::cerr << AT  << "\n";
+//                std::cerr << AT  << "\n";
                 exit(1);
             }
         }
@@ -240,7 +243,7 @@ public:
         m_data[Q::iEsh2][it]     = sol[i+Q_SOL::iEsh2];
         m_data[Q::iErad2][it]    = sol[i+Q_SOL::iErad2];
         if (sol[i+Q_SOL::iR] < 1. || sol[i+Q_SOL::iGamma] < 1.) {
-            std::cerr  << "Wrong value at i=" << it << " tb=" << sol[i + Q_SOL::iR]
+            (*p_log)(LOG_ERR, AT)  << "Wrong value at i=" << it << " tb=" << sol[i + Q_SOL::iR]
                        << " iR="      << sol[i + Q_SOL::iR]
                        << " iRsh="    << sol[i + Q_SOL::iRsh]
                        << " iGamma="  << sol[i + Q_SOL::iGamma]
@@ -253,7 +256,7 @@ public:
                        << " iErad2="  << sol[i + Q_SOL::iErad2]
                        << "\n"
                        << " Exiting...\n";
-            std::cerr << AT  << "\n";
+//            std::cerr << AT  << "\n";
             exit(1);
         }
     }
@@ -514,7 +517,7 @@ public:
 //        }
         if (!std::isfinite(dRdt) || !std::isfinite(dGammadR) || dM2dR < 0.
             || !std::isfinite(dlnV2dR) || !std::isfinite(dthetadr)) {
-            std::cerr << " nan in derivatives. "
+            (*p_log)(LOG_ERR,AT) << " nan in derivatives. "
                       << " dRdt="<<dRdt<<"\n"
                       << " dM2dR="<<dM2dR<<"\n"
                       << " dthetadr=" << dthetadr << "\n"
@@ -526,8 +529,8 @@ public:
                       << " dErad2dR=" << dErad2dR << "\n"
                       << " dEint2dR=" << dEint2dR << "\n"
                       << " dttdr=" << dttdr << "\n"
-                      << " Exiting...\n";
-            std::cerr << AT << "\n";
+                      << "  \n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
         if (std::abs(dRdt * dGammadR) > p_pars->Gamma0){
@@ -699,6 +702,7 @@ public:
 //        double dEsh2dR  = (GammaRel - 1.0) * dM2dR; // Shocked energy;
         // -- Radiative losses
         double dErad2dR = p_pars->eps_rad * dEsh2dR;
+        double dEinj = p_pars->dEinjdt / (p_pars->M0 * CGS::c * CGS::c);
         // -- Energy equation
         double dEint2dR = dEsh2dR + dEad2dR - dErad2dR; // / (m_pars.M0 * c ** 2)
         double dtcomov_dR = 1.0 / beta / Gamma / CGS::c;
@@ -1296,7 +1300,7 @@ public:
             return;
         }
 
-        /// compute density profile bae
+        /// compute density profile in front of the kN BW
         if (p_pars->use_dens_prof_behind_jet_for_ejecta){
             prepareDensProfileFromJet(out_Y,i,x,Y,others,evaled_ix);
         }
@@ -1307,7 +1311,7 @@ public:
             double theta_b0  = p_pars->theta_b0;
             double ej_theta  = Y[i + DynRadBlastWave::Q_SOL::itheta];
             double ej_ctheta = ctheta(ej_theta);
-            if (ej_Gamma>10){
+            if (ej_Gamma>10.){
                 std::cerr
                         << "["<<p_pars->ishell<<", "<<p_pars->ilayer<<"]"
                         << " ii_eq = "<<p_pars->ii_eq
@@ -1324,6 +1328,7 @@ public:
             set_standard_ism(ej_R, ej_ctheta, ej_Gamma);
         }
 
+        /// evaluate actual RHS
         evaluateRhsDens(out_Y, i, x, Y);
 
     }

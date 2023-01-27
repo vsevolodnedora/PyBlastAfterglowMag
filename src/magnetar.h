@@ -216,8 +216,8 @@ public:
                         * std::pow(CGS::pi,6.)
                         * p_pars->eos_i*p_pars->eos_i
                         * p_pars->ns_ellipticity*p_pars->ns_ellipticity
-                        * std::pow(omega,6.) / std::pow(CGS::c,5.);
-        n_grav = omega < 1.e4 ? 0. : n_grav;
+                        * std::pow(omega,5.) / std::pow(CGS::c,5.);
+        n_grav = omega < 1.e4 ? 0. : n_grav; // TODO ? Why 1e4 is a limiting factor?!
         return n_grav ;
     }
 
@@ -276,7 +276,7 @@ public:
         /// compute Gravitational wave spindown torque (Zhang and Meszaros 2001)
         double n_grav = torque_gws(omega);
         /// Dipole spindown luminosity
-        double ldip = -n_dip*m_data[Q::iOmega][it];
+        double ldip = -n_dip*omega;
         /// propeller luminocity (Gompertz et al. (2014))
         double lprop = - n_acc*omega - CGS::gravconst*p_pars->ns_mass*mdot/r_mag;
         // ************************
@@ -303,12 +303,9 @@ public:
         return is_ok;
     }
 
-
-
     void applyUnits( double * sol, size_t i ){
 
     }
-
 };
 
 #endif //SRC_MAGNETAR_H

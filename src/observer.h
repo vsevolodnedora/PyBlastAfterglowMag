@@ -641,7 +641,6 @@ public:
                                        dist_masses[ibeta]*mfac,
                                        nlayers,
                                        eats_method);
-
         }
     }
     /**
@@ -802,6 +801,106 @@ public:
     std::vector<LatStruct> structs;
     size_t nshells;
     METHODS method;
+};
+
+struct VelocityStruct{
+    VelocityStruct( size_t nshells, size_t loglevel ){
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "VelocityStruct");
+    }
+    void initCustom(Vector & dist_betas, Vector & dist_ek){
+
+    }
+    std::unique_ptr<logger> p_log;
+};
+
+// TODO IT IS BETTER TO HAVE A ANGULAR STRUCTURE ON TOP OF THE VELOCITY ONE NOT VISE VERSA!
+struct AngularAndVelocityStruct{
+    enum METHODS { iUniform, iCustom };
+    std::unique_ptr<logger> p_log;
+    std::vector<std::unique_ptr<VelocityStruct>> p_vel_structs;
+    METHODS method;
+    size_t nlayers;
+    size_t nshells;
+    AngularAndVelocityStruct(int loglevel){
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "AngularAndVelocityStruct");
+    }
+    VecVector m_masses;
+    VecVector m_eks;
+    VecVector m_thetas;
+    VecVector m_betas;
+    VecVector m_gams;
+public:
+    size_t nLayers() const {return nlayers;}
+    size_t nShells() const {return nshells;}
+    double getMass(size_t il, size_t ish) const {return m_masses[il][ish];}
+    double getTheta(size_t il, size_t ish) const {return m_thetas[il][ish];}
+    double getEk(size_t il, size_t ish) const {return m_eks[il][ish];}
+    double getBeta(size_t il, size_t ish) const {return m_betas[il][ish];}
+    double getGamma(size_t il, size_t ish) const {return m_gams[il][ish];}
+    void initCustom(Vector & dist_thetas, Vector & dist_betas, VecVector & dist_ek, bool force_grid=true,
+                    std::string method_eats="piece-wise") {
+        if (dist_thetas.empty() || dist_betas.empty() || dist_ek.empty()) {
+            (*p_log)(LOG_ERR, AT) << "One of the input arrays is empty: "
+                                  << "dist_thetas(" << dist_thetas.size()
+                                  << ") dist_ek(" << dist_ek.size()
+                                  << ") dist_betas(" << dist_betas.size() << ")\n";
+//            std::cerr << AT << "\n";
+            exit(1);
+        }
+        if (dist_betas.size() != dist_ek.size()) {
+            (*p_log)(LOG_ERR, AT) << "Size mismatch in ejecta distrib. arrs betas="
+                                  << dist_betas.size() << " dist_ek" << dist_ek.size() << "\n";
+            exit(1);//throw std::runtime_error("");
+        }
+        if (dist_thetas.size() != dist_ek[0].size()) {
+            (*p_log)(LOG_ERR, AT) << "Size mismatch in ejecta distrib. arrs thetas="
+                                  << dist_thetas.size() << " dist_ek[0]" << dist_ek[0].size() << "\n";
+            exit(1);//throw std::runtime_error("");
+        }
+
+        /// print input data
+        for (size_t ish = 0; ish < dist_betas.size(); ish++) {
+            auto nth = dist_thetas.size();
+            (*p_log)(LOG_INFO, AT)
+                    << "Shell[" << ish << "] beta=" << dist_betas[ish] << "\t"
+                    << "\tThetas:  "
+                    << dist_thetas[0] << ", " << dist_thetas[1] << ", " << dist_thetas[2] << ", "
+                    << dist_thetas[3] << ", " << dist_thetas[4] << ", " << dist_thetas[5]
+                    << "\t ...\t"
+                    << dist_thetas[nth - 6] << ", " << dist_thetas[nth - 5] << ", " << dist_thetas[nth - 4] << ", "
+                    << dist_thetas[nth - 3] << ", " << dist_thetas[nth - 2] << ", " << dist_thetas[nth - 1]
+                    << "\n";
+        }
+        for (size_t ish = 0; ish < dist_betas.size(); ish++) {
+            auto nek = dist_ek[ish].size();
+            (*p_log)(LOG_INFO, AT)
+                    << "Shell[" << ish << "] beta=" << dist_betas[ish] << "\t"
+                    << "\tEks:  "
+                    << dist_ek[ish][0] << "," << dist_ek[ish][1] << "," << dist_ek[ish][2] << ","
+                    << dist_ek[ish][3] << "," << dist_ek[ish][4] << "," << dist_ek[ish][5]
+                    << "\t ...\t"
+                    << dist_ek[ish][nek - 6] << "," << dist_ek[ish][nek - 5] << "," << dist_ek[ish][nek - 4] << ","
+                    << dist_ek[ish][nek - 3] << "," << dist_ek[ish][nek - 2] << "," << dist_ek[ish][nek - 1]
+                    << "\n";
+        }
+
+        method = iCustom;
+
+        size_t n_thetas = dist_thetas.size(); // nlayers
+        size_t n_betas = dist_betas.size(); // nshells
+
+        nlayers = n_thetas;
+        nshells = n_betas;
+        for (size_t il = 0; il < nlayers; il++) {
+            (*p_log)(LOG_INFO, AT) << " initializing layer " << il << " theta=" << dist_thetas[il] << "\n";
+            p_vel_structs.emplace_back(std::make_unique<VelocityStruct>(nshells, p_log->getLogLevel()));
+            Vector layer_dist_ek(dist_betas.size());
+            for (size_t i = 0; i < dist_betas.size(); i++) layer_dist_ek[i] = dist_ek[i][il];
+            p_vel_structs[il]->initCustom(dist_betas, layer_dist_ek);
+        }
+
+    }
+
 };
 
 

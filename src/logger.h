@@ -150,6 +150,8 @@ public:
 
         return *this;
     }
+
+    inline unsigned getLogLevel() const {return _loglevel;}
 };
 // FRIEND
 template <typename T>

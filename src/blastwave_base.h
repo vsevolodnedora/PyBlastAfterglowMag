@@ -17,7 +17,7 @@
 
 /// blast wave system base (class)
 class BlastWaveBase{
-//    std::unique_ptr<logger> p_log;
+    std::unique_ptr<logger> p_log;
 public:
     enum METHODS_Up { iuseEint2, iuseGamma }; // energy density behind the shock
     enum METHOD_Delta { iuseJoh06, iuseVE12, iNoDelta }; // thickness of the shock
@@ -57,7 +57,7 @@ protected:
         double theta_c_l = -1.;
         double theta_c_h = -1.;
         double theta_w = -1.;
-        double theta_max=-1;
+        double theta_max=-1.;
         /// deceleration radius
         double Rd = -1;
         // ---
@@ -65,7 +65,8 @@ protected:
 //        double drhodr0 = -1.;
 //        double rho = 0;
 //        double drhodr = 0;
-        double eps_rad = 0;
+        double eps_rad = 0.;
+        double dEinjdt = 0.;
         // ---
         bool adiabLoss = true;
         // ---
@@ -176,7 +177,7 @@ protected:
 public:
     explicit BlastWaveBase(Array & tb_arr, size_t ishell, size_t ilayer, int loglevel )
             : m_tb_arr(tb_arr), m_loglevel(loglevel) {
-//        p_log = std::make_unique<logger>(std::cout, loglevel, "BlastWaveBase");
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BlastWaveBase");
         // allocate the space for the the entire solution of a given blast wave
         if (m_tb_arr.size() < 1){
             // REMOVING LOGGER
@@ -198,7 +199,7 @@ public:
         p_pars->p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "pars");
         p_spread = new LatSpread();
         p_eos = new EOSadi();
-        p_dens = new RhoISM();
+        p_dens = new RhoISM(loglevel);
         p_sedov = new SedovTaylor();
         p_bm = new BlandfordMcKee2();
         // ----------------------
@@ -373,8 +374,8 @@ public:
         if (p_pars->end_evolution)
             return;
 
-        if ((it>1)&&(rho_prev < 1e-10 * rho)){
-            std::cerr << AT << " it="<<it<<" density gradient >10 orders of magnitude\n";
+        if ((it>1)&&(rho_prev < 1e-10 * m_data[Q::irho][it])){
+            (*p_log)(LOG_ERR,AT) << " it="<<it<<" density gradient >10 orders of magnitude\n";
 //            exit(1);
         }
 

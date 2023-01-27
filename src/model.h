@@ -191,7 +191,7 @@ public:
             p_bws_jet[i]->getSynchAnPtr()->setPars( pars, opts );
             ii_eq += p_bws_jet[i]->getNeq();
         }
-        std::cout << "finished initializing jet...\n";
+        (*p_log)(LOG_INFO,AT) << "finished initializing jet...\n";
         p_pars->is_jet_obs_pars_set = true;
         p_pars->is_jBW_init = true;
     }
@@ -217,9 +217,69 @@ public:
                 ii_eq += p_bws_jet[i]->getNeq();
             }
 
+//        size_t n_layers_i = struc.nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? struc.nlayers_pw : struc.nlayers_a ;
+//        size_t ii = 0;
+        bool is_within = false;
+        std::vector<size_t> which_within{};
+        size_t n_ejecta_empty_images = 0;
+        std::vector<std::vector<size_t>> n_empty_images;
+        std::vector<size_t> n_empty_images_shells;
+        size_t nshells = ejectaStructs.nshells;
+        size_t n_layers_ej = ejectaStructs.structs[0].nlayers;
+        std::vector<std::vector<size_t>> n_empty_images_layer_shell;
+        for (auto & n_empty_images_layer : n_empty_images_layer_shell)
+            n_empty_images_layer.resize(nshells);
+        for(size_t il = 0; il < n_layers_ej; il++){
+            p_ej.push_back( std::make_unique<CumulativeShell>(t_grid, nshells, il, p_log->getLogLevel()) );
+            for (size_t ish = 0; ish < nshells; ish++){
+                auto & bw = p_ej[il]->getBW(ish);
+                auto & struc = ejectaStructs.structs[ish];
+                setAllParametersForOneLayer(struc, * bw, pars, opts, il, ii_eq);
+/// Override the layer-to-use
+                if (bw->getPars()->which_jet_layer_to_use == 0){
+                    bw->getPars()->which_jet_layer_to_use = 0; // the fastest
+                }
+                else if(n_layers_ej==0){
+                    n_ejecta_empty_images += 1;
+                    n_empty_images_layer_shell[ish].emplace_back(il);
+//                    std::cerr << AT << "\n jet structure was NOT initialized. No layer selected for ejecta to propagate through.\n";
+                }
+                else if(n_layers_ej == 0){
+                    // NO jet structure was set, so exiting I guess... :)
+                    // TODO THIS MIGHT BE WRONG -- why 'n_layers_i'
+                }
+                else if(n_layers_jet == 0){
+                    // NO jet structure was set, so exiting I guess... :)
+                }
+                else if ((bw->getPars()->which_jet_layer_to_use > n_layers_jet - 1)){
+                    bw->getPars()->which_jet_layer_to_use = (int)n_layers_jet - 1;
+                }
+                else if ((bw->getPars()->which_jet_layer_to_use < n_layers_jet) &&
+                         (bw->getPars()->which_jet_layer_to_use > -1)){
+                    //
+                }
+                else{
+                    std::cerr << " which_jet_layer_to_use="<<bw->getPars()->which_jet_layer_to_use
+                              << "\n" << " expected 0 (for fasterst) or any N larger than n_layers_jet=" << (int)n_layers_jet-1
+                              <<" for the slowest"
+                              <<" or any N in between the two for a specific jet layer \n"
+                              << "Exiting..."
+                              << "\n";
+                    std::cerr << AT << "\n";
+                    exit(1);
+                }
+                ii_eq += bw->getNeq();
+
+                bw->setEatsPars(pars, opts);
+                bw->getSynchAnPtr()->setPars( pars, opts );
+
+//                ii++;
+            }
+        }
 
 
 
+# if 0
         size_t ii = 0;
         bool is_within = false;
         std::vector<size_t> which_within{};
@@ -227,10 +287,16 @@ public:
         size_t n_ejecta_empty_images = 0;
         std::vector<std::vector<size_t>> n_empty_images;
         std::vector<size_t> n_empty_images_shells;
+        size_t n_layers_i = ejectaStructs.structs[0].nlayers;
+
         for(size_t i = 0; i < ejectaStructs.nshells; i++){
             std::vector<size_t> n_empty_images_layer;
             auto & struc = ejectaStructs.structs[i];
-            size_t n_layers_i = struc.nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? struc.nlayers_pw : struc.nlayers_a ;
+            if (n_layers_i != struc.nlayers){
+                (*p_log)(LOG_ERR,AT)<<" expected nlayers="<<n_layers_i<<" (from 0th shell) got="<<struc.nlayers<<"\n";
+                exit(1);
+            }
+//            size_t n_layers_i = struc.nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? struc.nlayers_pw : struc.nlayers_a ;
             for(size_t j = 0; j < n_layers_i; j++) { // ii = il + nlayers * ish
                 p_bws_ej.emplace_back(std::make_unique<DynRadBlastWave>(t_grid, i, j, p_pars->loglevel));
                 setAllParametersForOneLayer(struc, *(p_bws_ej[ii]), pars, opts, j, ii_eq);
@@ -279,8 +345,8 @@ public:
                 n_empty_images_shells.emplace_back(i);
                 n_empty_images.emplace_back(n_empty_images_layer);
             }
-
         }
+#endif
         p_pars->is_ejBW_init = true;
         p_pars->is_ejecta_obs_pars_set = true;
 
@@ -299,7 +365,9 @@ public:
             }
         }
 
-        std::cout << "finished initializing ejecta...\n";
+
+
+        (*p_log)(LOG_INFO,AT) << "finished initializing ejecta...\n";
     }
 
     /// run the time-evolution
@@ -316,7 +384,8 @@ public:
         size_t n_layers_ej = 0;
         if ((!p_pars->run_ejecta_bws)&&(p_pars->is_ejBW_init)){
             p_pars->is_ejBW_init = false;
-            p_bws_ej.clear();
+//            p_bws_ej.clear();
+            p_ej.clear();
         }
         if(p_pars->is_ejBW_init){
             n_layers_ej = ejectaStructs.structs[0].nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStructs.structs[0].nlayers_pw : ejectaStructs.structs[0].nlayers_a ;
@@ -349,7 +418,7 @@ public:
         }
 
         p_model = std::make_unique<SetDynRadBlastWaves>(
-                p_magnetar, p_bws_jet, p_bws_ej,
+                p_magnetar, p_bws_jet, p_ej,
                 p_pars->run_magnetar, p_pars->run_jet_bws, p_pars->run_ejecta_bws,
                 t_grid, 0, ejectaStructs.nshells,
                 n_layers_j, n_layers_ej, p_pars->integrator, p_pars->loglevel);
@@ -370,7 +439,7 @@ public:
 
     /// save magnetar evolution
     void saveMagnetarEvolution(std::string fpath, size_t every_it){
-        std::cout << "Saving magnetar evolution...\n";
+        (*p_log)(LOG_INFO,AT) << "Saving magnetar evolution...\n";
 
         if (every_it < 1){
             std::cerr << " every_it must be > 1; Given every_it="<<every_it<<"\n Exiting...";
@@ -400,7 +469,7 @@ public:
 
     /// save dynamical evolution of the jet blast-waves
     void saveJetBWsDynamics(std::string fpath, size_t every_it){
-        std::cout << "Saving jet BW dynamics...\n";
+        (*p_log)(LOG_INFO,AT) << "Saving jet BW dynamics...\n";
 
         if (every_it < 1){
             std::cerr << " every_it must be > 1; Given every_it="<<every_it<<"\n Exiting...";
@@ -462,7 +531,7 @@ public:
 
     /// save dynamical evolution of the ejecta blast-waves
     void saveEjectaBWsDynamics(std::string fpath, size_t every_it){
-        std::cout << "Saving Ejecta BW dynamics...\n";
+        (*p_log)(LOG_INFO,AT) << "Saving Ejecta BW dynamics...\n";
 
         if (every_it < 1){
             std::cerr << " every_it must be > 1; Given every_it="<<every_it<<" \n Exiting...\n";
@@ -473,47 +542,47 @@ public:
         size_t nshells = ejectaStructs.nshells;
 //        size_t n_layers_j = (p_pars->jet_method_eats == LatStruct::i_pw) ? jetStruct.nlayers_pw : jetStruct.nlayers_a ;
         size_t n_layers_ej = ejectaStructs.structs[0].nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStructs.structs[0].nlayers_pw : ejectaStructs.structs[0].nlayers_a ;
-        auto & models = p_bws_ej;
+        auto & models = p_ej;
 
         std::vector<std::string> table_names;
         std::vector<std::vector<std::vector<double>>> tot_dyn_out ( nshells * n_layers_ej );
         size_t i = 0;
         VecVector other_data;
         std::vector<std::string> other_names;
-        auto & arr_names = models[0]->m_vnames;//models[0][0].getBWdynPtr()->m_vnames;
+        auto & arr_names = models[0]->getBW(0)->m_vnames;//models[0][0].getBWdynPtr()->m_vnames;
         std::vector<std::unordered_map<std::string,double>> group_attrs{};
         for (size_t ishell = 0; ishell < nshells; ishell++){
             for(size_t ilayer = 0; ilayer < n_layers_ej; ilayer++){
                 table_names.push_back("shell="+std::to_string(ishell)+" layer="+std::to_string(ilayer));
                 tot_dyn_out[i].resize( arr_names.size() );
-                auto & model = models[i];
+                auto & bw = models[i]->getBW(ishell);
 
                 std::unordered_map<std::string,double> group_attr{
-                        {"Gamma0",model->getPars()->Gamma0},
-                        {"M0",model->getPars()->M0},
-                        {"R0",model->getPars()->R0},
-                        {"theta0",model->getPars()->theta_b0},
-                        {"theta_max",model->getPars()->theta_max},
-                        {"tb0",model->getPars()->tb0},
-                        {"ijl",model->getPars()->ijl},
-                        {"ncells",model->getPars()->ncells},
-                        {"ilayer",model->getPars()->ilayer},
-                        {"ishell",model->getPars()->ishell},
-                        {"ctheta0",model->getPars()->ctheta0},
-                        {"E0",model->getPars()->E0},
-                        {"theta_c_l",model->getPars()->theta_c_l},
-                        {"theta_c_h",model->getPars()->theta_c_h},
-                        {"eps_rad",model->getPars()->eps_rad},
-                        {"entry_time",model->getPars()->entry_time},
-                        {"entry_r",model->getPars()->entry_r},
-                        {"first_entry_r",model->getPars()->first_entry_r},
-                        {"min_beta_terminate",model->getPars()->min_beta_terminate}
+                        {"Gamma0",bw->getPars()->Gamma0},
+                        {"M0",bw->getPars()->M0},
+                        {"R0",bw->getPars()->R0},
+                        {"theta0",bw->getPars()->theta_b0},
+                        {"theta_max",bw->getPars()->theta_max},
+                        {"tb0",bw->getPars()->tb0},
+                        {"ijl",bw->getPars()->ijl},
+                        {"ncells",bw->getPars()->ncells},
+                        {"ilayer",bw->getPars()->ilayer},
+                        {"ishell",bw->getPars()->ishell},
+                        {"ctheta0",bw->getPars()->ctheta0},
+                        {"E0",bw->getPars()->E0},
+                        {"theta_c_l",bw->getPars()->theta_c_l},
+                        {"theta_c_h",bw->getPars()->theta_c_h},
+                        {"eps_rad",bw->getPars()->eps_rad},
+                        {"entry_time",bw->getPars()->entry_time},
+                        {"entry_r",bw->getPars()->entry_r},
+                        {"first_entry_r",bw->getPars()->first_entry_r},
+                        {"min_beta_terminate",bw->getPars()->min_beta_terminate}
                 };
                 group_attrs.emplace_back( group_attr );
 
                 for (size_t ivar = 0; ivar < arr_names.size(); ivar++) {
-                    for (size_t it = 0; it < models[i]->getTbGrid().size(); it = it + every_it)
-                        tot_dyn_out[i][ivar].emplace_back( (*models[i])[ static_cast<BlastWaveBase::Q>(ivar) ][it] );
+                    for (size_t it = 0; it < bw->getTbGrid().size(); it = it + every_it)
+                        tot_dyn_out[i][ivar].emplace_back( (*bw)[ static_cast<BlastWaveBase::Q>(ivar) ][it] );
                 }
                 i++;
             }
@@ -535,7 +604,7 @@ public:
 //    static auto listObsOpts(){ return RadBlastWave::listOpts(); }
     /// set parameters for analytical electron/synchrotron calculations
     void setPreComputeJetAnalyticElectronsPars(){//(StrDbMap pars, StrStrMap opts){
-        std::cout << "Computing Jet analytic electron pars...\n";
+        (*p_log)(LOG_INFO,AT) << "Computing Jet analytic electron pars...\n";
 
         if (!p_pars->run_jet_bws){
             std::cerr << " jet BWs were not evolved. Cannot compute electrons (analytic) \n Exiting...\n";
@@ -552,26 +621,28 @@ public:
         p_pars->is_jet_anal_synch_computed = true;
     }
     void setPreComputeEjectaAnalyticElectronsPars(){//(StrDbMap pars, StrStrMap opts){
-        std::cout << "Computing Ejecta analytic electron pars...\n";
+        (*p_log)(LOG_INFO,AT) << "Computing Ejecta analytic electron pars...\n";
 
         if (!p_pars->run_ejecta_bws){
             std::cerr << " ejecta BWs were not evolved. Cannot compute electrons (analytic) exiting...\n";
             std::cerr << AT << "\n";
             exit(1);
         }
-        auto & models = p_bws_ej;
+        auto & models = p_ej;
         for (auto & model : models) {
+            for (auto & bw : model->gerBWs()) {
 //            model->setEatsPars( pars, opts );
 //            model->getSynchAnPtr()->setPars( pars, opts );
-            model->computeElectronAnalyticVars();
-            model->computeSynchrotronAnalyticSpectrum();
+                bw->computeElectronAnalyticVars();
+                bw->computeSynchrotronAnalyticSpectrum();
+            }
         }
         p_pars->is_ejecta_anal_synch_computed = true;
     }
 
     /// compute and save comoving spectrum for all layers of the jet blast wave
     void computeSaveJetAnalyticSynchrotronSpectrum(std::string fpath, Vector & freq_array, size_t every_it){
-        std::cout << "Computing and saving Jet analytic synchrotron spectrum...\n";
+        (*p_log)(LOG_INFO,AT) << "Computing and saving Jet analytic synchrotron spectrum...\n";
 
         if (!p_pars->is_jet_anal_synch_computed){
             std::cerr<< " jet analytic electrons were not evolved. Cannot compute spectrum (analytic) exiting...\n";
@@ -612,14 +683,14 @@ public:
     }
     void computeSaveEjectaAnalyticSynchrotronSpectrum(std::string fpath, Vector & freq_array, size_t every_it){
 
-        std::cout << "Computing and saving Ejecta analytic synchrotron spectrum...\n";
+        (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta analytic synchrotron spectrum...\n";
 
         if (!p_pars->is_ejecta_anal_synch_computed){
             std::cerr << " ejecta analytic electrons were not evolved. Cannot compute spectrum (analytic) \n Exiting...\n";
             std::cerr << AT << "\n";
             exit(1);
         }
-        auto & models = p_bws_ej;
+        auto & models = p_ej;
         size_t nshells = ejectaStructs.nshells;
 //        size_t n_layers_j = (p_pars->jet_method_eats == LatStruct::i_pw) ? jetStruct.nlayers_pw : jetStruct.nlayers_a ;
         size_t n_layers_ej = ejectaStructs.structs[0].nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStructs.structs[0].nlayers_pw : ejectaStructs.structs[0].nlayers_a ;
@@ -629,14 +700,14 @@ public:
                         std::vector< // freqs
                                 std::vector<double>>>> // times
         out {};
-        auto t_arr = models[0]->getTbGrid(every_it);
-        auto in_group_names = models[0]->getSynchAnPtr()->m_names_;
+        auto t_arr = models[0]->getBW(0)->getTbGrid(every_it);
+        auto in_group_names = models[0]->getBW(0)->getSynchAnPtr()->m_names_;
         std::vector<std::string> group_names{};
         size_t ish_il = 0;
         for (size_t ishell = 0; ishell < nshells; ishell++) {
             for (size_t ilayer = 0; ilayer < n_layers_ej; ilayer++) {
                 group_names.emplace_back("shell=" + std::to_string(ishell) + " layer=" + std::to_string(ilayer));
-                out.emplace_back( models[ish_il]->evalComovingSynchrotron(freq_array, every_it) );
+                out.emplace_back( models[ilayer]->getBW(ishell)->evalComovingSynchrotron(freq_array, every_it) );
                 ish_il++;
             }
         }
@@ -648,11 +719,11 @@ public:
         std::unordered_map<std::string,double> attrs{
                 {"nshells", nshells },
                 {"nlayers", n_layers_ej },
-                {"eps_e", models[0]->getSynchAnPtr()->getPars()->eps_e },
-                {"eps_b", models[0]->getSynchAnPtr()->getPars()->eps_b },
-                {"eps_t", models[0]->getSynchAnPtr()->getPars()->eps_t },
-                {"p", models[0]->getSynchAnPtr()->getPars()->p },
-                {"ksi_n", models[0]->getSynchAnPtr()->getPars()->ksi_n }
+                {"eps_e", models[0]->getBW(0)->getSynchAnPtr()->getPars()->eps_e },
+                {"eps_b", models[0]->getBW(0)->getSynchAnPtr()->getPars()->eps_b },
+                {"eps_t", models[0]->getBW(0)->getSynchAnPtr()->getPars()->eps_t },
+                {"p", models[0]->getBW(0)->getSynchAnPtr()->getPars()->p },
+                {"ksi_n", models[0]->getBW(0)->getSynchAnPtr()->getPars()->ksi_n }
         };
 //    auto out = { emissivity, absorption, em_th, em_pl, abs_th, abs_pl };
         p_out->VectorOfTablesAsGroupsAndVectorOfVectorsH5(fpath,out,group_names,
@@ -677,7 +748,7 @@ public:
             auto &struc = ejectaStructs.structs[ishell];
             size_t n_layers_ej = struc.nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? struc.nlayers_pw : struc.nlayers_a ;
             for (size_t ilayer = 0; ilayer < n_layers_ej; ilayer++) {
-                auto &model = p_bws_ej[ii];//ejectaModels[ishell][ilayer];
+                auto & model = p_ej[ilayer]->getBW(ishell);//ejectaModels[ishell][ilayer];
                 model->updateObsPars(pars);
                 ii++;
             }
@@ -686,7 +757,7 @@ public:
     }
 
     void computeSaveJetSkyImagesAnalytic(std::string fpath, Vector times, Vector freqs){
-        std::cout << "Computing and saving Jet sky image with analytic synchrotron...\n";
+        (*p_log)(LOG_INFO,AT) << "Computing and saving Jet sky image with analytic synchrotron...\n";
 
         if (!p_pars->is_jet_anal_synch_computed){
             std::cerr << "jet analytic electrons were not evolved. Cannot compute images (analytic) exiting...\n";
@@ -788,7 +859,7 @@ public:
     }
 
     void computeSaveEjectaSkyImagesAnalytic(std::string fpath, Vector times, Vector freqs){
-        std::cout << "Computing and saving Ejecta sky image with analytic synchrotron...\n";
+        (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta sky image with analytic synchrotron...\n";
 
         if (!p_pars->is_ejecta_anal_synch_computed){
             std::cerr  << "ejecta analytic electrons were not evolved. Cannot compute images (analytic) exiting...\n";
@@ -880,14 +951,14 @@ public:
 
         std::unordered_map<std::string,double> attrs{
                 {"nshells", nshells },
-                {"thetaObs", p_bws_ej[0]->getEatsPars()->theta_obs },
-                {"d_L", p_bws_ej[0]->getEatsPars()->d_l },
-                {"z", p_bws_ej[0]->getEatsPars()->z },
-                {"eps_e", p_bws_ej[0]->getSynchAnPtr()->getPars()->eps_e },
-                {"eps_b", p_bws_ej[0]->getSynchAnPtr()->getPars()->eps_b },
-                {"eps_t", p_bws_ej[0]->getSynchAnPtr()->getPars()->eps_t },
-                {"p", p_bws_ej[0]->getSynchAnPtr()->getPars()->p },
-                {"ksi_n", p_bws_ej[0]->getSynchAnPtr()->getPars()->ksi_n }
+                {"thetaObs", p_ej[0]->getBW(0)->getEatsPars()->theta_obs },
+                {"d_L",p_ej[0]->getBW(0)->getEatsPars()->d_l },
+                {"z", p_ej[0]->getBW(0)->getEatsPars()->z },
+                {"eps_e", p_ej[0]->getBW(0)->getSynchAnPtr()->getPars()->eps_e },
+                {"eps_b", p_ej[0]->getBW(0)->getSynchAnPtr()->getPars()->eps_b },
+                {"eps_t", p_ej[0]->getBW(0)->getSynchAnPtr()->getPars()->eps_t },
+                {"p", p_ej[0]->getBW(0)->getSynchAnPtr()->getPars()->p },
+                {"ksi_n", p_ej[0]->getBW(0)->getSynchAnPtr()->getPars()->ksi_n }
         };
 
         p_out->VectorOfTablesAsGroupsAndVectorOfVectorsH5(fpath,out,group_names,
@@ -898,7 +969,7 @@ public:
 
     /*   */
     void computeSaveJetLightCurveAnalytic(std::string fpath, Vector times, Vector freqs){
-        std::cout << "Computing and saving Jet light curve with analytic synchrotron...\n";
+        (*p_log)(LOG_INFO,AT) << "Computing and saving Jet light curve with analytic synchrotron...\n";
 
         if (!p_pars->is_jet_anal_synch_computed){
             std::cerr << "jet analytic electrons were not evolved. Cannot compute light curve (analytic) exiting...\n";
@@ -944,6 +1015,7 @@ public:
         size_t ishil = 0;
         out.resize(n_layers_j);
         for (size_t ilayer = 0; ilayer < n_layers_j; ++ilayer) {
+
             out[ishil].resize(1);
             ii = 0;
             out[ishil][i_v_n].resize(freqs.size());
@@ -1003,7 +1075,7 @@ public:
     }
 
     void computeSaveEjectaLightCurveAnalytic(std::string fpath, Vector times, Vector freqs){
-        std::cout << "Computing and saving Ejecta light curve with analytic synchrotron...\n";
+        (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta light curve with analytic synchrotron...\n";
 
         if (!p_pars->is_ejecta_anal_synch_computed){
             std::cerr << " ejecta analytic electrons were not evolved. Cannot compute light curve (analytic) exiting...\n";
@@ -1017,7 +1089,7 @@ public:
         }
 
         auto & structure_hist = ejectaStructs;
-        auto & tmp = p_bws_ej[0]->getSynchAnPtr();
+        auto & tmp = p_ej[0]->getBW(0)->getSynchAnPtr();
         size_t nshells =structure_hist.nshells;
 //        size_t n_layers_j = (p_pars->jet_method_eats == LatStruct::i_pw) ? jetStruct.nlayers_pw : jetStruct.nlayers_a ;
         size_t n_layers_ej = structure_hist.structs[0].nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? structure_hist.structs[0].nlayers_pw : structure_hist.structs[0].nlayers_a ;
@@ -1060,6 +1132,7 @@ public:
         out.resize(nshells*n_layers_ej);
         for (size_t ishell = 0; ishell < nshells; ++ishell) {
             for (size_t ilayer = 0; ilayer < n_layers_ej; ++ilayer) {
+                (*p_log)(LOG_INFO,AT)<<" EJECTA LC shell="<<ishil<<"/"<<nshells<<" layer="<<ilayer<<"/"<<n_layers_ej<<"\n";
                 out[ishil].resize(1);
                 ii = 0;
                 out[ishil][i_v_n].resize(freqs.size());
@@ -1095,14 +1168,14 @@ public:
         std::unordered_map<std::string,double> attrs{
                 {"nshells", nshells },
                 {"nlayers", n_layers_ej },
-                {"thetaObs", p_bws_ej[0]->getEatsPars()->theta_obs },
-                {"d_L", p_bws_ej[0]->getEatsPars()->d_l },
-                {"z", p_bws_ej[0]->getEatsPars()->z },
-                {"eps_e", p_bws_ej[0]->getSynchAnPtr()->getPars()->eps_e },
-                {"eps_b", p_bws_ej[0]->getSynchAnPtr()->getPars()->eps_b },
-                {"eps_t", p_bws_ej[0]->getSynchAnPtr()->getPars()->eps_t },
-                {"p", p_bws_ej[0]->getSynchAnPtr()->getPars()->p },
-                {"ksi_n", p_bws_ej[0]->getSynchAnPtr()->getPars()->ksi_n }
+                {"thetaObs", p_ej[0]->getBW(0)->getEatsPars()->theta_obs },
+                {"d_L", p_ej[0]->getBW(0)->getEatsPars()->d_l },
+                {"z", p_ej[0]->getBW(0)->getEatsPars()->z },
+                {"eps_e", p_ej[0]->getBW(0)->getSynchAnPtr()->getPars()->eps_e },
+                {"eps_b", p_ej[0]->getBW(0)->getSynchAnPtr()->getPars()->eps_b },
+                {"eps_t", p_ej[0]->getBW(0)->getSynchAnPtr()->getPars()->eps_t },
+                {"p", p_ej[0]->getBW(0)->getSynchAnPtr()->getPars()->p },
+                {"ksi_n", p_ej[0]->getBW(0)->getSynchAnPtr()->getPars()->ksi_n }
         };
 
 
@@ -1305,9 +1378,9 @@ private:
             std::vector<Image> tmp (n_layers_ej);
             std::vector<size_t> n_empty_images_layer;
             for (size_t ilayer = 0; ilayer < n_layers_ej; ilayer++){
-                auto & model = p_bws_ej[ ii ];
+                auto & model = p_ej[ ilayer ];
 //                tmp.emplace_back( model->evalImagePW(obs_time, obs_freq) );
-                model->evalImagePW(tmp[ilayer], obs_time, obs_freq);
+                model->getBW(ishell)->evalImagePW(tmp[ilayer], obs_time, obs_freq);
                 if (tmp[ilayer].m_f_tot == 0){
                     n_jet_empty_images += 1;
                     n_empty_images_layer.emplace_back(ilayer);
@@ -1349,6 +1422,8 @@ private:
         Image image;
         for (size_t ilayer = 0; ilayer < n_layers_j; ilayer++){
             auto & model = p_bws_jet[ilayer];
+            (*p_log)(LOG_INFO,AT)<<" GRB LC ntimes="<<obs_times.size()<<" layer="<<ilayer<<"/"<<n_layers_j<<
+            " cells_in_layer="<<LatStruct::CellsInLayer(model->getPars()->ilayer)<<"\n";
             model->evalLightCurve(light_curves[ilayer], obs_times, obs_freqs);
 //            for (size_t it = 0; it < obs_times.size(); it++) {
 //                if (model->getPars()->m_method_eats == LatStruct::i_pw) {
@@ -1380,9 +1455,9 @@ private:
             auto &struc = ejectaStructs.structs[ishell];
             size_t n_layers_ej = ejectaStructs.structs[ishell].nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? struc.nlayers_pw : struc.nlayers_a ;
             for (size_t ilayer = 0; ilayer < n_layers_ej; ilayer++) {
-                auto & model = p_bws_ej[ii];//ejectaModels[ishell][ilayer];
+                auto & model = p_ej[ilayer];//ejectaModels[ishell][ilayer];
 //                model->setEatsPars( pars, opts );
-                model->evalLightCurve(light_curves[ishell][ilayer], obs_times, obs_freqs);
+                model->getBW(ishell)->evalLightCurve(light_curves[ishell][ilayer], obs_times, obs_freqs);
 
 //                for (size_t it = 0; it < obs_times.size(); it++) {
 //                    if (model->getPars()->m_method_eats == LatStruct::i_pw) {
@@ -1802,7 +1877,8 @@ private:
     Array t_grid;
     std::unique_ptr<Magnetar> p_magnetar;
     std::vector<std::unique_ptr<RadBlastWave>> p_bws_jet;
-    std::vector<std::unique_ptr<RadBlastWave>> p_bws_ej;
+//    std::vector<std::unique_ptr<RadBlastWave>> p_bws_ej;
+    std::vector<std::unique_ptr<CumulativeShell>> p_ej;
 };
 
 #endif //SRC_MODEL_H

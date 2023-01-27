@@ -342,14 +342,16 @@ public:
     double evalFluxDensA(double t_obs, double nu_obs, double atol) {
         double fluxdens = 0.;
         auto & p_eats = p_pars; // removing EATS_pars for simplicity
-        parsPars(t_obs, nu_obs, p_pars->theta_c_l, p_pars->theta_c_h, 0., M_PI, obsAngle);
+        parsPars(t_obs, nu_obs, p_pars->theta_c_l, p_pars->theta_c_h,
+                 0., M_PI, obsAngle);
         check_pars();
         double Fcoeff = CGS::cgs2mJy / (4.0 * M_PI * p_eats->d_l * p_eats->d_l); // result will be in mJy
         p_eats->atol_theta = atol;// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
         p_eats->atol_phi = atol;//  / (2.0 * Fcoeff);
         fluxdens += 2. * Fcoeff * integrate_theta_phi(p_eats); // 2. because Integ_0^pi (not 2pi)
         if (p_eats->counter_jet){
-            parsPars(t_obs, nu_obs, p_pars->theta_c_l, p_pars->theta_c_h, 0., M_PI, obsAngleCJ);
+            parsPars(t_obs, nu_obs, p_pars->theta_c_l, p_pars->theta_c_h,
+                     0., M_PI, obsAngleCJ);
             check_pars();
             p_eats->atol_theta = atol;// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
             p_eats->atol_phi = atol;//  / (2.0 * Fcoeff);
@@ -904,15 +906,15 @@ public:
 
     /// evaluate intensity/flux density distribution using piece-wise summation
     void evalImagePW(Image & image, double obs_time, double obs_freq){
-        /// get a pair of images
-        Image im_pj;
-        Image im_cj;
-//        auto tmp = computeImagePW( obs_time, obs_freq );
-        computeImagePW(im_pj, im_cj, obs_time, obs_freq );
         /// create empty image with the size two (stacked images)
         Array phi_grid = LatStruct::getCphiGridPW( p_pars->ilayer );
 //        Image image( 2 * phi_grid.size(), 0. );
         image.resize( 2 * phi_grid.size(), 0. );
+        /// get a pair of images
+        Image im_pj( phi_grid.size() );
+        Image im_cj( phi_grid.size() );
+        //        auto tmp = computeImagePW( obs_time, obs_freq );
+        computeImagePW(im_pj, im_cj, obs_time, obs_freq );
         /// combine the two images (use full 'ncells' array, and fill only cells that correspond to this layer)
         for (size_t icell = 0; icell < phi_grid.size(); ++icell) {
             for (size_t ivn = 0; ivn < image.m_names.size(); ++ivn)
@@ -935,8 +937,12 @@ public:
                          double (*im_yys)( const double &, const double &, const double & )){
         auto & p_eats = p_pars; // removing EATS_pars for simplicity
 //        Image image((size_t) p_pars->ncells);
-        image.resize((size_t) p_pars->ncells);
-
+//        image.resize((size_t) p_pars->ncells);
+        /// check if passsed image size is equal to what is expected for this layer
+        if (image.m_size!=LatStruct::CellsInLayer(p_pars->ilayer)){
+            (*p_log)(LOG_ERR,AT) << " error in image size\n";
+            exit(1);
+        }
         if ((m_data[BlastWaveBase::Q::iR][0] == 0.) && (p_pars->Gamma0 > 0)){
             std::cerr << " [ishell=" << p_pars->ishell << " ilayer="<<p_pars->ilayer << "] "
                       << " R[0]=0. Seems not evolved -> returning empty image." << "\n";
@@ -944,7 +950,6 @@ public:
 //            return std::move(image);
             return;
         }
-
 
         parsPars(t_obs, nu_obs, 0., 0., 0., 0., obs_angle);
         check_pars();
@@ -1792,9 +1797,10 @@ public:
 //            return std::move(light_curve);
         }
 
-        double rtol = 1e-2;
+        double rtol = 1e-6;
         Image image;
         for (size_t it = 0; it < times.size(); it++) {
+//            (*p_log)(LOG_INFO,AT)<<" LC processing it="<<it<<"/"<<times.size()<<"\n";
             if (p_pars->m_method_eats == LatStruct::i_pw) {
 //                    auto image = model->evalImagePW(obs_times[it], obs_freqs[it]);
                 evalImagePW(image, times[it], freqs[it]);
