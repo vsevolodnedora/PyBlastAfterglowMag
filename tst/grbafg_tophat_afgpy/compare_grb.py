@@ -49,6 +49,8 @@ def tst_against_afgpy(withSpread = False,
         pba.modify_grb_part_parfile(newpars={},newopts={"method_synchrotron":"Joh06",
                                                         "fname_light_curve":"tophat_{}_joh06.h5".format(
                                                             str(i_thetaobs).replace(".",""))})
+        pba.reload_parfile()
+
         pba.run()
 
         ax.plot(pba.get_jet_lc_times() / cgs.day,
@@ -60,6 +62,8 @@ def tst_against_afgpy(withSpread = False,
         pba.modify_grb_part_parfile(newpars={},newopts={"method_synchrotron":"WSPN99",
                                                         "fname_light_curve":"tophat_{}_WSPN99.h5".format(
                                                             str(i_thetaobs).replace(".",""))})
+        pba.reload_parfile()
+
         pba.run()
 
         ax.plot(pba.get_jet_lc_times() / cgs.day,

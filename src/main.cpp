@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 // PyBlastAfterglowMag
-// Copyright (C) 202-2028, Vsevolod Nedora <vsevolod.nedora@gmail.com>
+// Copyright (C) 2019-2028, Vsevolod Nedora <vsevolod.nedora@gmail.com>
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -131,8 +131,7 @@ void readParFile2(std::unordered_map<std::string, double> & pars,
     std::unique_ptr<logger> p_log;
     p_log = std::make_unique<logger>(std::cout, std::cerr, CurrLogLevel, "readParFile2");
     if (!std::experimental::filesystem::exists(parfile_path)) {
-        (*p_log)(LOG_ERR, AT) << " Parfile not found. " + parfile_path << "\n";
-        exit(1);
+        (*p_log)(LOG_ERR, AT) << " Parfile not found. " + parfile_path << "\n"; exit(1);
 
     }
     std::ifstream fin(parfile_path);
@@ -283,10 +282,11 @@ int main(int argc, char** argv) {
 ////        throw std::invalid_argument("Code requires 1 argument (path to parfile)");
 //    }
     if (argc==1){
-        working_dir = "../../tst/grbafg_gauss_offaxis/";
+//        working_dir = "../../tst/grbafg_gauss_offaxis/";
         working_dir = "../../tst/grbafg_tophat_afgpy/";
-        working_dir = "../../tst/knafg_nrinformed/";
-        working_dir = "../../tst/magnetar/";
+//        working_dir = "../../tst/knafg_nrinformed/";
+//        working_dir = "../../tst/magnetar/";
+//        working_dir = "../../tst/grbafg_tophat_wind/";
 //        parfile_arrs_path = "../../tst/dynamics/parfile_arrs.h5";
         (*p_log)(LOG_WARN,AT) << "Paths to working dir is not given. Using "
                                          << working_dir <<"\n";
@@ -342,7 +342,7 @@ int main(int argc, char** argv) {
     bool do_j_lc = getBoolOpt("do_j_lc", main_opts, AT, p_log, false, true);
     bool do_j_skymap = getBoolOpt("do_j_skymap", main_opts, AT, p_log, false, true);
     StrDbMap grb_pars; StrStrMap grb_opts;
-    for (auto & key : {"n_ism","d_l","z","theta_obs"}) grb_pars[key] = main_pars.at(key);
+    for (auto & key : {"n_ism","d_l","z","theta_obs","A0","s","r_ej","r_ism"}) grb_pars[key] = main_pars.at(key);
     if (run_jet_bws) {
         readParFile2(grb_pars, grb_opts, working_dir+parfilename,
                      "# ---------------------- GRB afterglow ----------------------",
@@ -360,7 +360,7 @@ int main(int argc, char** argv) {
     bool do_ej_lc = getBoolOpt("do_ej_lc", main_opts, AT, p_log, false, true);
     bool do_ej_skymap = getBoolOpt("do_ej_skymap", main_opts, AT, p_log, false, true);
     StrDbMap kn_pars; StrStrMap kn_opts;
-    for (auto & key : {"n_ism","d_l","z","theta_obs"}) kn_pars[key] = main_pars.at(key);
+    for (auto & key : {"n_ism","d_l","z","theta_obs","A0","s","r_ej","r_ism"}) kn_pars[key] = main_pars.at(key);
     if (run_ejecta_bws) {
         readParFile2(kn_pars, kn_opts, working_dir + parfilename,
                      "# ----------------------- kN afterglow ----------------------",

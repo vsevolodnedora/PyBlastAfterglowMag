@@ -749,13 +749,16 @@ public:
 
 /// ISM density profile that a blast wave passes through
 class RhoISM{
+    std::unique_ptr<logger> p_log;
 public:
-    RhoISM() = default;
+    RhoISM(int loglevel){
+        p_log=std::make_unique<logger>(std::cout, std::cerr, loglevel, "RhoISM");
+    }
     void setPars(const double nn, const double A0, const double s,
                  const double R_EJ, const double R_ISM, bool set_static_ism){
         m_nn = nn;
-        m_A0 = A0;
-        m_s = s;
+        m_A0 = A0;// * CGS::mppme;
+        m_s = (double)s;
         m_R_EJ = R_EJ;
         m_R_ISM = R_ISM;
 
@@ -778,24 +781,46 @@ public:
     void evaluateRhoDrhoDrDefault(const double R, const double theta ){
         m_R = R;
         m_theta = theta;
-        if (!is_overriden){  }
+        if (!is_overriden){
+
+        }
 
         /// uniform ISM density
-        if (m_nn > 0.0)  { m_rho_def = m_nn * CGS::mppme; m_drhodr_def = 0.0;}
+        if (m_nn > 0.0)  {
+            m_rho_def = m_nn * CGS::mppme;
+            m_drhodr_def = 0.0;
+        }
             /// step function as a ISM density
         else {
+            if ((m_s < 0)or(m_A0<0)){
+                (*p_log)(LOG_ERR, AT) << "if n_ism < 0; positive A0 and s are expected (wind). Given A0="<<m_A0<<" s="<<m_s<<"\n";
+                exit(1);
+            }
+
             // Inner part of the CBM :: inside the merger ejecta (high density, constant)
-            if (m_R < m_R_EJ) { m_rho_def = m_A0 * std::pow(m_R_EJ, -m_s) * CGS::mppme; m_drhodr_def = 0.0; }
+            if (m_R < m_R_EJ) {
+                m_rho_def = m_A0 * std::pow(m_R_EJ, -m_s) * CGS::mppme;
+                m_drhodr_def = 0.0;
+            }
 
             // middle part :: zone of decreasing density
-            if ((m_R_EJ <= m_R) && (m_R < m_R_ISM)) { m_rho_def = m_A0 * std::pow(m_R, -m_s) * CGS::mppme, m_drhodr_def = m_rho_def * (-m_s / m_R); }
+            if ((m_R_EJ <= m_R) && (m_R < m_R_ISM)) {
+                m_rho_def = m_A0 * std::pow(m_R, -m_s) * CGS::mppme,
+                m_drhodr_def = m_rho_def * (-m_s / m_R);
+            }
 
             // outer part, constant low density
-            if (m_R_ISM <= m_R) { m_rho_def = m_A0 * std::pow(m_R_ISM, -m_s) * CGS::mppme, m_drhodr_def = 0.0; }
+            if (m_R_ISM <= m_R) {
+                m_rho_def = m_A0 * std::pow(m_R_ISM, -m_s) * CGS::mppme,
+                m_drhodr_def = 0.0;
+            }
         }
         if(m_rho_def < 0){
-            std::cerr<<"evaluateRhoDrhoDrDefault failed m_rho_def < 0\n";
-            std::cerr<<AT<<"\n";
+            (*p_log)(LOG_ERR, AT)<<" evaluateRhoDrhoDrDefault failed m_rho_def < 0\n";
+            exit(1);
+        }
+        if(m_rho_def > 1.){
+            (*p_log)(LOG_ERR, AT) << "wrong walue of rho_ism="<<m_rho_def<<" for n_ism="<<m_nn<<" A0="<<m_A0<<" s="<<m_s<<"\n";
             exit(1);
         }
     }

@@ -19,8 +19,9 @@ from package.src.PyBlastAfterglowMag.id_maker_from_thc_ourflow import prepare_kn
 def main():
     pba = PBA(os.getcwd()+"/",readparfileforpaths=True)
     mag = pba.get_mag_obj()
+    print(np.array(mag["n_grav"]))
     print(mag.keys())
-    # plt.loglog(np.array(mag["tburst"]),np.array(mag["mdot"])/cgs.solar_m)
+    # plt.loglog(np.array(mag["tburst"]), np.array(mag["mdot"])/cgs.solar_m)
     plt.loglog(np.array(mag["tburst"])[1:],np.array(mag["lprop"])[1:], color='blue', label=r"$L_{\rm prop}$")
     plt.loglog(np.array(mag["tburst"])[1:],np.array(mag["ldip"])[1:], color='red', label=r"$L_{\rm dip}$")
     # plt.loglog(np.array(mag["tburst"]),-np.array(mag["n_dip"]), color='blue', label=r"$n_{\rm dip}$")

@@ -522,14 +522,14 @@ class BPA_METHODS(PBA_BASE):
 
     # jet dynamics
 
-    def get_j_dyn_obj(self, ilayer=None):
+    def get_jet_dyn_obj(self, ilayer=None):
         self._ckeck_if_loaded_j_dyn_obj()
         if (ilayer is None):
             return self.grb_dyn_dfile
         else:
             return self.grb_dyn_dfile["layer={}".format(ilayer)]
 
-    def get_j_dyn_arr(self, v_n, ilayer=0):
+    def get_jet_dyn_arr(self, v_n, ilayer=0):
         self._ckeck_if_loaded_j_dyn_obj()
         dfile = self.grb_dyn_dfile
         layer = "layer={}".format(ilayer)
@@ -543,12 +543,12 @@ class BPA_METHODS(PBA_BASE):
 
     # jet spectrum
 
-    def get_j_spec_obj(self):
+    def get_jet_spec_obj(self):
         self._check_if_loaded_j_spec()
         return self.grb_spec_dfile
 
-    def get_j_spec_2d_arr(self, v_n="em", ilayer=0):
-        dfile = self.get_j_spec_obj()
+    def get_jet_spec_2d_arr(self, v_n="em", ilayer=0):
+        dfile = self.get_jet_spec_obj()
         layer = "layer={}".format(ilayer)
         if (not layer in list(dfile.keys())):
             raise NameError("Layer {} (aka '{}') is not in the jet dyn. file.\n Available: {}"
@@ -558,18 +558,18 @@ class BPA_METHODS(PBA_BASE):
                             .format(v_n, layer, dfile[layer].keys()))
         return np.array(dfile[layer][v_n])
 
-    def get_j_spec_times(self):
-        dfile = self.get_j_spec_obj()
+    def get_jet_spec_times(self):
+        dfile = self.get_jet_spec_obj()
         return np.array(dfile["times"])
 
-    def get_j_spec_freqs(self):
-        dfile = self.get_j_spec_obj()
+    def get_jet_spec_freqs(self):
+        dfile = self.get_jet_spec_obj()
         return np.array(dfile["freqs"])
 
-    def get_j_spec_1d_arr(self, freq=None, time=None, v_n="em", ilayer=0):
-        arr = self.get_j_spec_2d_arr(v_n=v_n, ilayer=ilayer)
-        freqs = self.get_j_spec_freqs()
-        times = self.get_j_spec_times()
+    def get_jet_spec_1d_arr(self, freq=None, time=None, v_n="em", ilayer=0):
+        arr = self.get_jet_spec_2d_arr(v_n=v_n, ilayer=ilayer)
+        freqs = self.get_jet_spec_freqs()
+        times = self.get_jet_spec_times()
         if (not freq is None):
             if (freq < freqs.min() or freq > freqs.max()):
                 raise ValueError("Freq={} (jet comov cpec) is not in the limit of freqs[{}, {}]"
@@ -622,8 +622,8 @@ class BPA_METHODS(PBA_BASE):
         except NameError:
             key = str("totalflux at freq={:.4e}".format(freq))
             if not key in dfile.keys():
-                raise NameError("Not found:'get_jet_lc_totalflux'; lc_fname={};  for {} among keys:{}"
-                                .format(self.res_dir_grb + self.jet_prefix + self.def_name_lc,
+                raise NameError("Not found in lc_fname={}; key={}, among keys:{}"
+                                .format(self.fpath_grb_light_curve,
                                         key, [key for key in dfile.keys() if key.__contains__("totalflux")]))
         except:
             raise NameError()
@@ -1080,13 +1080,13 @@ class BPA_METHODS(PBA_BASE):
             # xrs_i[phi_i < np.pi] = 0.
 
             if plots:
-                layers = int(self.get_j_dyn_obj().attrs["nlayers"])
-                plt.semilogx(self.get_j_dyn_arr("tt", ilayer=0) / cgs.day, self.get_j_dyn_arr("ctheta", ilayer=0),
+                layers = int(self.get_jet_dyn_obj().attrs["nlayers"])
+                plt.semilogx(self.get_jet_dyn_arr("tt", ilayer=0) / cgs.day, self.get_jet_dyn_arr("ctheta", ilayer=0),
                              label="nl={}".format(0))
-                plt.semilogx(self.get_j_dyn_arr("tt", ilayer=layers - 1) / cgs.day,
-                             self.get_j_dyn_arr("ctheta", ilayer=layers - 1), label="nl={}".format(layers - 1))
-                plt.semilogx(self.get_j_dyn_arr("tt", ilayer=layers - int(layers / 2)) / cgs.day,
-                             self.get_j_dyn_arr("ctheta", ilayer=layers - int(layers / 2)),
+                plt.semilogx(self.get_jet_dyn_arr("tt", ilayer=layers - 1) / cgs.day,
+                             self.get_jet_dyn_arr("ctheta", ilayer=layers - 1), label="nl={}".format(layers - 1))
+                plt.semilogx(self.get_jet_dyn_arr("tt", ilayer=layers - int(layers / 2)) / cgs.day,
+                             self.get_jet_dyn_arr("ctheta", ilayer=layers - int(layers / 2)),
                              label="nl={}".format(layers - int(layers / 2)))
                 plt.xlabel("Time [days]")
                 plt.grid()
