@@ -6,88 +6,11 @@ import copy
 import subprocess
 from shutil import copyfile
 
+from .utils import cgs, get_beta, find_nearest_index
 
 ''' 
 pip uninstall --no-cache-dir PyBlastAfterglowMag & pip install .
 '''
-
-get_beta = lambda Gamma: np.sqrt(1. - np.power(Gamma, -2))
-get_Gamma = lambda beta: np.float64(np.sqrt(1. / (1. - np.float64(beta) ** 2.)))
-
-def latex_float(f, format="{0:.2g}"):
-    float_str = format.format(f)
-    if "e" in float_str:
-        base, exponent = float_str.split("e")
-        if (base == "1"):
-            return r"10^{{{0}}}".format(int(exponent))
-        return r"{0} \times 10^{{{1}}}".format(base, int(exponent))
-    else:
-        return float_str
-
-def make_prefix_for_pars(pars, keys=("n_ism", "theta_obs", "eps_e", "eps_b", "p", "eps_t", "nlayers", "d_l")):
-    fname = ""
-    for key in keys:
-        if ((key == "theta_obs")or(key=="theta_c")or(key=="theta_w")):
-            val = "{:.1f}".format( float(pars[key]/np.pi*180.) )
-        elif (key == "d_l"):
-            val = pars[key] / 1.e9 / cgs.pc
-        else:
-            val = pars[key]
-        if len(str(val)) > 7:
-            val = "{:.5f}".format(val)
-        val = str(val).replace(".", "")
-        fname+=key.replace("_","")
-        fname+=val
-        fname+="_"
-    return fname
-
-class cgs:
-
-    pi = 3.141592653589793
-
-    tmp = 1221461.4847847277
-
-    c = 2.9979e10
-    mp = 1.6726e-24
-    me = 9.1094e-28
-    # e = 1.602176634e-19 # Si
-    # h = 6.62607015e-34 # ???? Si
-    h = 6.6260755e-27 # erg s
-    mpe = mp + me
-    mue = me / mp
-    hcgs = 6.6260755e-27  # Planck constant in cgs
-    # si_h = 6.62607015e-34
-    kB = 1.380658e-16
-    sigmaT = 6.6524e-25
-    qe = 4.803204e-10
-    # si_qe = 1.602176634e-19
-    sigma_B = 5.6704e-5  ### Stephan Boltzann constant in cgs
-    lambda_c = (h / (me * c)) # Compton wavelength
-    mecc2MeV = 0.511
-    mec2 = 8.187105649650028e-07  # erg # electron mass in erg, mass_energy equivalence
-    gamma_c_w_fac = 6 * np.pi * me * c / sigmaT
-    rad_const = 4 * sigma_B / c   #### Radiation constant
-    mppme = mp + me
-
-    pc = 3.0857e18 # cm
-    year= 3.154e+7 # sec
-    day = 86400
-
-    solar_m = 1.989e+33
-
-    ns_rho = 1.6191004634e-5
-    time_constant = 0.004925794970773136  # to to to ms
-    energy_constant = 1787.5521500932314
-    volume_constant = 2048
-
-    sTy = 365. * 24. * 60. * 60.    # seconds to years conversion factor
-    sTd = 24. * 60. * 60.           # seconds to days conversion factor
-    rad2mas = 206264806.247
-
-def find_nearest_index(array, value):
-    ''' Finds index of the value in the array that is the closest to the provided one '''
-    idx = (np.abs(array - value)).argmin()
-    return idx
 
 def read_parfile(workingdir, fname="parfile.par", comment="#", sep1="", sep2=""):
     par_sep = "* Parameters"
@@ -201,7 +124,7 @@ class PBA_BASE:
 
         if not os.path.isdir(workingdir):
             raise IOError("Working directory not found {}".format(workingdir))
-
+        self.parfile = parfile
         self.workingdir = workingdir
         self.res_dir_mag = workingdir
         self.res_dir_kn = workingdir
@@ -210,11 +133,11 @@ class PBA_BASE:
         self.kn_prefix = "kn_"
         # ------------------ MAIN
         if readparfileforpaths:
-            self.main_pars, self.main_opts = self.read_main_part_parfile(parfile)
+            self.main_pars, self.main_opts = self.read_main_part_parfile( self.parfile)
         # ------------------ MAGNETAR
         self.fpath_mag = None
         if readparfileforpaths:
-            self.mag_pars, self.mag_opts = self.read_magnetar_part_parfile(parfile)
+            self.mag_pars, self.mag_opts = self.read_magnetar_part_parfile( self.parfile)
         else:
             self.fpath_mag = self.res_dir_mag + "magnetar.h5"
         # ------------------ GRB
@@ -223,7 +146,7 @@ class PBA_BASE:
         self.fpath_grb_light_curve = None
         self.fpath_grb_sky_map = None
         if readparfileforpaths:
-            self.grb_pars, self.grb_opts = self.read_grb_part_parfile(parfile)
+            self.grb_pars, self.grb_opts = self.read_grb_part_parfile( self.parfile)
         else:
             self.fpath_grb_dyn = self.res_dir_kn + self.grb_prefix + "dynamics_layers.h5"
             self.fpath_grb_spec = self.res_dir_kn + self.grb_prefix + "spectra.h5"
@@ -235,7 +158,7 @@ class PBA_BASE:
         self.fpath_kn_light_curve = None
         self.fpath_kn_sky_map = None
         if readparfileforpaths:
-            self.kn_pars, self.kn_opts = self.read_kn_part_parfile(parfile)
+            self.kn_pars, self.kn_opts = self.read_kn_part_parfile( self.parfile)
         else:
             self.fpath_kn_dyn = self.res_dir_kn + self.kn_prefix + "dynamics_layers.h5"
             self.fpath_kn_spec = self.res_dir_kn + self.kn_prefix + "spectra_layers.h5"
@@ -383,9 +306,9 @@ class PBA_BASE:
         if not os.path.isfile(path_to_cpp_executable):
             raise IOError("pba.out executable is not found: {}".format(path_to_cpp_executable))
         # subprocess.call(path_to_executable, input="")
-        print("{} {}".format(path_to_cpp_executable, self.workingdir))
+        print("{} {} {}".format(path_to_cpp_executable, self.workingdir, self.parfile))
         # subprocess.run(path_to_cpp_executable, input=self.workingdir)
-        subprocess.check_call([path_to_cpp_executable, self.workingdir])
+        subprocess.check_call([path_to_cpp_executable, self.workingdir, self.parfile])
     ''' --------- magnetar ---------- '''
     def _check_if_loaded_mag_obj(self):
         if (self.fpath_mag is None):
@@ -715,7 +638,7 @@ class BPA_METHODS(PBA_BASE):
 
     def get_jet_skymap_cm(self, all_xrs, all_yrs, all_zz):
         dfile = self.get_jet_skymap_obj()
-        xc_m, yc_m = compute_position_of_the_flux_centroid(all_xrs, all_yrs, all_zz, float(dfile.attrs["d_L"]))
+        xc_m, yc_m = compute_position_of_the_flux_centroid(all_xrs, all_yrs, all_zz, float(dfile.attrs["d_l"]))
         return (xc_m, yc_m)
 
     # def get_jet_skymap(self, time=None, freq=None, verbose=False, remove_mu=False, int_or_hist="int"):
@@ -1031,8 +954,8 @@ class BPA_METHODS(PBA_BASE):
         min_mu = 1e-5  # limit for mu that if too small blow up the intensity for some reason...
         # min_mu_frac = 0.85
         # limit_data = False
-        d_l = float(self.get_jet_skymap_obj().attrs["d_L"])
-        theta_obs = float(self.get_jet_skymap_obj().attrs["thetaObs"])
+        d_l = float(self.get_jet_skymap_obj().attrs["d_l"])
+        # theta_obs = float(self.get_jet_skymap_obj().attrs["thetaObs"])
         times = self.get_jet_skymap_times()
         freqs = self.get_jet_skymap_freqs()
         dfile = self.get_jet_skymap_obj()
@@ -1352,9 +1275,13 @@ class BPA_METHODS(PBA_BASE):
             return np.array(self.grb_skymap_dfile["totalflux at freq={:.4e}".format(freq)])
         else:
             arr = np.array(self.grb_skymap_dfile["totalflux at freq={:.4e}".format(freq)])
-            assert self.get_jet_skymap_times().min() < time < self.get_jet_skymap_times().max()
-            val = arr[find_nearest_index(self.get_jet_skymap_totfluxes(freq=freq, time=None), time)]
-            return val
+            times = self.get_jet_skymap_times()
+            if len(times) > 1:
+                assert self.get_jet_skymap_times().min() < time < self.get_jet_skymap_times().max()
+                val = arr[find_nearest_index(self.get_jet_skymap_totfluxes(freq=freq, time=None), time)]
+                return val
+            else:
+                return arr[0]
 
     ''' -------- ejecta (shells and layers) -------- '''
 
@@ -1654,6 +1581,8 @@ class BPA_METHODS(PBA_BASE):
         else:
             if (shell is None):
                 arr = np.array(self.kn_skymap_dfile["totalflux at freq={:.4e}".format(freq)])
+                if (len(arr)==1):
+                    return arr[0]
                 assert self.get_ej_skymap_times().min() < time < self.get_ej_skymap_times().max()
                 val = arr[find_nearest_index(self.get_ej_skymap_totfluxes(freq=freq, shell=None, time=None), time)]
                 return val
@@ -2894,3 +2823,398 @@ class BPA_METHODS(PBA_BASE):
         else:
             raise KeyError("smooth type is not recognize: {}".format(type))
         return i_zz
+
+def tmp_for_file2(time, freq, grp, settings, plot_dict, **kwargs):
+
+    '''
+    RETURN :: (xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz)
+    '''
+
+    if(len(settings["kn_grb_skymap"].keys()) > 0):
+        if (len(settings["kn_skymap"].keys()) == 0):
+            raise KeyError("For 'kn_grb_skymap' kn_skymap has to be set")
+        if (len(settings["grb_skymap"].keys()) == 0):
+            raise KeyError("For 'kn_grb_skymap' grb_skymap has to be set")
+
+    xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz = 0., 0., 0., 0., 0., 0., None, None, None
+
+    if not "precompute" in settings.keys():
+        print("setting 'precompute' to False")
+        settings["precompute"] = False
+
+    ''' ---- size/cm of the ejecta ---- '''
+    pb = BPA_METHODS()
+    pb.res_dir_kn = plot_dict["res_dir_kn"]
+    pb.ejecta_prefix = plot_dict["ejecta_prefix1"]
+    pb.res_dir_grb = plot_dict["res_dir_grb"]
+    pb.jet_prefix = plot_dict["jet_prefix"]
+
+    pb_w = BPA_METHODS()
+    pb_w.res_dir_kn = plot_dict["res_dir_kn"]
+    pb_w.ejecta_prefix = plot_dict["ejecta_prefix2"]
+    pb_w.res_dir_grb = plot_dict["res_dir_grb"]
+    pb_w.jet_prefix = plot_dict["jet_prefix"]
+
+    if type(time) is str:
+        if time == "tp1":
+            t_lc_max = pb.get_ej_lc_times()[find_nearest_index(pb.get_ej_lc_totalflux(freq), pb.get_ej_lc_totalflux(freq).max())]
+            t_sm_where_lc_max = pb.get_ej_skymap_times()[find_nearest_index(pb.get_ej_skymap_times(), t_lc_max)]
+            # idx =find_nearest_index(pb.get_ej_skymap_totfluxes(freq), pb.get_ej_lc_totalflux(freq).max())
+            # time = pb.get_ej_skymap_times()[find_nearest_index(pb.get_ej_skymap_totfluxes(freq), pb.get_ej_lc_totalflux(freq).max() )]
+            # time_lc = pb.get_ej_lc_times()[find_nearest_index(pb.get_ej_lc_totalflux(freq),pb.get_ej_lc_totalflux(freq).max())]
+            print("Selected nearest time {} [d] while the light curve peak time is {} [d]".format(t_sm_where_lc_max/cgs.day,t_lc_max/cgs.day))
+        elif time == "tp2":
+            t_lc_max = pb_w.get_ej_lc_times()[ find_nearest_index(pb_w.get_ej_lc_totalflux(freq), pb_w.get_ej_lc_totalflux(freq).max())]
+            t_sm_where_lc_max = pb_w.get_ej_skymap_times()[find_nearest_index(pb_w.get_ej_skymap_times(), t_lc_max)]
+            # time = pb.get_ej_skymap_times()[ find_nearest_index(pb.get_ej_skymap_totfluxes(freq), pb.get_ej_lc_totalflux(freq).max())]
+            # time_lc = pb.get_ej_lc_times()[ find_nearest_index(pb.get_ej_lc_totalflux(freq), pb.get_ej_lc_totalflux(freq).max())]
+            print("Selected nearest time {} [d] while the light curve peak time is {} [d]".format(t_sm_where_lc_max/cgs.day,t_lc_max/cgs.day))
+        elif time == "tpgrb":
+            t_lc_max = pb.get_jet_lc_times()[find_nearest_index(pb.get_jet_lc_totalflux(freq), pb.get_jet_lc_totalflux(freq).max())]
+            t_sm_where_lc_max = pb.get_jet_skymap_times()[find_nearest_index(pb.get_jet_skymap_times(), t_lc_max)]
+            # time = pb.get_ej_skymap_times()[ find_nearest_index(pb.get_ej_skymap_totfluxes(freq), pb.get_jet_lc_totalflux(freq).max())]
+            # time_lc = pb.get_ej_lc_times()[ find_nearest_index(pb.get_ej_lc_totalflux(freq), pb.get_jet_lc_totalflux(freq).max())]
+            print("Selected nearest time {} [d] while the light curve peak time is {} [d]".format(t_sm_where_lc_max/cgs.day,t_lc_max/cgs.day))
+        else:
+            raise KeyError("time can be a number, 'tp1', 'tp2' or 'tpj'. Given:{}".format(time))
+
+        time = t_sm_where_lc_max / cgs.day
+
+    if (len(settings["kn_skymap"].keys()) > 0) or (len(settings["kn_grb_skymap"].keys()) > 0):
+        tmp = copy.deepcopy(settings["kn_skymap"])
+        key = "kn nx={} ny={}".format(tmp["hist_nx"], tmp["hist_ny"])
+        if settings["precompute"]:
+            all_x, all_y, all_fluxes \
+                = pb.get_ej_skymap(time=time * cgs.day, freq=freq, verbose=False, remove_mu=True)
+
+            if tmp["spec"]:
+                int_x, int_y, int_zz = pb.get_combined_ej_spectral_map(time=time, freq=freq,
+                                                                       nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+            else:
+                int_x, int_y, int_zz = pb.combine_images(all_x, all_y, all_fluxes, hist_or_int="hist",
+                                                         shells=True, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+
+            grid_y, _, i_zz_y, _ = pb.get_skymap_lat_dist(all_x, all_y, all_fluxes, collapse_axis="x",
+                                                          nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            grid_x, _, i_zz_x, _ = pb.get_skymap_lat_dist(all_x, all_y, all_fluxes, collapse_axis="y",
+                                                          nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            xc, yc = pb.get_ej_skymap_cm(all_x, all_y, all_fluxes)
+            #
+            if key in grp.keys():
+                raise KeyError("key: {} already exists: {}".format(key, grp.keys()))
+            grp_kn = grp.create_group(key)
+            grp_kn.create_dataset("int_x", data=int_x)
+            grp_kn.create_dataset("int_y", data=int_y)
+            grp_kn.create_dataset("int_zz", data=int_zz)
+            grp_kn.create_dataset("grid_y", data=grid_y)
+            grp_kn.create_dataset("i_zz_y", data=i_zz_y)
+            grp_kn.create_dataset("grid_x", data=grid_x)
+            grp_kn.create_dataset("i_zz_x", data=i_zz_x)
+            grp_kn.attrs.create("xc", data=xc)
+            grp_kn.attrs.create("yc", data=yc)
+        else:
+            if not key in grp.keys():
+                raise KeyError("key={} is not in the list for a group: {}".format(key, grp.keys()))
+            grp_kn = grp[key]
+            int_x = np.array(np.array(grp_kn["int_x"]))
+            int_y = np.array(np.array(grp_kn["int_y"]))
+            int_zz = np.array(np.array(grp_kn["int_zz"]))  # plotting
+            grid_y = np.array(np.array(grp_kn["grid_y"]))
+            i_zz_y = np.array(np.array(grp_kn["i_zz_y"]))
+            grid_x = np.array(np.array(grp_kn["grid_x"]))
+            i_zz_x = np.array(np.array(grp_kn["i_zz_x"]))
+            xc = float(grp_kn.attrs["xc"])
+            yc = float(grp_kn.attrs["yc"])
+        i_zz_x /= i_zz_x.max()
+        i_zz_y /= i_zz_y.max()
+        if (int_zz.max() == int_zz.min()):
+            raise ValueError("i_zz_x.max() == i_zz_x.min() = {} \n plot_dic=\n{}".format(int_zz.max(), plot_dict))
+        y1, y2 = pb.get_skymap_fwhm(grid_y, i_zz_y, yc)
+        x1, x2 = pb.get_skymap_fwhm(grid_x, i_zz_x, xc)
+        if (not (x2 > x1)) and (x2!=0) and (x1!=0) :
+            raise ValueError("kn_skymap failed computing width x2={} <= x1={} Should be other way around"
+                             .format(x2, x1))
+        # if len(tmp["cm"].keys()) > 0: ax.plot(xc, yc, **tmp["cm"])  # color='red', marker="o")
+        # if len(tmp["ysize"].keys()) > 0: ax.errorbar([xc, xc], [y1, y2], xerr=[int_x.max() / 10, int_x.max() / 10],
+        #                                              **tmp["ysize"])
+        # if len(tmp["xsize"].keys()) > 0: ax.errorbar([x1, x2], [yc, yc], yerr=[int_y.max() / 10, int_y.max() / 10],
+        #                                              **tmp["xsize"])
+        # # --------------------
+        # if len(tmp["pcolormesh"].keys()) > 0:
+        #     # levels = np.geomspace(int_ration[~np.isnan(int_ration)].min(), int_ration[~np.isnan(int_ration)].max(), 50)
+        #     int_zz = int_zz.T
+        #     int_zz[~np.isfinite(int_zz)] = 0.
+        #     if (len(tmp["smooth"].keys()) > 0):
+        #         int_zz = pb.smooth_interpolated_skymap_with_gaussian_kernel(i_zz=int_zz, type=tmp["smooth"]["type"])
+        #     im = plot_pcolomesh(ax=ax, task_dict=tmp["pcolormesh"], int_x=int_x, int_y=int_y, int_zz=int_zz)
+
+        # return (xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz)
+        if (len(kwargs.keys())>0) and ("kn_skymap" in kwargs.keys()):
+            return (xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz)
+
+    ''' ---- size/cm of the grb ---- '''
+    if  ("grb_skymap" in settings.keys()) and (len(settings["grb_skymap"].keys()) > 0) or (len(settings["kn_grb_skymap"].keys()) > 0):
+        tmp = copy.deepcopy(settings["grb_skymap"])
+        key = "grb nx={} ny={}".format(tmp["hist_nx"], tmp["hist_ny"])
+        if settings["precompute"]:
+            all_x_jet, all_y_jet, all_fluxes_jet \
+                = pb.get_jet_skymap(time=time * cgs.day, freq=freq, verbose=False, remove_mu=True)
+            if tmp["spec"]:
+                int_x_j, int_y_j, int_zz_j = pb.get_combined_jet_spectral_map(time=time, freq=freq,
+                                                                              nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+            else:
+                int_x_j, int_y_j, int_zz_j = pb.combine_images([all_x_jet], [all_y_jet], [all_fluxes_jet],
+                                                               hist_or_int="hist", shells=False,
+                                                               nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+            grid_y_j, _, i_zz_y_j, _ = pb.get_skymap_lat_dist([all_x_jet], [all_y_jet], [all_fluxes_jet],
+                                                              collapse_axis="x", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            grid_x_j, _, i_zz_x_j, _ = pb.get_skymap_lat_dist([all_x_jet], [all_y_jet], [all_fluxes_jet],
+                                                              collapse_axis="y", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            xc_m_j, yc_m_j = pb.get_ej_skymap_cm([all_x_jet], [all_y_jet], [all_fluxes_jet])
+            #
+            if key in grp.keys():
+                raise KeyError("key: {} already exists: {}".format(key, grp.keys()))
+            grp_j = grp.create_group(key)
+            grp_j.create_dataset("int_x", data=int_x_j)
+            grp_j.create_dataset("int_y", data=int_y_j)
+            grp_j.create_dataset("int_zz", data=int_zz_j)
+            grp_j.create_dataset("grid_y", data=grid_y_j)
+            grp_j.create_dataset("i_zz_y", data=i_zz_y_j)
+            grp_j.create_dataset("grid_x", data=grid_x_j)
+            grp_j.create_dataset("i_zz_x", data=i_zz_x_j)
+            grp_j.attrs.create("xc", data=xc_m_j)
+            grp_j.attrs.create("yc", data=yc_m_j)
+        else:
+            grp_j = grp[key]
+            int_x_j = np.array(np.array(grp_j["int_x"]))
+            int_y_j = np.array(np.array(grp_j["int_y"]))
+            int_zz_j = np.array(np.array(grp_j["int_zz"]))  # plotting
+            grid_y_j = np.array(np.array(grp_j["grid_y"]))
+            i_zz_y_j = np.array(np.array(grp_j["i_zz_y"]))
+            grid_x_j = np.array(np.array(grp_j["grid_x"]))
+            i_zz_x_j = np.array(np.array(grp_j["i_zz_x"]))
+            xc_m_j = float(grp_j.attrs["xc"])
+            yc_m_j = float(grp_j.attrs["yc"])
+        if (int_zz_j.max() == int_zz_j.min()):
+            raise ValueError("i_zz_x.max() == i_zz_x.min() = {} \n plot_dic=\n{}".format(int_zz_j.max(), plot_dict))
+        x1_j, x2_j = pb.get_skymap_fwhm(grid_x_j, i_zz_x_j, xc_m_j)
+        y1_j, y2_j = pb.get_skymap_fwhm(grid_y_j, i_zz_y_j, yc_m_j)
+        if (not (x2_j > x1_j)) and (x2_j != 0) and (x1_j != 0):
+            raise ValueError("kn_skymap failed computing width x2={} <= x1={} Should be other way around"
+                             .format(x2_j, x1_j))
+        # if len(tmp["cm"].keys()) > 0: ax.plot(xc_m_j, yc_m_j, **tmp["cm"])  # color='red', marker="o")
+        # if len(tmp["ysize"].keys()) > 0: ax.errorbar([xc_m_j, xc_m_j], [y1_j, y2_j],
+        #                                              xerr=[int_x_j.max() / 10, int_x_j.max() / 10], **tmp["ysize"])
+        # if len(tmp["xsize"].keys()) > 0: ax.errorbar([x1_j, x2_j], [yc_m_j, yc_m_j],
+        #                                              yerr=[int_y_j.max() / 10, int_y_j.max() / 10], **tmp["xsize"])
+        # # --------------------
+        # if len(tmp["pcolormesh"].keys()) > 0:
+        #     int_zz_j = int_zz_j.T
+        #     int_zz_j[~np.isfinite(int_zz_j)] = 0.
+        #     im = plot_pcolomesh(ax=ax, task_dict=tmp["pcolormesh"], int_x=int_x_j, int_y=int_y_j, int_zz=int_zz_j)
+        xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz = \
+            xc_m_j, yc_m_j, x1_j, x2_j, y1_j, y2_j, int_x_j, int_y_j, int_zz_j
+        # return (xc_m_j, yc_m_j, x1_j, x2_j, y1_j, y2_j, int_x_j, int_y_j, int_zz_j)
+        if (len(kwargs.keys())>0) and ("grb_skymap" in kwargs.keys()):
+            return (xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz)
+
+    ''' --- size/cm of the kn with grb (using previous two) ---'''
+    if ("kn_grb_skymap" in settings.keys()) and len(settings["kn_grb_skymap"].keys()) > 0:
+        assert (len(settings["grb_skymap"].keys()) > 0)
+        assert (len(settings["kn_skymap"].keys()) > 0)
+        tmp = copy.deepcopy(settings["kn_grb_skymap"])
+        key = "kn_and_grb nx={} ny={}".format(tmp["hist_nx"], tmp["hist_ny"])
+        if settings["precompute"]:
+            all_x_pj = [all_x_jet] + all_x
+            all_y_pj = [all_y_jet] + all_y
+            all_fluxes_pj = [all_fluxes_jet] + all_fluxes
+            if tmp["spec"]:
+                int_x_pj, int_y_pj, int_zz_pj = pb.get_combined_kn_grb_spectral_map(time=time, freq=freq,
+                                                                                    nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+            else:
+                int_x_pj, int_y_pj, int_zz_pj = \
+                    pb.combine_images(all_x_pj, all_y_pj, all_fluxes_pj, hist_or_int="hist", shells=False,
+                                      nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+            # _, _, int_zz_wjet_nojet = pb.combine_images(all_x_pj, all_y_pj, all_fluxes_pj, hist_or_int="hist",
+            # shells=False, nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            xc_m_pj, yc_m_pj = pb.get_jet_skymap_cm(all_x_pj, all_y_pj, all_fluxes_pj)
+            grid_y_pj, _, i_zz_y_pj, _ = pb.get_skymap_lat_dist(all_x_pj, all_y_pj, all_fluxes_pj,
+                                                                collapse_axis="x", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            grid_x_pj, _, i_zz_x_pj, _ = pb.get_skymap_lat_dist(all_x_pj, all_y_pj, all_fluxes_pj,
+                                                                collapse_axis="y", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            if key in grp.keys():
+                raise KeyError("key: {} already exists: {}".format(key, grp.keys()))
+            grp_kn_plus_grb = grp.create_group(key)
+            # grp_kn_plus_grb = grp.create_group("kn_and_grb nx={} ny={}".format(tmp["hist_nx"], tmp["hist_ny"]))
+            grp_kn_plus_grb.create_dataset("int_x", data=int_x_pj)
+            grp_kn_plus_grb.create_dataset("int_y", data=int_y_pj)
+            grp_kn_plus_grb.create_dataset("int_zz", data=int_zz_pj)
+            grp_kn_plus_grb.create_dataset("grid_y", data=grid_y_pj)
+            grp_kn_plus_grb.create_dataset("i_zz_y", data=i_zz_y_pj)
+            grp_kn_plus_grb.create_dataset("grid_x", data=grid_x_pj)
+            grp_kn_plus_grb.create_dataset("i_zz_x", data=i_zz_x_pj)
+            grp_kn_plus_grb.attrs.create("xc", data=xc_m_pj)
+            grp_kn_plus_grb.attrs.create("yc", data=yc_m_pj)
+        else:
+            grp_kn_plus_grb = grp[key]
+            int_x_pj = np.array(np.array(grp_kn_plus_grb["int_x"]))
+            int_y_pj = np.array(np.array(grp_kn_plus_grb["int_y"]))
+            int_zz_pj = np.array(np.array(grp_kn_plus_grb["int_zz"]))  # plotting
+            grid_y_pj = np.array(np.array(grp_kn_plus_grb["grid_y"]))
+            i_zz_y_pj = np.array(np.array(grp_kn_plus_grb["i_zz_y"]))
+            grid_x_pj = np.array(np.array(grp_kn_plus_grb["grid_x"]))
+            i_zz_x_pj = np.array(np.array(grp_kn_plus_grb["i_zz_x"]))
+            xc_m_pj = float(grp_kn_plus_grb.attrs["xc"])
+            yc_m_pj = float(grp_kn_plus_grb.attrs["yc"])
+        if (int_zz_pj.max() == int_zz_pj.min()):
+            raise ValueError("i_zz_x.max() == i_zz_x.min() = {} \n plot_dic=\n{}".format(int_zz_pj.max(), plot_dict))
+        x1_pj, x2_pj = pb.get_skymap_fwhm(grid_x_pj, i_zz_x_pj, xc_m_pj)
+        y1_pj, y2_pj = pb.get_skymap_fwhm(grid_y_pj, i_zz_y_pj, yc_m_pj)
+        if (not (x2_pj > x1_pj)) and (x2_pj != 0) and (x1_pj != 0):
+            raise ValueError("kn_grb_skymap failed computing width x2={} <= x1={} Should be other way around"
+                             .format(x2_pj, x1_pj))
+        # if len(tmp["cm"].keys()) > 0: ax.plot(xc_m_pj, yc_m_pj, **tmp["cm"])
+        # if len(tmp["ysize"].keys()) > 0: ax.errorbar([xc_m_pj, xc_m_pj], [y1_pj, y2_pj],
+        #                                              xerr=[int_x_pj.max() / 10, int_x_pj.max() / 10], **tmp["ysize"])
+        # if len(tmp["xsize"].keys()) > 0: ax.errorbar([x1_pj, x2_pj], [yc_m_pj, yc_m_pj],
+        #                                              yerr=[int_y_pj.max() / 10, int_y_pj.max() / 10], **tmp["xsize"])
+        # # --------------------
+        # if len(tmp["pcolormesh"].keys()) > 0:
+        #     # levels = np.geomspace(int_ration[~np.isnan(int_ration)].min(), int_ration[~np.isnan(int_ration)].max(), 50)
+        #     int_zz_pj = int_zz_pj.T
+        #     int_zz_pj[~np.isfinite(int_zz_pj)] = 0.
+        #     im = plot_pcolomesh(ax=ax, task_dict=tmp["pcolormesh"], int_x=int_x_pj, int_y=int_y_pj, int_zz=int_zz_pj)
+
+        xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz = \
+            xc_m_pj, yc_m_pj, x1_pj, x2_pj, y1_pj, y2_pj, int_x_pj, int_y_pj, int_zz_pj
+
+        if (len(kwargs.keys())>0) and ("kn_grb_skymap" in kwargs.keys()):
+            return (xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz)
+        # return (xc_m_pj, yc_m_pj, x1_pj, x2_pj, y1_pj, y2_pj, int_x_pj, int_y_pj, int_zz_pj)
+
+    ''' ---- size/cm of the ejecta with interaction ---- '''
+    if ("kn_w_skymap" in settings.keys()) and len(settings["kn_w_skymap"].keys()) > 0:
+        tmp = copy.deepcopy(settings["kn_w_skymap"])
+        key = "kn_w nx={} ny={}".format(tmp["hist_nx"], tmp["hist_ny"])
+        if settings["precompute"]:
+            all_x_w, all_y_w, all_fluxes_w \
+                = pb_w.get_ej_skymap(time=time * cgs.day, freq=freq, verbose=False, remove_mu=True)
+            int_x_w, int_y_w, int_zz_w = pb_w.combine_images(all_x_w, all_y_w, all_fluxes_w, hist_or_int="hist",
+                                                             shells=True, nx=tmp["hist_nx"], ny=tmp["hist_ny"],
+                                                             extend=2)
+            grid_y_w, _, i_zz_y_w, _ = pb_w.get_skymap_lat_dist(all_x_w, all_y_w, all_fluxes_w, collapse_axis="x",
+                                                                nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            grid_x_w, _, i_zz_x_w, _ = pb_w.get_skymap_lat_dist(all_x_w, all_y_w, all_fluxes_w, collapse_axis="y",
+                                                                nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            xc_w, yc_w = pb_w.get_ej_skymap_cm(all_x_w, all_y_w, all_fluxes_w)
+            #
+            if key in grp.keys():
+                raise KeyError("key: {} already exists: {}".format(key, grp.keys()))
+            grp_kn_w = grp.create_group(key)
+            # grp_kn_w = grp.create_group("kn_w nx={} ny={}".format(tmp["hist_nx"], tmp["hist_ny"]))
+            grp_kn_w.create_dataset("int_x", data=int_x_w)
+            grp_kn_w.create_dataset("int_y", data=int_y_w)
+            grp_kn_w.create_dataset("int_zz", data=int_zz_w)
+            grp_kn_w.create_dataset("grid_y", data=grid_y_w)
+            grp_kn_w.create_dataset("i_zz_y", data=i_zz_y_w)
+            grp_kn_w.create_dataset("grid_x", data=grid_x_w)
+            grp_kn_w.create_dataset("i_zz_x", data=i_zz_x_w)
+            grp_kn_w.attrs.create("xc", data=xc_w)
+            grp_kn_w.attrs.create("yc", data=yc_w)
+        else:
+            grp_kn_w = grp[key]
+            int_x_w = np.array(np.array(grp_kn_w["int_x"]))
+            int_y_w = np.array(np.array(grp_kn_w["int_y"]))
+            int_zz_w = np.array(np.array(grp_kn_w["int_zz"]))  # plotting
+            grid_y_w = np.array(np.array(grp_kn_w["grid_y"]))
+            i_zz_y_w = np.array(np.array(grp_kn_w["i_zz_y"]))
+            grid_x_w = np.array(np.array(grp_kn_w["grid_x"]))
+            i_zz_x_w = np.array(np.array(grp_kn_w["i_zz_x"]))
+            xc_w = float(grp_kn_w.attrs["xc"])
+            yc_w = float(grp_kn_w.attrs["yc"])
+        if (int_zz_w.max() == int_zz_w.min()):
+            raise ValueError("i_zz_x.max() == i_zz_x.min() = {} \n plot_dic=\n{}".format(int_zz_w.max(), plot_dict))
+        i_zz_x_w /= i_zz_x_w.max()
+        i_zz_y_w /= i_zz_y_w.max()
+        y1_w, y2_w = pb_w.get_skymap_fwhm(grid_y_w, i_zz_y_w, yc_w)
+        x1_w, x2_w = pb_w.get_skymap_fwhm(grid_x_w, i_zz_x_w, xc_w)
+        if (not (x2_w > x1_w)) and (x2_w != 0) and (x1_w != 0):
+            raise ValueError("kn_w_skymap failed computing width x2={} <= x1={} Should be other way around"
+                             .format(x2_w, x1_w))
+        # if len(tmp["cm"].keys()) > 0: ax.plot(xc_w, yc_w, **tmp["cm"])
+        # if len(tmp["ysize"].keys()) > 0: ax.errorbar([xc_w, xc_w], [y1_w, y2_w],
+        #                                              xerr=[int_x_w.max() / 10, int_x_w.max() / 10], **tmp["ysize"])
+        # if len(tmp["xsize"].keys()) > 0: ax.errorbar([x1_w, x2_w], [yc_w, yc_w],
+        #                                              yerr=[int_y_w.max() / 10, int_y_w.max() / 10], **tmp["xsize"])
+        # # --------------------
+        # if len(tmp["pcolormesh"].keys()) > 0:
+        #     int_zz_w = int_zz_w.T
+        #     int_zz_w[~np.isfinite(int_zz_w)] = 0.
+        #     im = plot_pcolomesh(ax=ax, task_dict=tmp["pcolormesh"], int_x=int_x_w, int_y=int_y_w, int_zz=int_zz_w)
+
+        xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz = \
+            xc_w, yc_w, x1_w, x2_w, y1_w, y2_w, int_x_w, int_y_w, int_zz_w
+        # return (xc_w, yc_w, x1_w, x2_w, y1_w, y2_w, int_x_w, int_y_w, int_zz_w)
+        if (len(kwargs.keys())>0) and ("kn_w_skymap" in kwargs.keys()):
+            return (xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz)
+
+    ''' --- relation --- '''
+    if ("kn_skymap_ratio" in settings.keys()) and len(settings["kn_skymap_ratio"].keys()) > 0:
+        assert (len(settings["kn_skymap"].keys()) > 0)
+        assert (len(settings["kn_w_skymap"].keys()) > 0)
+        tmp = copy.deepcopy(settings["kn_skymap_ratio"])
+        key = "kn_ratio nx={} ny={}".format(tmp["hist_nx"], tmp["hist_ny"])
+        if settings["precompute"]:
+            int_x_w, int_y_w, int_zz, int_zz_w = \
+                pb.get_combained_ej_skymaps_adjusted_to_other(time=time, freq=freq, other_pb_instance=pb_w,
+                                                              nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            if key in grp.keys():
+                raise KeyError("key: {} already exists: {}".format(key, grp.keys()))
+            kn_adjusted = grp.create_group(key)
+            # kn_adjusted = grp.create_group("kn_adjusted nx={} ny={}".format(tmp["hist_nx"], tmp["hist_ny"]))
+            kn_adjusted.create_dataset("int_x", data=int_x_w)
+            kn_adjusted.create_dataset("int_y", data=int_y_w)
+            kn_adjusted.create_dataset("int_zz", data=int_zz)
+            kn_adjusted.create_dataset("int_zz_w", data=int_zz_w)
+        else:
+            kn_adjusted = grp[key]
+            int_x_w = np.array(np.array(kn_adjusted["int_x"]))
+            int_y_w = np.array(np.array(kn_adjusted["int_y"]))
+            int_zz = np.array(np.array(kn_adjusted["int_zz"]))
+            int_zz_w = np.array(np.array(kn_adjusted["int_zz_w"]))
+        if (int_zz_w.max() == int_zz_w.min()):
+            raise ValueError("i_zz_x.max() == i_zz_x.min() = {} \n plot_dic=\n{}".format(int_zz_w.max(), plot_dict))
+        int_ration = int_zz_w / int_zz
+        int_ration = int_ration.T
+        int_ration[~np.isfinite(int_ration)] = 1.
+
+        # norm = Normalize(int_ration[np.isfinite(int_ration)].min(), int_ration[np.isfinite(int_ration)].max())
+        # # levels = np.geomspace(int_ration[~np.isnan(int_ration)].min(), int_ration[~np.isnan(int_ration)].max(), 50)
+        # cmap = cm.get_cmap('viridis')
+        # int_ration = int_ration.T
+        # int_ration[~np.isfinite(int_ration)] = 0.
+        # im = ax.pcolormesh(int_x_w, int_y_w, int_ration, norm=norm, cmap=cmap, alpha=1.0)
+        # im.set_rasterized(True)
+        # ax.set_facecolor(cmap(0.0))
+
+        # vmin = tmp["pcolormesh"]["vmin"]
+        # vmax = tmp["pcolormesh"]["vmax"]
+        # vcenter = tmp["pcolormesh"]["vcenter"]
+        # levels = MaxNLocator(nbins=40).tick_values(int_ration.min(), int_ration.max())
+        # # levels = MaxNLocator(nbins=40).tick_values(-5, 1)
+        # cmap = plt.get_cmap(tmp["pcolormesh"]["cmap"])
+        # norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
+        # norm = colors.TwoSlopeNorm(vmin=vmin, vcenter=vcenter, vmax=vmax)
+        # # im = aux_ax2.contourf(theta, r, values, levels=np.logspace(np.log10(1e-4),np.log10(1e0),20), cmap=cmap, norm=norm)
+        # # im = aux_ax2.contourf(theta, r, values, levels=np.linspace(val.min(),val.max(),20), cmap=cmap, norm=norm)
+        # im = ax.pcolormesh(int_x_w, int_y_w, int_ration, cmap=cmap, norm=norm, alpha=1.0)
+        # im.set_rasterized(True)
+
+        # im = plot_pcolomesh(ax=ax, task_dict=tmp["pcolormesh"], int_x=int_x_w, int_y=int_y_w, int_zz=int_ration)
+        int_x, int_y, int_zz = \
+            int_x_w, int_y_w, int_ration
+        # return (None, None, None, None, None, None, int_x_w, int_y_w, int_ration)
+        if (len(kwargs.keys())>0) and ("kn_skymap_ratio" in kwargs.keys()):
+            return (xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz)
+
+    return (xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz)

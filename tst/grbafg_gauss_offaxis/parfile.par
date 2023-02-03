@@ -15,9 +15,13 @@
 tb0 = 1.e3
 tb1 = 1.e11
 ntb = 1000
-rtol = 1e-8
+rtol = 1e-9
 nmax = 1000
 
+A0 = -1
+s = -1
+r_ej = -1
+r_ism = -1
 n_ism = 0.00031
 d_l = 1.27e+26
 z = 0.0099
@@ -25,27 +29,12 @@ theta_obs = 0.3752
 
 * Settings
 
-lc_freqs = array 9.9e8 1.e9 1.1e9 3.e9 4.5e9
-lc_times = array logspace 1.e4 1.e10 150
+lc_freqs = array 3.e9
+lc_times = array logspace 1.e4 1.e10 50
 skymap_freqs = array 9.9e8 1.e9 1.1e9 3.e9 4.5e9
 skymap_times = array logspace 8.e5 2e9 50
 
-run_jet_bws = yes
-save_j_dynamics = yes
-do_j_ele = yes
-do_j_spec = no
-do_j_lc = yes
-do_j_skymap = yes
-
-run_ejecta_bws = no
-save_ej_dynamics = no
-do_ej_ele = no
-do_ej_spec = no
-do_ej_lc = no
-do_ej_skymap = no
-
 integrator = DOP853E
-method_eats = piece-wise
 
 # --------------------------- END ---------------------------
 #
@@ -54,6 +43,9 @@ method_eats = piece-wise
 * Parameters
 
 * Settings
+
+run_magnetar = no
+save_magnetar = no
 
 # --------------------------- END ---------------------------
 #
@@ -83,8 +75,19 @@ freq2 = 1.e22
 nfreq = 200
 
 save_dyn_every_it = 10
+rtol_adapt = 1e-5
+fnu_min_frac = 1e-4
 
 * Settings
+
+run_jet_bws = yes
+save_j_dynamics = yes
+do_j_ele = yes
+do_j_spec = no
+do_j_lc = yes
+do_j_skymap = no
+
+method_eats = piece-wise # adaptive # piece-wise
 
 type = gaussian
 gflat = no
@@ -111,7 +114,7 @@ method_tau = smooth
 use_ssa = yes
 emissivity = em
 absorption = abs
-method_comp_mode = observFlux   # "comovSpec"
+method_comp_mode = observFlux # observFlux   # "comovSpec"
 method_quad = CADRE
 
 # --------------------------- END ---------------------------
@@ -121,6 +124,13 @@ method_quad = CADRE
 * Parameters
 
 * Settings
+
+run_ejecta_bws = no
+save_ej_dynamics = no
+do_ej_ele = no
+do_ej_spec = no
+do_ej_lc = no
+do_ej_skymap = no
 
 type = numeric
 fpath_ejecta_id = corr_vel_inf_theta.h5

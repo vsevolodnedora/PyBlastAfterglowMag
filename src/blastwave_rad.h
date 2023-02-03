@@ -33,6 +33,7 @@ static double check_emission_time( double t_e, double mu, double t_obs, Array & 
     return t_e;
 }
 
+
 /// Blast wave emission from shock
 class RadBlastWave : public BlastWaveBase{
     std::unique_ptr<logger> p_log;
@@ -53,7 +54,7 @@ private:
         p_eats->current_theta_cone_low = theta_cone_low;
         p_eats->cos_theta_obs = std::cos(p_eats->theta_obs);
         p_eats->sin_theta_obs = std::sin(p_eats->theta_obs);
-        p_eats->obsangle = obs_angle;
+         p_eats->obsangle = obs_angle;
         // ---
 //        p_eats->nr = p_pars->nr; // removing EATS_pars for simplicity
         for (size_t i = 0; i < p_pars->nr; i++)
@@ -120,15 +121,6 @@ public:
         p_log = std::make_unique<logger>(std::cout, std::cerr, CurrLogLevel, "RadBlastWave");
 
     }
-
-//    static auto listPars(){
-//        return std::vector<std::string>{
-//                "theta_obs", "d_l", "z","freq1","freq2","nfreq",
-//                "nmax_phi","nmax_theta","rtol_theta","rtol_phi","atol_theta","atol_phi" };
-//    }
-//    static auto listOpts(){
-//        return std::vector<std::string>{ "method_quad", "method_shock_vel" "counter_jet", "method_comp_mode" };
-//    }
 
     /// set parameters used inside the integrator
     void setEatsPars(StrDbMap & pars, StrStrMap & opts){
@@ -269,15 +261,14 @@ public:
         return p_eats;
     }
     auto & getSynchAnPtr(){
-        auto & p_eats = p_pars; // removing EATS_pars for simplicity
-        return p_syn;
+        return p_pars->p_fs->getAnSynch();
     }
 
     static double shock_synchrotron_flux_density(double Gamma, double GammaShock, double m2, double rho2, double acc_frac, double B,
                                                  double gm, double gM, double gc, double Theta, double z_cool,
                                                  double t_e, double mu, double R, double dr, double dr_tau, void * params){
         auto * p_pars = (struct Pars *) params; // removing EATS_pars for simplicity
-        auto & p_syn = p_pars->p_syn;
+        auto & p_syn = p_pars->p_fs->getAnSynch();
 //        auto & p_eats = p_pars; // removing EATS_pars for simplicity
         auto & m_data = p_pars->m_data;
         double beta = EQS::Beta(Gamma);
@@ -443,7 +434,7 @@ public:
     static double integrand( double i_cos_theta, double i_phi, void* params ){
 
         auto * p_pars = (struct Pars *) params; // removing EATS_pars for simplicity
-        auto & p_syn = p_pars->p_syn;
+        auto & p_syn = p_pars->p_fs->getAnSynch();
 //        auto * p_log = p_ params;
         auto & m_data = p_pars->m_data;
         auto & tburst = m_data[BlastWaveBase::Q::itburst];
@@ -537,7 +528,7 @@ public:
             dr_tau /= ashock;
             double dtau = RadiationBase::optical_depth(abs_lab,dr_tau, mu, beta_shock);
             double intensity = RadiationBase::computeIntensity(em_lab, dtau,
-                                                               p_pars->p_syn->getPars()->method_tau);
+                                                               p_pars->p_fs->getAnSynch()->getPars()->method_tau);
             double flux_dens = (intensity * r * r * dr); //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
             dFnu+=flux_dens;
             /// save the result in image
@@ -902,17 +893,13 @@ public:
         return result;
     }
 
-
-
     /// evaluate intensity/flux density distribution using piece-wise summation
-    void evalImagePW(Image & image, double obs_time, double obs_freq){
+    void evalImagePW(Image & image, Image & im_pj, Image & im_cj, double obs_time, double obs_freq){
         /// create empty image with the size two (stacked images)
         Array phi_grid = LatStruct::getCphiGridPW( p_pars->ilayer );
-//        Image image( 2 * phi_grid.size(), 0. );
-        image.resize( 2 * phi_grid.size(), 0. );
-        /// get a pair of images
-        Image im_pj( phi_grid.size() );
-        Image im_cj( phi_grid.size() );
+//        image.resize( 2 * phi_grid.size(), 0. );
+//        im_pj.resize( phi_grid.size() );
+//        im_cj.resize( phi_grid.size() );
         //        auto tmp = computeImagePW( obs_time, obs_freq );
         computeImagePW(im_pj, im_cj, obs_time, obs_freq );
         /// combine the two images (use full 'ncells' array, and fill only cells that correspond to this layer)
@@ -927,7 +914,7 @@ public:
         }
 //        std::cout << image.gerArr(Image::imu) << "\n";
 //        image.m_f_tot = std::get<0>(tmp).m_f_tot + std::get<1>(tmp).m_f_tot;
-        image.m_f_tot = im_pj.m_f_tot + im_cj.m_f_tot;
+        image.m_f_tot = (im_pj.m_f_tot + im_cj.m_f_tot);
 //        return std::move( image );
     }
     /// compute the observed flux density distrib 'image' (for a given projection) for given time, freq, angle, distance, red shift
@@ -935,14 +922,16 @@ public:
                          double (*obs_angle)( const double &, const double &, const double & ),
                          double (*im_xxs)( const double &, const double &, const double & ),
                          double (*im_yys)( const double &, const double &, const double & )){
-        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+//        auto & p_eats = p_pars; // removing EATS_pars for simplicity
 //        Image image((size_t) p_pars->ncells);
 //        image.resize((size_t) p_pars->ncells);
         /// check if passsed image size is equal to what is expected for this layer
-        if (image.m_size!=LatStruct::CellsInLayer(p_pars->ilayer)){
-            (*p_log)(LOG_ERR,AT) << " error in image size\n";
-            exit(1);
-        }
+//        if (image.m_size!=LatStruct::CellsInLayer(p_pars->ilayer)){
+//            (*p_log)(LOG_ERR,AT) << " error in image size\n";
+//            exit(1);
+//        }
+        auto & p_syn = p_pars->p_rs->getAnSynch();
+
         if ((m_data[BlastWaveBase::Q::iR][0] == 0.) && (p_pars->Gamma0 > 0)){
             std::cerr << " [ishell=" << p_pars->ishell << " ilayer="<<p_pars->ilayer << "] "
                       << " R[0]=0. Seems not evolved -> returning empty image." << "\n";
@@ -955,7 +944,7 @@ public:
         check_pars();
 
         double flux = 0.;
-        auto & m_data = p_eats->m_data;
+        auto & m_data = p_pars->m_data;
         if (p_pars->end_evolution){
             std::cerr
                     << "\n [ishell=" << p_pars->ishell << " ilayer="<<p_pars->ilayer << "] "
@@ -980,16 +969,33 @@ public:
             exit(1);
         }
 
+        /// crease mu array for # TODO unfinished work on 'smart' summ
+//        if (m_data[BlastWaveBase::Q::ictheta][0] != p_pars->ctheta0){
+//            std::cerr << m_data[BlastWaveBase::Q::ictheta][0] << '\n';
+//            std::cerr << p_pars->ctheta0 << '\n';
+//            (*p_log)(LOG_ERR,AT) << " should not happen. Fix it. and remove ctheta0..."; exit(1);
+//        }
+//        double _ctheta0 = m_data[BlastWaveBase::Q::ictheta][0];
+        Vector mu_arr (cphis.size(),0.0);
+        for (size_t k = 0; k < cphis.size(); k++) {
+            double _phi_cell = cphis[k];
+//            double _ctheta_cell = p_pars->ctheta0;//m_data[BlastWaveBase::Q::ictheta][0]; //cthetas[0];
+            double _ctheta_cell = p_pars->ctheta0;//m_data[BlastWaveBase::Q::ictheta][0]; //cthetas[0];
+            mu_arr[k] = obs_angle(_ctheta_cell, _phi_cell, p_pars->theta_obs);
+        }
+
+        /// TODO make it so after some 'phi' the loop stops -- speed up the calculation
+
         /// main loops (if to use pre-computed comoving emissivities or compute them here)
-        if (p_eats->m_method_rad == METHODS_RAD::icomovspec) {
+        if (p_pars->m_method_rad == METHODS_RAD::icomovspec) {
             /// init interpolator // TODO major speedup -- do index search for interpolation ONCE and use for both
-            Interp2d int_em(p_eats->m_freq_arr, m_data[BlastWaveBase::Q::iR], p_eats->m_synch_em);
-            Interp2d int_abs(p_eats->m_freq_arr, m_data[BlastWaveBase::Q::iR], p_eats->m_synch_abs);
+            Interp2d int_em(p_pars->m_freq_arr, m_data[BlastWaveBase::Q::iR], p_pars->m_synch_em);
+            Interp2d int_abs(p_pars->m_freq_arr, m_data[BlastWaveBase::Q::iR], p_pars->m_synch_abs);
             Interp1d::METHODS mth = Interp1d::iLagrangeLinear;
             for (size_t i = 0; i < cphis.size(); i++){
                 double phi_cell = cphis[i];
                 double ctheta_cell = p_pars->ctheta0;//m_data[BlastWaveBase::Q::ictheta][0]; //cthetas[0];
-                double mu = obs_angle(ctheta_cell, phi_cell, p_eats->theta_obs);
+                double mu = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
                 for (size_t i_ = 0; i_ < i_end_r; i_++) {
                     ttobs[i_] = m_data[BlastWaveBase::Q::itt][i_] + m_data[BlastWaveBase::Q::iR][i_] / CGS::c * (1.0 - mu);
                 }
@@ -1031,7 +1037,7 @@ public:
                               << m_data[BlastWaveBase::Q::iR][m_tb_arr.size() - 1] << "] "
                               << "and tobs arr ["
                               << ttobs[0] << ", " << ttobs[p_pars->nr - 1]
-                              << "] while the requried obs_time=" << p_eats->t_obs
+                              << "] while the requried obs_time=" << p_pars->t_obs
                               << "\n";
                     std::cerr << AT << "\n";
                     break;
@@ -1043,8 +1049,8 @@ public:
                 double a = 1.0 - beta * mu; // beaming factor
                 double delta_D = Gamma * a; // doppler factor
                 /// compute the comoving obs. frequency from given one in obs. frame
-                double nuprime = (1.0 + p_eats->z ) * p_eats->nu_obs * delta_D;
-                size_t ia_nu = findIndex(nuprime, p_eats->m_freq_arr, p_eats->m_freq_arr.size());
+                double nuprime = (1.0 + p_pars->z ) * p_pars->nu_obs * delta_D;
+                size_t ia_nu = findIndex(nuprime, p_pars->m_freq_arr, p_pars->m_freq_arr.size());
                 size_t ib_nu = ia_nu + 1;
                 /// interpolate the emissivity and absorption coefficines
 //                double em_prime = int_em.Interpolate(nuprime, r, mth);
@@ -1061,7 +1067,7 @@ public:
                 double dr_tau = EQS::shock_delta(r, GammaShock); // TODO this is added becasue in Johanneson Eq. I use ncells
 
                 double beta_shock;
-                switch (p_eats->method_shock_vel) {
+                switch (p_pars->method_shock_vel) {
 
                     case isameAsBW:
                         beta_shock = EQS::Beta(Gamma);
@@ -1078,15 +1084,15 @@ public:
                 double dtau = RadiationBase::optical_depth(abs_lab,dr_tau, mu, beta_shock);
                 double intensity = RadiationBase::computeIntensity(em_lab, dtau,
                                                                    p_syn->getPars()->method_tau);
-                double flux_dens = (intensity * r * r * dr) * (1.0 + p_eats->z) / (2.0 * p_eats->d_l * p_eats->d_l);
+                double flux_dens = (intensity * r * r * dr) * (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
                 flux+=flux_dens;
                 /// save the result in image
                 double ctheta = interpSegLin(ia, ib, t_obs, ttobs, m_data[BlastWaveBase::Q::ictheta]);
                 //  double ctheta = ( Interp1d(m_data[BlastWaveBase::Q::iR], m_data[BlastWaveBase::Q::ictheta] ) ).Interpolate(r, mth );
                 image(Image::iintens, i) =
                         flux_dens / (r * r * std::abs(mu)) * CGS::cgs2mJy; //(obs_flux / (delta_D * delta_D * delta_D)); //* tmp;
-                image(Image::ixr, i) = r * im_xxs(ctheta, phi_cell, p_eats->theta_obs);
-                image(Image::iyr, i) = r * im_yys(ctheta, phi_cell, p_eats->theta_obs);
+                image(Image::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
+                image(Image::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
                 image(Image::imu, i) = mu;
             }
             image.m_f_tot = flux * CGS::cgs2mJy; /// flux in mJy
@@ -1098,18 +1104,18 @@ public:
 #if 1
         else {
             /// always False
-            if(p_eats->use_t_e) {
+            if(p_pars->use_t_e) {
                 /// using t_e & mu
                 for (size_t i = 0; i < cphis.size(); i++) {
                     double phi_cell = cphis[i];
                     double ctheta_cell = m_data[BlastWaveBase::Q::ictheta][0]; //cthetas[0];
-                    double mu = obs_angle(ctheta_cell, phi_cell, p_eats->theta_obs);
+                    double mu = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
 
-                    size_t ia = findIndex(mu, m_data[BlastWaveBase::Q::imu], p_eats->nr);
+                    size_t ia = findIndex(mu, m_data[BlastWaveBase::Q::imu], p_pars->nr);
                     size_t ib = ia + 1;
                     /// interpolate the time in comobing frame that corresponds to the t_obs in observer frame
                     double t_e = interpSegLin(ia, ib, mu, m_data[BlastWaveBase::Q::imu], m_data[BlastWaveBase::Q::itburst]);
-                    t_e = check_emission_time(t_e, mu, p_eats->t_obs, m_data[BlastWaveBase::Q::imu], (int) p_eats->nr);
+                    t_e = check_emission_time(t_e, mu, p_pars->t_obs, m_data[BlastWaveBase::Q::imu], (int) p_pars->nr);
                     if (t_e < 0.0) {
                         // REMOVING LOGGER
                         std::cerr << AT << "Error t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";
@@ -1211,13 +1217,13 @@ public:
                         double thick_tau = EQS::shock_delta(r,GammaSh); // TODO this is added becasue in Johanneson Eq. I use ncells
                         dFnu = shock_synchrotron_flux_density(Gamma, GammaSh, m2, rho2, frac, B, gm, gM, gc,
                                                               Theta, z_cool, t_obs, mu,
-                                                              r, thick,  thick_tau, p_eats);
-                        dFnu *= (1.0 + p_eats->z) / (2.0 * p_eats->d_l * p_eats->d_l);
+                                                              r, thick,  thick_tau, p_pars);
+                        dFnu *= (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
                     }
 
                     flux += dFnu;
 
-                    double mu_ = obs_angle(ctheta, phi_cell, p_eats->theta_obs);
+                    double mu_ = obs_angle(ctheta, phi_cell, p_pars->theta_obs);
 //            if (mu < 1e-2){
 //                std::cerr << AT << "\n";
 //                exit(1);
@@ -1226,8 +1232,8 @@ public:
 //                image(Image::itheta, i) = ctheta;
 //                image(Image::itheta_j, i) = theta;
 //                image(Image::iphi, i) = phi_cell;
-                    image(Image::ixr, i) = r * im_xxs(ctheta, phi_cell, p_eats->theta_obs);
-                    image(Image::iyr, i) = r * im_yys(ctheta, phi_cell, p_eats->theta_obs);
+                    image(Image::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
+                    image(Image::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
 //                image(Image::ir, i) = r;
 //                image(Image::igam, i) = Gamma;
                     image(Image::imu, i) = mu_;
@@ -1248,7 +1254,7 @@ public:
                 for (size_t i = 0; i < cphis.size(); i++){
                     double phi_cell = cphis[i];
                     double ctheta_cell = p_pars->ctheta0;//m_data[BlastWaveBase::Q::ictheta][0]; //cthetas[0];
-                    double mu = obs_angle(ctheta_cell, phi_cell, p_eats->theta_obs);
+                    double mu = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
 //            ttobs = m_data[BlastWaveBase::Q::itt] + m_data[BlastWaveBase::Q::iR] / CGS::c * ( 1.0 - mu );
                     for (size_t i_ = 0; i_ < i_end_r; i_++) {
                         ttobs[i_] = m_data[BlastWaveBase::Q::itt][i_] + m_data[BlastWaveBase::Q::iR][i_] / CGS::c * (1.0 - mu);
@@ -1323,7 +1329,7 @@ public:
                                   << m_data[BlastWaveBase::Q::iR][m_tb_arr.size() - 1] << "] "
                                   << "and tobs arr ["
                                   << ttobs[0] << ", " << ttobs[p_pars->nr - 1]
-                                  << "] while the requried obs_time=" << p_eats->t_obs
+                                  << "] while the requried obs_time=" << p_pars->t_obs
                                   << "\n";
                         break;
                     }
@@ -1415,9 +1421,9 @@ public:
                         double thick_tau = EQS::shock_delta(r,GammaSh); // TODO this is added becasue in Johanneson Eq. I use ncells
                         dFnu = shock_synchrotron_flux_density(Gamma, GammaSh, m2, rho2, frac, B, gm, gM, gc,
                                                               Theta, z_cool, t_obs, mu,
-                                                              r, thick,  thick_tau, p_eats);
+                                                              r, thick,  thick_tau, p_pars);
                     }
-                    dFnu *= (1.0 + p_eats->z) / (2.0 * p_eats->d_l * p_eats->d_l);
+                    dFnu *= (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
 //                if (((Gamma < 1.) || (!std::isfinite(Gamma)))
 //                    || (gm < 0.) || (!std::isfinite(gm))
 //                    || (gM < 0.) || (gc < 0.) || (B < 0.) || (!std::isfinite(B))
@@ -1486,8 +1492,8 @@ public:
 //                image(Image::itheta0, i) = ctheta_cell;
 //                image(Image::itheta_j, i) = theta;
 //                image(Image::iphi, i) = phi_cell;
-                    image(Image::ixr, i) = r * im_xxs(ctheta, phi_cell, p_eats->theta_obs);
-                    image(Image::iyr, i) = r * im_yys(ctheta, phi_cell, p_eats->theta_obs);
+                    image(Image::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
+                    image(Image::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
 //                image(Image::ir, i) = r;
 //                image(Image::igam, i) = Gamma;
                     image(Image::imu, i) = mu;
@@ -1517,9 +1523,10 @@ public:
 
 
     /// precompute electron distribution properties for each timestep
-    void addElectronAnalyticVars(size_t it){
-        auto & p_eats = p_pars; // removing EATS_pars for simplicity
-        if ((m_data[Q::ibeta][it] < p_syn->getPars()->beta_min)){
+    void addComputeForwardShockMicrophysics(size_t it){
+//        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+        auto & p_syn = p_pars->p_fs->getAnSynch();
+        if ((m_data[Q::ibeta][it] < p_pars->p_fs->getAnSynch()->getPars()->beta_min)){
             return;
         }
         if ((m_data[Q::iCSCBM][it] >= m_data[Q::ibeta][it])){
@@ -1592,9 +1599,9 @@ public:
             exit(1);
         }
     }
-    void computeElectronAnalyticVars(){
+    void computeForwardShockElectronAnalyticVars(){
         for (size_t it = 0; it < m_tb_arr.size(); ++it){
-            addElectronAnalyticVars(it);
+            addComputeForwardShockMicrophysics(it);
         }
 
         if (p_pars->n_fialed_electrons == m_tb_arr.size()-1){
@@ -1612,15 +1619,16 @@ public:
     }
 
     /// compute comoving emissivity and absorption for each ifreq and each timestep
-    void computeComovingEmissivityAndAbsorption(size_t it){
-        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+    void computeForwardShockComovingEmissivityAndAbsorption(size_t it){
+//        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+        auto & p_syn = p_pars->p_fs->getAnSynch();
         /// exit if the obs. radiation method of choice does not need comoving spectrum
-        if (p_eats->m_freq_arr.size() < 1){
+        if (p_pars->m_freq_arr.size() < 1){
             std::cerr << " array for comoving spectrum is not initialized \n Exiting...\n";
             std::cerr << AT << "\n";
             exit(1);
         }
-        if (p_eats->m_synch_em.size() < 1){
+        if (p_pars->m_synch_em.size() < 1){
             std::cerr<< " array for comoving spectrum frequencies is not initialized \n Exiting...\n";
             std::cerr << AT << "\n";
             exit(1);
@@ -1643,7 +1651,7 @@ public:
         }
 
         /// compute emissivity and absorption for each frequency
-        for (size_t ifreq = 0; ifreq < p_eats->m_freq_arr.size(); ++ifreq){
+        for (size_t ifreq = 0; ifreq < p_pars->m_freq_arr.size(); ++ifreq){
             /// compute all types of emissivities and absoprtions
             p_syn->compute(m_data[Q::irho2][it] / CGS::mp,//m_data[Q::iM2][it] / CGS::mp,
                                    m_data[Q::iacc_frac][it],
@@ -1654,29 +1662,30 @@ public:
                                    m_data[Q::iTheta][it],
                                    m_data[Q::iz_cool][it],
 //                                       m_data[Q::irho2][it] / CGS::mp,
-                                   p_eats->m_freq_arr[ifreq]
+                                   p_pars->m_freq_arr[ifreq]
             );
             /// add evaluated data to the storage
 //            double thick_tau = EQS::shock_delta(m_data[Q::iRsh][it],m_data[Q::iGammaFsh][it]);
 //            p_syn->addIntensity(thick_tau, 0., 1.);
-            p_eats->m_synch_em[ifreq + p_eats->nfreq * it] = p_syn->get_em();
-            p_eats->m_synch_abs[ifreq + p_eats->nfreq * it] = p_syn->get_abs();
+            p_pars->m_synch_em[ifreq + p_pars->nfreq * it] = p_syn->get_em();
+            p_pars->m_synch_abs[ifreq + p_pars->nfreq * it] = p_syn->get_abs();
         }
     }
-    void computeSynchrotronAnalyticSpectrum(){
+    void computeForwardShockSynchrotronAnalyticSpectrum(){
         auto & p_eats = p_pars; // removing EATS_pars for simplicity
         if (p_eats->m_method_rad==METHODS_RAD::icomovspec) {
             std::cout << " computing analytic comoving spectrum\n";
             for (size_t it = 0; it < m_tb_arr.size(); ++it) {
-                computeComovingEmissivityAndAbsorption(it);
+                computeForwardShockComovingEmissivityAndAbsorption(it);
             }
         }
     }
 
     /// comoving spectrum for external use
     // TODO remove and use previous (above) functions for it!!
-    auto evalComovingSynchrotron( Vector & freq_arr, size_t every_it ){
-        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+    auto evalForwardShockComovingSynchrotron(Vector & freq_arr, size_t every_it ){
+//        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+        auto & p_syn = p_pars->p_fs->getAnSynch();
         Array t_arr{};
         if (every_it == 0){
             std::cerr << " comov spectrum at every_it="<<every_it<<" cannot be evaluated.\n Exiting...\n";
@@ -1782,28 +1791,29 @@ public:
             auto data = evalComovingSynchrotron(freq, every_it);
             data_em.emplace_back(std::get<0>(data));
             data_abs.emplace_back(std::get<1>(data));
-//            data.emplace_back(evalComovingSynchrotron(freq, itype, every_it));
+//            data.emplace_back(evalForwardShockComovingSynchrotron(freq, itype, every_it));
         }
         return std::move(std::pair(data_em,data_abs));
 #endif
     }
 
     /// compute light curve using Adapitve or Piece-Wise EATS method
-    void evalLightCurve( Vector & light_curve, Vector & times, Vector & freqs ){
+    void evalForwardShockLightCurve(Image & image, Image & im_pj, Image & im_cj,
+                                    Vector & light_curve, Vector & times, Vector & freqs ){
 //        Vector light_curve (times.size(), 0.0);
-        if (m_data[BlastWaveBase::Q::iR][0] == 0.0 && m_data[BlastWaveBase::Q::iR][p_pars->nr-1] == 0.0){
+        if ((m_data[BlastWaveBase::Q::iR][0] == 0.0) && (m_data[BlastWaveBase::Q::iR][p_pars->nr-1] == 0.0)){
             (*p_log)(LOG_WARN, AT)
                     << " blast wave not evolved, flux=0 [ishell="<<p_pars->ishell<<", ilayer="<<p_pars->ilayer<<"]\n";
 //            return std::move(light_curve);
         }
 
         double rtol = 1e-6;
-        Image image;
+//        Image image; Image im_pj; Image im_cj;
         for (size_t it = 0; it < times.size(); it++) {
 //            (*p_log)(LOG_INFO,AT)<<" LC processing it="<<it<<"/"<<times.size()<<"\n";
             if (p_pars->m_method_eats == LatStruct::i_pw) {
 //                    auto image = model->evalImagePW(obs_times[it], obs_freqs[it]);
-                evalImagePW(image, times[it], freqs[it]);
+                evalImagePW(image, im_pj, im_cj, times[it], freqs[it]);
                 light_curve[it] += image.m_f_tot;
             }
             else{
@@ -1815,11 +1825,5 @@ public:
     }
 };
 
-class VelStructBlastWave{
-    VelStructBlastWave(){
-
-    }
-    std::vector<std::unique_ptr<RadBlastWave>> p_bw_ej;
-};
 
 #endif //SRC_BLASTWAVE_RAD_H

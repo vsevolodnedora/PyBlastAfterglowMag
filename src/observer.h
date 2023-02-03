@@ -89,7 +89,7 @@ private:
 public:
 
     enum METHOD_eats{i_pw, i_adap};
-    METHOD_eats setEatsMethod(std::string method){
+    static METHOD_eats setEatsMethod(std::string method){
         /// method for EATS (piece-wise (AKA G. Lamb et al) or Adaptive (AKA vanEarten et al)
         LatStruct::METHOD_eats method_eats;
         if(method == "piece-wise")
@@ -514,7 +514,43 @@ public:
 //        return cthetas0[ilayer] + 0.5 * (2.0 * theta - 2.0 * m_theta_w);
 //    }
 
+    inline static double ctheta(double theta, size_t ilayer, size_t nlayers_pw){
+        // cthetas = 0.5*(2.*arcsin(facs[0]*sin(self.joAngles[:,layer-1]/2.)) + 2.*arcsin(facs[1]*sin(self.joAngles[:,layer-1]/2.)))
+//        if (theta > p_pars->theta_max ){
+//            std::cerr << AT << " theta="<<theta<<" > theta_max=" << p_pars->theta_max << "\n";
+//        }
+//        if (std::fabs( theta - p_pars->theta_b0) > 1e-2){
+//            std::cerr << AT << " theta="<<theta<<" < theta_b0=" << p_pars->theta_b0 <<"\n";
+//            exit(1);
+//        }
+//        double ctheta = p_pars->ctheta0 + 0.5 * (2. * theta - 2. * p_pars->theta_w); // TODO WROOOONG
 
+        double ctheta = 0.;
+        if (ilayer > 0) {
+            //
+            double fac0 = (double)ilayer/(double)nlayers_pw;
+            double fac1 = (double)(ilayer+1)/(double)nlayers_pw;
+//            std::cout << std::asin(CGS::pi*3/4.) << "\n";
+            if (!std::isfinite(std::sin(theta))){
+                std::cerr << " sin(theta= "<<theta<<") is not finite... Exiting..." << "\n";
+                std::cerr << AT << "\n";
+                exit(1);
+            }
+
+            double x2 = fac1*std::sin(theta / 2.);
+            double xx2 = 2.*std::asin(x2);
+            double x1 = fac0*std::sin(theta / 2.);
+            double xx1 = 2.*std::asin(x1);
+
+            ctheta = 0.5 * (xx1 + xx2);
+            if (!std::isfinite(ctheta)){
+                std::cerr << "ctheta is not finite. ctheta="<<ctheta<<" Exiting..." << "\n";
+                std::cerr << AT << "\n";
+                exit(1);
+            }
+        }
+        return ctheta;
+    }
 
 public:
 
@@ -913,13 +949,20 @@ struct Image {
     enum Q {imu, ixr, iyr, iintens};
 
 
-    VecArray m_data {};
+    VecVector m_data {};
     std::unique_ptr<logger> p_log;
     explicit Image( size_t size=1, double fill_value=0., unsigned loglevel=CurrLogLevel) {
 //        p_log = new logger(std::cout, loglevel, "Image");
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "Image");
 //        std::cerr << " creating image...\n";
+        if (size < 1){
+            (*p_log)(LOG_ERR,AT) << " required image size < 1 = "<< size << "\n";
+//            std::throw_with_nested("error");
+            throw std::runtime_error("error");
+            exit(1);
+        }
         m_size = size;
+//        m_data.clear();
         m_data.resize(m_names.size());
         for (auto & arr : m_data){
             arr.resize(size, fill_value);
@@ -958,15 +1001,28 @@ struct Image {
 
     void resize(size_t size, double fill_value=0.){
         m_size = size;
+        for (auto & arr : m_data){
+            std::destroy(arr.begin(), arr.end());
+        }
         m_data.resize(m_names.size());
         for (auto & arr : m_data){
             arr.resize(size, fill_value);
         }
     }
 
-    Array & gerArr(size_t ivn){ return m_data[ivn]; }
-    VecArray & getAllArrs(){ return m_data; }
-    inline Array & operator[](size_t iv_n){ return this->m_data[iv_n]; }
+    void clearData(){
+        if ((m_size == 0)||(m_data.empty())||(m_data[0].empty())){
+            (*p_log)(LOG_ERR,AT) << "cannot clean empty image\n";
+            exit(1);
+        }
+        for (auto & arr : m_data){
+            std::fill(arr.begin(), arr.end(), 0.0);
+        }
+    }
+
+    Vector & gerArr(size_t ivn){ return m_data[ivn]; }
+    VecVector & getAllArrs(){ return m_data; }
+    inline Vector & operator[](size_t iv_n){ return this->m_data[iv_n]; }
     inline double & operator()(size_t iv_n, size_t ii){
 //        if(iv_n > m_names.size()-1){
 //            if (USELOGGER){ (*p_log)(LOG_ERR) << " Access beyong memory index="<<ii<<" is above max="<<m_size-1<<"\n"; }
@@ -1027,31 +1083,31 @@ struct Image {
 
 };
 
-void combineImages(Image & image, LatStruct & struc, std::vector<Image> & images){
-    if (images.size() != struc.nlayers_pw){
-        std::cerr << " nlayeyers="<<struc.nlayers_pw<<" != n_images="<<images.size()<<"\n";
+void combineImages(Image & image, size_t ncells, size_t nlayers, std::vector<Image> & images){
+    if (images.size() != nlayers){
+        std::cerr << " nlayeyers="<<nlayers<<" != n_images="<<images.size()<<"\n";
         std::cerr << AT << "\n";
         exit(1);
     }
     size_t ii = 0;
     size_t icell = 0;
 //    Image image(2 * struc.ncells, 0. );
-    image.resize(2 * struc.ncells, 0. );
-    for (size_t ilayer = 0; ilayer < struc.nlayers_pw; ilayer++){
-        size_t ncells_in_layer = struc.cil[ilayer];
+    image.resize(2 * ncells, 0. );
+    for (size_t ilayer = 0; ilayer < nlayers; ilayer++){
+        size_t ncells_in_layer = LatStruct::CellsInLayer(ilayer);//struc.cil[ilayer];
         auto & tmp = images[ilayer];
-        if ( tmp.m_size != 2 * ncells_in_layer ){
-            std::cerr <<  " Error !" << "\n";
-            std::cerr << AT << "\n";
-            exit(1);
-        }
+//        if ( tmp.m_size != 2 * ncells_in_layer ){
+//            std::cerr <<  " Error !" << "\n";
+//            std::cerr << AT << "\n";
+//            exit(1);
+//        }
         for( size_t ipj = 0; ipj < ncells_in_layer; ipj++ ){
             for (size_t ivn = 0; ivn < image.m_names.size(); ivn++)
                 (image)(ivn, ii + ipj) = tmp(ivn, ipj);
         }
         for( size_t icj = 0; icj < ncells_in_layer; icj++ ){
             for (size_t ivn = 0; ivn < image.m_names.size(); ivn++)
-                (image)(ivn, struc.ncells + ii + icj) = tmp(ivn, ncells_in_layer + icj);
+                (image)(ivn, ncells + ii + icj) = tmp(ivn, ncells_in_layer + icj);
         }
         ii += ncells_in_layer;
 //
@@ -1068,6 +1124,8 @@ void combineImages(Image & image, LatStruct & struc, std::vector<Image> & images
 //    std::cout << image[Image::iintens].min() << ", " << image[Image::iintens].max() << "\n";
 //    return image;//#std::move(image);
 }
+
+
 
 static inline double cosToSin(const double &cos_theta){
     return sqrt((1.0 - cos_theta) * (1.0 + cos_theta) );

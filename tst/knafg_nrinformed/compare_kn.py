@@ -13,7 +13,7 @@ from matplotlib import cm
 import os
 
 from package.src.PyBlastAfterglowMag.interface import BPA_METHODS as PBA
-from package.src.PyBlastAfterglowMag.interface import cgs, latex_float
+from package.src.PyBlastAfterglowMag.interface import cgs
 from package.src.PyBlastAfterglowMag.id_maker_from_thc_ourflow import prepare_kn_ej_id_1d, prepare_kn_ej_id_2d
 
 def main():

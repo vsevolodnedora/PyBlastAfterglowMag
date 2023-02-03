@@ -18,6 +18,8 @@
 #include "blastwave_base.h"
 #include "blastwave_rad.h"
 
+
+
 /// specific set of equations for a blast wave
 class DynRadBlastWave : public RadBlastWave{
     struct FsolvePars{
@@ -104,6 +106,7 @@ public:
 
 //        double j_theta  = Y[other_i + DynRadBlastWave::Q_SOL::itheta];
 //        double j_ctheta = other->ctheta(j_theta);
+
         p_dens->evaluateRhoDrhoDrDefault(p_pars->R0, p_pars->ctheta0);
         if (p_pars->is_within0){ //p_pars->j_i0!=123456789
             // behind a jet BW
@@ -428,7 +431,7 @@ public:
 
         // ****************************************
 //        auto *_pars = (struct RHS_pars *) rhs_pars;
-        double ctheta_ = ctheta(theta);//p_pars->ctheta0 + 0.5 * (2. * theta - 2. * p_pars->theta_w);
+        double ctheta_ = LatStruct::ctheta(theta,p_pars->ilayer,p_pars->nlayers);//ctheta(theta);//p_pars->ctheta0 + 0.5 * (2. * theta - 2. * p_pars->theta_w);
         p_dens->evaluateRhoDrhoDrDefault(R, ctheta_);
         double rho = p_dens->m_rho_def / p_pars->M0;
         double drhodr = p_dens->m_drhodr_def / p_pars->M0;
@@ -591,7 +594,7 @@ public:
         // ****************************************
         // Get ISM density and its velocity
 //        double rho, m_drhodr;
-        double ctheta_ = ctheta(theta);// = p_pars->ctheta0 + 0.5 * (2. * theta - 2. * p_pars->theta_w);
+        double ctheta_ = LatStruct::ctheta(theta,p_pars->ilayer,p_pars->nlayers);//ctheta(theta);// = p_pars->ctheta0 + 0.5 * (2. * theta - 2. * p_pars->theta_w);
 //        p_dens->getDrhoDr( rho, m_drhodr, R,ctheta );
 //        rho /= p_pars->M0;
 //        m_drhodr /= p_pars->M0;
@@ -1121,7 +1124,10 @@ public:
         p_dens->m_CS_CBM = 0;
     }
     void prepareDensProfileFromJet(double * out_Y, size_t i, double x, double const * Y,
-                                   std::vector<std::unique_ptr<BlastWaveBase>> & others, size_t evaled_ix){
+                                   void * _others, size_t evaled_ix){
+//        auto * p_pars = (struct Pars *) params; // removing EATS_pars for simplicity
+        auto * p_others = (std::vector<std::unique_ptr<BlastWaveBase>> *) _others;
+        auto & others = * p_others;
         // --- current ejecta bw
         double ej_Gamma  = Y[p_pars->ii_eq + DynRadBlastWave::Q_SOL::iGamma];
         if (ej_Gamma < 1.) ej_Gamma = 1.0000000099999;
@@ -1172,7 +1178,10 @@ public:
         double j_theta = Y[others[i_ej_l]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::itheta];
         double j_Gamma = Y[others[i_ej_l]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iGamma];
         double j_Gamma0 = others[i_ej_l]->getPars()->Gamma0;
-        double j_ctheta = others[i_ej_l]->ctheta(j_theta);
+//        double j_ctheta = others[i_ej_l]->ctheta(j_theta);
+        double j_ctheta = LatStruct::ctheta(j_theta,
+                                            others[i_ej_l]->getPars()->ilayer,
+                                            others[i_ej_l]->getPars()->nlayers);//others[i_ej_l]->ctheta(j_theta);
         if (ej_ctheta < j_ctheta){ is_within = true; }
 
         auto & other = others[i_ej_l];
@@ -1293,7 +1302,7 @@ public:
 //        }
     }
     void evaluateRhsDensModel2(double * out_Y, size_t i, double x, double const * Y,
-                               std::vector<std::unique_ptr<BlastWaveBase>> & others, size_t evaled_ix) override {
+                               void * others, size_t evaled_ix) override { // std::vector<std::unique_ptr<BlastWaveBase>>
 
         /// do not evaluate RHS if the evolution was terminated
         if (p_pars->end_evolution) {
@@ -1310,7 +1319,7 @@ public:
             double ej_R      = Y[i + DynRadBlastWave::Q_SOL::iR];
             double theta_b0  = p_pars->theta_b0;
             double ej_theta  = Y[i + DynRadBlastWave::Q_SOL::itheta];
-            double ej_ctheta = ctheta(ej_theta);
+            double ej_ctheta = LatStruct::ctheta(ej_theta,p_pars->ilayer,p_pars->nlayers);//ctheta(ej_theta);
             if (ej_Gamma>10.){
                 std::cerr
                         << "["<<p_pars->ishell<<", "<<p_pars->ilayer<<"]"

@@ -12,7 +12,8 @@ import os
 
 # from PyBlastAfterglowMag import BPA_METHODS as PBA
 from package.src.PyBlastAfterglowMag.interface import BPA_METHODS as PBA
-from package.src.PyBlastAfterglowMag.interface import cgs, latex_float
+from package.src.PyBlastAfterglowMag.interface import cgs
+from package.src.PyBlastAfterglowMag.utils import latex_float
 
 afterglowpy = True
 
@@ -28,7 +29,7 @@ def tst_against_afgpy(withSpread = False,
                       savefig = "compare_uniform_afgpy.png",
                       load_data = True):
 
-    pba = PBA(os.getcwd()+"/", readparfileforpaths=True)
+    pba = PBA(workingdir=os.getcwd()+"/", readparfileforpaths=True)
 
     fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(4.6, 3.2))
     ax = axes

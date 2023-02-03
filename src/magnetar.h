@@ -31,11 +31,18 @@ class Magnetar{
     VecArray m_data{}; // container for the solution of the evolution
     std::unique_ptr<logger> p_log;
     std::unique_ptr<Pars> p_pars;
+    bool is_mag_pars_set = false;
 public:
+    bool run_magnetar = false;
     /// RHS pars
     const static int neq = 1;
     std::vector<std::string> vars {  };
-    size_t getNeq() { return neq; }
+    size_t getNeq() const {
+        if (!run_magnetar)
+            return 0;
+        else
+            return neq;
+    }
     enum Q_SOL { iomega };
 
     /// All variables
@@ -73,6 +80,9 @@ public:
     }
 
     void setPars(StrDbMap & pars, StrStrMap & opts){
+        run_magnetar = getBoolOpt("run_magnetar", opts, AT,p_log,true);
+        if (!run_magnetar)
+            return;
         // **************************************
         double eos_tov_mass = getDoublePar("eos_tov_mass",pars,AT,p_log,-1,true);
         double eos_alpha = getDoublePar("eos_alpha",pars,AT,p_log,-1,true);
@@ -153,6 +163,7 @@ public:
 
         p_pars->useGompertz=useGompertz;
         // *************************************
+        is_mag_pars_set = true;
     }
 
     void setInitConditions( double * arr, size_t i ) {
@@ -306,6 +317,8 @@ public:
     void applyUnits( double * sol, size_t i ){
 
     }
+
+
 };
 
 #endif //SRC_MAGNETAR_H
