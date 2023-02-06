@@ -300,7 +300,7 @@ public:
             // default (presumably more correct version)
             case iusenprime:
                 /// this is informed by van Earten et al. and afterglowpy
-                p_syn->compute( nprime, acc_frac, B, gm, gM, gc, Theta, z_cool, nuprime );
+                p_syn->compute( nprime, Ne, acc_frac, B, gm, gM, gc, Theta, z_cool, nuprime );
                 em_prime = p_syn->get_em();
                 em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
                 abs_prime = p_syn->get_abs();
@@ -313,7 +313,7 @@ public:
                 break;
             case iuseNe:
                 /// This is informed by the G. Lamb and Fernandez et al.
-                p_syn->compute( Ne, acc_frac, B, gm, gM, gc, Theta, z_cool, nuprime );
+                p_syn->compute( Ne, Ne, acc_frac, B, gm, gM, gc, Theta, z_cool, nuprime );
                 em_prime = p_syn->get_em();
                 em_lab = em_prime / (delta_D * delta_D);
                 em_lab /= delta_D; // TODO this should be from 'dr'...
@@ -1654,6 +1654,7 @@ public:
         for (size_t ifreq = 0; ifreq < p_pars->m_freq_arr.size(); ++ifreq){
             /// compute all types of emissivities and absoprtions
             p_syn->compute(m_data[Q::irho2][it] / CGS::mp,//m_data[Q::iM2][it] / CGS::mp,
+                           m_data[Q::iM2][it] / CGS::mp,//m_data[Q::iM2][it] / CGS::mp,
                                    m_data[Q::iacc_frac][it],
                                    m_data[Q::iB][it],
                                    m_data[Q::igm][it],
@@ -1739,6 +1740,7 @@ public:
             for (size_t ifreq = 0; ifreq < freq_arr.size(); ++ifreq){
                 /// compute all types of emissivities and absoprtions
                 p_syn->compute(m_data[Q::irho2][it]/CGS::mp,//m_data[Q::iM2][it] / CGS::mp,
+                               m_data[Q::iM2][it] / CGS::mp,
                                        m_data[Q::iacc_frac][it],
                                        m_data[Q::iB][it],
                                        m_data[Q::igm][it],

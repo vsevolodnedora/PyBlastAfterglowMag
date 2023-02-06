@@ -131,7 +131,8 @@ void readParFile2(std::unordered_map<std::string, double> & pars,
     std::unique_ptr<logger> p_log;
     p_log = std::make_unique<logger>(std::cout, std::cerr, CurrLogLevel, "readParFile2");
     if (!std::experimental::filesystem::exists(parfile_path)) {
-        (*p_log)(LOG_ERR, AT) << " Parfile not found. " + parfile_path << "\n"; exit(1);
+        (*p_log)(LOG_ERR, AT) << " Parfile not found. " + parfile_path << "\n";
+        exit(1);
 
     }
     std::ifstream fin(parfile_path);
@@ -290,6 +291,7 @@ int main(int argc, char** argv) {
 //        parfile_arrs_path = "../../tst/dynamics/parfile_arrs.h5"; parfilename = "parfile.par";
 //        working_dir = "../../tst/grbafg_skymap/"; parfilename = "parfile.par";
 //        working_dir = "../../tst/knafg_skymap/"; parfilename = "parfile.par";
+//        working_dir = "../../projects/grbtophat_parallel/"; parfilename="tophat_EisoC500_Gamma0c1000_thetaC50_thetaW50_theta00_nism10_p22_epse05_epsb05_parfile.par";
         (*p_log)(LOG_WARN,AT) << " working directory and parfile are not given. Using default: "
                                          << " workdir=" << working_dir << " parfile="<<parfilename <<"\n";
     }
@@ -348,7 +350,8 @@ int main(int argc, char** argv) {
     bool do_j_spec = getBoolOpt("do_j_spec", grb_opts, AT, p_log, false, true);
     bool do_j_lc = getBoolOpt("do_j_lc", grb_opts, AT, p_log, false, true);
     bool do_j_skymap = getBoolOpt("do_j_skymap", grb_opts, AT, p_log, false, true);
-    for (auto & key : {"n_ism","d_l","z","theta_obs","A0","s","r_ej","r_ism"}) grb_pars[key] = main_pars.at(key);
+    for (auto & key : {"n_ism","d_l","z","theta_obs","A0","s","r_ej","r_ism"})
+        grb_pars[key] = main_pars.at(key);
     if (run_jet_bws) {
         pba.getGRB()->setJetStructAnalytic(grb_pars, grb_opts);
 //        pba.setJetStructAnalytic(grb_pars, grb_opts);
@@ -405,7 +408,8 @@ int main(int argc, char** argv) {
     /// save Magnetar data
     if (run_magnetar and save_magnetar){
         pba.saveMagnetarEvolution(
-                working_dir+getStrOpt("fname_mag", mag_opts, AT, p_log, "", true),
+                working_dir,
+                getStrOpt("fname_mag", mag_opts, AT, p_log, "", true),
                 (int)getDoublePar("save_mag_every_it", mag_pars, AT, p_log, 1, true) );
     }
 
@@ -413,7 +417,8 @@ int main(int argc, char** argv) {
     if (run_jet_bws){
         if (save_j_dynamics)
             pba.saveJetBWsDynamics(
-                    working_dir+getStrOpt("fname_dyn", grb_opts, AT, p_log, "", true),
+                    working_dir,
+                    getStrOpt("fname_dyn", grb_opts, AT, p_log, "", true),
                     (int)getDoublePar("save_dyn_every_it", grb_pars, AT, p_log, 1, true),
                     main_pars, grb_pars);
         if (do_j_ele) {
@@ -423,13 +428,16 @@ int main(int argc, char** argv) {
         if (do_j_lc or do_j_skymap) {
             if (do_j_lc) {
                 pba.computeSaveJetLightCurveAnalytic(
-                        working_dir + getStrOpt("fname_light_curve", grb_opts, AT, p_log, "", true),
+                        working_dir,
+                        getStrOpt("fname_light_curve", grb_opts, AT, p_log, "", true),
+                        getStrOpt("fname_light_curve_layers", grb_opts, AT, p_log, "", true),
                         lc_times, lc_freqs, main_pars, grb_pars);
                 (*p_log)(LOG_INFO, AT) << "jet analytic synch. light curve finished [" << timer.checkPoint() << " s]" << "\n";
             }
             if (do_j_skymap) {
                 pba.computeSaveJetSkyImagesAnalytic(
-                        working_dir + getStrOpt("fname_sky_map", grb_opts, AT, p_log, "", true),
+                        working_dir,
+                        getStrOpt("fname_sky_map", grb_opts, AT, p_log, "", true),
                         skymap_times, skymap_freqs, main_pars, grb_pars);
                 (*p_log)(LOG_INFO, AT) << "jet analytic synch. sky map finished [" << timer.checkPoint() << " s]" << "\n";
             }
@@ -440,7 +448,8 @@ int main(int argc, char** argv) {
     if (run_ejecta_bws){
         if (save_ej_dynamics)
             pba.saveEjectaBWsDynamics(
-                    working_dir + getStrOpt("fname_dyn", kn_opts, AT, p_log, "", true),
+                    working_dir,
+                    getStrOpt("fname_dyn", kn_opts, AT, p_log, "", true),
                     (int) getDoublePar("save_dyn_every_it", kn_pars, AT, p_log, 1, true),
                     main_pars, grb_pars);
         if (do_ej_ele) {
@@ -457,14 +466,16 @@ int main(int argc, char** argv) {
 //        Vector freqs = pars_arrs.getDataVDouble();
             if (do_ej_lc) {
                 pba.computeSaveEjectaLightCurveAnalytic(
-                        working_dir + getStrOpt("fname_light_curve", kn_opts, AT, p_log, "", true),
+                        working_dir,
+                        getStrOpt("fname_light_curve", kn_opts, AT, p_log, "", true),
+                        getStrOpt("fname_light_curve_layers", kn_opts, AT, p_log, "", true),
                         lc_times, lc_freqs, main_pars, grb_pars);
                 (*p_log)(LOG_INFO, AT) << "ejecta analytic synch. light curve finished [" << timer.checkPoint() << " s]" << "\n";
-
             }
             if (do_ej_skymap) {
                 pba.computeSaveEjectaSkyImagesAnalytic(
-                        working_dir + getStrOpt("fname_sky_map", kn_opts, AT, p_log, "", true),
+                        working_dir,
+                        getStrOpt("fname_sky_map", kn_opts, AT, p_log, "", true),
                         skymap_times, skymap_freqs, main_pars, grb_pars);
                 (*p_log)(LOG_INFO, AT) << "ejecta analytic synch. sky map finished [" << timer.checkPoint() << " s]" << "\n";
 

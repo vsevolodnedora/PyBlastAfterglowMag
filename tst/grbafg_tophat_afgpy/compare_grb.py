@@ -12,7 +12,7 @@ import os
 
 # from PyBlastAfterglowMag import BPA_METHODS as PBA
 from package.src.PyBlastAfterglowMag.interface import BPA_METHODS as PBA
-from package.src.PyBlastAfterglowMag.interface import cgs
+from package.src.PyBlastAfterglowMag.interface import cgs, modify_parfile_par_opt
 from package.src.PyBlastAfterglowMag.utils import latex_float
 
 afterglowpy = True
@@ -29,8 +29,8 @@ def tst_against_afgpy(withSpread = False,
                       savefig = "compare_uniform_afgpy.png",
                       load_data = True):
 
-    pba = PBA(workingdir=os.getcwd()+"/", readparfileforpaths=True)
-
+    # pba = PBA(workingdir=os.getcwd()+"/", readparfileforpaths=True)
+# modify_parfile_par_opt
     fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(4.6, 3.2))
     ax = axes
 
@@ -46,11 +46,14 @@ def tst_against_afgpy(withSpread = False,
         (0, 1e9, "gray"),
     ]:
 
-        pba.modify_main_part_parfile(newpars={"theta_obs":i_thetaobs},newopts={})
-        pba.modify_grb_part_parfile(newpars={},newopts={"method_synchrotron":"Joh06",
-                                                        "fname_light_curve":"tophat_{}_joh06.h5".format(
-                                                            str(i_thetaobs).replace(".",""))})
-        pba.reload_parfile()
+        modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main", newpars={"theta_obs":i_thetaobs},newopts={},
+                               parfile="default_parfile.par", newparfile="parfile2.par", keep_old=True)
+        modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb", newpars={},
+                               newopts={"method_synchrotron":"Joh06", "fname_light_curve":"tophat_{}_joh06.h5"
+                               .format( str(i_thetaobs).replace(".",""))},
+                               parfile="parfile2.par", newparfile="parfile.par",keep_old=False)
+        pba = PBA(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
+        # pba.reload_parfile()
 
         pba.run()
 
@@ -59,10 +62,12 @@ def tst_against_afgpy(withSpread = False,
                 label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
 
         pba.clear()
-        pba.modify_main_part_parfile(newpars={"theta_obs":i_thetaobs},newopts={})
-        pba.modify_grb_part_parfile(newpars={},newopts={"method_synchrotron":"WSPN99",
-                                                        "fname_light_curve":"tophat_{}_WSPN99.h5".format(
-                                                            str(i_thetaobs).replace(".",""))})
+        modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main",newpars={"theta_obs":i_thetaobs},newopts={},
+                               parfile="default_parfile.par", newparfile="parfile2.par", keep_old=True)
+        modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",newpars={},
+                               newopts={"method_synchrotron":"WSPN99", "fname_light_curve":"tophat_{}_WSPN99.h5"
+                               .format( str(i_thetaobs).replace(".",""))},
+                               parfile="parfile2.par", newparfile="parfile.par",keep_old=False)
         pba.reload_parfile()
 
         pba.run()

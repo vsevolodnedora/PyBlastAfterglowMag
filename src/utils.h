@@ -36,6 +36,9 @@ inline namespace CGS{
     const double &deg2rad = 0.017453292;
     const double &cgs2mJy = 1.e26;
     const double &gravconst = 6.67259e-8;// # cm^3 g^-1 s^-2
+    /// --------------------------------
+    const double &SI_pc   =3.0856E+16; // m
+    const double &RtD = 57.295779513082325;
 
 };
 
@@ -55,6 +58,13 @@ namespace TOOLS{
             return retval;
         }
     };
+
+    static void MakeLogspaceVec(std::vector<double> & vec, const double &start, const double &stop, const double &base = 10) {
+        int num = (int)vec.size();
+        double realStart = std::pow(base, start);
+        double realBase = std::pow(base, (stop-start)/num);
+        std::generate_n(std::back_inserter(vec), num, Logspace<double>(realStart,realBase));
+    }
 
     static std::vector<double> MakeLogspaceVec(const double &start,
                                                const double &stop,

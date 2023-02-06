@@ -5,6 +5,7 @@ from scipy import ndimage, interpolate
 import copy
 import subprocess
 from shutil import copyfile
+from multiprocessing import Pool
 
 from .utils import cgs, get_beta, find_nearest_index
 
@@ -114,6 +115,42 @@ def modify_parfile(newpars : dict, newopts : dict, workingdir, comment="#",
         for line in new_lines:
             f.write(f"{line}\n")
     print("saved {}".format(newfname))
+
+
+def modify_parfile_par_opt(workingdir : str, part : str, newpars : dict, newopts : dict,
+                           parfile="parfile.par",newparfile="parfile2.par",keep_old=True):
+    if (keep_old and parfile == newparfile):
+        raise NameError("Cannot keep old parfile if the new name is the same as old")
+    if not (os.path.isfile(workingdir+parfile)):
+        raise FileNotFoundError("parfile {} not found".format(workingdir+parfile))
+    copyfile(workingdir+parfile,workingdir+"tmp_{}".format(parfile))
+    # -----------------------------------------------------------------------
+    if (part=="main"):
+        sep1="# -------------------------- main ---------------------------"
+        sep2="# --------------------------- END ---------------------------"
+    elif (part=="grb"):
+        sep1="# ---------------------- GRB afterglow ----------------------"
+        sep2="# --------------------------- END ---------------------------"
+    elif (part=="kn"):
+        sep1="# ----------------------- kN afterglow ----------------------"
+        sep2="# --------------------------- END ---------------------------"
+    elif (part=="magnetar"):
+        sep1="# ------------------------ Magnetar -------------------------"
+        sep2="# --------------------------- END ---------------------------"
+    else:
+        raise NameError("no part: {} in parfile".format(part))
+    # -------------------------------------------------------------------------
+    modify_parfile(newpars=newpars,newopts=newopts,workingdir=workingdir,comment="#",
+                   fname="tmp_{}".format(parfile),
+                   newfname="tmp_mod_{}".format(newparfile),
+                   sep1=sep1,
+                   sep2=sep2)
+    if not keep_old:
+        os.remove(workingdir+parfile)
+    copyfile(workingdir+"tmp_mod_{}".format(newparfile),workingdir+newparfile)
+    os.remove(workingdir+"tmp_{}".format(parfile))
+    os.remove(workingdir+"tmp_mod_{}".format(newparfile))
+
 
 class PBA_BASE:
     '''
@@ -255,42 +292,65 @@ class PBA_BASE:
     #
     #     if (reload_parfile): self.main_pars, self.main_opts = self.read_main_part_parfile()
 
-    def modify_main_part_parfile(self, newpars : dict, newopts : dict, parfile="parfile.par"):
-        modify_parfile(newpars=newpars,newopts=newopts,workingdir=self.workingdir,comment="#",fname=parfile,
-                       newfname="parfile2.par",
-                       sep1="# -------------------------- main ---------------------------",
-                       sep2="# --------------------------- END ---------------------------")
-        copyfile(self.workingdir+"parfile.par",self.workingdir+"old_parfile.par")
-        copyfile(self.workingdir+"parfile2.par",self.workingdir+"parfile.par")
-        os.remove(self.workingdir+"parfile2.par")
-        # if (reload_parfile): self.main_pars, self.main_opts = self.read_main_part_parfile()
-    def modify_grb_part_parfile(self, newpars : dict, newopts : dict,parfile="parfile.par"):
-        modify_parfile(newpars=newpars,newopts=newopts,workingdir=self.workingdir,comment="#",fname=parfile,
-                       newfname="parfile2.par",
-                       sep1="# ---------------------- GRB afterglow ----------------------",
-                       sep2="# --------------------------- END ---------------------------")
-        copyfile(self.workingdir+"parfile.par",self.workingdir+"old_parfile.par")
-        copyfile(self.workingdir+"parfile2.par",self.workingdir+"parfile.par")
-        os.remove(self.workingdir+"parfile2.par")
-        # if (reload_parfile): self.grb_pars, self.grb_opts = self.read_grb_part_parfile()
-    def modify_mag_part_parfile(self, newpars : dict, newopts : dict,parfile="parfile.par"):
-        modify_parfile(newpars=newpars,newopts=newopts,workingdir=self.workingdir,comment="#",fname=parfile,
-                       newfname="parfile2.par",
-                       sep1="# ------------------------ Magnetar -------------------------",
-                       sep2="# --------------------------- END ---------------------------")
-        copyfile(self.workingdir+"parfile.par",self.workingdir+"old_parfile.par")
-        copyfile(self.workingdir+"parfile2.par",self.workingdir+"parfile.par")
-        os.remove(self.workingdir+"parfile2.par")
-        # if (reload_parfile): self.grb_pars, self.grb_opts = self.read_grb_part_parfile()
-    def modify_kn_part_parfile(self, newpars : dict, newopts : dict,parfile="parfile.par"):
-        modify_parfile(newpars=newpars,newopts=newopts,workingdir=self.workingdir,comment="#",fname=parfile,
-                       newfname="parfile2.par",
-                       sep1="# ----------------------- kN afterglow ----------------------",
-                       sep2="# --------------------------- END ---------------------------")
-        copyfile(self.workingdir+"parfile.par",self.workingdir+"old_parfile.par")
-        copyfile(self.workingdir+"parfile2.par",self.workingdir+"parfile.par")
-        os.remove(self.workingdir+"parfile2.par")
-        # if (reload_parfile): self.kn_pars, self.kn_opts = self.read_kn_part_parfile()
+
+    # def modify_main_part_parfile(self, newpars : dict, newopts : dict, parfile="parfile.par",newparfile="parfile2.par",keep_old=True):
+    #     # if save_old:
+    #     #     copyfile(self.workingdir+parfile,self.workingdir+"old_{}".format(parfile))
+    #     if (keep_old and parfile == newparfile):
+    #         raise NameError("Cannot keep old parfile if the new name is the same as old")
+    #     copyfile(self.workingdir+parfile,self.workingdir+"tmp_{}".format(parfile))
+    #     modify_parfile(newpars=newpars,newopts=newopts,workingdir=self.workingdir,comment="#",
+    #                    fname="tmp_{}".format(parfile),
+    #                    newfname="tmp_mod_{}".format(newparfile),
+    #                    sep1="# -------------------------- main ---------------------------",
+    #                    sep2="# --------------------------- END ---------------------------")
+    #     if not keep_old:
+    #         os.remove(self.workingdir+parfile)
+    #     copyfile(self.workingdir+"tmp_mod_{}".format(newparfile),self.workingdir+newparfile)
+    #     os.remove(self.workingdir+"tmp_{}".format(parfile))
+    #     os.remove(self.workingdir+"tmp_mod_{}".format(newparfile))
+    #     # if not save_old:
+    #     #     os.remove(self.workingdir+"parfile2.par")
+    #     # copyfile(self.workingdir+"parfile.par",self.workingdir+"old_parfile.par")
+    #     # copyfile(self.workingdir+"parfile2.par",self.workingdir+"parfile.par")
+    #     # os.remove(self.workingdir+"parfile2.par")
+    #     # if (reload_parfile): self.main_pars, self.main_opts = self.read_main_part_parfile()
+    # def modify_grb_part_parfile(self, newpars : dict, newopts : dict,parfile="parfile.par",newparfile="parfile2.par",keep_old=True):
+    #     if (keep_old and parfile == newparfile):
+    #         raise NameError("Cannot keep old parfile if the new name is the same as old")
+    #     copyfile(self.workingdir+parfile,self.workingdir+"tmp_{}".format(parfile))
+    #     modify_parfile(newpars=newpars,newopts=newopts,workingdir=self.workingdir,comment="#",
+    #                    fname="tmp_{}".format(parfile),
+    #                    newfname="tmp_mod_{}".format(newparfile),
+    #                    sep1="# ---------------------- GRB afterglow ----------------------",
+    #                    sep2="# --------------------------- END ---------------------------")
+    #     if not keep_old:
+    #         os.remove(self.workingdir+parfile)
+    #     copyfile(self.workingdir+"tmp_mod_{}".format(newparfile),self.workingdir+newparfile)
+    #     os.remove(self.workingdir+"tmp_{}".format(parfile))
+    #     os.remove(self.workingdir+"tmp_mod_{}".format(newparfile))
+    #     # copyfile(self.workingdir+"parfile.par",self.workingdir+"old_parfile.par")
+    #     # copyfile(self.workingdir+"parfile2.par",self.workingdir+"parfile.par")
+    #     # os.remove(self.workingdir+"parfile2.par")
+    #     # if (reload_parfile): self.grb_pars, self.grb_opts = self.read_grb_part_parfile()
+    # def modify_mag_part_parfile(self, newpars : dict, newopts : dict,parfile="parfile.par",newparfile="parfile2.par",keep_old=True):
+    #     modify_parfile(newpars=newpars,newopts=newopts,workingdir=self.workingdir,comment="#",fname=parfile,
+    #                    newfname="parfile2.par",
+    #                    sep1="# ------------------------ Magnetar -------------------------",
+    #                    sep2="# --------------------------- END ---------------------------")
+    #     copyfile(self.workingdir+"parfile.par",self.workingdir+"old_parfile.par")
+    #     copyfile(self.workingdir+"parfile2.par",self.workingdir+"parfile.par")
+    #     os.remove(self.workingdir+"parfile2.par")
+    #     # if (reload_parfile): self.grb_pars, self.grb_opts = self.read_grb_part_parfile()
+    # def modify_kn_part_parfile(self, newpars : dict, newopts : dict,parfile="parfile.par",newparfile="parfile2.par",keep_old=True):
+    #     modify_parfile(newpars=newpars,newopts=newopts,workingdir=self.workingdir,comment="#",fname=parfile,
+    #                    newfname="parfile2.par",
+    #                    sep1="# ----------------------- kN afterglow ----------------------",
+    #                    sep2="# --------------------------- END ---------------------------")
+    #     copyfile(self.workingdir+"parfile.par",self.workingdir+"old_parfile.par")
+    #     copyfile(self.workingdir+"parfile2.par",self.workingdir+"parfile.par")
+    #     os.remove(self.workingdir+"parfile2.par")
+    #     # if (reload_parfile): self.kn_pars, self.kn_opts = self.read_kn_part_parfile()
     def reload_parfile(self):
         self.main_pars, self.main_opts = self.read_main_part_parfile()
         self.grb_pars, self.grb_opts = self.read_grb_part_parfile()
@@ -434,7 +494,7 @@ class BPA_METHODS(PBA_BASE):
     '''
         Process output_uniform_grb files: load, extract for a specific way
     '''
-    def __init__(self, workingdir,readparfileforpaths=True,parfile="parfile.par"):
+    def __init__(self, workingdir, readparfileforpaths=True, parfile="parfile.par"):
         super().__init__(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile)
 
     # magnetar
@@ -3218,3 +3278,43 @@ def tmp_for_file2(time, freq, grp, settings, plot_dict, **kwargs):
             return (xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz)
 
     return (xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz)
+
+''' parallel runs '''
+
+class PBA_PARALLEL:
+    def __init__(self, workind_dir, list_parfile_fnames):
+        assert os.path.isdir(workind_dir)
+        assert len(list_parfile_fnames) > 0
+        for fname in list_parfile_fnames:
+            assert os.path.isfile(workind_dir+fname)
+        self.working_dir = workind_dir
+        self.list_fnames = list_parfile_fnames
+    def __call__(self, idx):
+        if (idx > (len(self.list_fnames) - 1)):
+            raise ValueError("parfiles give {} while index requiested {}".format(len(self.list_fnames), idx))
+        if not (os.path.isfile(self.working_dir+self.list_fnames[idx])):
+            raise FileNotFoundError("parfile not found {}".format(self.working_dir+self.list_fnames[idx]))
+        pba = BPA_METHODS(workingdir=self.working_dir, readparfileforpaths=True, parfile=self.list_fnames[idx])
+        pba.run()
+        pba.clear()
+
+def distribute_and_run(working_dir:str,list_parfiles:list, n_cpu:int):
+    assert len(list_parfiles) > 0
+    pba_parallel = PBA_PARALLEL(workind_dir=working_dir, list_parfile_fnames=list_parfiles)
+    if (n_cpu == 1):
+        for i, pars in enumerate(list_parfiles):
+            pba_parallel(i)
+    else:
+        if (n_cpu is None):
+            ncpus = os.cpu_count()
+        else:
+            ncpus = int(n_cpu)
+        try:
+            pool = Pool(ncpus)  # on 8 processors
+            pool.map(pba_parallel, range(len(list_parfiles)))  # distribute tasks for each clkass
+            # pool.map(pb, *[(pars, kn_pars, grb_pars) for pars, kn_pars, grb_pars in zip(pars_list, grb_pars_list, kn_pars_list)])  # distribute tasks for each clkass
+        finally:  # To make sure processes are closed in the end, even if errors happen
+            pool.close()
+            pool.join()
+    print("Finished 'distribute_and_run()'")
+

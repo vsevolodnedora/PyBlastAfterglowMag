@@ -197,7 +197,7 @@ public:
     }
 
     /// save magnetar evolution
-    void saveMagnetarEvolution(std::string fpath, size_t every_it){
+    void saveMagnetarEvolution(std::string workingdir, std::string fname, size_t every_it){
         (*p_log)(LOG_INFO,AT) << "Saving magnetar evolution...\n";
 
         if (every_it < 1){
@@ -223,11 +223,11 @@ public:
 
         std::unordered_map<std::string,double> attrs {};
 
-        p_out->VectorOfVectorsH5(tot_mag_out, mag_v_ns, fpath, attrs);
+        p_out->VectorOfVectorsH5(tot_mag_out, mag_v_ns, workingdir+fname, attrs);
     }
 
     /// save dynamical evolution of the jet blast-waves
-    void saveJetBWsDynamics(std::string fpath, size_t every_it, StrDbMap & main_pars, StrDbMap & grb_pars){
+    void saveJetBWsDynamics(std::string workingdir, std::string fname, size_t every_it, StrDbMap & main_pars, StrDbMap & grb_pars){
         (*p_log)(LOG_INFO,AT) << "Saving jet BW dynamics...\n";
 
         if (every_it < 1){
@@ -288,11 +288,11 @@ public:
 
 
         p_out->VecVectorOfVectorsAsGroupsH5(tot_dyn_out, tot_names, dyn_v_ns,
-                                            fpath, attrs, group_attrs);
+                                            workingdir+fname, attrs, group_attrs);
     }
 
     /// save dynamical evolution of the ejecta blast-waves
-    void saveEjectaBWsDynamics(std::string fpath, size_t every_it, StrDbMap & main_pars, StrDbMap & ej_pars){
+    void saveEjectaBWsDynamics(std::string workingdir, std::string fname, size_t every_it, StrDbMap & main_pars, StrDbMap & ej_pars){
         (*p_log)(LOG_INFO,AT) << "Saving Ejecta BW dynamics...\n";
 
         if (every_it < 1){
@@ -358,7 +358,7 @@ public:
         for (auto& [key, value]: main_pars) { attrs[key] = value; }
         for (auto& [key, value]: ej_pars) { attrs[key] = value; }
         p_out->VecVectorOfVectorsAsGroupsH5(tot_dyn_out, table_names, arr_names,
-                                            fpath, attrs, group_attrs);
+                                            workingdir+fname, attrs, group_attrs);
 //    OutputVecVectorOfVectorsAsGroupsAndVectorOfVectorsH5(fpath,tot_dyn_out, table_names,
 //                                                         arr_names,other_data,other_names,attrs);
     }
@@ -526,7 +526,7 @@ public:
 //        p_pars->is_ejecta_obs_pars_set = true;
     }
 
-    void computeSaveJetSkyImagesAnalytic(std::string fpath, Vector times, Vector freqs,
+    void computeSaveJetSkyImagesAnalytic(std::string workingdir,std::string fname, Vector times, Vector freqs,
                                          StrDbMap & main_pars, StrDbMap & grb_pars){
         (*p_log)(LOG_INFO,AT) << "Computing and saving Jet sky image with analytic synchrotron...\n";
 
@@ -667,13 +667,13 @@ public:
         for (auto& [key, value]: main_pars) { attrs[key] = value; }
         for (auto& [key, value]: grb_pars) { attrs[key] = value; }
 
-        p_out->VectorOfTablesAsGroupsAndVectorOfVectorsH5(fpath,out,group_names,
+        p_out->VectorOfTablesAsGroupsAndVectorOfVectorsH5(workingdir+fname,out,group_names,
                                                           in_group_names,
                                                           other_data,other_names,attrs);
 
     }
 
-    void computeSaveEjectaSkyImagesAnalytic(std::string fpath, Vector times, Vector freqs,
+    void computeSaveEjectaSkyImagesAnalytic(std::string workingdir, std::string fname, Vector times, Vector freqs,
                                             StrDbMap & main_pars, StrDbMap & ej_pars){
         (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta sky image with analytic synchrotron...\n";
 
@@ -785,14 +785,14 @@ public:
         for (auto& [key, value]: main_pars) { attrs[key] = value; }
         for (auto& [key, value]: ej_pars) { attrs[key] = value; }
 
-        p_out->VectorOfTablesAsGroupsAndVectorOfVectorsH5(fpath,out,group_names,
+        p_out->VectorOfTablesAsGroupsAndVectorOfVectorsH5(workingdir+fname,out,group_names,
                                                           in_group_names,
                                                           other_data,other_names,attrs);
 
     }
 
     /*   */
-    void computeSaveJetLightCurveAnalytic(std::string fpath, Vector times, Vector freqs,
+    void computeSaveJetLightCurveAnalytic(std::string workingdir, std::string fname, std::string fname_layers, Vector times, Vector freqs,
                                           StrDbMap &main_pars, StrDbMap &grb_pars){
         (*p_log)(LOG_INFO,AT) << "Computing and saving Jet light curve with analytic synchrotron...\n";
 
@@ -832,14 +832,72 @@ public:
             }
         }
 
+        /// compute actual light curve for each layer
         auto light_curve = evalJetLightCurves( _times,_freqs);//[ilayer][it+ifreq]
 
+        /// save total light curve for freqs
+        ii = 0;
+        VecVector other_data{ times, freqs };
+        std::vector<std::string> other_names { "times", "freqs" };
+        size_t i_v_n = 0;
+        Vector tota_flux(times.size(), 0.0);
+        for(size_t ifreq = 0; ifreq < freqs.size(); ++ifreq){
+            std::fill(tota_flux.begin(), tota_flux.end(),0.0);
+            for (size_t it = 0; it < times.size(); ++it){
+                for (size_t ishil = 0; ishil < nlayers; ++ishil){
+                    tota_flux[it] += light_curve[ishil][ii];//out[ishil][i_v_n][ifreq][it];
+                }
+                ii++;
+            }
+            other_data.emplace_back( tota_flux );
+            other_names.emplace_back( "totalflux at freq="+ string_format("%.4e",freqs[ifreq]) );
+        }
+        StrDbMap attrs {{"nlayers", nlayers}};
+        for (auto& [key, value]: main_pars) { attrs[key] = value; }
+        for (auto& [key, value]: grb_pars) { attrs[key] = value; }
+        p_out->VectorOfVectorsH5(other_data, other_names, workingdir+fname,  attrs);
+
+
+//        ii = 0;
+//        VecVector out_txt (times.size()+1);
+//        for (auto & arr : out_txt)
+//            arr.resize(freqs.size()+1, 0.0);
+//        for (size_t it=0; it<times.size(); it++){
+//            out_txt[it][0] = times[it];
+//        }
+//        for (size_t ilayer = 0; ilayer < nlayers; ilayer++) {
+//            for (size_t ifreq=1; ifreq<freqs.size()+1; ifreq++){
+//                for (size_t it=0; it<times.size(); it++){
+//                    out_txt[it][ifreq] += light_curve[ilayer][ii];
+//                    ii ++ ;
+//                }
+//            }
+//        }
+//
+//        Output::VectorOfVectorsH5(VecVector data,
+//                std::vector<std::string> set_names,
+//                std::string fpath,
+//                std::unordered_map<std::string, double> attrs={});
+
+//        std::fstream file;
+//        file.open(fpath+".dat",std::ios_base::out);
+//        for(const auto & row : out_txt) {
+//            std::copy(row.cbegin(), row.cend(), std::ostream_iterator<int>(file, " "));
+//            file << '\n';
+//        }
+//        file.close();
+
+        if (fname_layers == "none")
+            return;
+
+
+        /// save light curve for each layer separately
         std::vector<std::string> group_names;
         std::vector<std::string> in_group_names{  // single entry
                 tmp->m_names_[tmp->getPars()->m_marg21opt_em] + " " +
                 tmp->m_names_[tmp->getPars()->m_marg21opt_abs]
         };
-        size_t i_v_n = 0;
+//        size_t i_v_n = 0;
         size_t ishil = 0;
         out.resize(nlayers);
         for (size_t ilayer = 0; ilayer < nlayers; ++ilayer) {
@@ -858,53 +916,25 @@ public:
             group_names.emplace_back("layer=" + std::to_string(ilayer));
         }
 
+//        for(size_t ifreq = 0; ifreq < freqs.size(); ++ifreq){
+//            Vector tota_flux(times.size(), 0.0);
+//            for (size_t ishil = 0; ishil < nlayers; ++ishil){
+//                for (size_t it = 0; it < times.size(); ++it){
+//                    tota_flux[it] += out[ishil][i_v_n][ifreq][it];
+//                }
+//            }
+//            other_data.emplace_back( tota_flux );
+//            other_names.emplace_back( "totalflux at freq="+ string_format("%.4e",freqs[ifreq]) );
+//        }
 
-        VecVector other_data{
-                times,
-                freqs
-        };
-        std::vector<std::string> other_names { "times", "freqs" };
-
-        for(size_t ifreq = 0; ifreq < freqs.size(); ++ifreq){
-            Vector tota_flux(times.size(), 0.0);
-            for (size_t ishil = 0; ishil < nlayers; ++ishil){
-                for (size_t it = 0; it < times.size(); ++it){
-                    tota_flux[it] += out[ishil][i_v_n][ifreq][it];
-                }
-            }
-            other_data.emplace_back( tota_flux );
-            other_names.emplace_back( "totalflux at freq="+ string_format("%.4e",freqs[ifreq]) );
-        }
-
-        StrDbMap attrs {{"nlayers", nlayers}};
-//                {"E0", p_grb->getBWs()[0]->getPars()->E0 },
-//                {"Gamma0", p_grb->getBWs()[0]->getPars()->Gamma0 },
-//                {"M0", p_grb->getBWs()[0]->getPars()->M0 },
-//                {"R0", p_grb->getBWs()[0]->getPars()->R0 },
-//                {"ctheta0", p_grb->getBWs()[0]->getPars()->ctheta0 },
-//                {"theta_b0", p_grb->getBWs()[0]->getPars()->theta_b0 },
-//                {"theta_w", p_grb->getBWs()[0]->getPars()->theta_w },
-//                {"thetaObs", p_grb->getBWs()[0]->getEatsPars()->theta_obs },
-//                {"thetaObs", p_grb->getBWs()[0]->getEatsPars()->theta_obs },
-//                {"d_L", p_grb->getBWs()[0]->getEatsPars()->d_l },
-//                {"z", p_grb->getBWs()[0]->getEatsPars()->z },
-//                {"eps_e", p_grb->getBWs()[0]->getSynchAnPtr()->getPars()->eps_e },
-//                {"eps_b", p_grb->getBWs()[0]->getSynchAnPtr()->getPars()->eps_b },
-//                {"eps_t", p_grb->getBWs()[0]->getSynchAnPtr()->getPars()->eps_t },
-//                {"p", p_grb->getBWs()[0]->getSynchAnPtr()->getPars()->p },
-//                {"ksi_n", p_grb->getBWs()[0]->getSynchAnPtr()->getPars()->ksi_n }
-//        };
-        for (auto& [key, value]: main_pars) { attrs[key] = value; }
-        for (auto& [key, value]: grb_pars) { attrs[key] = value; }
-
-        p_out->VectorOfTablesAsGroupsAndVectorOfVectorsH5(fpath,out,group_names,
+        p_out->VectorOfTablesAsGroupsAndVectorOfVectorsH5(workingdir+fname_layers,out,group_names,
                                                           in_group_names,
                                                           other_data,other_names,attrs);
 
     }
 
-    void computeSaveEjectaLightCurveAnalytic(std::string fpath, Vector times, Vector freqs,
-                                             StrDbMap & main_pars, StrDbMap & ej_pars){
+    void computeSaveEjectaLightCurveAnalytic(std::string workingdir,std::string fname, std::string fname_shells_layers,
+                                             Vector times, Vector freqs, StrDbMap & main_pars, StrDbMap & ej_pars){
         (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta light curve with analytic synchrotron...\n";
 
         size_t nshells = p_ej->nshells();
@@ -1016,7 +1046,8 @@ public:
         for (auto& [key, value]: main_pars) { attrs[key] = value; }
         for (auto& [key, value]: ej_pars) { attrs[key] = value; }
 
-        p_out->VectorOfTablesAsGroupsAndVectorOfVectorsH5(fpath,out,group_names,
+        p_out->VectorOfTablesAsGroupsAndVectorOfVectorsH5(workingdir+fname_shells_layers,
+                                                          out,group_names,
                                                           in_group_names,
                                                           other_data,other_names,attrs);
 

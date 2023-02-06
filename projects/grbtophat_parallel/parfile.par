@@ -61,7 +61,7 @@ theta_w = 0.1
 nlayers_pw = 150
 nlayers_a = 1
 
-a = 0.0
+a = 1.0
 fraction_of_Gamma0_when_spread = 0.1
 
 eps_e = 0.1
@@ -69,6 +69,8 @@ eps_b = 0.01
 eps_t = 0.
 p = 2.2
 ksi_n = 1.
+
+ngamma = 200
 
 freq1 = 1.e5
 freq2 = 1.e22
@@ -93,9 +95,10 @@ gflat = no
 
 fname_dyn = dyn_grb_gauss.h5
 fname_light_curve = tophat_0_WSPN99.h5
+fname_light_curve_layers = none
 fname_sky_map = skymap_grb_gauss.h5
 
-method_spread = None
+method_spread = AA
 method_dgdr = our
 method_eos = Nava13
 method_GammaSh = useJKwithGammaRel  # default -- "useGamma"
@@ -106,7 +109,7 @@ method_Rsh = useGammaSh
 method_dmdr = usingdthdr
 method_shock_vel = sameAsBW
 use_dens_prof_behind_jet_for_ejecta = no
-method_synchrotron = WSPN99
+method_synchrotron = Joh06 # WSPN99
 method_lf_min = useU_e
 method_ne = usenprime
 method_tau = smooth
