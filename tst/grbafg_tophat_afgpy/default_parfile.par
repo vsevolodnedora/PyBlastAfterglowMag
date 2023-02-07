@@ -18,6 +18,10 @@ ntb = 1000
 rtol = 1e-8
 nmax = 1000
 
+A0 = -1
+s = -1
+r_ej = -1
+r_ism = -1
 n_ism = 1.e-3
 d_l = 3.09e26
 z = 0.028
@@ -55,7 +59,7 @@ M0c = -1.
 theta_c = 0.1
 theta_w = 0.1
 nlayers_pw = 150
-nlayers_a = 10
+nlayers_a = 1
 
 a = 0.0
 fraction_of_Gamma0_when_spread = 0.1
@@ -71,10 +75,12 @@ freq2 = 1.e22
 nfreq = 200
 
 save_dyn_every_it = 10
+rtol_adapt = 1e-5
+fnu_min_frac = 1e-5
 
 * Settings
 
-method_eats = adaptive # piece-wise
+method_eats = piece-wise # adaptive # piece-wise
 
 run_jet_bws = yes
 save_j_dynamics = no
@@ -88,6 +94,7 @@ gflat = no
 
 fname_dyn = dyn_grb_gauss.h5
 fname_light_curve = lc_grb_gauss.h5
+fname_light_curve_layers = none
 fname_sky_map = skymap_grb_gauss.h5
 
 method_spread = None

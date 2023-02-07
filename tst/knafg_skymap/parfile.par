@@ -101,6 +101,7 @@ method_eats = piece-wise # piece-wise
 
 fname_dyn = dyn_kn.h5
 fname_light_curve = lc_kn.h5
+fname_light_curve_layers = none
 fname_sky_map = skymap_kn.h5
 
 type = numeric

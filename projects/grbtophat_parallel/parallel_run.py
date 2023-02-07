@@ -203,8 +203,16 @@ def set_parlists_for_pars(iter_pars_keys, iter_pars : dict, fname : str):
     else:
         par_list = [pars]
     return (par_list)
+def remove_theta_w_less_theta_c(parlist : list):
+    n1 = len(parlist)
+    for i, par in enumerate(parlist):
+        if float(par["theta_w"]) < float(par["theta_c"]):
+            parlist.pop(i)
+    n2 = len(parlist)
+    print("Removed {} settings for theta_w < theta_c".format(n1-n2))
+    return parlist
 
-def run_list_grbafg_parallel():
+def run_list_grbafg_parallel(n_cpu=12):
     working_dir = os.getcwd()+'/'
     iter_pars = ["Eiso_c", "Gamma0c", "theta_c", "theta_w", "p", "eps_e", "eps_b","n_ism","theta_obs"]
     iter_pars_dict = {
@@ -236,8 +244,10 @@ def run_list_grbafg_parallel():
     # separate dict is needed for pars and opts; so we make two copies
     new_main_parts = set_parlists_for_pars(iter_pars_keys=iter_pars,
                                          iter_pars=iter_pars_dict, fname=newparfilenameroot)
+    # new_main_parts = remove_theta_w_less_theta_c(new_main_parts)
     new_grb_parts = set_parlists_for_pars(iter_pars_keys=iter_pars,
                                          iter_pars=iter_pars_dict, fname=newparfilenameroot)
+    # new_grb_parts = remove_theta_w_less_theta_c(new_grb_parts)
     # the light curve name is actually an option, so should be in a separate dict...
     new_grb_opts = [{"fname_light_curve":""} for i in range(len(new_grb_parts))]
 
@@ -261,6 +271,13 @@ def run_list_grbafg_parallel():
             del new_grb_opts[i]
             del parfile_fname_list[i]
             print("Skipping {}".format(new_grb_opts[i]["fname_light_curve"]))
+        # jet core cannot be wider than wings. Remove incorrect settings
+        if (float(new_grb_opts[i]["theta_w"]) < float(new_grb_opts[i]["theta_c"])):
+            del new_main_parts[i]
+            del new_grb_parts[i]
+            del new_grb_opts[i]
+            del parfile_fname_list[i]
+            print("Skipping incorrect {}".format(new_grb_opts[i]["fname_light_curve"]))
         # if required parfile name is not found, make one by modifying the 'default' parfile.par
         if not(os.path.isfile(parfile_fname_list[i])):
             print("Creating {}".format(parfile_fname_list[i]))
@@ -271,7 +288,7 @@ def run_list_grbafg_parallel():
     # run PyBlastAfterglow for all parfiles needed
     print("Parfiles created. Starting runs...")
     if len(parfile_fname_list) > 1:
-        distribute_and_run(working_dir=working_dir, list_parfiles=parfile_fname_list, n_cpu=3)
+        distribute_and_run(working_dir=working_dir, list_parfiles=parfile_fname_list, n_cpu=n_cpu)
     print("Runs finished successfully")
 
 
@@ -281,7 +298,7 @@ def run_list_grbafg_parallel():
     # plt.show()
 
 def main():
-    run_list_grbafg_parallel()
+    run_list_grbafg_parallel(n_cpu=12)
 
 if __name__ == '__main__':
     main()
