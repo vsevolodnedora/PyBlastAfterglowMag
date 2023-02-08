@@ -159,7 +159,7 @@ double getDoublePar(std::string par, std::unordered_map<std::string,double> & pa
     if ( pars.find(par) == pars.end() ){
         if (req){
             (*p_log)(LOG_ERR, loc) << " Required parameter " << par << " not found. exiting...\n";
-            std::cerr << " Required parameter " << par << " not found. exiting...\n";
+//            (*p_log)(LOG_ERR,loc) << " Required parameter " << par << " not found. exiting...\n";
             exit(1);
         }
         else{
@@ -284,19 +284,19 @@ std::ostream& stream_arr(std::ostream& os, vecarr &data, std::vector<std::string
         (*p_log)(LOG_ERR, AT) << "Error! Size of names_lc and of data vector is not the same "
                              "[n_names="<<n_names<<", n_arrs="<<n_arrs<<"]"
                           << "\n Exiting...\n";
-        std::cerr << AT<< "\n";
+//        std::cerr << AT<< "\n";
         exit(1);
     }
     if (data.empty()) {
         (*p_log)(LOG_ERR,  AT) << "Error! Empty vector of data cannot be outputed"
-                          << "\n Exiting...\n";
+                          << "Exiting...\n";
         std::cerr << AT<< "\n";
         exit(1);
     }
     if (data[0].size() == 0) {
         (*p_log)(LOG_ERR, AT) << "Error! Empty data array cannot be outputed"
                           << "\n Exiting...\n";
-        std::cerr << AT<< "\n";
+//        std::cerr << AT<< "\n";
         exit(1);
     }
     for (size_t j = 0 ; j < n_arrs; j ++){
@@ -333,26 +333,6 @@ std::ostream& stream_arr(std::ostream& os, vecarr &data, std::vector<std::string
     //        os<<"\n";
     //    }
     return os;
-}
-
-void remove_file_if_existis(const std::string &fname){
-
-//    LOG_INIT_CERR();
-//    Log.set_log_level(LOG_SILENT);
-
-    try {
-        if (std::experimental::filesystem::remove(fname))
-//            (*p_log)(LOG_INFO) << "file " << fname << " deleted.\n";
-            std::cout << "file " << fname << " deleted.\n";
-        else
-//            (*p_log)(LOG_INFO) << "file " << fname << " not found.\n";
-            std::cout << "file " << fname << " not found.\n";
-    }
-    catch(const std::experimental::filesystem::filesystem_error& err) {
-//        (*p_log)(LOG_ERR) << "filesystem error: " << err.what() << '\n';
-        std::cerr << "filesystem error: " << err.what() << '\n';
-        std::cerr <<AT<<"\n";
-    }
 }
 
 
@@ -433,11 +413,31 @@ static void print_x_as_numpy(Array & x_arr, int ever_i, std::string name="x_arr"
 
 struct Output{
 private:
-//    std::unique_ptr<logger> p_log;
+    std::unique_ptr<logger> p_log;
 public:
 
+    void remove_file_if_existis(const std::string &fname){
+
+//    LOG_INIT_CERR();
+//    Log.set_log_level(LOG_SILENT);
+
+        try {
+            if (std::experimental::filesystem::remove(fname))
+//            (*p_log)(LOG_INFO) << "file " << fname << " deleted.\n";
+                (*p_log)(LOG_INFO,AT) << "file " << fname << " deleted.\n";
+            else
+//            (*p_log)(LOG_INFO) << "file " << fname << " not found.\n";
+                (*p_log)(LOG_INFO,AT) << "file " << fname << " not found.\n";
+        }
+        catch(const std::experimental::filesystem::filesystem_error& err) {
+//        (*p_log)(LOG_ERR) << "filesystem error: " << err.what() << '\n';
+            (*p_log)(LOG_ERR,AT) << " filesystem error: " << err.what() << '\n';
+//        std::cerr <<AT<<"\n";
+        }
+    }
+
     explicit Output(int loglevel){
-//        p_log = std::make_unique<logger>(std::cout, loglevel, "Output");
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "Output");
     }
 
     template<typename vecarr>
@@ -524,21 +524,21 @@ public:
 
 //    std::cout << "S"
         if (data.empty()){
-            std::cerr <<" Empty data cannot be saved.\n"
+            (*p_log)(LOG_ERR,AT) <<" Empty data cannot be saved.\n"
                       << " Exiting...\n";
-            std::cerr << AT << "\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
         if (data[0].empty()){
-            std::cerr <<" Empty data[0] cannot be saved\n"
+            (*p_log)(LOG_ERR,AT) <<" Empty data[0] cannot be saved\n"
                       << " Exiting...\n";
-            std::cerr << AT << "\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
         if (data.size() != set_names.size()){
-            std::cerr <<"Datasize and name.size are not the same; Data has "<<data.size()<<" names have "<<set_names.size()<<"\n"
+            (*p_log)(LOG_ERR,AT) <<"Datasize and name.size are not the same; Data has "<<data.size()<<" names have "<<set_names.size()<<"\n"
                       << " Exiting...\n";
-            std::cerr << AT << "\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
 
@@ -621,9 +621,9 @@ public:
             // write attributes for the data
             if (!group_attrs.empty()){
                 if (group_attrs.size() != group_names.size()){
-                    std::cerr  << " size mismatch group_attrs="<<group_attrs.size()<<" group_names="<<group_names.size()<<"\n"
+                    (*p_log)(LOG_ERR,AT)  << " size mismatch group_attrs="<<group_attrs.size()<<" group_names="<<group_names.size()<<"\n"
                                << " Exiting...\n";
-                    std::cerr << AT << "\n";
+//                    std::cerr << AT << "\n";
                     exit(1);
                 }
                 auto & group_attr = group_attrs[id];
@@ -694,22 +694,22 @@ public:
         /// save separate data
 
         if (data.empty()){
-            std::cerr <<" Empty data cannot be saved.\n"
+            (*p_log)(LOG_ERR,AT) <<" Empty data cannot be saved. "
                       << " Exiting...\n";
-            std::cerr << AT << "\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
         if (data[0].empty()){
-            std::cerr <<" Empty data[0] cannot be saved\n"
+            (*p_log)(LOG_ERR,AT) <<" Empty data[0] cannot be saved\n"
                       << " Exiting...\n";
-            std::cerr << AT << "\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
         if (data.size() != vector_names.size()){
-            std::cerr <<"Datasize and name.size are not the same; Data has "
-                      <<data.size()<<" names have "<<vector_names.size()<<"\n"
+            (*p_log)(LOG_ERR,AT) <<"Datasize and name.size are not the same; Data has "
+                      <<data.size()<<" names have "<<vector_names.size()
                       << " Exiting...\n";
-            std::cerr << AT << "\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
 
@@ -773,17 +773,17 @@ public:
 
         /// save group data
         if (group_names_tables.size()!=group_data.size()){
-            std::cerr  << " Group names="<<group_names_tables.size()
-                       <<" while data vec contains=" << group_data.size() << " groups of tables" << "\n"
+            (*p_log)(LOG_ERR,AT)  << " Group names="<<group_names_tables.size()
+                       <<" while data vec contains=" << group_data.size() << " groups of tables"
                        <<" Exiting...";
-            std::cerr << AT << "\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
         if (table_names_in_each_group.size()!=group_data[0].size()){
-            std::cerr  << " Table names="<<table_names_in_each_group.size()
-                       <<" while each group contains=" << group_data[0].size() << " tables" << "\n"
+            (*p_log)(LOG_ERR,AT)  << " Table names="<<table_names_in_each_group.size()
+                       <<" while each group contains=" << group_data[0].size() << " tables"
                        << " Exiting...\n";
-            std::cerr << AT << "\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
 
@@ -880,19 +880,19 @@ public:
 
         /// save separate data
         if (data.empty()) {
-            std::cerr  << " Empty data cannot be saved.\n";
-            std::cerr << AT << "\n";
+            (*p_log)(LOG_ERR,AT)  << " Empty data cannot be saved.\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
         if (data[0].empty()) {
-            std::cerr  << " Empty data[0] cannot be saved\n";
-            std::cerr << AT << "\n";
+            (*p_log)(LOG_ERR,AT)  << " Empty data[0] cannot be saved\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
         if (data.size() != vector_names.size()) {
-            std::cerr  << "Datasize and name.size are not the same; Data has " << data.size() << " names have "
+            (*p_log)(LOG_ERR,AT)  << "Datasize and name.size are not the same; Data has " << data.size() << " names have "
                        << vector_names.size() << "\n";
-            std::cerr << AT << "\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
 

@@ -602,7 +602,7 @@ struct Margalit21 {
             return 0.;
         double val = (M_PI * std::pow(3.0, -3.0 / 2.0)) * CGS::qe * (n / (std::pow(Theta,5) * B)) * f_fun(Theta) * (1./x) * i_x;
         if (!std::isfinite(val)){
-            std::cerr << AT <<" \nnan in alphanu_th() " << " x=" << x << " B="<<B<<" Theta="<<Theta<<" z_cool="<<z_cool << "\n";
+            std::cerr << AT <<" \n nan in alphanu_th() " << " x=" << x << " B="<<B<<" Theta="<<Theta<<" z_cool="<<z_cool << "\n";
 //                exit(1);
             return 0.;
         }
@@ -1165,7 +1165,7 @@ public:
         opt = "method_synchrotron";
         METHODS val_synch;
         if ( opts.find(opt) == opts.end() ) {
-            std::cerr << " Option for '" << opt << "' is not set. Using default value.\n";
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
             val_synch = SynchrotronAnalytic::METHODS::iJOH06;
         }
         else{
@@ -1180,10 +1180,10 @@ public:
 //            else if(opts.at(opt) == "Bretta")
 //                val_synch = SynchrotronAnalytic::METHODS::iBerrettaSynch;
             else{
-                std::cerr << AT << " option for: " << opt
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
                           <<" given: " << opts.at(opt)
-                          << " is not recognized \n";
-                std::cerr << "Possible options: "
+                          << " is not recognized. "
+                          << "Possible options: "
                           << " Joh06 " << " WSPN99 " << " Marg21 " << " Dermer09 " << "\n";
                 exit(1);
             }
@@ -1193,7 +1193,7 @@ public:
         opt = "method_nonreldist";
         SynchrotronAnalytic::METHOD_NONRELDIST val_monreldist;
         if ( opts.find(opt) == opts.end() ) {
-            std::cerr << " Option for '" << opt << "' is not set. Using default value.\n";
+            (*p_log)(LOG_WARN,AT) << " Option for " << opt << " is not set. Using default value.\n";
             val_monreldist = SynchrotronAnalytic::METHOD_NONRELDIST::inone;
         }
         else{
@@ -1202,10 +1202,10 @@ public:
             else if(opts.at(opt) == "useGm")
                 val_monreldist = SynchrotronAnalytic::METHOD_NONRELDIST::iuseGm;
             else{
-                std::cerr << AT << " option for: " << opt
+                (*p_log)(LOG_WARN,AT) << AT << " option for: " << opt
                           <<" given: " << opts.at(opt)
-                          << " is not recognized \n";
-                std::cerr << "Possible options: "
+                          << " is not recognized. "
+                          << "Possible options: "
                           << " none " << " useGm " << "\n";
                 exit(1);
             }
@@ -1215,7 +1215,7 @@ public:
         opt = "method_lf_min";
         SynchrotronAnalytic::METHODS_LFMIN val_lfmin;
         if ( opts.find(opt) == opts.end() ) {
-            std::cerr << " Option for '" << opt << "' is not set. Using default value.\n";
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
             val_lfmin = SynchrotronAnalytic::METHODS_LFMIN::igmUprime;
         }
         else{
@@ -1228,10 +1228,10 @@ public:
             else if(opts.at(opt) == "useTheta")
                 val_lfmin = SynchrotronAnalytic::METHODS_LFMIN::igmMAG21;
             else{
-                std::cerr << AT << " option for: " << opt
+                (*p_log)(LOG_WARN,AT) << AT << " option for: " << opt
                           <<" given: " << opts.at(opt)
-                          << " is not recognized \n";
-                std::cerr << "Possible options: "
+                          << " is not recognized. "
+                          << "Possible options: "
                           << " useU_e " << " useTheta "<< " useBeta " << " useGamma " << "\n";
                 exit(1);
             }
@@ -1246,7 +1246,7 @@ public:
         SynchrotronAnalytic::QQ val_em;
         if ( opts.find(opt) == opts.end() ) {
             val_em = SynchrotronAnalytic::QQ::i_em;
-            std::cerr << " Option for '" << opt << "' is not set. Using default value.\n";
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
         }
         else{
             if(opts.at(opt) == "em_pl")
@@ -1256,10 +1256,10 @@ public:
             else if(opts.at(opt) == "em")
                 val_em = SynchrotronAnalytic::QQ::i_em;
             else{
-                std::cerr << AT << " option for: " << opt
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
                           <<" given: " << opts.at(opt)
-                          << " is not recognized \n";
-                std::cerr << "Possible options: "
+                          << " is not recognized. "
+                          << "Possible options: "
                           << " em_pl " << " em_th " << " em " << "\n";
                 exit(1);
             }
@@ -1269,7 +1269,7 @@ public:
         opt = "absorption";
         SynchrotronAnalytic::QQ val_abs;
         if ( opts.find(opt) == opts.end() ) {
-            std::cerr << " Option for '" << opt << "' is not set. Using default value.\n";
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
             val_abs = SynchrotronAnalytic::QQ::i_abs;
         }
         else{
@@ -1280,10 +1280,10 @@ public:
             else if(opts.at(opt) == "abs")
                 val_abs = SynchrotronAnalytic::QQ::i_abs;
             else{
-                std::cerr << AT << " option for: " << opt
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
                           <<" given: " << opts.at(opt)
-                          << " is not recognized \n";
-                std::cerr << "Possible options: "
+                          << " is not recognized. "
+                          << "Possible options: "
                           << " abs_pl " << " abs_th " << " abs " << "\n";
                 exit(1);
             }
@@ -1294,7 +1294,7 @@ public:
         opt = "method_tau";
         METHOD_TAU methodTau;
         if ( opts.find(opt) == opts.end() ) {
-            std::cerr << " Option for '" << opt << "' is not set. Using default value.\n";
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
             methodTau = METHOD_TAU::iSMOOTH;
         }
         else{
@@ -1307,10 +1307,10 @@ public:
             else if(opts.at(opt) == "approx")
                 methodTau = METHOD_TAU::iAPPROX;
             else{
-                std::cerr << AT << " option for: " << opt
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
                           <<" given: " << opts.at(opt)
-                          << " is not recognized \n";
-                std::cerr << "Possible options: "
+                          << " is not recognized. "
+                          << " Possible options: "
                           << " approx " << " thick " << " sharp " << " smooth " << "\n";
                 exit(1);
             }
@@ -1344,27 +1344,27 @@ public:
         double ksi_n = p_pars->ksi_n;
         // check
         if (eps_e <= 0){
-            std::cerr << AT << " eps_e is not set (eps_e="<<eps_e<<")\n";
+            (*p_log)(LOG_ERR,AT) << " eps_e is not set (eps_e="<<eps_e<<")\n";
             exit(1);
         }
         if (eps_b <= 0){
-            std::cerr << AT << " eps_b is not set (eps_e="<<eps_b<<")\n";
+            (*p_log)(LOG_ERR,AT) << " eps_b is not set (eps_e="<<eps_b<<")\n";
             exit(1);
         }
         if (eps_t < 0){
-            std::cerr << AT << " eps_e is not set (eps_e="<<eps_t<<") (even through it is only needed in Marg21 model)\n";
+            (*p_log)(LOG_ERR,AT) << " eps_e is not set (eps_e="<<eps_t<<") (even through it is only needed in Marg21 model)\n";
             exit(1);
         }
         if (p <= 0){
-            std::cerr << AT << " eps_e is not set (eps_e="<<p<<")\n";
+            (*p_log)(LOG_ERR,AT) << " eps_e is not set (eps_e="<<p<<")\n";
             exit(1);
         }
         if (ksi_n <= 0){
-            std::cerr << AT << " ksi_n is not set (ksi_n="<<ksi_n<<")\n";
+            (*p_log)(LOG_ERR,AT)<< " ksi_n is not set (ksi_n="<<ksi_n<<")\n";
             exit(1);
         }
         if (n_prime <= 0){
-            std::cerr << AT << " n_prime is not set (n_prime="<<n_prime<<")\n";
+            (*p_log)(LOG_ERR,AT) << " n_prime is not set (n_prime="<<n_prime<<")\n";
             exit(1);
         }
 
@@ -1430,14 +1430,14 @@ public:
             z_cool = (6.0 * M_PI * CGS::me * CGS::c / (CGS::sigmaT * B * B * t)) / Theta;
             //
             if ((Theta <= 0)||(!std::isfinite(z_cool))){
-                std::cerr << AT << " Theta = " << Theta << " z_cool="<<z_cool<<"\n";
+                (*p_log)(LOG_ERR,AT) << AT << " Theta = " << Theta << " z_cool="<<z_cool<<"\n";
                 exit(1);
             }
         }
 
         /// check
         if (!std::isfinite(gm)){
-            std::cerr << AT << " error gm nan \n";
+            (*p_log)(LOG_ERR,AT) << " error gm nan \n";
             exit(1);
         }
 
@@ -1512,7 +1512,7 @@ public:
                     else if (nu_c < nuprime)
                         abs_scaling = std::pow(nu_c / nu_m, -(p + 4) / 2) * std::pow(nuprime / nu_c, -(p + 5) / 2);
                     else {
-                        std::cout << AT << "Error! in SSA\n";
+                        (*p_log)(LOG_ERR,AT) << "Error! in SSA\n";
                         exit(1);
                     }
                 }
@@ -1536,7 +1536,7 @@ public:
                     else if (nu_m < nuprime)
                         abs_scaling = std::pow(nu_m / nu_c, -3) * std::pow(nuprime / nu_m, -(p + 5) / 2);
                     else {
-                        std::cout << AT << "Error! in SSA\n";
+                        (*p_log)(LOG_ERR,AT) << "Error! in SSA\n";
                         exit(1);
                     }
                 }
@@ -1657,7 +1657,7 @@ public:
             /// normalized frequency:
             x = nuprime / Margalit21::nu_Theta(Theta, B);
             if (!std::isfinite(x)){
-                std::cerr << AT << " x = "<< x << "\n";
+                (*p_log)(LOG_ERR,AT) << " x = "<< x << "\n";
                 exit(1);
             }
             /// calculate total emissivity & optical depth:
@@ -1705,7 +1705,7 @@ public:
             abs_pl = att;
         }
         else{
-            std::cerr << AT << " synchrotoron method = " << p_pars->m_sychMethod << " is not recognized\n";
+            (*p_log)(LOG_ERR,AT) << " synchrotoron method = " << p_pars->m_sychMethod << " is not recognized\n";
             exit(1);
         }
 
@@ -1720,9 +1720,9 @@ public:
         }
 
         if (( em_pl < 0.) || (!std::isfinite( abs_pl )) ){
-            std::cerr << AT << " em_pl_prime < 0 or nan ("<< em_pl<<") or \n";
-            std::cerr << AT << " abs_pl_prime < 0 or nan ("<< abs_pl<<")\n";
-            std::cerr << " Error in data \n"
+            (*p_log)(LOG_ERR,AT) << " em_pl_prime < 0 or nan ("<< em_pl<<") or \n";
+            (*p_log)(LOG_ERR,AT) << " abs_pl_prime < 0 or nan ("<< abs_pl<<")\n";
+            (*p_log)(LOG_ERR,AT) << " Error in data \n"
                       << " eps_e = " << eps_e << "\n"
                       << " eps_t = " << eps_t << "\n"
                       << " ne = " << ne << "\n"
@@ -1762,7 +1762,7 @@ public:
         if (opt == QQ::i_em_th){
             return m_data[QQ::i_em_th];
         }
-        std::cerr << AT << "\n";
+        (*p_log)(LOG_ERR,AT) << "should not be entered.\n";
         exit(1);
     }
     inline double get_abs(){
@@ -1777,7 +1777,7 @@ public:
         if (opt == QQ::i_abs_th){
             return m_data[QQ::i_abs_th];
         }
-        std::cerr << AT << "\n";
+        (*p_log)(LOG_ERR,AT) << "should not be entered.\n";
         exit(1);
     }
     void addOptDepth(double abs, double dr, double beta_sh, double mu){

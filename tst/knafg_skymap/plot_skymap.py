@@ -12,7 +12,7 @@ import os
 
 # from PyBlastAfterglowMag import BPA_METHODS as PBA
 from package.src.PyBlastAfterglowMag.interface import BPA_METHODS as PBA
-from package.src.PyBlastAfterglowMag.interface import cgs
+from package.src.PyBlastAfterglowMag.interface import cgs, modify_parfile_par_opt
 from package.src.PyBlastAfterglowMag.utils import latex_float
 from package.src.PyBlastAfterglowMag.id_maker_from_thc_ourflow import \
     (prepare_kn_ej_id_1d,prepare_kn_ej_id_2d)
@@ -32,7 +32,8 @@ def main():
 
     pba = PBA(workingdir=os.getcwd()+'/',readparfileforpaths=True,parfile="parfile.par")
 
-    pba.modify_kn_part_parfile(newpars={}, newopts={ "fname_ejecta_id":outfpath_2d_id} )
+    modify_parfile_par_opt(workingdir=workdir,part="kn",newpars={}, newopts={ "fname_ejecta_id":outfpath_2d_id},
+                           parfile="parfile.par",newparfile="parfile.par",keep_old=False)
     pba.reload_parfile()
     pba.run()
 

@@ -219,8 +219,7 @@ public:
     /// set ejecta lateral & velocity structure
 //    static auto listParsAnalyticEjectaStruct(){ std::cerr << AT << " not implemented\n"; exit(1); }
     void setEjectaStructAnalytic(StrDbMap pars, StrStrMap opts){
-        std::cerr << " not implimeneted\n Exiting...";
-        std::cerr << AT << "\n";
+        (*p_log)(LOG_ERR,AT) << " not implimeneted\n Exiting...";
         exit(1);
     }
 //    static std::vector<std::string> listParsNumericEjectaStruct(){ return VelocityAngularStruct::list_pars_v_ns(); }
@@ -289,13 +288,12 @@ public:
                     //
                 }
                 else{
-                    std::cerr << " which_jet_layer_to_use="<<bw->getPars()->which_jet_layer_to_use
+                    (*p_log)(LOG_ERR,AT) << " which_jet_layer_to_use="<<bw->getPars()->which_jet_layer_to_use
                               << "\n" << " expected 0 (for fasterst) or any N larger than n_layers_jet=" << (int)n_layers_jet-1
                               <<" for the slowest"
                               <<" or any N in between the two for a specific jet layer \n"
                               << "Exiting..."
                               << "\n";
-                    std::cerr << AT << "\n";
                     exit(1);
                 }
                 ii_eq += bw->getNeq();
@@ -377,18 +375,20 @@ public:
         is_ejBW_init = true;
         is_ejecta_obs_pars_set = true;
 
-        if (n_ejecta_empty_images > 0){
-            auto & ccerr = std::cout;
-            ccerr << "Ejecta blastwave is NOT initialized for total n="
-                  << n_ejecta_empty_images << " layers. Specifically:\n";
-            for (size_t ish = 0; ish < n_empty_images_shells.size(); ish++){
-                auto & ejectaStruct = ejectaStructs.structs[n_empty_images_shells[ish]];
-                size_t n_layers_i = ejectaStruct.nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStruct.nlayers_pw : ejectaStruct.nlayers_a ;
-                ccerr << "\t [ishell="<<n_empty_images_shells[ish] << " ilayer] = [";
-                for (size_t il = 0; il < n_empty_images[ish].size(); il++){
-                    ccerr << n_empty_images[ish][il] << " ";
+        if ((p_log->getLogLevel() > LOG_WARN)) {
+            if (n_ejecta_empty_images > 0) {
+                auto &ccerr = std::cout;
+                ccerr << "Ejecta blastwave is NOT initialized for total n="
+                      << n_ejecta_empty_images << " layers. Specifically:\n";
+                for (size_t ish = 0; ish < n_empty_images_shells.size(); ish++) {
+                    auto &ejectaStruct = ejectaStructs.structs[n_empty_images_shells[ish]];
+                    size_t n_layers_i = ejectaStruct.nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStruct.nlayers_pw : ejectaStruct.nlayers_a ;
+                    ccerr << "\t [ishell=" << n_empty_images_shells[ish] << " ilayer] = [";
+                    for (size_t il = 0; il < n_empty_images[ish].size(); il++) {
+                        ccerr << n_empty_images[ish][il] << " ";
+                    }
+                    ccerr << "] / (" << n_layers_i << " total layers) \n";
                 }
-                ccerr << "] / (" << n_layers_i << " total layers) \n";
             }
         }
 
@@ -510,8 +510,8 @@ public:
 //                    bool run_magnetar,
                     Array & t_grid,
 //                  size_t n_shells_j, size_t n_shells_ej, size_t n_layers_j, size_t n_layers_ej,
-                    const Integrators::METHODS integrator = Integrators::METHODS::RK4,
-                    int loglevel = CurrLogLevel
+                    const Integrators::METHODS integrator,
+                    int loglevel
     ){
         p_pars = new Pars(p_mag, p_grb, p_ej, t_grid);
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "EvolveODEsystem");
@@ -540,31 +540,31 @@ public:
         switch (m_Method) {
             case Integrators::RK4 :
                 p_Integrator = new IntegratorStatic<Integrators::rk4_integrator>
-                        (Integrators::rk4_integrator(), CurrLogLevel);
+                        (Integrators::rk4_integrator(), loglevel);
                 break;
             case Integrators::EULER:
                 p_Integrator = new IntegratorStatic<Integrators::euler_integrator>
-                        (Integrators::euler_integrator(), CurrLogLevel);
+                        (Integrators::euler_integrator(), loglevel);
                 break;
             case Integrators::MIDPOINT:
                 p_Integrator = new IntegratorStatic<Integrators::midpoint_integrator>
-                        (Integrators::midpoint_integrator(), CurrLogLevel);
+                        (Integrators::midpoint_integrator(), loglevel);
                 break;
             case Integrators::HEUN:
                 p_Integrator = new IntegratorStatic<Integrators::heun3_integrator>
-                        (Integrators::heun3_integrator(), CurrLogLevel);
+                        (Integrators::heun3_integrator(), loglevel);
                 break;
             case Integrators::RALSTON:
                 p_Integrator = new IntegratorStatic<Integrators::ralston3_integrator>
-                        (Integrators::ralston3_integrator(), CurrLogLevel);
+                        (Integrators::ralston3_integrator(), loglevel);
                 break;
             case Integrators::DOP853:
                 p_Integrator = new IntegratorStatic<Integrators::dop853_integrator>
-                        (Integrators::dop853_integrator(), CurrLogLevel);
+                        (Integrators::dop853_integrator(), loglevel);
                 break;
             case Integrators::DOP853E:
                 p_Integrator = new IntegratorEmbedded<Integrators::dop853_integrator>
-                        (Integrators::dop853_integrator(), CurrLogLevel);
+                        (Integrators::dop853_integrator(), loglevel);
                 break;
         }
     }
@@ -654,21 +654,18 @@ public:
         }
         // **************************************
         if ( !isThereATermination() ){
-            std::cerr  << " termination at initialization\n Exiting...";
-            std::cerr << AT << "\n ";
+            (*p_log)(LOG_ERR,AT)  << " termination at initialization\n Exiting...";
             exit(1);
         }
         // **************************************
         if ( !isSolutionOk() ) {
-            // REMOVING LOGGER
-            std::cerr   << " Unphysical value in the initial data for evolution \n Exiting...";
-            std::cerr << AT << "\n";
+            (*p_log)(LOG_ERR,AT)   << " Unphysical value in the initial data for evolution \n Exiting...";
             exit(1);
         }
         // **************************************
         for (size_t i = 0; i < p_pars->n_tot_eqs; i++){
             if (!std::isfinite(m_InitData[i])){
-                std::cerr << AT << "\n Nan in initial data: i="<<i<<" val="<<m_InitData[i]<<"\n";
+                (*p_log)(LOG_ERR,AT) << AT << "\n Nan in initial data: i="<<i<<" val="<<m_InitData[i]<<"\n";
 //                exit(1);
             }
         }
@@ -703,7 +700,7 @@ public:
         Array & t_grid = p_pars->t_grid;
         if ( ix % 10 == 0 ) {
             // std::cout << p_pars->p_ej[0]->getCurrentIndexes() << "\n";
-            std::cout << "it=" << ix << "/" << t_grid.size() << " t=" << t_grid[ix] << "\n";
+            (*p_log)(LOG_INFO,AT) << "it=" << ix << "/" << t_grid.size() << " t=" << t_grid[ix] << "\n";
         }
 //        for(size_t i_ej = 0; i_ej < p_pars->p_bws_ej.size(); i_ej++){
 //            auto & ej = p_pars->p_bws_ej[i_ej];
@@ -724,20 +721,17 @@ public:
         // check if there one of the layers is terminated
         if ( !isThereATermination() ){
             if(p_pars->i_restarts > 1){
-                std::cerr  << " second restart. Should not occure. Exiting...";
-                std::cerr << AT << "\n";
+                (*p_log)(LOG_ERR,AT)  << " second restart. Should not occure. Exiting...";
                 exit(1);
             }
-            std::cerr  << " restarting iteration as there was a termination\n";
+            (*p_log)(LOG_ERR,AT)  << " restarting iteration as there was a termination\n";
             evolve( dx, ix );
             p_pars->i_restarts += 1;
         }
         isThereLateralExpansionTermiantion();
         // check if there are no nans/unphysical vals in solution
         if ( !isSolutionOk() ) {
-            // REMOVING LOGGER
-            std::cerr  << " Unphysical value in the solution \n";
-            std::cerr << AT << "\n ";
+            (*p_log)(LOG_ERR,AT)  << " Unphysical value in the solution \n";
             exit(1);
         }
         p_pars->ix = ix;// latest solution
@@ -790,7 +784,7 @@ private:
             for (size_t i = 0; i < jet_bws.size(); i++) {
                 if (jet_bws[i]->isToTerminate(m_CurSol, ii)) {
                     is_ok = false;
-                    std::cerr << " Terminating jet BW layer=" << i << " (of all) failed "
+                    (*p_log)(LOG_ERR,AT) << " Terminating jet BW layer=" << i << " (of all) failed "
                               << " [ishell=" << jet_bws[i]->getPars()->ishell
                               << " ilayer=" << jet_bws[i]->getPars()->ilayer
                               << " ii_eq=" << jet_bws[i]->getPars()->ii_eq
@@ -809,7 +803,7 @@ private:
                     if (bw->isToTerminate(m_CurSol, ii)) {
                         is_ok = false;
                         bw->getPars()->end_evolution = true; // SET TO END
-                        std::cerr << " Terminating ejecta BW [ish=" << ish << " il=" << il << " "
+                        (*p_log)(LOG_ERR,AT) << " Terminating ejecta BW [ish=" << ish << " il=" << il << " "
                                   << " ii_eq=" << bw->getPars()->ii_eq
                                   << " ] \n";
                     }
@@ -858,7 +852,7 @@ private:
             auto & magnetar = p_pars->p_magnetar;
             if (!magnetar->isSolutionOk(m_CurSol, ii)){
                 is_ok = false;
-                std::cerr  << " Magnetar evolution failed "
+                (*p_log)(LOG_ERR,AT)  << " Magnetar evolution failed "
 //                           << " [ishell=" << jet_bws[i]->getPars()->ishell
 //                           << " ilayer=" << jet_bws[i]->getPars()->ilayer
 //                           << " ii_eq=" << jet_bws[i]->getPars()->ii_eq
@@ -871,7 +865,7 @@ private:
             for (size_t i = 0; i < jet_bws.size(); i++) {
                 if (( !jet_bws[i]->getPars()->end_evolution ) && (!jet_bws[i]->isSolutionOk(m_CurSol, ii))) {
                     is_ok = false;
-                    std::cerr  << " Dyn. evol. of jet BW layer=" << i << " (of all) failed "
+                    (*p_log)(LOG_ERR,AT)  << " Dyn. evol. of jet BW layer=" << i << " (of all) failed "
                                << " [ishell=" << jet_bws[i]->getPars()->ishell
                                << " ilayer=" << jet_bws[i]->getPars()->ilayer
                                << " ii_eq=" << jet_bws[i]->getPars()->ii_eq
@@ -887,7 +881,7 @@ private:
                     auto & bw = ej_bws[il]->getBW(ish);
                     if ((!bw->getPars()->end_evolution) && (!bw->isSolutionOk(m_CurSol, ii))) {
                         is_ok = false;
-                        std::cerr  << " Dyn. evol. of ejecta BW failed "
+                        (*p_log)(LOG_ERR,AT)  << " Dyn. evol. of ejecta BW failed "
                                    << " [ishell=" << ish
                                    << " ilayer=" << il
                                    << " ii_eq=" << bw->getPars()->ii_eq

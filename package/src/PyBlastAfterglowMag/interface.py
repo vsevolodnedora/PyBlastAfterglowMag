@@ -67,7 +67,7 @@ def read_parfile(workingdir, fname="parfile.par", comment="#", sep1="", sep2="")
     return (pars, opts)
 
 def modify_parfile(newpars : dict, newopts : dict, workingdir, comment="#",
-                   fname="parfile.par", newfname="parfile2.par", sep1="", sep2=""):
+                   fname="parfile.par", newfname="parfile2.par", sep1="", sep2="",verbose=False):
     par_sep = "* Parameters"
     opt_sep = "* Settings"
     par_var_sep = " = "
@@ -111,19 +111,20 @@ def modify_parfile(newpars : dict, newopts : dict, workingdir, comment="#",
                         new_lines[iline] = line.replace(line.split(par_var_sep)[-1],str(newopts[key])) + _comment
     # for line in new_lines :
     #     line += "\n"
-    with open(newfname, 'w') as f:
+    with open(workingdir+newfname, 'w') as f:
         for line in new_lines:
             f.write(f"{line}\n")
-    print("saved {}".format(newfname))
+    if verbose:
+        print("saved {}".format(workingdir+newfname))
 
 
 def modify_parfile_par_opt(workingdir : str, part : str, newpars : dict, newopts : dict,
-                           parfile="parfile.par",newparfile="parfile2.par",keep_old=True):
+                           parfile="parfile.par",newparfile="parfile2.par",keep_old=True, verbose=False):
     if (keep_old and parfile == newparfile):
         raise NameError("Cannot keep old parfile if the new name is the same as old")
     if not (os.path.isfile(workingdir+parfile)):
         raise FileNotFoundError("parfile {} not found".format(workingdir+parfile))
-    copyfile(workingdir+parfile,workingdir+"tmp_{}".format(parfile))
+    copyfile(workingdir+parfile,workingdir+"tmp_{}".format(newparfile))
     # -----------------------------------------------------------------------
     if (part=="main"):
         sep1="# -------------------------- main ---------------------------"
@@ -141,14 +142,15 @@ def modify_parfile_par_opt(workingdir : str, part : str, newpars : dict, newopts
         raise NameError("no part: {} in parfile".format(part))
     # -------------------------------------------------------------------------
     modify_parfile(newpars=newpars,newopts=newopts,workingdir=workingdir,comment="#",
-                   fname="tmp_{}".format(parfile),
+                   fname="tmp_{}".format(newparfile),
                    newfname="tmp_mod_{}".format(newparfile),
                    sep1=sep1,
-                   sep2=sep2)
+                   sep2=sep2,
+                   verbose=verbose)
     if not keep_old:
         os.remove(workingdir+parfile)
     copyfile(workingdir+"tmp_mod_{}".format(newparfile),workingdir+newparfile)
-    os.remove(workingdir+"tmp_{}".format(parfile))
+    os.remove(workingdir+"tmp_{}".format(newparfile))
     os.remove(workingdir+"tmp_mod_{}".format(newparfile))
 
 
@@ -157,7 +159,7 @@ class PBA_BASE:
         Pars initial data and parameters into C++ code interface
         Load result files
     '''
-    def __init__(self, workingdir, readparfileforpaths=True,parfile="pafile.par"):
+    def __init__(self, workingdir, readparfileforpaths=True,parfile="pafile.par",loglevel="info"):
 
         if not os.path.isdir(workingdir):
             raise IOError("Working directory not found {}".format(workingdir))
@@ -168,6 +170,7 @@ class PBA_BASE:
         self.res_dir_grb = workingdir
         self.grb_prefix = "grb_"
         self.kn_prefix = "kn_"
+        self.loglevel = loglevel
         # ------------------ MAIN
         if readparfileforpaths:
             self.main_pars, self.main_opts = self.read_main_part_parfile( self.parfile)
@@ -366,9 +369,9 @@ class PBA_BASE:
         if not os.path.isfile(path_to_cpp_executable):
             raise IOError("pba.out executable is not found: {}".format(path_to_cpp_executable))
         # subprocess.call(path_to_executable, input="")
-        print("{} {} {}".format(path_to_cpp_executable, self.workingdir, self.parfile))
+        # print("{} {} {} {}".format(path_to_cpp_executable, self.workingdir, self.parfile, self.loglevel))
         # subprocess.run(path_to_cpp_executable, input=self.workingdir)
-        subprocess.check_call([path_to_cpp_executable, self.workingdir, self.parfile])
+        subprocess.check_call([path_to_cpp_executable, self.workingdir, self.parfile, self.loglevel])
     ''' --------- magnetar ---------- '''
     def _check_if_loaded_mag_obj(self):
         if (self.fpath_mag is None):
@@ -494,8 +497,8 @@ class BPA_METHODS(PBA_BASE):
     '''
         Process output_uniform_grb files: load, extract for a specific way
     '''
-    def __init__(self, workingdir, readparfileforpaths=True, parfile="parfile.par"):
-        super().__init__(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile)
+    def __init__(self, workingdir, readparfileforpaths=True, parfile="parfile.par", loglevel="info"):
+        super().__init__(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,loglevel=loglevel)
 
     # magnetar
     def get_mag_obj(self):
@@ -584,40 +587,40 @@ class BPA_METHODS(PBA_BASE):
 
     def get_jet_lc_times(self):
         dfile = self.get_jet_lc_obj()
-        # print(dfile.keys())
-        # print(dfile.attrs())
-
-        return np.array(dfile["times"])
+        arr = np.array(dfile["times"])
+        arr_u = np.unique(arr)
+        if len(arr_u) == 0:
+            raise ValueError("no unique times found in grb light curve")
+        return arr_u
 
     def get_jet_lc_freqs(self):
         dfile = self.get_jet_lc_obj()
+        arr = np.array(dfile["freqs"])
+        arr_u = np.unique(arr)
+        if len(arr_u) == 0:
+            raise ValueError("no unique freqs found in grb light curve")
         return np.array(dfile["freqs"])
 
-    def get_jet_lc_totalflux(self, freq):
+    def get_jet_lc_totalflux(self, freq=None):
         dfile = self.get_jet_lc_obj()
         nlayers = int(dfile.attrs["nlayers"])
         times = self.get_jet_lc_times()
         freqs = self.get_jet_lc_freqs()
-        try:
-            key = str("totalflux at freq={:.4e}".format(freq)).replace('.', ',')
-            if not key in dfile.keys():
-                raise NameError("Not found: {} among keys:{}".format(key, dfile.keys()))
-        except NameError:
-            key = str("totalflux at freq={:.4e}".format(freq))
-            if not key in dfile.keys():
-                raise NameError("Not found in lc_fname={}; key={}, among keys:{}"
-                                .format(self.fpath_grb_light_curve,
-                                        key, [key for key in dfile.keys() if key.__contains__("totalflux")]))
-        except:
-            raise NameError()
-        return np.array(dfile[key])
+        fluxes = np.array(dfile["fluxes"])
+        if freq is None:
+            return fluxes
+        if (not freq in freqs):
+            raise ValueError("freq={} not found in freqs={}".format(freq, freqs))
+        arr = fluxes[freqs==freq]
+        if (len(arr)==0):
+            raise ValueError("no fluxes found for freq={}".format(freq))
+        return arr
 
-    def get_jet_lc(self, freq=None, ilayer=None, v_n=None):
+    def get_jet_lc(self, freq=None, ilayer=None):
         dfile = self.get_jet_lc_obj()
         nlayers = int(dfile.attrs["nlayers"])
         times = self.get_jet_lc_times()
         freqs = self.get_jet_lc_freqs()
-        if (v_n is None): v_n = list(dfile["layer=0"].keys())[0]  # Default key
 
         if (freq is None):
             # spectum
@@ -633,19 +636,24 @@ class BPA_METHODS(PBA_BASE):
                 fluxes2d = np.reshape(np.array(fluxes2d), (len(freqs), len(times)))
                 return fluxes2d
             elif (not ilayer is None):
-                fluxes2d = np.array(dfile["layer={}".format(ilayer)][v_n])  # [freq,time]
-                return fluxes2d
+                print("WARNING UNTESTED NEW OUTPUT FROM LIGHT CURVE FOR LAYER")
+                arr = np.array(dfile["layer={}".format(ilayer)])
+                arr = np.reshape(arr,newshape=(len(times),len(freqs)))
+                return arr
             else:
                 raise NameError()
         else:
             # light curves
             if (not freq in self.get_jet_lc_freqs()):
                 raise ValueError("freq:{} is not in ej_lc Given:{}".format(freq, self.get_jet_lc_freqs()))
-            ifreq = find_nearest_index(self.get_jet_lc_freqs(), freq)
+            # ifreq = find_nearest_index(self.get_jet_lc_freqs(), freq)
             if (ilayer is None):
                 return self.get_jet_lc_totalflux(freq=freq)
             elif (not ilayer is None):
-                fluxes1d = np.array(dfile["layer={}".format(ilayer)][v_n][ifreq])  # [freq,time]
+                print("WARNING UNTESTED NEW OUTPUT FROM LIGHT CURVE FOR LAYER")
+                arr = np.array(dfile["layer={}".format(ilayer)])
+                fluxes1d = arr[freqs==freq]
+                # fluxes1d = np.array(dfile["layer={}".format(ilayer)][ifreq])  # [freq,time]
                 return fluxes1d
             else:
                 raise NameError()
@@ -1481,50 +1489,64 @@ class BPA_METHODS(PBA_BASE):
 
     def get_ej_lc_times(self):
         dfile = self.get_ej_lc_obj()
-        # print(dfile.keys())
-        # print(dfile.attrs())
-
-        return np.array(dfile["times"])
+        arr = np.array(dfile["times"])
+        arr_u = np.unique(arr)
+        if len(arr_u) == 0:
+            raise ValueError("no unique times found in kn light curve")
+        return arr_u
 
     def get_ej_lc_freqs(self):
         dfile = self.get_ej_lc_obj()
+        arr = np.array(dfile["freqs"])
+        arr_u = np.unique(arr)
+        if len(arr_u) == 0:
+            raise ValueError("no unique freqs found in kn light curve")
         return np.array(dfile["freqs"])
 
-    def get_ej_lc_totalflux(self, freq):
+    def get_ej_lc_totalflux(self, freq=None):
         dfile = self.get_ej_lc_obj()
         nlayers = int(dfile.attrs["nlayers"])
         nshells = int(dfile.attrs["nshells"])
         times = self.get_ej_lc_times()
         freqs = self.get_ej_lc_freqs()
-        try:
-            key = str("totalflux at freq={:.4e}".format(freq)).replace('.', ',')
-            if not key in dfile.keys():
-                raise NameError("Not found: {} among keys:{}".format(key, [key for key in dfile.keys() if key.__contains__("totalflux")]))
-        except NameError:
-            key = str("totalflux at freq={:.4e}".format(freq))
-            if not key in dfile.keys():
-                raise NameError("Not found for ej. lightcurve: {} among keys:{} \n ejecta_prefix:{}"
-                                .format(key, [key for key in dfile.keys() if key.__contains__("totalflux")], self.ejecta_prefix))
-        except:
-            raise NameError()
-        return np.array(dfile[key])
+        fluxes = np.array(dfile["fluxes"])
+        if (freq is None):
+            return fluxes
+        if (not freq in freqs):
+            raise ValueError("freq={} not found in freqs={}".format(freq, freqs))
+        arr = fluxes[freqs==freq]
+        if (len(arr)==0):
+            raise ValueError("no fluxes found for freq={}".format(freq))
+        return arr
 
-    def get_ej_lc(self, freq=None, ishell=None, ilayer=None, v_n=None):
+        #
+        # nlayers = int(dfile.attrs["nlayers"])
+        # nshells = int(dfile.attrs["nshells"])
+        # times = self.get_ej_lc_times()
+        # freqs = self.get_ej_lc_freqs()
+        # try:
+        #     key = str("totalflux at freq={:.4e}".format(freq)).replace('.', ',')
+        #     if not key in dfile.keys():
+        #         raise NameError("Not found: {} among keys:{}".format(key, [key for key in dfile.keys() if key.__contains__("totalflux")]))
+        # except NameError:
+        #     key = str("totalflux at freq={:.4e}".format(freq))
+        #     if not key in dfile.keys():
+        #         raise NameError("Not found for ej. lightcurve: {} among keys:{} \n ejecta_prefix:{}"
+        #                         .format(key, [key for key in dfile.keys() if key.__contains__("totalflux")], self.ejecta_prefix))
+        # except:
+        #     raise NameError()
+        # return np.array(dfile[key])
+
+    def get_ej_lc(self, freq=None, ishell=None, ilayer=None):
         dfile = self.get_ej_lc_obj()
         nlayers = int(dfile.attrs["nlayers"])
         nshells = int(dfile.attrs["nshells"])
         times = self.get_ej_lc_times()
         freqs = self.get_ej_lc_freqs()
-        if (v_n is None): v_n = list(dfile["shell=0 layer=0"].keys())[0]  # Default key
 
         if (freq is None):
             # spectum
             if ((ishell is None) and (ilayer is None)):
-                # fluxes2d = np.zeros((len(freqs), len(times)))
-                # for ish in range(nshells):
-                #     for il in range(nlayers):
-                #         fluxes2d += np.array(dfile["shell={} layer={}".format(ish, il)][v_n])# [freq,time]
-                # return fluxes2d
                 fluxes2d = []
                 for ifreq in freqs:
                     fluxes2d.append(self.get_ej_lc_totalflux(freq=ifreq))  # [freq,time]
@@ -1532,16 +1554,25 @@ class BPA_METHODS(PBA_BASE):
                 return fluxes2d
             elif ((ishell is None) and (not ilayer is None)):
                 fluxes2d = np.zeros((len(freqs), len(times)))
+                print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
                 for ish in range(nshells):
-                    fluxes2d += np.array(dfile["shell={} layer={}".format(ish, ilayer)][v_n])  # [freq,time]
+                    arr = np.array(dfile["shell={} layer={}".format(ish, ilayer)])
+                    arr = np.reshape(arr, (len(times),len(freqs)))
+                    fluxes2d += arr  # [freq,time]
                 return fluxes2d
             elif ((not ishell is None) and (ilayer is None)):
                 fluxes2d = np.zeros((len(freqs), len(times)))
+                print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
                 for il in range(nlayers):
-                    fluxes2d += np.array(dfile["shell={} layer={}".format(ishell, il)][v_n])  # [freq,time]
+                    arr = np.array(dfile["shell={} layer={}".format(ishell, il)])
+                    arr = np.reshape(arr, (len(times),len(freqs)))
+                    fluxes2d += arr  # [freq,time]
                 return fluxes2d
             elif ((not ishell is None) and (not ilayer is None)):
-                fluxes2d = np.array(dfile["shell={} layer={}".format(ishell, ilayer)][v_n])  # [freq,time]
+                print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
+                arr = np.array(dfile["shell={} layer={}".format(ishell, ilayer)])
+                arr = np.reshape(arr, (len(times),len(freqs)))
+                fluxes2d = arr  # [freq,time]
                 return fluxes2d
             else:
                 raise NameError()
@@ -1549,10 +1580,11 @@ class BPA_METHODS(PBA_BASE):
             # light curves
             if (not freq in self.get_ej_lc_freqs()):
                 raise ValueError("freq:{} is not in ej_lc Given:{}".format(freq, self.get_ej_lc_freqs()))
-            ifreq = find_nearest_index(self.get_ej_lc_freqs(), freq)
+            # ifreq = find_nearest_index(self.get_ej_lc_freqs(), freq)
             if ((ishell is None) and (ilayer is None)):
                 return self.get_ej_lc_totalflux(freq=freq)
             elif ((ishell is None) and (not ilayer is None)):
+                print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
                 if (ilayer > nlayers - 1):
                     raise ValueError("Layer={} is > nlayers={}".format(ilayer, nlayers - 1))
                 # fluxes1d = np.zeros_like(times)
@@ -1561,9 +1593,12 @@ class BPA_METHODS(PBA_BASE):
                 # return fluxes1d
                 fluxes2d = []
                 for ish in range(nshells):
-                    fluxes2d.append(np.array(dfile["shell={} layer={}".format(ish, ilayer)][v_n][ifreq]))  # [freq,time]
+                    arr = np.array(dfile["shell={} layer={}".format(ish, ilayer)])
+                    arr = arr[freqs==freq]
+                    fluxes2d.append(arr)  # [freq,time]
                 return np.reshape(fluxes2d, newshape=(nshells, len(times)))
             elif ((not ishell is None) and (ilayer is None)):
+                print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
                 if (ishell > nshells - 1):
                     raise ValueError("Shell={} is > nshell={}".format(ishell, nshells - 1))
                 # fluxes1d = np.zeros_like(times)
@@ -1572,10 +1607,15 @@ class BPA_METHODS(PBA_BASE):
                 # return fluxes1d
                 fluxes2d = []
                 for il in range(nlayers):
-                    fluxes2d.append(np.array(dfile["shell={} layer={}".format(ishell, il)][v_n][ifreq]))  # [freq,time]
+                    arr = np.array(dfile["shell={} layer={}".format(ishell, il)])
+                    arr = arr[freqs==freq]
+                    fluxes2d.append(arr)  # [freq,time]
                 return np.reshape(fluxes2d, newshape=(nlayers, len(times)))
             elif ((not ishell is None) and (not ilayer is None)):
-                fluxes1d = np.array(dfile["shell={} layer={}".format(ishell, ilayer)][v_n][ifreq])  # [freq,time]
+                print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
+                arr = np.array(dfile["shell={} layer={}".format(ishell, ilayer)])
+                arr = arr[freqs==freq]
+                fluxes1d = arr  # [freq,time]
                 return fluxes1d
             else:
                 raise NameError()
@@ -3318,3 +3358,180 @@ def distribute_and_run(working_dir:str,list_parfiles:list, n_cpu:int):
             pool.join()
     print("Finished 'distribute_and_run()'")
 
+
+def get_str_val(v_n, val):
+    # if v_n == "theta_obs":
+    #     val = "{:.0f}".format(val * 180.0 / np.pi) # rad -> deg
+    # elif v_n == "d_l":
+    #     val = "{:.1f}".format(val / cgs.pc / 1.e9)
+    # else:
+    #     val = str(val)
+    #
+    # return val.replace(".", "")
+    if ((v_n == "theta_obs") or (v_n == "theta_c") or (v_n == "theta_w")):
+        val = "{:.1f}".format(val / np.pi * 180.) # int(val / np.pi * 180.)
+    elif ((v_n == "Eiso_c") or ((v_n == "Eiso_c"))):
+        val = np.log10(val)
+    elif (v_n == "d_l"):
+        val = val / 1.e9 / cgs.pc
+    else:
+        pass
+    if len(str(val)) > 7:
+        val = "{:.5f}".format(val)
+    val = str(val).replace(".", "")
+    return val
+
+def _apply_pars(pars, keys : list, vals : list, prefix_key : str, prefix : str):
+    _pars = copy.deepcopy(pars)
+    for (key, val) in zip(keys, vals):
+        _pars[key] = val
+    _pars[prefix_key] = prefix
+    return _pars
+
+def set_parlists_for_pars(iter_pars_keys, iter_pars : dict, fname : str):
+    pars = {}
+    prefix_key = "name"
+    # fname = pars["ejecta_prefix"]
+    # if "[text]" in fname:
+    #     fname = fname.replace("[text]", "{:.0f}".format(pars["text"]))
+    # if "[nlayers]" in fname:
+    #     fname = fname.replace("[nlayers]", "{:.0f}".format(int(pars["nlayers"])))
+    # if "[d_l]" in fname:
+    #     fname = fname.replace("[d_l]", get_str_val("d_l", pars["d_l"]))
+    # iterate over parameters that needed to be varied
+    if len(iter_pars_keys) > 0:
+        n_iter_pars = len(iter_pars_keys)
+        # if n_iter_pars != 6: raise ValueError("n_iter_pars = {} is not supported".format(n_iter_pars))
+        # print("iterating over {} pars \n{}".format(n_iter_pars, iter_pars_keys))
+
+        ikey = 0
+        k0s = iter_pars_keys[ikey]
+        par_list = []
+        for v0s in iter_pars[k0s]:
+            _k0s = "[" + k0s + "]"
+            if not _k0s in fname: raise KeyError("_k0s={} is missing in fname={}".format(_k0s,fname))
+            fname0 = fname.replace(_k0s, get_str_val(k0s,v0s))  # if _k0s in fname else exit(1)
+            if len(iter_pars_keys) == 1:
+                par_list.append(_apply_pars(pars,
+                                            keys=[k0s],
+                                            vals=[v0s],
+                                            prefix_key=prefix_key, prefix=fname0))
+                continue
+                # return par_list
+
+            k1s = iter_pars_keys[ikey+1]
+            for v1s in iter_pars[k1s]:
+                _k1s = "[" + k1s + "]"
+                if not _k1s in fname: raise KeyError("k1s = {} is missing from fname = {}".format(_k1s, fname))
+                fname1 = fname0.replace(_k1s, get_str_val(k1s,v1s))  # if _k0s in fname else exit(1)
+                if len(iter_pars_keys) == 2:
+                    par_list.append(_apply_pars(pars,
+                                                keys=[k0s, k1s],
+                                                vals=[v0s, v1s],
+                                                prefix_key=prefix_key, prefix=fname1))
+                    continue
+                    # return par_list
+
+                k2s = iter_pars_keys[ikey+2]
+                for v2s in iter_pars[k2s]:
+                    _k2s = "[" + k2s + "]"
+                    if not _k2s in fname: raise KeyError("k2s = {} is missing from fname = {}".format(_k1s, fname))
+                    fname2 = fname1.replace(_k2s, get_str_val(k2s,v2s))  # if _k0s in fname else exit(1)
+                    if len(iter_pars_keys) == 3:
+                        par_list.append(_apply_pars(pars,
+                                                    keys=[k0s, k1s, k2s],
+                                                    vals=[v0s, v1s, v2s],
+                                                    prefix_key=prefix_key, prefix=fname2))
+                        continue
+
+                    k3s = iter_pars_keys[ikey+3]
+                    for v3s in iter_pars[k3s]:
+                        _k3s = "[" + k3s + "]"
+                        if not _k3s in fname: raise KeyError("k3s = {} is missing from fname = {}".format(_k1s, fname))
+                        fname3 = fname2.replace(_k3s, get_str_val(k3s,v3s))  # if _k0s in fname else exit(1)
+                        if len(iter_pars_keys) == 4:
+                            par_list.append(_apply_pars(pars,
+                                                        keys=[k0s, k1s, k2s, k3s],
+                                                        vals=[v0s, v1s, v2s, v3s],
+                                                        prefix_key=prefix_key, prefix=fname3))
+                            continue
+
+                        k4s = iter_pars_keys[ikey+4]
+                        for v4s in iter_pars[k4s]:
+                            _k4s = "[" + k4s + "]"
+                            if not _k4s in fname: raise KeyError( "k4s = {} is missing from fname = {}".format(_k1s, fname))
+                            fname4 = fname3.replace(_k4s, get_str_val(k4s,v4s))  # if _k0s in fname else exit(1)
+                            if len(iter_pars_keys) == 5:
+                                par_list.append(_apply_pars(pars,
+                                                            keys=[k0s, k1s, k2s, k3s, k4s],
+                                                            vals=[v0s, v1s, v2s, v3s, v4s],
+                                                            prefix_key=prefix_key, prefix=fname4))
+                                continue
+
+                            k5s = iter_pars_keys[ikey+5]
+                            for v5s in iter_pars[k5s]:
+                                _k5s = "[" + k5s + "]"
+                                if not _k5s in fname: raise KeyError( "k5s = {} is missing from fname = {}".format(_k1s, fname))
+                                fname5 = fname4.replace(_k5s, get_str_val(k5s,v5s))  # if _k0s in fname else exit(1)
+                                if len(iter_pars_keys) == 6:
+                                    par_list.append(_apply_pars(pars,
+                                                                keys=[k0s, k1s, k2s, k3s, k4s, k5s],
+                                                                vals=[v0s, v1s, v2s, v3s, v4s, v5s],
+                                                                prefix_key=prefix_key, prefix=fname5))
+                                    continue
+
+                                k6s = iter_pars_keys[ikey + 6]
+                                for v6s in iter_pars[k6s]:
+                                    _k6s = "[" + k6s + "]"
+                                    if not _k5s in fname: raise KeyError(
+                                        "k6s = {} is missing from fname = {}".format(_k6s, fname))
+                                    fname6 = fname5.replace(_k6s, get_str_val(k6s, v6s))  # if _k0s in fname else exit(1)
+                                    if len(iter_pars_keys) == 7:
+                                        par_list.append(_apply_pars(pars,
+                                                                    keys=[k0s, k1s, k2s, k3s, k4s, k5s, k6s],
+                                                                    vals=[v0s, v1s, v2s, v3s, v4s, v5s, v6s],
+                                                                    prefix_key=prefix_key, prefix=fname6))
+                                        continue
+
+                                    k7s = iter_pars_keys[ikey + 7]
+                                    for v7s in iter_pars[k7s]:
+                                        _k7s = "[" + k7s + "]"
+                                        if not _k7s in fname: raise KeyError(
+                                            "k7s = {} is missing from fname = {}".format(_k7s, fname))
+                                        fname7 = fname6.replace(_k7s, get_str_val(k7s, v7s))  # if _k0s in fname else exit(1)
+                                        if len(iter_pars_keys) == 8:
+                                            par_list.append(_apply_pars(pars,
+                                                                        keys=[k0s, k1s, k2s, k3s, k4s, k5s, k6s, k7s],
+                                                                        vals=[v0s, v1s, v2s, v3s, v4s, v5s, v6s, v7s],
+                                                                        prefix_key=prefix_key, prefix=fname7))
+                                            continue
+
+                                        k8s = iter_pars_keys[ikey + 8]
+                                        for v8s in iter_pars[k8s]:
+                                            _k8s = "[" + k8s + "]"
+                                            if not _k8s in fname: raise KeyError(
+                                                "k8s = {} is missing from fname = {}".format(_k8s, fname))
+                                            fname8 = fname7.replace(_k8s, get_str_val(k8s, v8s))  # if _k0s in fname else exit(1)
+                                            if len(iter_pars_keys) == 9:
+                                                par_list.append(_apply_pars(pars,
+                                                                            keys=[k0s, k1s, k2s, k3s, k4s, k5s, k6s, k7s, k8s],
+                                                                            vals=[v0s, v1s, v2s, v3s, v4s, v5s, v6s, v7s, v8s],
+                                                                            prefix_key=prefix_key, prefix=fname8))
+                                                continue
+
+                                            k9s = iter_pars_keys[ikey + 9]
+                                            for v9s in iter_pars[k9s]:
+                                                _k9s = "[" + k9s + "]"
+                                                if not _k9s in fname: raise KeyError(
+                                                    "k9s = {} is missing from fname = {}".format(_k9s, fname))
+                                                fname9 = fname8.replace(_k9s, get_str_val(k9s, v9s))  # if _k0s in fname else exit(1)
+                                                if len(iter_pars_keys) == 10:
+                                                    par_list.append(_apply_pars(pars,
+                                                                                keys=[k0s, k1s, k2s, k3s, k4s, k5s, k6s, k7s, k8s, k9s],
+                                                                                vals=[v0s, v1s, v2s, v3s, v4s, v5s, v6s, v7s, v8s, v9s],
+                                                                                prefix_key=prefix_key, prefix=fname9))
+                                                    continue
+
+    else:
+        par_list = [pars]
+    return (par_list)

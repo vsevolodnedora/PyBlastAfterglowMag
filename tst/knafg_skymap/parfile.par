@@ -31,6 +31,8 @@ theta_obs = 0.785398 # 45 deg
 
 lc_freqs = array 1.e9
 lc_times = array logspace 1.e4 1.e10 150
+lc_use_freq_to_time = no
+
 skymap_freqs = array 1e9
 skymap_times = array 10368000.
 

@@ -87,7 +87,7 @@ private:
     void check_pars(){
         auto & p_eats = p_pars; // removing EATS_pars for simplicity
         if ((p_eats->nu_obs <= 0.) || (p_eats->z < 0) || (p_eats->z > 10) || (p_eats->d_l < 1) || (p_eats->t_obs < 1)){
-            std::cerr << " error in input parameters"
+            (*p_log)(LOG_ERR,AT) << " error in input parameters"
                       << " nu_obs="<<p_eats->nu_obs
                       << " z="<<p_eats->z
                       << " d_l="<<p_eats->d_l
@@ -98,7 +98,6 @@ private:
                       << " phi_low="<<p_eats->current_phi_low
                       << " phi_hi="<<p_eats->current_phi_hi
                       << "\n Exiting... \n";
-            std::cerr << AT << "\n";
             exit(1);
         }
     }
@@ -146,7 +145,7 @@ public:
         opt = "method_ne";
         METHOD_NE methodNe;
         if ( opts.find(opt) == opts.end() ) {
-            std::cerr << " Option for '" << opt << "' is not set. Using default value.\n";
+            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
             methodNe = METHOD_NE::iuseNe;
         }
         else{
@@ -155,12 +154,12 @@ public:
             else if(opts.at(opt) == "usenprime")
                 methodNe = METHOD_NE::iusenprime;
             else{
-                std::cerr << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
                           <<" given: " << opts.at(opt)
-                          << " is not recognized \n";
-                std::cerr << "Possible options: "
+                          << " is not recognized. "
+                          << "Possible options: "
                           << " useNe " << " usenprime " << "\n";
-                std::cerr << AT << "\n";
+//                std::cerr << AT << "\n";
                 exit(1);
             }
         }
@@ -169,7 +168,7 @@ public:
         opt = "method_quad";
         METHODS_QUADRATURES methodsQuadratures;
         if ( opts.find(opt) == opts.end() ) {
-            std::cerr << " Option for '" << opt << "' is not set. Using default value.\n";
+            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
             methodsQuadratures = METHODS_QUADRATURES::INT_CADRE;
         }
         else{
@@ -178,12 +177,11 @@ public:
             else if(opts.at(opt) == "TRAP_FIXED")
                 methodsQuadratures = METHODS_QUADRATURES::INT_TRAP_FIXED;
             else{
-                std::cerr << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
                           <<" given: " << opts.at(opt)
-                          << " is not recognized \n";
-                std::cerr << "Possible options: "
+                          << " is not recognized. "
+                          << "Possible options: "
                           << " CADRE " << " TRAP_FIXED " << "\n";
-                std::cerr << AT << "\n";
                 exit(1);
             }
         }
@@ -192,7 +190,7 @@ public:
         opt = "method_shock_vel";
         METHODS_SHOCK_VEL methodsShockVel;
         if ( opts.find(opt) == opts.end() ) {
-            std::cerr << " Option for '" << opt << "' is not set. Using default value.\n";
+            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
             methodsShockVel = METHODS_SHOCK_VEL::isameAsBW;
         }
         else{
@@ -201,12 +199,12 @@ public:
             else if(opts.at(opt) == "shockVel")
                 methodsShockVel = METHODS_SHOCK_VEL::ishockVel;
             else{
-                std::cerr << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
                           <<" given: " << opts.at(opt)
-                          << " is not recognized \n";
-                std::cerr << "Possible options: "
+                          << " is not recognized. "
+                          << " Possible options: "
                           << " sameAsBW " << " shockVel " << "\n";
-                std::cerr << AT << "\n";
+//                std::cerr << AT << "\n";
                 exit(1);
             }
         }
@@ -217,7 +215,7 @@ public:
         opt = "method_comp_mode";
         METHODS_RAD methodCompMode;
         if ( opts.find(opt) == opts.end() ) {
-            std::cerr << " Option for '" << opt << "' is not set. Using default value.\n";
+            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
             methodCompMode = METHODS_RAD::iobservflux;
         }
         else{
@@ -226,10 +224,10 @@ public:
             else if(opts.at(opt) == "comovSpec")
                 methodCompMode = METHODS_RAD::icomovspec;
             else{
-                std::cerr << AT << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << AT << " option for: " << opt
                           <<" given: " << opts.at(opt)
-                          << " is not recognized \n";
-                std::cerr << "Possible options: "
+                          << " is not recognized. "
+                          << "Possible options: "
                           << " observFlux " << " comovSpec " << "\n";
                 exit(1);
             }
@@ -239,7 +237,7 @@ public:
 
         p_eats->m_freq_arr = TOOLS::MakeLogspace(log10(p_eats->freq1), log10(p_eats->freq2),(int)p_eats->nfreq);
         if (p_eats->m_method_rad == METHODS_RAD::icomovspec){
-            std::cout << " allocating comoving spectrum array (fs) "
+            (*p_log)(LOG_INFO,AT) << " allocating comoving spectrum array (fs) "
                       << " freqs="<<p_eats->m_freq_arr.size() << " by radii=" << p_pars->nr << " Spec. grid="
                       << p_eats->m_freq_arr.size() * p_pars->nr << "\n";
             p_eats->m_synch_em.resize( p_eats->m_freq_arr.size() * p_pars->nr );
@@ -468,7 +466,7 @@ public:
             t_e = check_emission_time(t_e, mu, p_pars->t_obs, m_data[BlastWaveBase::Q::imu], (int) p_pars->nr);
             if (t_e < 0.0) {
                 // REMOVING LOGGER
-                std::cerr << " t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";
+                (*p_pars->p_log)(LOG_ERR,AT) << " t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";
 //            std::cerr << AT  << "Error t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";
                 return 0.;
             }
@@ -476,7 +474,7 @@ public:
             double r = interpSegLog(ia, ib, t_e, tburst, m_data[BlastWaveBase::Q::iR]);
             //  double r = ( Interp1d(ttobs, m_data[BlastWaveBase::Q::iR] ) ).Interpolate(t_obs, mth );
             if ((r <= 0.0) || !std::isfinite(r)) {
-                std::cerr << " R <= 0. Extend R grid (increasing R0, R1). "
+                (*p_pars->p_log)(LOG_ERR,AT) << " R <= 0. Extend R grid (increasing R0, R1). "
                           << " Current R grid us ["
                           << m_data[BlastWaveBase::Q::iR][0] << ", "
                           << m_data[BlastWaveBase::Q::iR][tburst.size() - 1] << "] "
@@ -484,7 +482,7 @@ public:
                           << tburst[0] << ", " << tburst[p_pars->nr - 1]
                           << "] while the requried obs_time=" << p_pars->t_obs
                           << "\n";
-                std::cerr << AT << "\n";
+//                std::cerr << AT << "\n";
                 return 0.;
             }
             double Gamma = interpSegLog(ia, ib, t_e, tburst, m_data[BlastWaveBase::Q::iGamma]);
@@ -557,15 +555,15 @@ public:
                 auto & _tt = m_data[BlastWaveBase::Q::itt];
                 auto & _tburst = m_data[BlastWaveBase::Q::itburst];
                 auto & _beta = m_data[BlastWaveBase::Q::ibeta];
-                std::cerr << "R      " << _r << "\n";
-                std::cerr << "Mu     " << _mu << "\n";
-                std::cerr << "tt     " << _tt << "\n";
-                std::cerr << "tburst " << _tburst << "\n";
-                std::cerr << "beta   " << _beta << "\n";
+//                (*p_pars->p_log)(LOG_ERR,AT) << "R      " << _r << "\n";
+//                (*p_log)(LOG_ERR,AT) << "Mu     " << _mu << "\n";
+//                (*p_log)(LOG_ERR,AT) << "tt     " << _tt << "\n";
+//                (*p_log)(LOG_ERR,AT) << "tburst " << _tburst << "\n";
+//                (*p_log)(LOG_ERR,AT) << "beta   " << _beta << "\n";
 
 
                 // REMOVING LOGGER
-                std::cerr << " t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";
+                (*p_pars->p_log)(LOG_ERR,AT) << " t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";
 //            std::cerr << AT  << "Error t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";
                 return 0.;
             }
@@ -573,7 +571,7 @@ public:
 //        double R = interpSegLog(ia, ib, t_e, p_pars->t_arr_burst, p_pars->r_arr, p_pars->nr);
             double R = interpSegLog(ia, ib, t_e, m_data[BlastWaveBase::Q::itburst], m_data[BlastWaveBase::Q::iR]);
             if (!std::isfinite(R)) {
-                std::cerr << " R is NAN in integrand for radiation" << "\n";
+                (*p_pars->p_log)(LOG_ERR,AT) << " R is NAN in integrand for radiation" << "\n";
                 // REMOVING LOGGER
 //            std::cerr  << "R = " << R << "\n";
 //            std::cout << " R = " << m_data[BlastWaveBase::Q::iR] << "\n";
@@ -608,7 +606,7 @@ public:
                                          m_data[BlastWaveBase::Q::iz_cool]);
 
             if (rho < 0. || Gamma < 1. || U_p < 0. || theta <= 0. || rho2 < 0. || thick <= 0.) {
-                std::cerr << " wrong value in interpolation to EATS surface  \n"
+                (*p_pars->p_log)(LOG_ERR,AT) << " wrong value in interpolation to EATS surface  \n"
                           << " R = " << R << "\n"
                           << " rho = " << rho << "\n"
                           << " Gamma = " << Gamma << "\n"
@@ -618,7 +616,6 @@ public:
                           << " thick = " << thick << "\n"
                           << " t_e = " << t_e << "\n"
                           << " Exiting...\n";
-                std::cout << AT << "\n";
                 exit(1);
             }
 
@@ -652,7 +649,7 @@ public:
 #endif
             if (dFnu == 0 || !std::isfinite(dFnu)) {
                 // REMOVING LOGGER
-                std::cerr << " flux density is zero ( dFnu = 0 )" << "\n";
+                (*p_pars->p_log)(LOG_ERR,AT) << " flux density is zero ( dFnu = 0 )" << "\n";
             }
 
             p_pars->o_gam = Gamma;
@@ -701,8 +698,8 @@ public:
             if(theta_0 > 0.5*M_PI) theta_0 = 0.5*M_PI;
             if(theta_1 > 0.5*M_PI) theta_1 = 0.5*M_PI;
         } else {
-            std::cerr  << " method not implemented. Exiting..." << "\n";
-            std :: cout << AT << "\n";
+            (*p_eats->p_log)(LOG_ERR,AT)  << " method not implemented. Exiting..." << "\n";
+//            std :: cout << AT << "\n";
             exit(1);
         }
         /// For a given phi, integrate over 1 - cos(theta) (to avoid sin(theta->0) errors)
@@ -782,14 +779,14 @@ public:
 
         if(result != result || result < 0.0){
             // REMOVING LOGGER
-            std::cerr << " phi_integrand failed. Nan or negative. Result=" << result
+            (*p_eats->p_log)(LOG_ERR,AT) << " phi_integrand failed. Nan or negative. Result=" << result
                       << " for t_obs=" << p_eats->t_obs
                       << " theta_lo=" << theta_0
                       << " theta_hi=" << theta_1
                       << " phi=" << p_eats->phi
                       << "\n"
                       << " Exiting...";
-            std::cerr << AT << "\n";
+//            std::cerr << AT << "\n";
             return 0.;
         }
 
@@ -803,7 +800,7 @@ public:
         // check if the parameters are set TODO wrap it into "run in safe mode"
         if(p_eats->nmax_theta < 0 || p_eats->nmax_phi < 0 || p_eats->rtol_phi < 0
            || p_eats->rtol_theta < 0 || p_eats->atol_theta < 0 || p_eats->atol_phi < 0 ){
-            std::cerr << " one of the tolerance parameters for adaptive quad. is not set (< 0). Given:\n"
+            (*p_eats->p_log)(LOG_ERR,AT) << " one of the tolerance parameters for adaptive quad. is not set (< 0). Given:\n"
                       << " nmax_theta=" << p_eats->nmax_theta
                       << " nmax_phi=" << p_eats->nmax_phi
                       << " rtol_phi=" << p_eats->rtol_phi
@@ -811,7 +808,7 @@ public:
                       << " atol_theta=" << p_eats->atol_theta
                       << " atol_phi=" << p_eats->atol_phi << "\n"
                       << " Exiting...\n";
-            std::cerr << AT << "\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
         double phi_0 = p_eats->current_phi_low;//0.0;
@@ -933,7 +930,7 @@ public:
         auto & p_syn = p_pars->p_rs->getAnSynch();
 
         if ((m_data[BlastWaveBase::Q::iR][0] == 0.) && (p_pars->Gamma0 > 0)){
-            std::cerr << " [ishell=" << p_pars->ishell << " ilayer="<<p_pars->ilayer << "] "
+            (*p_log)(LOG_WARN,AT) << " [ishell=" << p_pars->ishell << " ilayer="<<p_pars->ilayer << "] "
                       << " R[0]=0. Seems not evolved -> returning empty image." << "\n";
 //            exit(1);
 //            return std::move(image);
@@ -946,7 +943,7 @@ public:
         double flux = 0.;
         auto & m_data = p_pars->m_data;
         if (p_pars->end_evolution){
-            std::cerr
+            (*p_log)(LOG_ERR,AT)
                     << "\n [ishell=" << p_pars->ishell << " ilayer="<<p_pars->ilayer << "] "
                     << " Evolution was terminated at ix="<<p_pars->comp_ix<<"\n"
                     << " error might occure here... [TODO] Check if limited calcs to this ix works..\n";
@@ -964,8 +961,7 @@ public:
             }
         }
         if (i_end_r == 0){
-            std::cerr << " i_end_r = " << i_end_r << "\n";
-            std::cerr << AT << "\n";
+            (*p_log)(LOG_ERR,AT) << " i_end_r = " << i_end_r << "\n";
             exit(1);
         }
 
@@ -1001,24 +997,22 @@ public:
                 }
                 /// check if req. obs time is outside of the evolved times (throw error)
                 if (t_obs < ttobs[0]) {
-                    std::cerr << " time grid starts too late "
+                    (*p_log)(LOG_ERR,AT) << " time grid starts too late "
                               << " t_grid[0]=" << ttobs[0] << " while requested obs.time=" << t_obs << "\n"
                               << " extend the grid to earlier time or request tobs at later times\n"
                               << " Exiting...\n";
-                    std::cerr << AT << "\n";
                     exit(1);
                 }
                 if ((i_end_r == nr) && (t_obs > ttobs[i_end_r - 1])) {
-                    std::cerr << " time grid ends too early. "
+                    (*p_log)(LOG_ERR,AT) << " time grid ends too early. "
                               << " t_grid[i_end_r-1]=" << ttobs[i_end_r - 1] << " while requested obs.time=" << t_obs << "\n"
                               << " extend the grid to later time or request tobs at earlier times\n"
                               << " Exiting...\n";
-                    std::cout << ttobs << std::endl;
-                    std::cerr << AT << "\n";
+//                    std::cout << ttobs << std::endl;
                     exit(1);
                 }
                 else if ((i_end_r < nr) && (t_obs > ttobs[i_end_r - 1])) {
-                    std::cerr << " time grid was shorten to i=" << i_end_r << " from nr=" << nr
+                    (*p_log)(LOG_WARN,AT) << " time grid was shorten to i=" << i_end_r << " from nr=" << nr
                               << " and now ends at t_grid[i_end_r-1]=" << ttobs[i_end_r - 1]
                               << " while t_obs=" << t_obs << "\n";
                     continue;
@@ -1031,7 +1025,7 @@ public:
                 double r = interpSegLog(ia, ib, t_obs, ttobs, m_data[BlastWaveBase::Q::iR]);
                 //  double r = ( Interp1d(ttobs, m_data[BlastWaveBase::Q::iR] ) ).Interpolate(t_obs, mth );
                 if ((r <= 0.0) || !std::isfinite(r)) {
-                    std::cerr << " R <= 0. Extend R grid (increasing R0, R1). "
+                    (*p_log)(LOG_ERR,AT) << " R <= 0. Extend R grid (increasing R0, R1). "
                               << " Current R grid us ["
                               << m_data[BlastWaveBase::Q::iR][0] << ", "
                               << m_data[BlastWaveBase::Q::iR][m_tb_arr.size() - 1] << "] "
@@ -1039,7 +1033,7 @@ public:
                               << ttobs[0] << ", " << ttobs[p_pars->nr - 1]
                               << "] while the requried obs_time=" << p_pars->t_obs
                               << "\n";
-                    std::cerr << AT << "\n";
+//                    std::cerr << AT << "\n";
                     break;
                 }
                 double Gamma = interpSegLog(ia, ib, t_obs, ttobs, m_data[BlastWaveBase::Q::iGamma]);
@@ -1118,15 +1112,13 @@ public:
                     t_e = check_emission_time(t_e, mu, p_pars->t_obs, m_data[BlastWaveBase::Q::imu], (int) p_pars->nr);
                     if (t_e < 0.0) {
                         // REMOVING LOGGER
-                        std::cerr << AT << "Error t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";
-                        exit(1);
+                        (*p_log)(LOG_ERR,AT) << AT << "Error t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";
                     }
 
 //        double R = interpSegLog(ia, ib, t_e, p_eats->t_arr_burst, p_eats->r_arr, p_eats->nr);
                     double R = interpSegLog(ia, ib, t_e, m_data[BlastWaveBase::Q::itburst], m_data[BlastWaveBase::Q::iR]);
                     if (R == 0.0 || R != R) {
-                        // REMOVING LOGGER
-                        std::cerr << " nan in data after interpolation: R = " << R
+                        (*p_log)(LOG_ERR,AT) << " nan in data after interpolation: R = " << R
                                   << " R[0:5]: " << m_data[BlastWaveBase::Q::iR][0] << ","
                                   << m_data[BlastWaveBase::Q::iR][1] << ","
                                   << m_data[BlastWaveBase::Q::iR][2] << ","
@@ -1138,10 +1130,10 @@ public:
                                   << m_data[BlastWaveBase::Q::iGamma][2] << ","
                                   << m_data[BlastWaveBase::Q::iGamma][3] << ","
                                   << m_data[BlastWaveBase::Q::iGamma][4] << "\n"
-                                  <<" Exiting...";
-                        std::cerr << AT << "\nR = " << R << "\n";
-                        std::cout << "R = " << m_data[BlastWaveBase::Q::iR] << "\n";
-                        std::cout << "Gamma= " << m_data[BlastWaveBase::Q::iGamma] << "\n";
+                                  <<" Exiting...\n";
+                        (*p_log)(LOG_ERR,AT)  << " current R = " << R << "\n";
+//                        std::cout << "R = " << m_data[BlastWaveBase::Q::iR] << "\n";
+//                        std::cout << "Gamma= " << m_data[BlastWaveBase::Q::iGamma] << "\n";
                         exit(1);
                     }
                     double r = interpSegLog(ia, ib, t_e, m_data[BlastWaveBase::Q::itburst], m_data[BlastWaveBase::Q::iR]);
@@ -1177,7 +1169,7 @@ public:
                             || (rho2 < 0.) || (!std::isfinite(rho2))
                             || (thick <= 0.) || (GammaSh <= 1.)) {
 
-                            std::cerr << " wrong value in interpolation to EATS surface "
+                            (*p_log)(LOG_ERR,AT) << " wrong value in interpolation to EATS surface "
                                       << " Error in data \n"
                                       << " R = " << r << "\n"
                                       << " Gamma = " << Gamma << "\n"
@@ -1195,7 +1187,7 @@ public:
 //                    exit(1);
                         }
                         if ((B != 0.) && (!std::isfinite(rho2))) {
-                            std::cerr << " B != 0 and rho2 is NAN "
+                            (*p_log)(LOG_ERR,AT) << " B != 0 and rho2 is NAN "
                                       << " Error in data \n"
                                       << " R = " << r << "\n"
                                       << " Gamma = " << Gamma << "\n"
@@ -1210,7 +1202,6 @@ public:
                                       << " thick = " << thick << "\n"
                                       << " t_obs = " << t_obs << "\n"
                                       << " Exiting...\n";
-                            std::cerr << AT << "\n";
                             exit(1);
                         }
 
@@ -1261,23 +1252,23 @@ public:
                     }
 //                print_xy_as_numpy(m_data[BlastWaveBase::Q::iR],m_data[BlastWaveBase::Q::iM2],m_data[BlastWaveBase::Q::itt].size(), 10);
                     if (t_obs < ttobs[0]) {
-                        std::cerr << " time grid starts too late "
+                        (*p_log)(LOG_ERR,AT) << " time grid starts too late "
                                   << " t_grid[0]=" << ttobs[0] << " while requested obs.time=" << t_obs << "\n"
                                   << " extend the grid to earlier time or request tobs at later times\n"
                                   << " Exiting...\n";
-                        std::cerr << AT << "\n";
+//                        (*p_log)(LOG_ERR,AT) << AT << "\n";
                         exit(1);
                     }
                     if ((i_end_r == nr) && (t_obs > ttobs[i_end_r - 1])) {
-                        std::cerr << " time grid ends too early. "
+                        (*p_log)(LOG_ERR,AT) << " time grid ends too early. "
                                   << " t_grid[i_end_r-1]=" << ttobs[i_end_r - 1] << " while requested obs.time=" << t_obs << "\n"
                                   << " extend the grid to later time or request tobs at earlier times\n"
                                   << " Exiting...\n";
-                        std::cout << ttobs << std::endl;
-                        std::cerr << AT << "\n";
+//                        std::cout << ttobs << std::endl;
+//                        std::cerr << AT << "\n";
                         exit(1);
                     } else if ((i_end_r < nr) && (t_obs > ttobs[i_end_r - 1])) {
-                        std::cerr << " time grid was shorten to i=" << i_end_r << " from nr=" << nr
+                        (*p_log)(LOG_ERR,AT) << " time grid was shorten to i=" << i_end_r << " from nr=" << nr
                                   << " and now ends at t_grid[i_end_r-1]=" << ttobs[i_end_r - 1]
                                   << " while t_obs=" << t_obs << "\n";
                         continue;
@@ -1323,7 +1314,7 @@ public:
 //            double r     = interpSegLog(ia, ib, t_obs, ttobs, m_data[BlastWaveBase::Q::iR] );
                     double r = interpSegLog(ia, ib, t_obs, ttobs, m_data[BlastWaveBase::Q::iR]);
                     if ((r <= 0.0) || !std::isfinite(r)) {
-                        std::cerr << " R <= 0. Extend R grid (increasing R0, R1). "
+                        (*p_log)(LOG_ERR,AT) << " R <= 0. Extend R grid (increasing R0, R1). "
                                   << " Current R grid us ["
                                   << m_data[BlastWaveBase::Q::iR][0] << ", "
                                   << m_data[BlastWaveBase::Q::iR][m_tb_arr.size() - 1] << "] "
@@ -1382,7 +1373,7 @@ public:
                             || (theta <= 0.)
                             || (rho2 < 0.) || (!std::isfinite(rho2))
                             || (thick <= 0.) || (GammaSh <= 1.)) {
-                            std::cerr<< " Error in interpolation to EATS surface: \n"
+                            (*p_log)(LOG_ERR,AT)<< " Error in interpolation to EATS surface: \n"
                                      << " R = " << r << "\n"
                                      << " Gamma = " << Gamma << "\n"
                                      << " GammaSh = " << GammaSh << "\n"
@@ -1399,7 +1390,7 @@ public:
 //                    exit(1);
                         }
                         if ((B != 0.) && (!std::isfinite(rho2))) {
-                            std::cerr<< " B!=0 and rho2 is NAN \n"
+                            (*p_log)(LOG_ERR,AT)<< " B!=0 and rho2 is NAN \n"
                                      << " Error in data \n"
                                      << " R = " << r << "\n"
                                      << " Gamma = " << Gamma << "\n"
@@ -1414,7 +1405,6 @@ public:
                                      << " thick = " << thick << "\n"
                                      << " t_obs = " << t_obs << "\n"
                                      << " Exiting...\n";
-                            std::cerr << AT << " \n";
                             exit(1);
                         }
 
@@ -1577,7 +1567,7 @@ public:
 //            exit(1);
 //        }
         if ((!std::isfinite( m_data[Q::igm][it] )) || (m_data[Q::iB][it] < 0.)) {
-            std::cerr << " Wrong value at i=" << it << " tb=" << m_data[Q::itburst][it]
+            (*p_log)(LOG_ERR,AT) << " Wrong value at i=" << it << " tb=" << m_data[Q::itburst][it]
                       << " iR="     << m_data[Q::iR][it] << "\n"
                       << " iGamma=" << m_data[Q::iGamma][it] << "\n"
                       << " ibeta=" << m_data[Q::ibeta][it] << "\n"
@@ -1595,7 +1585,6 @@ public:
                       << " iz_cool="<< m_data[Q::iz_cool][it] << "\n"
                       << " inprime="<< m_data[Q::inprime][it]
                       << "\n";
-            std::cerr << AT << "\n";
             exit(1);
         }
     }
@@ -1605,16 +1594,14 @@ public:
         }
 
         if (p_pars->n_fialed_electrons == m_tb_arr.size()-1){
-            std::cerr << "Electron calculation failed for all iterations. Exiting...\n";
-            std::cerr << AT << "\n";
+            (*p_log)(LOG_ERR,AT) << " Electron calculation failed for all iterations. Exiting...\n";
             exit(1);
         }
 
         else if (p_pars->n_fialed_electrons != 0){
-            std::cerr <<" Electron calculation failed for n=" << p_pars->n_fialed_electrons
+            (*p_log)(LOG_ERR,AT) <<" Electron calculation failed for n=" << p_pars->n_fialed_electrons
                       << " iterations starting from it=" << p_pars->i0_failed_elecctrons<<"\n";
 //            exit(1);
-            std::cerr << AT << "\n";
         }
     }
 
@@ -1624,13 +1611,11 @@ public:
         auto & p_syn = p_pars->p_fs->getAnSynch();
         /// exit if the obs. radiation method of choice does not need comoving spectrum
         if (p_pars->m_freq_arr.size() < 1){
-            std::cerr << " array for comoving spectrum is not initialized \n Exiting...\n";
-            std::cerr << AT << "\n";
+            (*p_log)(LOG_ERR,AT) << " array for comoving spectrum is not initialized \n Exiting...\n";
             exit(1);
         }
         if (p_pars->m_synch_em.size() < 1){
-            std::cerr<< " array for comoving spectrum frequencies is not initialized \n Exiting...\n";
-            std::cerr << AT << "\n";
+            (*p_log)(LOG_ERR,AT)<< " array for comoving spectrum frequencies is not initialized \n Exiting...\n";
             exit(1);
         }
 //        (*p_log)(LOG_INFO) << " computing comoving intensity spectum for "
@@ -1645,8 +1630,7 @@ public:
             return;
 
         if (m_data[Q::igm][it] == 0){
-            std::cerr<< " in evolved blast wave, found gm = 0" << "\n";
-            std::cerr << AT << "\n";
+            (*p_log)(LOG_ERR,AT)<< " in evolved blast wave, found gm = 0" << "\n";
             exit(1);
         }
 
@@ -1675,7 +1659,7 @@ public:
     void computeForwardShockSynchrotronAnalyticSpectrum(){
         auto & p_eats = p_pars; // removing EATS_pars for simplicity
         if (p_eats->m_method_rad==METHODS_RAD::icomovspec) {
-            std::cout << " computing analytic comoving spectrum\n";
+            (*p_log)(LOG_INFO,AT) << " computing analytic comoving spectrum\n";
             for (size_t it = 0; it < m_tb_arr.size(); ++it) {
                 computeForwardShockComovingEmissivityAndAbsorption(it);
             }
@@ -1689,8 +1673,8 @@ public:
         auto & p_syn = p_pars->p_fs->getAnSynch();
         Array t_arr{};
         if (every_it == 0){
-            std::cerr << " comov spectrum at every_it="<<every_it<<" cannot be evaluated.\n Exiting...\n";
-            std::cerr << AT << " \n";
+            (*p_log)(LOG_ERR,AT) << " comov spectrum at every_it="<<every_it<<" cannot be evaluated.\n Exiting...\n";
+//            std::cerr << AT << " \n";
             exit(1);
         }
         else if (every_it == 1){
@@ -1731,8 +1715,7 @@ public:
             if ((m_data[Q::iR][it] < 1)||(beta_ < p_syn->getPars()->beta_min))
                 continue;
             if (m_data[Q::igm][it] == 0){
-                std::cerr << " in evolved blast wave, found gm = 0" << "\n";
-                std::cerr << AT << "\n";
+                (*p_log)(LOG_ERR,AT) << " in evolved blast wave, found gm = 0" << "\n";
                 exit(1);
             }
 

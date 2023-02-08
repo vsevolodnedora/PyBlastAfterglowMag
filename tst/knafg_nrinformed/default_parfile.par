@@ -31,6 +31,8 @@ theta_obs = 0
 
 lc_freqs = array 3.e9
 lc_times = array logspace 1.e4 1.e10 150
+lc_use_freq_to_time = no
+
 skymap_freqs = array 1e9 1e18
 skymap_times = array logspace 8.e5 2e9 50
 
@@ -101,6 +103,7 @@ method_eats = piece-wise # piece-wise
 
 fname_dyn = dyn_kn_gauss.h5
 fname_light_curve = abs.h5
+fname_light_curve_layers = none
 fname_sky_map = skymap_kn.h5
 
 type = numeric

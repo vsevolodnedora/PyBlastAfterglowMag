@@ -13,11 +13,12 @@ from matplotlib import cm
 import os
 
 from package.src.PyBlastAfterglowMag.interface import BPA_METHODS as PBA
-from package.src.PyBlastAfterglowMag.interface import cgs
+from package.src.PyBlastAfterglowMag.interface import cgs, modify_parfile_par_opt
 from package.src.PyBlastAfterglowMag.id_maker_from_thc_ourflow import prepare_kn_ej_id_1d, prepare_kn_ej_id_2d
 
 def main():
     # prepare ejecta ID from NR output
+    workdir = os.getcwd()+'/'
     shutil.copyfile(os.getcwd()+"/default_parfile.par",os.getcwd()+"/parfile.par")
     fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(4.6, 3.2))
     ax = axes
@@ -66,8 +67,10 @@ def main():
         # prepare_kn_ej_id_1d(nlayers=30,hist_fpath=task["hist_fpath"],outfpath=task["outfpath"])
 
 
-        pba.modify_main_part_parfile(newpars=task["new_main_pars"],newopts={})
-        pba.modify_kn_part_parfile(newpars=task["new_kn_pars"],
+        modify_parfile_par_opt(workingdir=workdir, part="main",
+                               newpars=task["new_main_pars"],newopts={},
+                               parfile="parfile.par",newparfile="parfile.par",keep_old=False)
+        modify_parfile_par_opt(workingdir=workdir, part="kn", newpars=task["new_kn_pars"],
                                    newopts={"method_eos":"Nava13","method_GammaSh":"useJKwithGammaRel",
                                             "method_Delta":"useJoh06","method_Rsh":"useGammaSh",
                                             "method_dmdr":"usingdthdr","method_Up":"useGamma",
@@ -77,7 +80,8 @@ def main():
                                             "method_nonreldist":"none","emissivity":"em","absorption":"abs",
                                             "fname_light_curve":task["fname_light_curve"],
                                             "fname_ejecta_id":task["fname_ejecta_id"]},
-                                   )
+                               parfile="parfile.par",newparfile="parfile.par",keep_old=False
+                              )
         pba.reload_parfile()
         pba.run()
         ax.plot(pba.get_ej_lc_times() / cgs.day, pba.get_ej_lc_totalflux(freq=3.e9) * 1e3,
@@ -86,8 +90,9 @@ def main():
 
         shutil.copyfile(os.getcwd()+"/default_parfile.par",os.getcwd()+"/parfile.par")
 
-        pba.modify_main_part_parfile(newpars=task["new_main_pars"],newopts={})
-        pba.modify_kn_part_parfile(newpars=task["new_kn_pars"],
+        modify_parfile_par_opt(workingdir=workdir, part="main",newpars=task["new_main_pars"],newopts={},
+                               parfile="parfile.par",newparfile="parfile.par",keep_old=False)
+        modify_parfile_par_opt(workingdir=workdir, part="kn", newpars=task["new_kn_pars"],
                                    newopts={"method_GammaSh":"useJKwithGammaRel","method_Delta":"useJoh06",
                                             "method_Rsh":"useGammaSh","method_dmdr":"usingdthdr",
                                             "method_Up":"useEint2","method_dgdr":"our",
@@ -95,7 +100,8 @@ def main():
                                             "method_lf_min":"useU_e","emissivity":"em","absorption":"abs",
                                             "method_ne":"usenprime",
                                             "fname_light_curve":task["fname_light_curve"],
-                                            "fname_ejecta_id":task["fname_ejecta_id"]})
+                                            "fname_ejecta_id":task["fname_ejecta_id"]},
+                               parfile="parfile.par",newparfile="parfile.par",keep_old=False)
         pba.reload_parfile()
         pba.run()
         ax.plot(pba.get_ej_lc_times() / cgs.day, pba.get_ej_lc_totalflux(freq=3.e9) * 1e3,

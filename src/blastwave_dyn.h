@@ -281,47 +281,51 @@ public:
             double beta = EQS::Beta(igamma);
             if ((iEint2 <= 0.)||(!std::isfinite(iEint2))){
                 do_terminate = true;
-                std::cerr
+                (*p_log)(LOG_ERR,AT)
                         << " Terminating evolution [ishell=" << p_pars->ishell << " ilayer=" << p_pars->ilayer << "] "
                         << " REASON :: Eint2 < 0 or NAN ("<<iEint2<<")\n";
             }
             if ((std::abs(beta) < p_pars->min_beta_terminate)||(!std::isfinite(beta))){
                 do_terminate = true;
-                std::cerr
+                (*p_log)(LOG_ERR,AT)
                         << " Terminating evolution [ishell=" << p_pars->ishell << " ilayer=" << p_pars->ilayer << "] "
                         << " REASON :: beta < beta_min or NAN ("<<beta<<") with beta_min= "
                         << p_pars->min_beta_terminate<<"\n";
             }
-            if (do_terminate)
-                std::cerr  << " TERMINATION Previous iterations: \n"
-                           << " E0="<<string_format("%.9e", p_pars->E0)
-                           << " Gamma0="<<string_format("%.9e", p_pars->Gamma0)
-                           << " M0="<<string_format("%.9e", p_pars->M0)
-                           << " \n"
-                           << " i=Current"<<" Eint2="<< string_format("%.9e", sol[i + Q_SOL::iEint2])
-                           << " Gamma="<< string_format("%.9e", sol[i + Q_SOL::iGamma])
-                           << " beta="<< string_format("%.9f", EQS::Beta(sol[i + Q_SOL::iGamma]))
-                           << " M2="<< string_format("%.9e", sol[i + Q_SOL::iM2])
-                           << " rho="<< string_format("%.9e", p_dens->m_rho_)
-                           << " \n"
-                           << " i="<<p_pars->comp_ix<<" Eint2="<< string_format("%.9e", getVal(Q::iEint2, p_pars->comp_ix))
-                           << " Gamma="<< string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix))
-                           << " beta="<< string_format("%.9f", getVal(Q::ibeta, p_pars->comp_ix))
-                           << " M2="<< string_format("%.9e", getVal(Q::iM2, p_pars->comp_ix))
-                           << " rho="<< string_format("%.9e", getVal(Q::irho, p_pars->comp_ix))
-                           << " \n"
-                           << " i="<<p_pars->comp_ix - 1<<" Eint2="<< string_format("%.9e", getVal(Q::iEint2, p_pars->comp_ix-1))
-                           << " Gamma="<< string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix-1))
-                           << " beta="<< string_format("%.9f", getVal(Q::ibeta, p_pars->comp_ix-1))
-                           << " M2="<< string_format("%.9e", getVal(Q::iM2, p_pars->comp_ix-1))
-                           << " rho="<< string_format("%.9e", getVal(Q::irho, p_pars->comp_ix-1))
-                           << " \n"
-                           << " i="<<p_pars->comp_ix - 2<<" Eint2="<< string_format("%.9e", getVal(Q::iEint2, p_pars->comp_ix-2))
-                           << " Gamma="<< string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix-2))
-                           << " beta="<< string_format("%.9f", getVal(Q::ibeta, p_pars->comp_ix-2))
-                           << " M2="<< string_format("%.9e", getVal(Q::iM2, p_pars->comp_ix-2))
-                           << " rho="<< string_format("%.9e", getVal(Q::irho, p_pars->comp_ix-2))
-                           << " \n";
+            if (do_terminate) {
+                (*p_log)(LOG_ERR, AT) << " TERMINATION Previous iterations: \n"
+                                      << " E0=" << string_format("%.9e", p_pars->E0)
+                                      << " Gamma0=" << string_format("%.9e", p_pars->Gamma0)
+                                      << " M0=" << string_format("%.9e", p_pars->M0)
+                                      << " \n";
+                (*p_log)(LOG_ERR, AT) << " i=Current" << " Eint2=" << string_format("%.9e", sol[i + Q_SOL::iEint2])
+                                      << " Gamma=" << string_format("%.9e", sol[i + Q_SOL::iGamma])
+                                      << " beta=" << string_format("%.9f", EQS::Beta(sol[i + Q_SOL::iGamma]))
+                                      << " M2=" << string_format("%.9e", sol[i + Q_SOL::iM2])
+                                      << " rho=" << string_format("%.9e", p_dens->m_rho_)
+                                      << " \n";
+                (*p_log)(LOG_ERR, AT) << " i=" << p_pars->comp_ix << " Eint2="
+                                      << string_format("%.9e", getVal(Q::iEint2, p_pars->comp_ix))
+                                      << " Gamma=" << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix))
+                                      << " beta=" << string_format("%.9f", getVal(Q::ibeta, p_pars->comp_ix))
+                                      << " M2=" << string_format("%.9e", getVal(Q::iM2, p_pars->comp_ix))
+                                      << " rho=" << string_format("%.9e", getVal(Q::irho, p_pars->comp_ix))
+                                      << " \n";
+                (*p_log)(LOG_ERR, AT) << " i=" << p_pars->comp_ix - 1 << " Eint2="
+                                      << string_format("%.9e", getVal(Q::iEint2, p_pars->comp_ix - 1))
+                                      << " Gamma=" << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix - 1))
+                                      << " beta=" << string_format("%.9f", getVal(Q::ibeta, p_pars->comp_ix - 1))
+                                      << " M2=" << string_format("%.9e", getVal(Q::iM2, p_pars->comp_ix - 1))
+                                      << " rho=" << string_format("%.9e", getVal(Q::irho, p_pars->comp_ix - 1))
+                                      << " \n";
+                (*p_log)(LOG_ERR, AT) << " i=" << p_pars->comp_ix - 2 << " Eint2="
+                                      << string_format("%.9e", getVal(Q::iEint2, p_pars->comp_ix - 2))
+                                      << " Gamma=" << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix - 2))
+                                      << " beta=" << string_format("%.9f", getVal(Q::ibeta, p_pars->comp_ix - 2))
+                                      << " M2=" << string_format("%.9e", getVal(Q::iM2, p_pars->comp_ix - 2))
+                                      << " rho=" << string_format("%.9e", getVal(Q::irho, p_pars->comp_ix - 2))
+                                      << " \n";
+            }
         }
         return do_terminate;
     }
@@ -363,47 +367,47 @@ public:
                 // REMOVING LOGGER
 
                 //            std::cout << "theta:" << getArr(Q::iR)<<"\n";
-                std::cerr  << AT << " \n"
+                (*p_log)(LOG_ERR,AT)  << AT << " \n"
                            << " Gamma < 1. ishell="<<p_pars->ishell<<" ilayer="<<p_pars->ilayer
-                           << " with Gamma0="<<p_pars->Gamma0 << " [iteration="<<p_pars->comp_ix<<"] \n"
-                           << " Last Gammas: " << "\n"
-                           << " Gamma[" << p_pars->comp_ix << "]="
-                           << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix)) << "\n"
-                           << " beta[" << p_pars->comp_ix << "]="
+                           << " with Gamma0="<<p_pars->Gamma0 << " [iteration="<<p_pars->comp_ix<<"] \n";
+                (*p_log)(LOG_ERR,AT) << " Last Gammas: " << "\n";
+                (*p_log)(LOG_ERR,AT)<< " Gamma[" << p_pars->comp_ix << "]="
+                           << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix)) << "\n";
+                (*p_log)(LOG_ERR,AT)<< " beta[" << p_pars->comp_ix << "]="
                            << string_format("%.9e", getVal(Q::ibeta, p_pars->comp_ix))
                            << " Gamma[" << p_pars->comp_ix - 1 << "]="
-                           << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix - 1)) << "\n"
-                           << " beta[" << p_pars->comp_ix - 1 << "]="
+                           << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix - 1)) << "\n";
+                (*p_log)(LOG_ERR,AT)<< " beta[" << p_pars->comp_ix - 1 << "]="
                            << string_format("%.9e", getVal(Q::ibeta, p_pars->comp_ix - 1))
                            << " Gamma[" << p_pars->comp_ix - 2 << "]="
-                           << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix - 2)) << "\n"
-                           << " beta[" << p_pars->comp_ix - 2 << "]="
+                           << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix - 2)) << "\n";
+                (*p_log)(LOG_ERR,AT)<< " beta[" << p_pars->comp_ix - 2 << "]="
                            << string_format("%.9e", getVal(Q::ibeta, p_pars->comp_ix - 2))
                            << " Gamma[" << p_pars->comp_ix - 3 << "]="
-                           << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix - 3)) << "\n"
-                           << " beta[" << p_pars->comp_ix - 3 << "]="
+                           << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix - 3)) << "\n";
+                (*p_log)(LOG_ERR,AT)<< " beta[" << p_pars->comp_ix - 3 << "]="
                            << string_format("%.9e", getVal(Q::ibeta, p_pars->comp_ix - 3))
                            << "\n";
 //                std::cerr << "Gamma:" << getArr(Q::iGamma) << "\n";
 //                std::cerr << "R:" << getArr(Q::iR) << "\n";
-                std::cerr  << " Gamma cannot be less than 1. Found: Gamma(" << igamma << ") < 1.0 \n";
+                (*p_log)(LOG_ERR,AT)  << " Gamma cannot be less than 1. Found: Gamma(" << igamma << ") < 1.0 \n";
                 no_issues = false;
             }
             if (sol[i + Q_SOL::iGamma] > p_pars->Gamma0 * 2) {
                 // REMOVING LOGGER
-                std::cerr  << " too large value of Gamma(" << sol[i + Q_SOL::iGamma]
+                (*p_log)(LOG_ERR,AT)  << " too large value of Gamma(" << sol[i + Q_SOL::iGamma]
                            << ") > 2*Gamma0" << p_pars->Gamma0 * 2 << ")\n";
                 no_issues = false;
             }
             if (sol[i + Q_SOL::itheta] < p_pars->theta_b0 * 0.99) {
                 // REMOVING LOGGER
-                std::cerr << " unphysical decrease in theta(" << sol[i + Q_SOL::itheta]
+                (*p_log)(LOG_ERR,AT) << " unphysical decrease in theta(" << sol[i + Q_SOL::itheta]
                           << ") < theta_b0(" << p_pars->theta_b0 << ")\n";
                 no_issues = false;
             }
             if (sol[i + Q_SOL::itt] <= 0.) {
                 // REMOVING LOGGER
-                std::cerr << " unphysical value of observer time (on axis) itt("
+                (*p_log)(LOG_ERR,AT) << " unphysical value of observer time (on axis) itt("
                           << sol[i + Q_SOL::itt] << ") < 0 \n";
                 no_issues = false;
             }
@@ -508,8 +512,7 @@ public:
         dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
         // ****************************************
         if (!std::isfinite(dRdt) || !std::isfinite(dGammadR) || !std::isfinite(dlnV2dR) || !std::isfinite(dthetadr)) {
-            std::cerr  << " nan in derivatives. Exiting..." << "\n";
-            std::cerr << AT << "\n";
+            (*p_log)(LOG_ERR,AT)  << " nan in derivatives. Exiting..." << "\n";
             exit(1);
         }
         // ****************************************
@@ -537,7 +540,7 @@ public:
             exit(1);
         }
         if (std::abs(dRdt * dGammadR) > p_pars->Gamma0){
-            std::cerr  << " nan in derivatives. "
+            (*p_log)(LOG_ERR,AT)  << " nan in derivatives. "
                        << "i="<< i << "["<<p_pars->ishell<<", "<<p_pars->ilayer<<"] " << "\n"
                        << " dGamma/dr > Gamma0 "
                        <<  "dG/dr="<< dRdt * dGammadR
@@ -546,8 +549,8 @@ public:
                        << " M0=" <<p_pars->M0 << "\n"
                        << " R=" <<R << " Rsh=" <<Rsh<< " Gamma=" <<Gamma<< " Eint2=" <<Eint2<< " theta=" <<theta
                        << " M2=" <<M2<< " rho=" <<rho<<" drhodr=" <<drhodr<<" dM2dR=" <<dM2dR<< "\n";
-            std::cerr  << " maybe timestep is too large \n Exiting...";
-            std::cerr << AT << "\n";
+            (*p_log)(LOG_ERR,AT)  << " maybe timestep is too large \n Exiting...";
+//            std::cerr << AT << "\n";
             exit(1);
         }
         p_pars->x = x; // update
@@ -600,7 +603,7 @@ public:
 //        m_drhodr /= p_pars->M0;
 //        p_dens->evaluate(R, ctheta);
         if (p_dens->m_GammaRel < 0){
-            std::cerr << AT << " GammaRel is not set or incorrect \n";
+            (*p_log)(LOG_ERR,AT) << AT << " GammaRel is not set or incorrect \n";
             exit(1);
         }
         double rho = p_dens->m_rho_ / p_pars->M0;
@@ -613,17 +616,17 @@ public:
 
 
         if (GammaRho < 1.) {
-            std::cerr  << "GammaRho=" << GammaRho << "\n" << " Exiting...";
-            std::cerr << AT<< "\n";
+            (*p_log)(LOG_ERR,AT)  << "GammaRho=" << GammaRho << "\n" << " Exiting...";
+//            std::cerr << AT<< "\n";
             exit(1);
         }
         if (GammaRel < 1.) {
-            std::cerr  << "GammaRel=" << GammaRel << "\n"; GammaRel = Gamma;
-            std::cerr << AT<< "\n";
+            (*p_log)(LOG_ERR,AT)  << "GammaRel=" << GammaRel << "\n"; GammaRel = Gamma;
+//            std::cerr << AT<< "\n";
             exit(1);
         }
-        if (!std::isfinite(dGammaRelDGamma)) { std::cerr << AT << "dGammaRelDGamma=" << dGammaRelDGamma << "\n"; exit(1); }
-        if (!std::isfinite(dGammaRhodR)) { std::cerr << AT << "dlnGammaCBMdR=" << dGammaRhodR << "\n"; exit(1); }
+        if (!std::isfinite(dGammaRelDGamma)) { (*p_log)(LOG_ERR,AT) << "dGammaRelDGamma=" << dGammaRelDGamma << "\n"; exit(1); }
+        if (!std::isfinite(dGammaRhodR)) { (*p_log)(LOG_ERR,AT)  << "dlnGammaCBMdR=" << dGammaRhodR << "\n"; exit(1); }
         // ****************************************
         double dRdt = beta * CGS::c; // TODO this is beta_sh ! ...
         double Gamma_ = GammaRel;
@@ -739,7 +742,7 @@ public:
 //        }
         if (!std::isfinite(dRdt) || !std::isfinite(dGammadR) || dM2dR < 0.
             || !std::isfinite(dlnV2dR) || !std::isfinite(dthetadr)) {
-            std::cerr  << " nan in derivatives (may lead to crash) " << "\n"
+            (*p_log)(LOG_ERR,AT)  << " nan in derivatives (may lead to crash) " << "\n"
                        << " dRdt="<<dRdt<<"\n"
                        << " dM2dR="<<dM2dR<<"\n"
                        << " dthetadr=" << dthetadr << "\n"
@@ -861,10 +864,10 @@ public:
             double scale_rho = exp(1. - coeff * ej_R / getPars()->first_entry_r);
             double scale_dlnrhodr = -1. * coeff * scale_rho / getPars()->first_entry_r;
             if (scale_rho > 1.) {
-                std::cerr  << " scale_rho > 1 for ej_R=" << ej_R
+                (*p_log)(LOG_ERR,AT)  << " scale_rho > 1 for ej_R=" << ej_R
                            << "  entry_r=" << getPars()->first_entry_r << "\n"
                            << " Exiting...";
-                std::cerr << AT  << "\n";
+//                std::cerr << AT  << "\n";
                 exit(1);
             }
             rho = rho_def * scale_rho;
@@ -881,8 +884,8 @@ public:
 
         /// check
         if (!std::isfinite(rho) || rho < 0. || rho > 1. || rho > rho_def ){
-            std::cerr << " wrong floor rho="<<rho<<"\n" << " Exiting...\n";
-            std::cerr << AT << "\n";
+            (*p_log)(LOG_ERR,AT) << " wrong floor rho="<<rho<<"\n" << " Exiting...\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
 
@@ -895,8 +898,8 @@ public:
             rho_bm = getBM()->rho_downstream(ej_R, j_R, j_Gamma, j_rho / CGS::mp, j_rho2) * CGS::mp;
             gam_cbm_bm = getBM()->gamma_downstream(ej_R, j_R, j_Gamma, j_rho / CGS::mp, j_rho2);
 //            p_cbm_s = getSedov()->pressure_profile_int(ej_R, j_R, EQS::Beta(j_P2));
-            std::cerr  << " pressure is not implemented\n Exiting...\n";
-            std::cerr << AT << "\n";
+            (*p_log)(LOG_ERR,AT)  << " pressure is not implemented\n Exiting...\n";
+//            std::cerr << AT << "\n";
             exit(1);
             /// apply only of above the floor
             if (rho_bm > rho) { rho = rho_bm; GammaCMB = gam_cbm_bm; }
@@ -932,8 +935,8 @@ public:
 
 
         if ((GammaCMB < 1.) || (!std::isfinite(GammaCMB))){
-            std::cerr  << " bad GammaCMB=" << GammaCMB << "\n Exiting...\n";
-            std::cerr << AT << "\n";
+            (*p_log)(LOG_ERR,AT)  << " bad GammaCMB=" << GammaCMB << "\n Exiting...\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
 
@@ -960,8 +963,8 @@ public:
         double rho_def = p_dens->m_rho_def;
         double drhodr_def = p_dens->m_drhodr_def;
         if (rho_def<(p_dens->m_rho_floor_val*rho_def)){
-            std::cerr  << " rho_def is not initialized\n Exiting...\n";
-            std::cerr<<AT<<"\n";
+            (*p_log)(LOG_ERR,AT)  << " rho_def is not initialized\n Exiting...\n";
+//            std::cerr<<AT<<"\n";
             exit(1);
         }
 //        if ((rho_prev/p_dens->m_rho_) >= p_dens->m_rho_floor_val){
@@ -971,13 +974,13 @@ public:
 //        }
         double rho=rho_def, GammaCMB=1, P=0, GammaREL=ej_Gamma, drhodr=drhodr_def, dGammaRELdGamma=1, dGammaRhodR=0, dPdrho=0., cscbm=1., mcbm=0.;
         if (rho_prev<(p_dens->m_rho_floor_val*rho_def)){
-            std::cerr <<" rho_prev is not initialized\n Exiting...\n";
-            std::cerr<<AT<<"\n";
+            (*p_log)(LOG_ERR,AT) <<" rho_prev is not initialized\n Exiting...\n";
+//            std::cerr<<AT<<"\n";
             exit(1);
         }
         if (rho_prev == 0){
-            std::cerr  << " rho[i] = 0" << "\n Exiting...\n";
-            std::cerr << AT << "\n";
+            (*p_log)(LOG_ERR,AT)  << " rho[i] = 0" << "\n Exiting...\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
         /// eval dens seen by ejecta BW
@@ -987,7 +990,7 @@ public:
         /// Compute the density derivative (with radius)
         double r_prev = getVal(Q::iR, prev_ix - 1);
 //        double rho_prev = getVal(Q::irho, evaled_ix - 1);
-        if (ej_R == r_prev){ std::cerr << AT << " R = R_i-1 \n"; exit(1); }
+        if (ej_R == r_prev){ (*p_log)(LOG_ERR,AT) << AT << " R = R_i-1 \n"; exit(1); }
         m_data[Q::irho][prev_ix+1] = rho;
         m_data[Q::iR][prev_ix+1] = ej_R;
         m_data[Q::iPcbm][prev_ix + 1] = P;
@@ -998,8 +1001,8 @@ public:
 //        double drhodr2 = (rho - rho_prev) / (ej_R - r_prev);
         if (rho < p_dens->m_rho_floor_val*rho_def){ rho = p_dens->m_rho_floor_val*rho_def; drhodr = 0.; }
         if (!std::isfinite(rho) || !std::isfinite(drhodr)) {
-            std::cerr  <<" bad rho="<<rho<<" or m_drhodr="<<drhodr<<" \n Exiting...\n";
-            std::cerr << AT <<" \n";
+            (*p_log)(LOG_ERR,AT)  <<" bad rho="<<rho<<" or m_drhodr="<<drhodr<<" \n Exiting...\n";
+//            std::cerr << AT <<" \n";
             exit(1);
         }
 
@@ -1019,8 +1022,8 @@ public:
 //            }
         }
         if (!std::isfinite(dGammaRhodR)){
-            std::cerr  << " Nan dGammaRhodR . setting to 0\n Exiting...";
-            std::cerr << AT << "\n";
+            (*p_log)(LOG_ERR,AT)  << " Nan dGammaRhodR . setting to 0\n Exiting...";
+//            std::cerr << AT << "\n";
             dGammaRhodR = 0.;
         }
 
@@ -1030,7 +1033,7 @@ public:
         GammaREL = EQS::GammaRel(ej_Gamma,GammaCMB);
         if (GammaREL < 1.) GammaREL = 1.;
         if ((GammaREL < 1.) || (!std::isfinite(GammaREL)) ){
-            std::cerr  << " bad GammaREL=" << GammaREL << " (too big for ejecta or nan)" << "\n"
+            (*p_log)(LOG_ERR,AT)  << " bad GammaREL=" << GammaREL << " (too big for ejecta or nan)" << "\n"
                        << " j_R=" << j_R << "\n"
                        << " ej_R=" << ej_R << "\n"
                        << " ej_theta=" << ej_theta << "\n"
@@ -1044,9 +1047,9 @@ public:
                        << " GammaCMB=" << GammaCMB << "\n"
                        << " GammaCBM_prev=" << GammaCBM_prev << "\n"
                        << " Exiting...";
-            std::cerr << "| Gamma evol: \n";
-            std::cerr << m_data[Q::iGamma] << "\n";
-            std::cerr << AT << "\n";
+//            std::cerr << "| Gamma evol: \n";
+//            std::cerr << m_data[Q::iGamma] << "\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
 
@@ -1250,8 +1253,8 @@ public:
             set_standard_ism(ej_R, ej_ctheta, ej_Gamma);
         }
         else{
-            std::cerr  << " should not be entered. Exiting..."<<"\n";
-            std::cerr << AT << "\n";
+            (*p_log)(LOG_ERR,AT)  << " should not be entered. Exiting..."<<"\n";
+//            std::cerr << AT << "\n";
             exit(1);
         }
 
@@ -1321,7 +1324,7 @@ public:
             double ej_theta  = Y[i + DynRadBlastWave::Q_SOL::itheta];
             double ej_ctheta = LatStruct::ctheta(ej_theta,p_pars->ilayer,p_pars->nlayers);//ctheta(ej_theta);
             if (ej_Gamma>10.){
-                std::cerr
+                (*p_log)(LOG_ERR,AT)
                         << "["<<p_pars->ishell<<", "<<p_pars->ilayer<<"]"
                         << " ii_eq = "<<p_pars->ii_eq
                         << " i = " << i
@@ -1331,7 +1334,7 @@ public:
                         << " ctheta =" <<ej_ctheta
                         << "\n"
                         << " Exiting...\n";
-                std::cerr << AT << "\n";
+//                std::cerr << AT << "\n";
                 exit(1);
             }
             set_standard_ism(ej_R, ej_ctheta, ej_Gamma);
@@ -1359,8 +1362,8 @@ public:
         pfsolvePars->eEJ    = p_pars2->E0 * Y[other_i+Q_SOL::iEint2];
         pfsolvePars->gAdiEJ = p_eos2->getGammaAdi(pfsolvePars->gEJ, EQS::Beta(pfsolvePars->gEJ));
         // initial guess for the solution
-        std::cout << "------------------------------------------------------\n";
-        std::cout << "Shells colliding: \n"
+        (*p_log)(LOG_INFO,AT) << "------------------------------------------------------\n";
+        (*p_log)(LOG_INFO,AT) << "Shells colliding: \n"
                   << " gJ="<< pfsolvePars->gJ
                   << " mJ="<< pfsolvePars->mJ
                   << " eJ=" << pfsolvePars->eJ
@@ -1377,7 +1380,7 @@ public:
 //                  << " dthetaJ="<< theta1(Y[i+Q_SOL::itheta]) - p_pars->theta_c_l
 //                  << " dthetaEJ="<<other->theta1(Y[other_i+Q_SOL::itheta]) - p_pars2->theta_c_l
                   << "\n";
-        std::cout << "------------------------------------------------------\n";
+        (*p_log)(LOG_INFO,AT) << "------------------------------------------------------\n";
 
         // -
         double i_gM=pfsolvePars->gJ;

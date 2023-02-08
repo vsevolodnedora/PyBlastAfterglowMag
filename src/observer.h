@@ -333,7 +333,7 @@ public:
         }
 
 //        nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
-        std::cout << " setting " << opts.at("type") << " lateral structure\n";
+        (*p_log)(LOG_INFO,AT) << " setting " << opts.at("type") << " lateral structure\n";
     }
 
     void initCustom( Vector & dist_thetas, Vector & dist_EEs, Vector & dist_Gam0s, Vector & dist_MM0s, bool force_grid,
@@ -706,7 +706,7 @@ public:
 
         for (size_t ish = 0; ish < dist_betas.size(); ish++){
             auto nth = dist_thetas.size();
-            std::cout
+            (*p_log)(LOG_INFO,AT)
                     << "Shell[" << ish << "] beta=" << dist_betas[ish] << "\t"
                     << "\tThetas:  "
                     << dist_thetas[0]<<", "<<dist_thetas[1]<<", "<< dist_thetas[2]<<", "
@@ -724,7 +724,7 @@ public:
         }
         for (size_t ish = 0; ish < dist_betas.size(); ish++){
             auto nek = dist_ek[ish].size();
-            std::cout
+            (*p_log)(LOG_INFO,AT)
                     << "Shell[" << ish << "] beta=" << dist_betas[ish] << "\t"
                     << "\tEks:  "
                     << dist_ek[ish][0]<<","<<dist_ek[ish][1]<<","<<dist_ek[ish][2]<<","
@@ -825,7 +825,7 @@ public:
             exit(1);
         }
         nshells = n_shells;
-        std::cout << " setting " << "custom" << " lateral structure"
+        (*p_log)(LOG_INFO,AT) << " setting " << "custom" << " lateral structure"
                   << " nshells= " << n_shells << " with beta[" << dist_betas[0] << ", " << dist_betas[nshells - 1]
                   << "] nthetas=" << dist_thetas.size() << " with theta[" << dist_thetas[0] << ", "
                   << dist_thetas[-1] << "]" << "\n";

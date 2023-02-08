@@ -31,6 +31,8 @@ theta_obs = 0.3752
 
 lc_freqs = array 3.e9
 lc_times = array logspace 1.e4 1.e10 50
+lc_use_freq_to_time = no      # one-to-one for freq and times
+
 skymap_freqs = array 9.9e8 1.e9 1.1e9 3.e9 4.5e9
 skymap_times = array logspace 8.e5 2e9 50
 

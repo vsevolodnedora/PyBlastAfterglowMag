@@ -320,8 +320,7 @@ public:
             double fac1 = (double)(p_pars->ilayer+1)/(double)p_pars->nlayers;
 //            std::cout << std::asin(CGS::pi*3/4.) << "\n";
             if (!std::isfinite(std::sin(theta))){
-                std::cerr << " sin(theta= "<<theta<<") is not finite... Exiting..." << "\n";
-                std::cerr << AT << "\n";
+                (*p_log)(LOG_ERR,AT) << " sin(theta= "<<theta<<") is not finite... Exiting..." << "\n";
                 exit(1);
             }
 
@@ -332,8 +331,7 @@ public:
 
             ctheta = 0.5 * (xx1 + xx2);
             if (!std::isfinite(ctheta)){
-                std::cerr << "ctheta is not finite. ctheta="<<ctheta<<" Exiting..." << "\n";
-                std::cerr << AT << "\n";
+                (*p_log)(LOG_ERR,AT) << "ctheta is not finite. ctheta="<<ctheta<<" Exiting..." << "\n";
                 exit(1);
             }
         }
@@ -551,7 +549,7 @@ public:
         opt = "method_dmdr";
         METHOD_dmdr method_dmdr;
         if ( opts.find(opt) == opts.end() ) {
-            std::cerr << " Option for '" << opt << "' is not set. Using default value.\n";
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
             method_dmdr = METHOD_dmdr::iusingdthdR;
         }
         else{
@@ -560,13 +558,13 @@ public:
             else if(opts.at(opt) == "usingdthdr")
                 method_dmdr = METHOD_dmdr::iusingdthdR;
             else{
-                std::cerr << " option for: " << opt
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
                           << " given: " << opts.at(opt)
                           << " is not recognized \n"
                           << " Possible options: "
                           << " usingA " <<" usingdthdr " << "\n"
                           << " Exiting...\n";
-                std::cerr << AT << "\n";
+//                std::cerr << AT << "\n";
                 exit(1);
             }
         }
@@ -576,7 +574,7 @@ public:
         opt = "method_dgdr";
         METHOD_dgdr method_dgdr;
         if ( opts.find(opt) == opts.end() ) {
-            std::cerr << " Option for '" << opt << "' is not set. Using default value.\n";
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
             method_dgdr = METHOD_dgdr::iour;
         }
         else{
@@ -585,13 +583,13 @@ public:
             else if(opts.at(opt) == "peer")
                 method_dgdr = METHOD_dgdr::ipeer;
             else{
-                std::cerr << AT << " option for: " << opt
+                (*p_log)(LOG_WARN,AT) << AT << " option for: " << opt
                           << " given: " << opts.at(opt)
                           << " is not recognized \n"
                           << " Possible options: "
                           << " our " <<" peer " << "\n"
                           << " Exiting...\n";
-                std::cerr << AT << "\n";
+//                std::cerr << AT << "\n";
                 exit(1);
             }
         }
@@ -601,7 +599,7 @@ public:
         opt = "method_spread";
         LatSpread::METHODS method_spread;
         if ( opts.find(opt) == opts.end() ) {
-            std::cerr << " Option for '" << opt << "' is not set. Using default value.\n";
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
             method_spread = LatSpread::iNULL;
         }
         else{
@@ -614,13 +612,13 @@ public:
             else if(opts.at(opt) == "AA")
                 method_spread = LatSpread::iAA;
             else{
-                std::cerr << " option for: " << opt
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
                           <<" given: " << opts.at(opt)
                           << " is not recognized \n"
                           << " Possible options: "
                           << " None " <<" AFGPY " << " Adi " << " AA " << "\n"
                           << " Exiting...\n";
-                std::cerr << AT << "\n";
+//                std::cerr << AT << "\n";
                 exit(1);
             }
         }
@@ -632,7 +630,7 @@ public:
         opt = "method_eos";
         EOSadi::METHODS method_eos;
         if ( opts.find(opt) == opts.end() ) {
-            std::cerr << " Option for '" << opt << "' is not set. Using default value.\n";
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
             method_eos = EOSadi::iNava13;
         }
         else{
@@ -641,13 +639,13 @@ public:
             else if(opts.at(opt) == "Peer12")
                 method_eos = EOSadi::iPeer12;
             else{
-                std::cerr<< " option for: " << opt
+                (*p_log)(LOG_WARN,AT)<< " option for: " << opt
                          <<" given: " << opts.at(opt)
                          << " is not recognized \n"
                          << " Possible options: "
                          << " Nava13 " << " Peer12 " << "\n"
                          << " Exiting...\n";
-                std::cerr << AT << "\n";
+//                std::cerr << AT << "\n";
                 exit(1);
             }
         }
@@ -657,7 +655,7 @@ public:
         opt = "method_Rsh";
         METHOD_RSh m_method_r_sh;
         if ( opts.find(opt) == opts.end() ) {
-            std::cerr << " Option for '" << opt << "' is not set. Using default value.\n";
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
             m_method_r_sh = METHOD_RSh::isameAsR;
         }
         else{
@@ -666,13 +664,13 @@ public:
             else if(opts.at(opt) == "useGammaSh")
                 m_method_r_sh = METHOD_RSh::iuseGammaSh;
             else{
-                std::cerr << " option for: " << opt
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
                           <<" given: " << opts.at(opt)
                           << " is not recognized \n"
                           << " Possible options: "
                           << " sameAsR " << " useGammaSh " << "\n"
                           << " Exiting...\n";
-                std::cerr << AT << "\n";
+//                std::cerr << AT << "\n";
                 exit(1);
             }
         }
@@ -682,7 +680,7 @@ public:
         opt = "method_GammaSh";
         METHOD_GammaSh m_method_gamma_sh;
         if ( opts.find(opt) == opts.end() ) {
-            std::cerr << " Option for '" << opt << "' is not set. Using default value.\n";
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
             m_method_gamma_sh = METHOD_GammaSh::isameAsGamma;
         }
         else{
@@ -695,13 +693,13 @@ public:
             else if(opts.at(opt) == "useJKwithGammaRel")
                 m_method_gamma_sh = METHOD_GammaSh::iuseJKwithGammaRel;
             else{
-                std::cerr << " option for: " << opt
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
                           <<" given: " << opts.at(opt)
                           << " is not recognized \n"
                           << " Possible options: "
                           << " useGamma " << " useGammaRel " << " useJK "<< " useJKwithGammaRel " << "\n"
                           << " Exiting...\n";
-                std::cerr << AT << "\n";
+//                std::cerr << AT << "\n";
                 exit(1);
             }
         }
@@ -711,7 +709,7 @@ public:
         opt = "method_Up";
         METHODS_Up m_method_up;
         if ( opts.find(opt) == opts.end() ) {
-            std::cerr << " Option for '" << opt << "' is not set. Using default value.\n";
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
             m_method_up = METHODS_Up::iuseEint2;
         }
         else{
@@ -720,13 +718,13 @@ public:
             else if(opts.at(opt) == "useGamma")
                 m_method_up = METHODS_Up::iuseGamma;
             else{
-                std::cerr << " option for: " << opt
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
                           <<" given: " << opts.at(opt)
                           << " is not recognized \n"
                           << " Possible options: "
                           << " useEint2 " << " useGamma " << "\n"
                           << " Exiting...\n";
-                std::cerr << AT << "\n";
+//                std::cerr << AT << "\n";
                 exit(1);
             }
         }
@@ -736,7 +734,7 @@ public:
         opt = "method_Delta";
         METHOD_Delta m_method_delta;
         if ( opts.find(opt) == opts.end() ) {
-            std::cerr << " Option for '" << opt << "' is not set. Using default value.\n";
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
             m_method_delta = METHOD_Delta::iuseJoh06;
         }
         else{
@@ -747,13 +745,13 @@ public:
             else if(opts.at(opt) == "None")
                 m_method_delta = METHOD_Delta::iNoDelta;
             else{
-                std::cerr << " option for: " << opt
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
                           <<" given: " << opts.at(opt)
                           << " is not recognized \n"
                           << " Possible options: "
                           << " useJoh06 " << " useVE12 " << "None" << "\n"
                           << " Exiting...\n";
-                std::cerr << AT << "\n";
+//                std::cerr << AT << "\n";
                 exit(1);
             }
         }
@@ -830,8 +828,8 @@ public:
 //                        ii_eq,                        = size_t ii_eq,
 //                        (double) latStruct.ncells);   = double ncells
                 if (latStruct.m_theta_w > theta_max){
-                    std::cerr << " theta_b0="<<latStruct.m_theta_w<<" exceeds theta_max="<<theta_max<<" \n Exiting... \n";
-                    std::cerr << AT << "\n";
+                    (*p_log)(LOG_ERR,AT) << " theta_b0="<<latStruct.m_theta_w<<" exceeds theta_max="<<theta_max<<" \n Exiting... \n";
+//                    std::cerr << AT << "\n";
                     exit(1);
                 }
 //
@@ -878,8 +876,8 @@ public:
                                      << "\n";
                 double fac = 2 * std::sin(0.5 * latStruct.thetas_c_h[ilayer]) * std::sin(0.5 * latStruct.thetas_c_h[ilayer]);
                 if (latStruct.thetas_c_h[ilayer] > theta_max){
-                    std::cerr << " theta_b0="<<latStruct.thetas_c_h[ilayer]<<" exceeds theta_max="<<theta_max<<" \n Exiting... \n";
-                    std::cerr << AT << "\n";
+                    (*p_log)(LOG_ERR,AT) << " theta_b0="<<latStruct.thetas_c_h[ilayer]<<" exceeds theta_max="<<theta_max<<" \n Exiting... \n";
+//                    std::cerr << AT << "\n";
                     exit(1);
                 }
 

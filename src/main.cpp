@@ -267,11 +267,11 @@ struct Timer {
 // driver function
 int main(int argc, char** argv) {
 
-    int loglevel = CurrLogLevel;
+    int loglevel;
 
     /// get path to parfile
     std::unique_ptr<logger>(p_log);
-    p_log = std::make_unique<logger>(std::cout, std::cerr, CurrLogLevel, "main");
+    p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "main");
     Timer timer;
 
     std::string working_dir; std::string parfilename;
@@ -282,29 +282,50 @@ int main(int argc, char** argv) {
 //        (*p_log)(LOG_WARN,AT) << "Code requires 2 argument (paths to parfile, arrs). Given: " << argc << " pr\n";
 ////        throw std::invalid_argument("Code requires 1 argument (path to parfile)");
 //    }
-    if (argc<3){
-//        working_dir = "../../tst/grbafg_gauss_offaxis/"; parfilename = "parfile.par";
-        working_dir = "../../tst/grbafg_tophat_afgpy/"; parfilename = "parfile.par";
-//        working_dir = "../../tst/knafg_nrinformed/"; parfilename = "parfile.par";
-//        working_dir = "../../tst/magnetar/"; parfilename = "parfile.par";
-//        working_dir = "../../tst/grbafg_tophat_wind/"; parfilename = "parfile.par";
-//        parfile_arrs_path = "../../tst/dynamics/parfile_arrs.h5"; parfilename = "parfile.par";
-//        working_dir = "../../tst/grbafg_skymap/"; parfilename = "parfile.par";
-//        working_dir = "../../tst/knafg_skymap/"; parfilename = "parfile.par";
-//        working_dir = "../../projects/grbtophat_parallel/"; parfilename="tophat_EisoC500_Gamma0c1000_thetaC50_thetaW50_theta00_nism10_p22_epse05_epsb05_parfile.par";
+    if (argc<4){
+//        working_dir = "../../tst/grbafg_gauss_offaxis/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../../tst/grbafg_tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../../tst/knafg_nrinformed/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../../tst/magnetar/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../../tst/grbafg_tophat_wind/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        parfile_arrs_path = "../../tst/dynamics/parfile_arrs.h5"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../../tst/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../../tst/knafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../../projects/grbtophat_parallel/"; parfilename="tophat_EisoC500_Gamma0c1000_thetaC50_thetaW50_theta00_nism10_p22_epse05_epsb05_parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../../projects/grbgauss_mcmc/working/"; parfilename="tophat_7549a8d74ce86fc502b087d8eb0e341656ee536a.par"; loglevel=LOG_INFO;
         (*p_log)(LOG_WARN,AT) << " working directory and parfile are not given. Using default: "
-                                         << " workdir=" << working_dir << " parfile="<<parfilename <<"\n";
+                                         << " workdir=" << working_dir << " parfile="<<parfilename << " loglevel="<< loglevel<<"\n";
     }
-    else if (argc>3){
+    else if (argc>4){
         std::cerr << "args="<<argc<<"\n";
-        std::cerr << argv[0] << " " << argv[1] << " "<< argv[2] << "\n";
-        (*p_log)(LOG_WARN,AT) << "Code requires 2 argument (path to working dir and name of the parfile). Given: " << argc << " \n";
+        std::cerr << argv[0] << " " << argv[1] << " "<< argv[2] << " " << argv[3] <<"\n";
+        (*p_log)(LOG_WARN,AT) << "Code requires 3 argument (path to working dir, name of the parfile, and loglevel). Given: " << argc << " \n";
         exit(1);
 //        throw std::invalid_argument("Code requires 1 argument (path to parfile)");
     }
     else{
         working_dir = argv[1];
         parfilename = argv[2]; // "../../tst/dynamics/parfile.par"
+        std::string _loglevel = argv[3]; // "../../tst/dynamics/parfile.par"
+        if (_loglevel=="debug"){
+            loglevel = LOG_DEBUG;
+        }
+        else if (_loglevel == "info"){
+            loglevel = LOG_INFO;
+        }
+        else if (_loglevel == "warn"){
+            loglevel = LOG_WARN;
+        }
+        else if (_loglevel == "err"){
+            loglevel = LOG_ERR;
+        }
+        else if (_loglevel == "silent"){
+            loglevel = LOG_SILENT;
+        }
+        else {
+            std::cerr << " loglevel is not recognzed. Use one of: 'debug' 'info' 'warn' 'err' 'silent' \n";
+            exit(1);
+        }
 //        parfile_arrs_path = argv[2]; // "../../tst/dynamics/parfile_arrs.par"
     }
 
@@ -321,6 +342,7 @@ int main(int argc, char** argv) {
     pba.setModelPars(main_pars, main_opts);
 
     /// observer times and frequencies
+    bool lc_freq_to_time = getBoolOpt("lc_use_freq_to_time",main_opts,AT,p_log,false,true);
     Vector lc_freqs = makeVecFromString(getStrOpt("lc_freqs",main_opts,AT,p_log,"",true),p_log);
     Vector lc_times = makeVecFromString(getStrOpt("lc_times",main_opts,AT,p_log,"",true), p_log);
     Vector skymap_freqs = makeVecFromString(getStrOpt("skymap_freqs",main_opts,AT,p_log,"",true), p_log);
@@ -431,7 +453,7 @@ int main(int argc, char** argv) {
                         working_dir,
                         getStrOpt("fname_light_curve", grb_opts, AT, p_log, "", true),
                         getStrOpt("fname_light_curve_layers", grb_opts, AT, p_log, "", true),
-                        lc_times, lc_freqs, main_pars, grb_pars);
+                        lc_times, lc_freqs, main_pars, grb_pars, lc_freq_to_time);
                 (*p_log)(LOG_INFO, AT) << "jet analytic synch. light curve finished [" << timer.checkPoint() << " s]" << "\n";
             }
             if (do_j_skymap) {
@@ -458,18 +480,12 @@ int main(int argc, char** argv) {
 
         }
         if (do_ej_lc or do_ej_skymap) {
-//        LoadH5 pars_arrs;
-//        pars_arrs.setFileName(parfile_arrs_path);
-//        pars_arrs.setVarName("light_curve_times");
-//        Vector times = pars_arrs.getDataVDouble();
-//        pars_arrs.setVarName("light_curve_freqs");
-//        Vector freqs = pars_arrs.getDataVDouble();
             if (do_ej_lc) {
                 pba.computeSaveEjectaLightCurveAnalytic(
                         working_dir,
                         getStrOpt("fname_light_curve", kn_opts, AT, p_log, "", true),
                         getStrOpt("fname_light_curve_layers", kn_opts, AT, p_log, "", true),
-                        lc_times, lc_freqs, main_pars, grb_pars);
+                        lc_times, lc_freqs, main_pars, grb_pars, lc_freq_to_time);
                 (*p_log)(LOG_INFO, AT) << "ejecta analytic synch. light curve finished [" << timer.checkPoint() << " s]" << "\n";
             }
             if (do_ej_skymap) {
