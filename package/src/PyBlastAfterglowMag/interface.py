@@ -159,7 +159,7 @@ class PBA_BASE:
         Pars initial data and parameters into C++ code interface
         Load result files
     '''
-    def __init__(self, workingdir, readparfileforpaths=True,parfile="pafile.par",loglevel="info"):
+    def __init__(self, workingdir, readparfileforpaths=True,parfile="pafile.par"):
 
         if not os.path.isdir(workingdir):
             raise IOError("Working directory not found {}".format(workingdir))
@@ -170,7 +170,7 @@ class PBA_BASE:
         self.res_dir_grb = workingdir
         self.grb_prefix = "grb_"
         self.kn_prefix = "kn_"
-        self.loglevel = loglevel
+        # self.loglevel = loglevel
         # ------------------ MAIN
         if readparfileforpaths:
             self.main_pars, self.main_opts = self.read_main_part_parfile( self.parfile)
@@ -358,7 +358,7 @@ class PBA_BASE:
         self.main_pars, self.main_opts = self.read_main_part_parfile()
         self.grb_pars, self.grb_opts = self.read_grb_part_parfile()
         self.kn_pars, self.kn_opts = self.read_kn_part_parfile()
-    def run(self):
+    def run(self, loglevel="info"):
         # this mess is because I did not figure out how $PATH thing works...
         curdir = os.getcwd()
         pbadir = curdir.split("PyBlastAfterglowMag")[0]
@@ -371,7 +371,7 @@ class PBA_BASE:
         # subprocess.call(path_to_executable, input="")
         # print("{} {} {} {}".format(path_to_cpp_executable, self.workingdir, self.parfile, self.loglevel))
         # subprocess.run(path_to_cpp_executable, input=self.workingdir)
-        subprocess.check_call([path_to_cpp_executable, self.workingdir, self.parfile, self.loglevel])
+        subprocess.check_call([path_to_cpp_executable, self.workingdir, self.parfile, loglevel])
     ''' --------- magnetar ---------- '''
     def _check_if_loaded_mag_obj(self):
         if (self.fpath_mag is None):
@@ -497,8 +497,8 @@ class BPA_METHODS(PBA_BASE):
     '''
         Process output_uniform_grb files: load, extract for a specific way
     '''
-    def __init__(self, workingdir, readparfileforpaths=True, parfile="parfile.par", loglevel="info"):
-        super().__init__(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,loglevel=loglevel)
+    def __init__(self, workingdir, readparfileforpaths=True, parfile="parfile.par"):
+        super().__init__(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile)
 
     # magnetar
     def get_mag_obj(self):

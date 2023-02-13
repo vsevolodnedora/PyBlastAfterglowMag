@@ -7,6 +7,8 @@ import os
 import sys
 import argparse
 
+''' UNUSED NOT IMPLEMENTED NOT SUPPORTED '''
+
 def gauss_eneregy_dist(E_iso_c, theta, theta_c):
     # E_iso_c * np.exp(-0.5 * ( thetas_c[i] * thetas_c[i] / theta_c / theta_c ) )
     # E_iso_c * np.exp( -1. * cthetas0[i] * cthetas0[i] / (theta_c * theta_c) )

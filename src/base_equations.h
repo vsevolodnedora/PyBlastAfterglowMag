@@ -55,11 +55,18 @@ static inline double interpSegLog( size_t & a, size_t & b, double x, Array & X, 
 }
 
 inline namespace EQS{
+    inline double GamFromMom(const double mom){
+        return std::sqrt(1.0+mom*mom);
+    }
+    inline double BetFromMom(const double mom){
+        return mom / EQS::GamFromMom(mom);
+    }
+
     /*
  * Compute velocity in [c] from Lorentz Factor 'iGamma'
  */
     double Beta(double const &Gamma){
-//        return sqrt(1.0 - pow(Gamma, -2));
+//        return sqrt(1.0 - pow(Gamma, -2)); || std::sqrt(1.-std::pow(Gamma*Gamma,-2.))
         return (1. / Gamma) * sqrt( (Gamma - 1.) * (Gamma + 1.) );
     }
     double Beta2(double const &Gamma){

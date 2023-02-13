@@ -11,6 +11,7 @@ import hashlib
 import json
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
+from shutil import copyfile
 
 import numpy as np
 
@@ -315,15 +316,20 @@ def compute_likelihood(P, v_ns, scales, obs_data):
     modify_parfile_par_opt(part="grb", newpars=grb_pars, newopts=grb_opts,
                            workingdir=workdir, parfile=parfile_name, newparfile=parfile_name, keep_old=False)
 
-    # run the code
-    pba = BPA_METHODS(workingdir=workdir, readparfileforpaths=True, parfile=parfile_name, loglevel="err")
-    pba.run()
-    dfile = pba.get_jet_lc_obj()
-    _times = np.array(dfile["times"]) # [s]
-    _freqs = np.array(dfile["freqs"]) # [Hz]
-    _fluxes =  np.array(dfile["fluxes"]) # [mJy]
-    dfile.close()
-    pba.clear()
+    # run the code. The code may fail for some reason, so save the parfile that led to failure
+    try:
+        pba = BPA_METHODS(workingdir=workdir, readparfileforpaths=True, parfile=parfile_name)
+        pba.run(loglevel="err")
+        dfile = pba.get_jet_lc_obj()
+        _times = np.array(dfile["times"]) # [s]
+        _freqs = np.array(dfile["freqs"]) # [Hz]
+        _fluxes =  np.array(dfile["fluxes"]) # [mJy]
+        dfile.close()
+        pba.clear()
+    except:
+        print("PBA failed. Saving parfile for future analysis: {}".format(workdir+"failed_"+parfile_name))
+        copyfile(workdir+parfile_name, workdir+"failed_"+parfile_name)
+        return -np.inf
 
     if len(times)!=len(_times):
         raise ValueError("model licht curve has {} times while input data has {} times".format(len(_times),len(times)))
@@ -347,15 +353,15 @@ def compute_likelihood(P, v_ns, scales, obs_data):
     obs_fluxes = obs_data["fluxes"]
     obs_fluxes_errs = obs_data["flux_errs"]
     loglikelihood = -0.5*(np.sum(((obs_fluxes-_fluxes)/obs_fluxes_errs)**2.))#+np.log(err**2)
-    fig, axes = plt.subplots(ncols=1, nrows=2)
-    axes[0].loglog( obs_data["times"], ((obs_fluxes-_fluxes)/obs_fluxes_errs)**2., marker='.', color='black', label=f'{loglikelihood}')
-    axes[1].loglog( obs_data["times"], _fluxes, marker='.', color='black', label=f'{loglikelihood}')
-    axes[1].loglog( obs_data["times"], obs_fluxes, marker='.', color='gray', label=f'{loglikelihood}')
-    axes[0].legend()
-    axes[1].set_ylim(1e-7,1e-3)
-    # plt.show()
-    plt.savefig(workdir+hash+".png",dpi=256)
-    plt.close(fig)
+    # fig, axes = plt.subplots(ncols=1, nrows=2)
+    # axes[0].loglog( obs_data["times"], ((obs_fluxes-_fluxes)/obs_fluxes_errs)**2., marker='.', color='black', label=f'{loglikelihood}')
+    # axes[1].loglog( obs_data["times"], _fluxes, marker='.', color='black', label=f'{loglikelihood}')
+    # axes[1].loglog( obs_data["times"], obs_fluxes, marker='.', color='gray', label=f'{loglikelihood}')
+    # axes[0].legend()
+    # axes[1].set_ylim(1e-7,1e-3)
+    # # plt.show()
+    # plt.savefig(workdir+hash+".png",dpi=256)
+    # plt.close(fig)
     return loglikelihood
 
 
@@ -398,8 +404,11 @@ class MyFit():
         # Multiprocess
         fpath = workingdir+"backend-refreshed-AG_all.h5" #THIS IS A SPECIAL FILE THAT MEANS YOU CAN (I CAN SHOW YOU) RESTART A RUN WHERE YOU LEFT OFF
         print(f"Creating backend file {fpath}")
+
         backend = emcee.backends.HDFBackend(fpath)
-        backend.reset(self.nwalkers, self.nparameters)
+        print("Initial size: {0}".format(backend.iteration))
+
+        # backend.reset(self.nwalkers, self.nparameters)
 
         burnsteps = 1000
         nsteps = 10000

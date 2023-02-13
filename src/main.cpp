@@ -23,7 +23,7 @@
 // . g++ main.cpp -o pba.out -O2 -std=c++17 -Wall -g -lstdc++fs -lpthread -fopenmp -lhdf5_cpp -lhdf5
 // . h5c++ main.cpp -o pba.out -O2 -std=c++17 -Wall -g -lstdc++fs -lpthread -fopenmp -lhdf5_cpp -lhdf5
 // . gcc main.cpp -o pba.out -O2 -std=c++17 -Wall -g -lstdc++fs -lpthread -fopenmp -lhdf5_cpp -lhdf5 -lstdc++
-// | g++ main.cpp -o pba.out -O2 -std=c++17 -Wall -g -lstdc++fs -lpthread -fopenmp -lhdf5_hl -lhdf5 -lhdf5_cpp -vv
+// | g++ src/main.cpp -o src/pba.out -O2 -std=c++17 -Wall -g -lstdc++fs -lpthread -fopenmp -lhdf5_hl -lhdf5 -lhdf5_cpp -vv
 // | g++ `pkg-config --cflags hdf5-serial` src/main.cpp `pkg-config --libs hdf5-serial` -lhdf5_cpp -o src/pba.out -O2 -std=c++17 -Wall -g -lstdc++fs -lpthread -fopenmp
 //
 // Usage
@@ -267,12 +267,6 @@ struct Timer {
 // driver function
 int main(int argc, char** argv) {
 
-    int loglevel;
-
-    /// get path to parfile
-    std::unique_ptr<logger>(p_log);
-    p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "main");
-    Timer timer;
 
     std::string working_dir; std::string parfilename;
 //    std::string parfile_arrs_path;
@@ -282,24 +276,26 @@ int main(int argc, char** argv) {
 //        (*p_log)(LOG_WARN,AT) << "Code requires 2 argument (paths to parfile, arrs). Given: " << argc << " pr\n";
 ////        throw std::invalid_argument("Code requires 1 argument (path to parfile)");
 //    }
+    int loglevel;
     if (argc<4){
 //        working_dir = "../../tst/grbafg_gauss_offaxis/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/knafg_nrinformed/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/magnetar/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_tophat_wind/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-//        parfile_arrs_path = "../../tst/dynamics/parfile_arrs.h5"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/knafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../projects/grbtophat_parallel/"; parfilename="tophat_EisoC500_Gamma0c1000_thetaC50_thetaW50_theta00_nism10_p22_epse05_epsb05_parfile.par"; loglevel=LOG_INFO;
-        working_dir = "../../projects/grbgauss_mcmc/working/"; parfilename="tophat_7549a8d74ce86fc502b087d8eb0e341656ee536a.par"; loglevel=LOG_INFO;
-        (*p_log)(LOG_WARN,AT) << " working directory and parfile are not given. Using default: "
-                                         << " workdir=" << working_dir << " parfile="<<parfilename << " loglevel="<< loglevel<<"\n";
+//        working_dir = "../../projects/grbgauss_mcmc/working/"; parfilename="tophat_7549a8d74ce86fc502b087d8eb0e341656ee536a.par"; loglevel=LOG_INFO;
+//        working_dir = "../../tst/problems/"; parfilename="tst.par"; loglevel=LOG_INFO;
+        working_dir = "../../tst/problems/"; parfilename="failed_tophat_4d4f9670289d90ea734b93aeb3ba05795defeca9.par"; loglevel=LOG_INFO;
+        std::cerr << " working directory and parfile are not given. Using default: "
+                  << " workdir=" << working_dir << " parfile="<<parfilename << " loglevel="<< loglevel<<"\n";
     }
     else if (argc>4){
         std::cerr << "args="<<argc<<"\n";
         std::cerr << argv[0] << " " << argv[1] << " "<< argv[2] << " " << argv[3] <<"\n";
-        (*p_log)(LOG_WARN,AT) << "Code requires 3 argument (path to working dir, name of the parfile, and loglevel). Given: " << argc << " \n";
+        std::cerr << "Code requires 3 argument (path to working dir, name of the parfile, and loglevel). Given: " << argc << " \n";
         exit(1);
 //        throw std::invalid_argument("Code requires 1 argument (path to parfile)");
     }
@@ -328,7 +324,9 @@ int main(int argc, char** argv) {
         }
 //        parfile_arrs_path = argv[2]; // "../../tst/dynamics/parfile_arrs.par"
     }
-
+    std::unique_ptr<logger>(p_log);
+    p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "main");
+    Timer timer;
 //    std::string parfilename = "parfile.par";
 
     /// initialize the model
@@ -372,8 +370,13 @@ int main(int argc, char** argv) {
     bool do_j_spec = getBoolOpt("do_j_spec", grb_opts, AT, p_log, false, true);
     bool do_j_lc = getBoolOpt("do_j_lc", grb_opts, AT, p_log, false, true);
     bool do_j_skymap = getBoolOpt("do_j_skymap", grb_opts, AT, p_log, false, true);
-    for (auto & key : {"n_ism","d_l","z","theta_obs","A0","s","r_ej","r_ism"})
+    for (auto & key : {"n_ism","d_l","z","theta_obs","A0","s","r_ej","r_ism"}){
+        if (main_pars.find(key) == main_pars.end()){
+            (*p_log)(LOG_ERR,AT) << " keyword '"<<key<<"' is not found in main parameters. \n";
+            exit(1);
+        }
         grb_pars[key] = main_pars.at(key);
+    }
     if (run_jet_bws) {
         pba.getGRB()->setJetStructAnalytic(grb_pars, grb_opts);
 //        pba.setJetStructAnalytic(grb_pars, grb_opts);
@@ -392,7 +395,13 @@ int main(int argc, char** argv) {
     bool do_ej_spec = getBoolOpt("do_ej_spec", kn_opts, AT, p_log, false, true);
     bool do_ej_lc = getBoolOpt("do_ej_lc", kn_opts, AT, p_log, false, true);
     bool do_ej_skymap = getBoolOpt("do_ej_skymap", kn_opts, AT, p_log, false, true);
-    for (auto & key : {"n_ism","d_l","z","theta_obs","A0","s","r_ej","r_ism"}) kn_pars[key] = main_pars.at(key);
+    for (auto & key : {"n_ism","d_l","z","theta_obs","A0","s","r_ej","r_ism"}){
+        if (main_pars.find(key) == main_pars.end()){
+            (*p_log)(LOG_ERR,AT) << " keyword '"<<key<<"' is not found in main parameters. \n";
+            exit(1);
+        }
+        kn_pars[key] = main_pars.at(key);
+    }
     if (run_ejecta_bws) {
 
         std::string fname_ejecta_id = getStrOpt("fname_ejecta_id", kn_opts, AT, p_log, "", true);
@@ -415,7 +424,7 @@ int main(int argc, char** argv) {
             (*p_log)(LOG_ERR, AT) << " no valid ejecta structure given\n";
             exit(1);
         }
-        size_t ii_eq = pba.getMag()->getNeq()+pba.getGRB()->getNeq();
+        size_t ii_eq = pba.getMag()->getNeq() + pba.getGRB()->getNeq();
         size_t nlayers_jet = pba.getGRB()->getBWs().size();
         pba.getEj()->setEjectaBwPars(kn_pars, kn_opts, ii_eq, nlayers_jet);
     }

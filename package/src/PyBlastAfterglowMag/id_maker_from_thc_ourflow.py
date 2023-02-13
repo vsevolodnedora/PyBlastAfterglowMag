@@ -26,68 +26,8 @@ import argparse
 # from .rebin import rebin
 
 
-rebin_paths = [
-    "../../../../../GIT/GitHub/rebin",
-    "/home/vsevolod/Work/GIT/GitHub/rebin",
-    "/home/enlil/vnedora/work/afterglow/rebin"
-]
-
-imported = False
-for path in rebin_paths:
-    if os.path.isdir(path):
-        sys.path.insert(1, path)
-        import rebin
-        imported = True
-        break
-if not imported:
-    raise ImportError("Faild to import rebin. Tried: these paths:{}".format(rebin_paths))
-
-class cgs:
-
-    pi = 3.141592653589793
-
-    tmp = 1221461.4847847277
-
-    c = 2.9979e10
-    mp = 1.6726e-24
-    me = 9.1094e-28
-    # e = 1.602176634e-19 # Si
-    # h = 6.62607015e-34 # ???? Si
-    h = 6.6260755e-27 # erg s
-    mpe = mp + me
-    mue = me / mp
-    hcgs = 6.6260755e-27  # Planck constant in cgs
-    # si_h = 6.62607015e-34
-    kB = 1.380658e-16
-    sigmaT = 6.6524e-25
-    qe = 4.803204e-10
-    # si_qe = 1.602176634e-19
-    sigma_B = 5.6704e-5  ### Stephan Boltzann constant in cgs
-    lambda_c = (h / (me * c)) # Compton wavelength
-    mecc2MeV = 0.511
-    mec2 = 8.187105649650028e-07  # erg # electron mass in erg, mass_energy equivalence
-    gamma_c_w_fac = 6 * np.pi * me * c / sigmaT
-    rad_const = 4 * sigma_B / c   #### Radiation constant
-    mppme = mp + me
-    gravconst = 6.67259e-8 # cm^3 g^-1 s^-2
-
-    pc = 3.0857e18 # cm
-    year= 3.154e+7 # sec
-    day = 86400
-
-    solar_m = 1.989e+33
-
-    ns_rho = 1.6191004634e-5
-    time_constant = 0.004925794970773136  # to to to ms
-    energy_constant = 1787.5521500932314
-    volume_constant = 2048
-
-    sTy = 365. * 24. * 60. * 60.    # seconds to years conversion factor
-    sTd = 24. * 60. * 60.           # seconds to days conversion factor
-    rad2mas = 206264806.247
-
-get_beta = lambda Gamma: np.sqrt(1. - np.power(Gamma, -2))
-get_Gamma = lambda beta: np.float64(np.sqrt(1. / (1. - np.float64(beta) ** 2.)))
+from .id_maker_tools import (reinterpolate_hist, compute_ek_corr)
+from .utils import (cgs, get_Gamma, get_beta)
 
 
 def load_vinf_hist(hist_fpath):
@@ -95,57 +35,7 @@ def load_vinf_hist(hist_fpath):
     vinf, mass = hist1[:, 0], hist1[:, 1]
     return (vinf, mass)
 
-def _generate_grid_cthetas(nlayers, theta0):
-    fac = np.arange(0, nlayers + 1) / float(nlayers)
-    thetas = 2. * np.arcsin(fac * np.sin(theta0 / 2.))
-    cthetas = 0.5 * (thetas[1:] + thetas[:-1])
-    return (thetas, cthetas)
-def _generate_grid_cthetas2(nlayers, theta0, theta1):
-    dtheta = theta1 / (nlayers + 1)
-    thetas_l, thetas_h, cthetas = [], [], []
-    for i in range(nlayers+1):
-        cthetas.append(i * dtheta + dtheta / 2.) # = (double)i * dtheta + dtheta / 2.;
-        thetas_l.append(i * dtheta)# = (double) i * dtheta;
-        thetas_h.append((i + 1) * dtheta) # double i_theta_c_h = (double) (i + 1) * dtheta;
-    cthetas = np.array(cthetas)
-    thetas_h = np.array(thetas_h)
-    thetas_l = np.array(thetas_l)
-    # fac = np.arange(0, nlayers + 1) / float(nlayers)
-    # thetas = 2. * np.arcsin(fac * np.sin(theta0 / 2.))
-    # cthetas = 0.5 * (thetas[1:] + thetas[:-1])
-    return (thetas_h, cthetas)
-def reinterpolate_hist(thetas_pol_edges, mass_2d_hist, new_theta_len=None, dist="pw"):
-    print("Rebinning historgram")
-    if (new_theta_len is None):
-        new_theta_len = len(thetas_pol_edges)
-    # if ()
-    if dist == "pw":
-        new_thetas_edges, new_theta_centers = _generate_grid_cthetas(new_theta_len - 1, theta0=np.pi / 2.)
-    elif dist == "a":
-        new_thetas_edges, new_theta_centers = _generate_grid_cthetas2(new_theta_len-1, theta0=0., theta1=np.pi / 2.)
-    else:
-        raise KeyError("Only 'pw' or 'a' are supported")
-    # x = range(new_thetas_edges)
-    # plt.close()
-    # plt.plot(range(len(new_thetas_edges)), new_thetas_edges, ls='none', marker='x',  color="black")
-    # plt.plot(range(len(new_thetas_edges2)), new_thetas_edges2, ls='none', marker='.', color="red")
-    # plt.axhline(y=np.pi/2.)
-    # plt.show()
-    if (len(thetas_pol_edges) - 1 != len(mass_2d_hist[:, 0])):
-        raise ValueError("something is wrong")
 
-    if (len(new_thetas_edges) != len(thetas_pol_edges)):
-        print("Change theta_grid {}->{}".format(len(thetas_pol_edges), len(new_thetas_edges)))
-
-    new_mass = np.zeros((len(new_thetas_edges) - 1, len(mass_2d_hist[0, :])))
-    for ibeta in range(len(mass_2d_hist[0, :])):
-        tmp = rebin.rebin(thetas_pol_edges, mass_2d_hist[:, ibeta], new_thetas_edges,
-                          interp_kind='piecewise_constant')
-        new_mass[:, ibeta] = tmp
-
-    thetas_pol_edges = new_thetas_edges
-    mass = new_mass
-    return (thetas_pol_edges, mass)
 
 def load_corr_file2(corr_fpath,
                     reinterpolate_theta=True,
@@ -269,27 +159,7 @@ def clean_data_corr(thetas_pol, beta, mass, remove_pi_over_2=False):
     return (tmp_theta_pol, tmp_beta, tmp_tmp_mass)
 def compute_ek_hist(_vinf, _mass):
     return _mass * cgs.solar_m * (_vinf * _vinf * cgs.c * cgs.c)
-def compute_ek_corr(_vinf, _mass):
-    tmp_ek = []
-    _vinf = copy.deepcopy(np.asarray(_vinf))
-    _mass = copy.deepcopy(np.asarray(_mass))
-    for i in range(len(_mass[:, 0])):
-        # tmp = _mass[i, :]
-        # tmp *= cgs.solar_m
-        # tmp *= _vinf
-        # tmp *= _vinf
-        # tmp *= cgs.c
-        # tmp *= cgs.c
-        # x = 1
 
-        # arr = _mass[i, :] * cgs.solar_m
-        # arr1 = (_vinf * _vinf * cgs.c * cgs.c)
-        # arr *= arr1
-        tmp_ek.append(_mass[i, :] * cgs.solar_m * _vinf * _vinf * cgs.c * cgs.c)
-        # tmp_ek.append( copy.deepcopy( tmp ) )
-    res = np.reshape(np.array(tmp_ek), newshape=(len(_mass[:, 0]), len(_vinf)))
-    assert res.shape == _mass.shape
-    return res
 
 def prepare_kn_ej_id_2d(nlayers, corr_fpath, outfpath, dist="pw"):
     thetas, betas, masses = load_corr_file2(corr_fpath=corr_fpath,

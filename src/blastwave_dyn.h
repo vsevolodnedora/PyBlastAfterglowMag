@@ -72,8 +72,8 @@ public:
 //    FsolvePars *& getCombPars(){ return pfsolvePars; }
     // RHS settings
     const static int neq = 11;
-    std::vector<std::string> vars { "R", "Rsh", "tt", "tcomov", "Gamma", "Eint2", "theta", "Erad2", "Esh2", "Ead2", "M2" };
-    enum Q_SOL { iR, iRsh, itt, itcomov, iGamma, iEint2, itheta, iErad2, iEsh2, iEad2, iM2 };
+    std::vector<std::string> vars { "R", "Rsh", "tt", "tcomov", "mom", "Eint2", "theta", "Erad2", "Esh2", "Ead2", "M2" };
+    enum Q_SOL { iR, iRsh, itt, itcomov, imom, iEint2, itheta, iErad2, iEsh2, iEad2, iM2 };
     size_t getNeq() override { return neq; }
     enum CASES { i_INSIDE_BEHIND, i_OUTSIDE_BEHIND, i_INSIDE_ABOVE, i_OUTSIDE_ABOVE, i_AT_ZERO_INSIDE };
     /// set initial condition 'ic_arr' for this blast wave using data from Pars{} struct
@@ -119,8 +119,12 @@ public:
             p_dens->m_drhodr_=p_dens->m_drhodr_def;
         }
 
-        double m_M20 = (2.0 / 3.0) * CGS::pi * (std::cos(p_pars->theta_a) - std::cos(p_pars->theta_b0)) * \
-               p_dens->m_rho_ * std::pow(p_pars->R0, 3) / p_pars->ncells;
+        double m_M20 = (2.0 / 3.0)
+                     * CGS::pi
+                     * (std::cos(p_pars->theta_a) - std::cos(p_pars->theta_b0))
+                     * p_dens->m_rho_
+                     * std::pow(p_pars->R0, 3)
+                     / p_pars->ncells;
         double adi0 = p_eos->getGammaAdi(p_pars->Gamma0,EQS::Beta(p_pars->Gamma0));
         double GammaSh0 = EQS::GammaSh(p_pars->Gamma0,adi0);
         // ****************************************
@@ -208,7 +212,8 @@ public:
         ic_arr[i + Q_SOL::itt]     = EQS::init_elapsed_time(p_pars->R0, p_pars->Gamma0, use_spread);
         ic_arr[i + Q_SOL::itcomov] = p_pars->R0 / (beta0 * p_pars->Gamma0 * CGS::c);
         ic_arr[i + Q_SOL::iEint2]  = (p_pars->Gamma0 - 1 ) * m_M20 / p_pars->M0;  //TODO Isnt it just E0 / m_M0 ???? As M0 = E0 * cgs.c ** -2 / Gamma0
-        ic_arr[i + Q_SOL::iGamma]  = p_pars->Gamma0;
+        ic_arr[i + Q_SOL::imom]    = p_pars->Gamma0 * EQS::Beta(p_pars->Gamma0);//std::log( p_pars->Gamma0 );
+//        ic_arr[i + Q_SOL::iGamma]  = p_pars->Gamma0;//std::log( p_pars->Gamma0 );
         ic_arr[i + Q_SOL::itheta]  = p_pars->theta_b0;
         ic_arr[i + Q_SOL::iErad2]  = 0.0;
         ic_arr[i + Q_SOL::iEsh2]   = 0.0;
@@ -231,13 +236,15 @@ public:
     void insertSolution( const double * sol, size_t it, size_t i ) override {
         if (p_pars->end_evolution)
             return;
-
+//        double mom = sol[i+Q_SOL::imom];
+//        double gam = sol[i+Q_SOL::iGamma];
         p_pars->comp_ix = it; // latest computed iteration
         m_data[Q::itburst][it]   = m_tb_arr[it];
         m_data[Q::iR][it]        = sol[i+Q_SOL::iR]; // TODO you do not need 'i' -- this is p_pars->ii_eq
         m_data[Q::iRsh][it]      = sol[i+Q_SOL::iRsh];
         m_data[Q::itt][it]       = sol[i+Q_SOL::itt];
-        m_data[Q::iGamma][it]    = sol[i+Q_SOL::iGamma];
+        m_data[Q::imom][it]      = sol[i+Q_SOL::imom];
+        m_data[Q::iGamma][it]    = EQS::GamFromMom(sol[i+Q_SOL::imom]);//sol[i+Q_SOL::iGamma];
         m_data[Q::itheta][it]    = sol[i+Q_SOL::itheta];
         m_data[Q::iM2][it]       = sol[i+Q_SOL::iM2];
         m_data[Q::itcomov][it]   = sol[i+Q_SOL::itcomov];
@@ -245,11 +252,12 @@ public:
         m_data[Q::iEint2][it]    = sol[i+Q_SOL::iEint2];
         m_data[Q::iEsh2][it]     = sol[i+Q_SOL::iEsh2];
         m_data[Q::iErad2][it]    = sol[i+Q_SOL::iErad2];
-        if (sol[i+Q_SOL::iR] < 1. || sol[i+Q_SOL::iGamma] < 1.) {
+        if (sol[i+Q_SOL::iR] < 1. || m_data[Q::iGamma][it] < 1. || sol[i+Q_SOL::imom] < 0) {
             (*p_log)(LOG_ERR, AT)  << "Wrong value at i=" << it << " tb=" << sol[i + Q_SOL::iR]
                        << " iR="      << sol[i + Q_SOL::iR]
                        << " iRsh="    << sol[i + Q_SOL::iRsh]
-                       << " iGamma="  << sol[i + Q_SOL::iGamma]
+//                       << " imom="  << m_data[Q::iGamma][it]
+                       << " iMom="    << sol[i+Q_SOL::imom]
                        << " itheta="  << sol[i + Q_SOL::itheta]
                        << " iM2="     << sol[i + Q_SOL::iM2]
                        << " itcomov=" << sol[i + Q_SOL::itcomov]
@@ -257,7 +265,7 @@ public:
                        << " iEint2="  << sol[i + Q_SOL::iEint2]
                        << " iEsh2="   << sol[i + Q_SOL::iEsh2]
                        << " iErad2="  << sol[i + Q_SOL::iErad2]
-                       << "\n"
+                       << " "
                        << " Exiting...\n";
 //            std::cerr << AT  << "\n";
             exit(1);
@@ -273,52 +281,55 @@ public:
     }
     /// check if to terminate the evolution
     bool isToTerminate( double * sol, size_t i ) override {
-        double igamma = sol[i + Q_SOL::iGamma];
+        double mom = sol[i+Q_SOL::imom];
+//        double igamma = sol[i+Q_SOL::iGamma];//EQS::GamFromMom(mom);
+        double igamma = EQS::GamFromMom(mom);
+        double ibeta = EQS::Beta(igamma);//EQS::BetFromMom(mom);
         double iEint2 = sol[i + Q_SOL::iEint2];
         bool do_terminate = false;
         if (!p_pars->end_evolution) {
             /// if BW is too slow numerical issues arise (Gamma goes below 1) # TODO rewrite ALL eqs in terms of GammaBeta
-            double beta = EQS::Beta(igamma);
-            if ((iEint2 <= 0.)||(!std::isfinite(iEint2))){
+//            double beta = EQS::Beta(igamma);
+            if ((iEint2 <= 0.)||(!std::isfinite(iEint2))||(mom < 0)||(ibeta < 0)){
                 do_terminate = true;
                 (*p_log)(LOG_ERR,AT)
                         << " Terminating evolution [ishell=" << p_pars->ishell << " ilayer=" << p_pars->ilayer << "] "
                         << " REASON :: Eint2 < 0 or NAN ("<<iEint2<<")\n";
             }
-            if ((std::abs(beta) < p_pars->min_beta_terminate)||(!std::isfinite(beta))){
+            if ((std::abs(ibeta) < p_pars->min_beta_terminate)||(!std::isfinite(ibeta))){
                 do_terminate = true;
                 (*p_log)(LOG_ERR,AT)
                         << " Terminating evolution [ishell=" << p_pars->ishell << " ilayer=" << p_pars->ilayer << "] "
-                        << " REASON :: beta < beta_min or NAN ("<<beta<<") with beta_min= "
+                        << " REASON :: beta < beta_min or NAN ("<<ibeta<<") with beta_min= "
                         << p_pars->min_beta_terminate<<"\n";
             }
             if (do_terminate) {
-                (*p_log)(LOG_ERR, AT) << " TERMINATION Previous iterations: \n"
+                (*p_log)(LOG_WARN, AT) << " TERMINATION Previous iterations: \n"
                                       << " E0=" << string_format("%.9e", p_pars->E0)
                                       << " Gamma0=" << string_format("%.9e", p_pars->Gamma0)
                                       << " M0=" << string_format("%.9e", p_pars->M0)
                                       << " \n";
-                (*p_log)(LOG_ERR, AT) << " i=Current" << " Eint2=" << string_format("%.9e", sol[i + Q_SOL::iEint2])
-                                      << " Gamma=" << string_format("%.9e", sol[i + Q_SOL::iGamma])
-                                      << " beta=" << string_format("%.9f", EQS::Beta(sol[i + Q_SOL::iGamma]))
+                (*p_log)(LOG_WARN, AT) << " i=Current" << " Eint2=" << string_format("%.9e", sol[i + Q_SOL::iEint2])
+                                      << " Gamma=" << string_format("%.9e", igamma)
+                                      << " beta=" << string_format("%.9f", ibeta)
                                       << " M2=" << string_format("%.9e", sol[i + Q_SOL::iM2])
                                       << " rho=" << string_format("%.9e", p_dens->m_rho_)
                                       << " \n";
-                (*p_log)(LOG_ERR, AT) << " i=" << p_pars->comp_ix << " Eint2="
+                (*p_log)(LOG_WARN, AT) << " i=" << p_pars->comp_ix << " Eint2="
                                       << string_format("%.9e", getVal(Q::iEint2, p_pars->comp_ix))
                                       << " Gamma=" << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix))
                                       << " beta=" << string_format("%.9f", getVal(Q::ibeta, p_pars->comp_ix))
                                       << " M2=" << string_format("%.9e", getVal(Q::iM2, p_pars->comp_ix))
                                       << " rho=" << string_format("%.9e", getVal(Q::irho, p_pars->comp_ix))
                                       << " \n";
-                (*p_log)(LOG_ERR, AT) << " i=" << p_pars->comp_ix - 1 << " Eint2="
+                (*p_log)(LOG_WARN, AT) << " i=" << p_pars->comp_ix - 1 << " Eint2="
                                       << string_format("%.9e", getVal(Q::iEint2, p_pars->comp_ix - 1))
                                       << " Gamma=" << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix - 1))
                                       << " beta=" << string_format("%.9f", getVal(Q::ibeta, p_pars->comp_ix - 1))
                                       << " M2=" << string_format("%.9e", getVal(Q::iM2, p_pars->comp_ix - 1))
                                       << " rho=" << string_format("%.9e", getVal(Q::irho, p_pars->comp_ix - 1))
                                       << " \n";
-                (*p_log)(LOG_ERR, AT) << " i=" << p_pars->comp_ix - 2 << " Eint2="
+                (*p_log)(LOG_WARN, AT) << " i=" << p_pars->comp_ix - 2 << " Eint2="
                                       << string_format("%.9e", getVal(Q::iEint2, p_pars->comp_ix - 2))
                                       << " Gamma=" << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix - 2))
                                       << " beta=" << string_format("%.9f", getVal(Q::ibeta, p_pars->comp_ix - 2))
@@ -358,12 +369,17 @@ public:
     bool isSolutionOk( double * sol, size_t i ) override {
 
         bool no_issues = true;
-        double igamma = sol[i + Q_SOL::iGamma];
+        double mom = sol[i+Q_SOL::imom];
+        double mom0 = p_pars->Gamma0 * EQS::Beta(p_pars->Gamma0);
+//        double igamma = sol[i+Q_SOL::iGamma];
+        double igamma = EQS::GamFromMom(mom);
+//        double ibeta = EQS::Beta(igamma);//EQS::BetFromMom(mom);
+        double ibeta = EQS::BetFromMom(mom);
         if (!p_pars->end_evolution) {
             /// if BW is too slow numerical issues arise (Gamma goes below 1) # TODO rewrite ALL eqs in terms of GammaBeta
             double beta   = EQS::Beta(igamma);
 
-            if (igamma < 1.) {
+            if ((igamma < 1.) || (mom < 0)) {
                 // REMOVING LOGGER
 
                 //            std::cout << "theta:" << getArr(Q::iR)<<"\n";
@@ -390,15 +406,16 @@ public:
                            << "\n";
 //                std::cerr << "Gamma:" << getArr(Q::iGamma) << "\n";
 //                std::cerr << "R:" << getArr(Q::iR) << "\n";
-                (*p_log)(LOG_ERR,AT)  << " Gamma cannot be less than 1. Found: Gamma(" << igamma << ") < 1.0 \n";
+                (*p_log)(LOG_ERR,AT)  << " Gamma cannot be less than 1. or too large. "
+                                         "Found: Gamma(" << igamma << "). Gamma0="<<p_pars->Gamma0<<" \n";
                 no_issues = false;
             }
-            if (sol[i + Q_SOL::iGamma] > p_pars->Gamma0 * 2) {
-                // REMOVING LOGGER
-                (*p_log)(LOG_ERR,AT)  << " too large value of Gamma(" << sol[i + Q_SOL::iGamma]
-                           << ") > 2*Gamma0" << p_pars->Gamma0 * 2 << ")\n";
-                no_issues = false;
-            }
+//            if (igamma > p_pars->Gamma0 * 2.) {
+//                // REMOVING LOGGER
+//                (*p_log)(LOG_ERR,AT)  << " too large value of Gamma(" << igamma
+//                           << ") > 2*Gamma0" << p_pars->Gamma0 * 2 << ")\n";
+//                no_issues = false;
+//            }
             if (sol[i + Q_SOL::itheta] < p_pars->theta_b0 * 0.99) {
                 // REMOVING LOGGER
                 (*p_log)(LOG_ERR,AT) << " unphysical decrease in theta(" << sol[i + Q_SOL::itheta]
@@ -420,12 +437,20 @@ public:
         double R      = Y[i+Q_SOL::iR];
         double Rsh    = Y[i+Q_SOL::iRsh];
 //        double tcomov = Y[i+Q::itcomov];
-        double Gamma  = Y[i+Q_SOL::iGamma];
+        double mom    = Y[i+Q_SOL::imom];
+//        double Gamma  = Y[i+Q_SOL::iGamma];
         double Eint2  = Y[i+Q_SOL::iEint2];
         double theta  = Y[i+Q_SOL::itheta];
         double M2     = Y[i+Q_SOL::iM2];
         // ****************************************
-        if (Gamma <= 1.) Gamma = 1.0000000001;
+        if (mom < 0) {
+            (*p_log)(LOG_ERR, AT) << " negative momentum\n";
+            exit(1);
+        }
+        double Gamma = EQS::GamFromMom(mom);
+//        if (Gamma <= 1.)
+//            Gamma = EQS::GamFromMom(mom);
+//            Gamma = 1.0000000001;
 //        if ((theta < p_pars->theta_b0) || (theta > p_pars->theta_max)){
 ////            std::cerr << "theta < theta_b0 || theta > theta_max\n";
 ////            exit(1);
@@ -471,6 +496,10 @@ public:
                 dM2dR = EQS::dmdr(Gamma, R, dthetadr, theta, rho) / p_pars->ncells;
                 break;
         }
+        if (dM2dR < 0.){
+            (*p_log)(LOG_ERR, AT) << " dM/dR < 0\n";
+            exit(1);
+        }
 
         // --- dGammadR ---
         double dGammadR = 0.,GammaEff=0.,dGammaEffdGamma=0., num=0., denum=0.;
@@ -487,12 +516,15 @@ public:
                 dGammadR = EQS::dgdr(1, Gamma, beta, M2, gammaAdi, dM2dR);
                 break;
         }
+//        double dmomdR = dGammadR * (Gamma / std::sqrt(Gamma * Gamma - 1.0));
+        double dmomdR = dGammadR / beta;
 
-        if (dGammadR > 0){
-            if ( Gamma > 0.95 * p_pars->Gamma0 ){
-                dGammadR = 0.;
-            }
-        }
+
+//        if (dGammadR > 0){
+//            if ( Gamma > 0.95 * p_pars->Gamma0 ){
+//                dGammadR = 0.;
+//            }
+//        }
         // -- Energies --
         double dEsh2dR  = (Gamma - 1.0) * dM2dR; // Shocked energy;
         double dlnV2dR  = dM2dR / M2 - drhodr / rho - dGammadR / Gamma;
@@ -511,6 +543,7 @@ public:
             dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
         dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
         // ****************************************
+
         if (!std::isfinite(dRdt) || !std::isfinite(dGammadR) || !std::isfinite(dlnV2dR) || !std::isfinite(dthetadr)) {
             (*p_log)(LOG_ERR,AT)  << " nan in derivatives. Exiting..." << "\n";
             exit(1);
@@ -558,7 +591,8 @@ public:
         out_Y[i + Q_SOL::iRsh] = dRshdt;//1.0 / beta / CGS::c;
         out_Y[i + Q_SOL::itt] = dRdt * dttdr;
         out_Y[i + Q_SOL::itcomov] = dRdt * dtcomov_dR;
-        out_Y[i + Q_SOL::iGamma] = dRdt * dGammadR;
+//        out_Y[i + Q_SOL::iGamma] = 0.;//dRdt * dGammadR;//dRdt * dGammadR/Gamma;
+        out_Y[i + Q_SOL::imom] = dRdt * dmomdR;//dRdt * dGammadR/Gamma;
         out_Y[i + Q_SOL::iEint2] = dRdt * dEint2dR;
         out_Y[i + Q_SOL::itheta] = dRdt * dthetadr;
         out_Y[i + Q_SOL::iErad2] = dRdt * dErad2dR;
@@ -567,31 +601,45 @@ public:
         out_Y[i + Q_SOL::iM2] = dRdt * dM2dR;
 //        if (beta>1e-5)  p_pars->end_evolution = true;
         // ****************************************
+//        if (mom+out_Y[i + Q_SOL::imom])
     }
     /// RHS with ODEs for dGammadR modified for pre-accelerated ISM
     void evaluateRhsDens( double * out_Y, size_t i, double x, double const * Y ) override {
-
+//        double Gamma = Y[i+Q_SOL::iGamma];//EQS::GamFromMom(Y[i+Q_SOL::imom]);
+        double mom = Y[i+Q_SOL::imom];
+        double Gamma = EQS::GamFromMom(Y[i+Q_SOL::imom]);
+//        double beta = EQS::Beta(Y[i+Q_SOL::iGamma]);//EQS::BetFromMom(Y[i+Q_SOL::imom]);
+        double beta = EQS::BetFromMom(Y[i+Q_SOL::imom]);
         // ****************************************
         double R      = Y[i+Q_SOL::iR];
         double Rsh    = Y[i+Q_SOL::iRsh];
 //        double tcomov = Y[i+Q::itcomov];
-        double Gamma  = Y[i+Q_SOL::iGamma];
+//        double Gamma  = std::exp(Y[i+Q_SOL::ilnGamma]);
         double Eint2  = Y[i+Q_SOL::iEint2];
         double theta  = Y[i+Q_SOL::itheta];
         double M2     = Y[i+Q_SOL::iM2];
         // ****************************************
-        if (Gamma <= 1.) { // TODO to be removed
-            Gamma = 1.0001;
+//        if (Gamma <= 1.) { // TODO to be removed
+//            Gamma = 1.0001;
+//            (*p_log)(LOG_ERR, AT) << " Gamma < 1 in RHS for kN Ejecta\n";
+//        }
+//        if (Gamma > p_pars->Gamma0){ // TODO to be removed
+//            Gamma = p_pars->Gamma0;
+//            (*p_log)(LOG_ERR, AT) << " Gamma > Gamma0 in RHS for kN Ejecta\n";
+//        }
+        if (mom < 0.){
+            (*p_log)(LOG_ERR, AT) << " mom < 0 = "<< mom << " in kN RHS dynamics\n";
+            exit(1);
         }
-        if (Gamma > p_pars->Gamma0){ // TODO to be removed
-            Gamma = p_pars->Gamma0;
-        }
+
+
+
 //        if ((theta < p_pars->theta_b0) || (theta > p_pars->theta_max)){
 ////            std::cerr << "theta < theta_b0 || theta > theta_max\n";
 ////            exit(1);
 //            theta = p_pars->theta_max;
 //        }
-        double beta   = EQS::Beta(Gamma);
+//        double beta   = EQS::Beta(Gamma);
 
 
         // ****************************************
@@ -653,6 +701,10 @@ public:
                 dM2dR = EQS::dmdr(Gamma, R, dthetadr, theta, rho) / p_pars->ncells;
                 break;
         }
+        if (dM2dR < 0.){
+            (*p_log)(LOG_ERR,AT) << " dMdR < 0 in RHS dyn for kN ejecta\n";
+            exit(1);
+        }
 
         // --- dGammadR ---
         double dGammadR = 0., GammaEff=0.,dGammaEffdGamma=0.,num=0.,denum=0.;
@@ -671,15 +723,18 @@ public:
                 break;
         }
 
-        if ((dGammadR > 0) && (Gamma > p_pars->Gamma0*0.99)){
+//        if ((dGammadR > 0) && (Gamma > p_pars->Gamma0*0.99)){
 //            std::cerr << AT << " \n"
 //                      << "dGammadR>0 ("<<dGammadR<<") and Gamma="<<Gamma<<" > Gamma0="<<p_pars->Gamma0<<"\n";
 //            std::cerr << " p_dens->m_GammaRho="<<p_dens->m_GammaRho<<"\n"
-//                      << " p_dens->Gamma_rel="<<p_dens->Gamma_rel<<"\n"
-//                      << " p_dens->dGamma_rel_dG="<<p_dens->dGamma_rel_dG<<"\n"
-//                      << " p_dens->dlnGammaCBMdR="<<p_dens->dlnGammaCBMdR<<"\n";
-            dGammadR = 0.;
-        }
+//                      << " p_dens->m_GammaRel="<<p_dens->m_GammaRel<<"\n"
+//                      << " p_dens->m_dGammaReldGamma="<<p_dens->m_dGammaReldGamma<<"\n"
+//                      << " p_dens->m_dGammaRhodR="<<p_dens->m_dGammaRhodR<<"\n";
+//            dGammadR = 0.;
+//        }
+        //        double dmomdR = dGammadR * (Gamma / std::sqrt(Gamma * Gamma - 1.0));
+        double dmomdR = dGammadR / beta;
+
 
 //        drhodr = 0.; // TODO why was this set?! This overrides the derivative
         // -- Energies --
@@ -824,7 +879,8 @@ public:
         out_Y[i+Q_SOL::iRsh]    = dRshdt;//1.0 / beta / CGS::c;
         out_Y[i+Q_SOL::itt]     = dRdt * dttdr;
         out_Y[i+Q_SOL::itcomov] = dRdt * dtcomov_dR;
-        out_Y[i+Q_SOL::iGamma]  = dRdt * dGammadR;
+        out_Y[i+Q_SOL::imom]    = dRdt * dmomdR; //dRdt * dGammadR / Gamma;
+//        out_Y[i+Q_SOL::iGamma]  = 0.;//dRdt * dGammadR; //dRdt * dGammadR / Gamma;
         out_Y[i+Q_SOL::iEint2]  = dRdt * dEint2dR;
         out_Y[i+Q_SOL::itheta]  = dRdt * dthetadr;
         out_Y[i+Q_SOL::iErad2]  = dRdt * dErad2dR;
@@ -1132,7 +1188,14 @@ public:
         auto * p_others = (std::vector<std::unique_ptr<BlastWaveBase>> *) _others;
         auto & others = * p_others;
         // --- current ejecta bw
-        double ej_Gamma  = Y[p_pars->ii_eq + DynRadBlastWave::Q_SOL::iGamma];
+//        double ej_Gamma  = Y[p_pars->ii_eq + DynRadBlastWave::Q_SOL::iGamma];
+        double ej_mom = Y[p_pars->ii_eq + DynRadBlastWave::Q_SOL::imom];
+        if (ej_mom < 0.){
+            (*p_log)(LOG_ERR,AT)<<" ej_mom < 0\n";
+            exit(1);
+        }
+        double ej_Gamma  = EQS::GamFromMom(ej_mom);
+//        double ej_Gamma = std::exp(ej_lnGamma);
         if (ej_Gamma < 1.) ej_Gamma = 1.0000000099999;
 //        if (ej_Gamma > 10.) {
 //            std::cerr << AT << " ej_Gamma="<<ej_Gamma<<"\n";
@@ -1177,9 +1240,13 @@ public:
 //        }
 
 //        i_ej_l = 0;//others.size()-1;
-
+        double j_mom = Y[others[i_ej_l]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom];
+        double j_Gamma = EQS::GamFromMom(j_mom);
+//        double j_Gamma = Y[others[i_ej_l]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iGamma];
+//        double ibeta = EQS::BetFromMom(Y[others[i_ej_l]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom]);
         double j_theta = Y[others[i_ej_l]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::itheta];
-        double j_Gamma = Y[others[i_ej_l]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iGamma];
+//        double j_lnGamma = Y[others[i_ej_l]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::ilnGamma];
+//        double j_Gamma = std::exp(j_lnGamma);
         double j_Gamma0 = others[i_ej_l]->getPars()->Gamma0;
 //        double j_ctheta = others[i_ej_l]->ctheta(j_theta);
         double j_ctheta = LatStruct::ctheta(j_theta,
@@ -1220,12 +1287,13 @@ public:
                 }
 
                 size_t other_i = others[i_ej_l]->getPars()->ii_eq;//other->getPars()->ii_eq;
+                double other_Gamma = EQS::GamFromMom(Y[other_i + DynRadBlastWave::Q_SOL::imom]);//std::exp( Y[other_i + DynRadBlastWave::Q_SOL::ilnGamma] );
+//                double other_Gamma = Y[other_i + DynRadBlastWave::Q_SOL::iGamma];//std::exp( Y[other_i + DynRadBlastWave::Q_SOL::ilnGamma] );
                 // --- density experienced by the jet blast wave and the density in the downstream (rho2)
                 other->getDensIsm()->evaluateRhoDrhoDrDefault(j_R, INFINITY);
                 double j_rho = other->getDensIsm()->m_rho_def;
                 double j_drhodr = other->getDensIsm()->m_drhodr_def;
-                double j_adi = other->getEos()->getGammaAdi(Y[other_i + DynRadBlastWave::Q_SOL::iGamma],
-                                                            EQS::Beta(Y[other_i + DynRadBlastWave::Q_SOL::iGamma]));
+                double j_adi = other->getEos()->getGammaAdi(other_Gamma, EQS::Beta(other_Gamma));
                 double j_rho2 = EQS::rho2t(j_Gamma, j_adi, j_rho);
                 double j_V2 = Y[other_i + DynRadBlastWave::Q_SOL::iM2] / j_rho2; // Units -> c^2 for energy
                 double j_P2 = (j_adi - 1.) * Y[other_i + DynRadBlastWave::Q_SOL::iEint2] / j_V2 * CGS::c * CGS::c;//# * CGS::c * CGS::c; // Units -> c^2 for energy
@@ -1317,7 +1385,8 @@ public:
             prepareDensProfileFromJet(out_Y,i,x,Y,others,evaled_ix);
         }
         else{
-            double ej_Gamma  = Y[i + DynRadBlastWave::Q_SOL::iGamma];
+            double ej_Gamma  = EQS::GamFromMom( Y[i + DynRadBlastWave::Q_SOL::imom] );
+//            double ej_Gamma  = Y[i + DynRadBlastWave::Q_SOL::iGamma];
             if (ej_Gamma < 1.) ej_Gamma = 1.+1e-5;
             double ej_R      = Y[i + DynRadBlastWave::Q_SOL::iR];
             double theta_b0  = p_pars->theta_b0;
@@ -1352,12 +1421,14 @@ public:
         auto & p_pars2 = other->getPars();
         auto & p_eos2 = other->getEos();
         // jet
-        pfsolvePars->gJ    = Y[i+Q_SOL::iGamma];
+        pfsolvePars->gJ    = EQS::GamFromMom( Y[i+Q_SOL::imom]);
+//        pfsolvePars->gJ    = Y[i+Q_SOL::iGamma];
         pfsolvePars->mJ    = p_pars->M0 * ( Y[i+Q_SOL::iM2] + 1. );
         pfsolvePars->eJ    = p_pars->E0 * Y[i+Q_SOL::iEint2];
         pfsolvePars->gAdiJ = p_eos->getGammaAdi(pfsolvePars->gJ, EQS::Beta(pfsolvePars->gJ));
         // ejecta
-        pfsolvePars->gEJ    = Y[other_i+Q_SOL::iGamma];
+        pfsolvePars->gEJ    = EQS::GamFromMom(Y[other_i+Q_SOL::imom]);
+//        pfsolvePars->gEJ    = Y[other_i+Q_SOL::iGamma];
         pfsolvePars->mEJ    = p_pars2->M0 * ( Y[other_i+Q_SOL::iM2] + 1. );
         pfsolvePars->eEJ    = p_pars2->E0 * Y[other_i+Q_SOL::iEint2];
         pfsolvePars->gAdiEJ = p_eos2->getGammaAdi(pfsolvePars->gEJ, EQS::Beta(pfsolvePars->gEJ));

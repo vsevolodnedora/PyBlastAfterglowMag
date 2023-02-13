@@ -62,13 +62,10 @@ public:
         p_pars = std::make_unique<Pars>();
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "Magnetar");
         /// allocate storage for all data
-        m_data.resize(m_vnames.size());
-        for (auto & arr : m_data)
-            arr.resize( m_tb_arr.size() );
 
     }
 
-    Array & getTbGrid() {return m_tb_arr;}
+    Array & getTbGrid() { return m_tb_arr; }
     Array getTbGrid(size_t every_it) {
         if ((every_it == 1)||(every_it==0)) return m_tb_arr;
         Vector tmp{};
@@ -83,6 +80,10 @@ public:
         run_magnetar = getBoolOpt("run_magnetar", opts, AT,p_log,true);
         if (!run_magnetar)
             return;
+        // *************************************
+        m_data.resize(m_vnames.size());
+        for (auto & arr : m_data)
+            arr.resize( m_tb_arr.size() );
         // **************************************
         double eos_tov_mass = getDoublePar("eos_tov_mass",pars,AT,p_log,-1,true);
         double eos_alpha = getDoublePar("eos_alpha",pars,AT,p_log,-1,true);

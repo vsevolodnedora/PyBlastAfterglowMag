@@ -178,12 +178,18 @@ Vector arrToVec(Array & array){
     return std::move( vec );
 }
 
+double linearExtrapolate(double x1, double x2, double y1, double y2, double new_x){
+    double y;
+    y = y1 + (new_x - x1) / (x2 - x1) * (y2 - y1);
+    return y;
+}
+
 /// https://stackoverflow.com/questions/1577475/c-sorting-and-keeping-track-of-indexes
 template <typename T>
-std::vector<size_t> sort_indexes(const std::vector<T> &v) {
+std::vector<size_t> sort_indexes(const std::vector<T> &v, std::vector<size_t> & idx) {
 
     // initialize original index locations
-    std::vector<size_t> idx(v.size());
+//    std::vector<size_t> idx(v.size());
     iota(idx.begin(), idx.end(), 0);
 
     // sort indexes based on comparing values in v

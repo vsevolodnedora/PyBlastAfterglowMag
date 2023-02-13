@@ -1,1 +1,0 @@
-pip uninstall --no-cache-dir PyBlastAfterglowMag & pip install .

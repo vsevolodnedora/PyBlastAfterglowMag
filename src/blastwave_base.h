@@ -97,6 +97,10 @@ struct Pars{
     size_t nlayers = 0;
     size_t ishell = 0;
     size_t ii_eq = 0;
+
+    /// --- for work with magnetar
+    size_t i_position_in_layer = 0;
+
     // --- PARS FOR INTERACTION WITH OTHER MODELS
     bool entry = false; // has this BW entered the 'void' left by another
     double entry_time = -1; // time when this BW entered the 'void' left by another
@@ -119,7 +123,7 @@ struct Pars{
 //        double dlnGammaCBMdR=-1;
     bool end_evolution = false;
     bool end_spreading = false;
-    double min_beta_terminate = 1.e-5;
+    double min_beta_terminate = 1.e-8;
     // ---
 //        size_t j_i0=123456789;
     double j_theta0=-1;
@@ -200,7 +204,7 @@ struct Pars{
 class BlastWaveBase{
     std::unique_ptr<logger> p_log;
 protected:
-    Array m_tb_arr{};
+    Array m_tb_arr;
     VecArray m_data{}; // container for the solution of the evolution
     LatSpread * p_spread = nullptr;
     EOSadi * p_eos = nullptr;
@@ -218,8 +222,8 @@ public:
         // allocate the space for the the entire solution of a given blast wave
         if (m_tb_arr.size() < 1){
             // REMOVING LOGGER
-            std::cerr << " Time grid is not initialized\n";
-            std::cerr << AT  << "\n";
+            (*p_log)(LOG_ERR,AT) << " Time grid is not initialized\n";
+//            std::cerr << AT  << "\n";
             exit(1);
         }
         if (m_data.empty()){
@@ -437,7 +441,7 @@ public:
                 break;
         }
 
-        m_data[Q::imom][it] = m_data[Q::iGamma][it] * m_data[Q::ibeta][it];
+//        m_data[Q::imom][it] = m_data[Q::imom][it];//m_data[Q::iGamma][it] * m_data[Q::ibeta][it];
 
 
         /// compute time in the observer frame at 'i' step // TODO put this in the RHS -- DOne
@@ -468,6 +472,7 @@ public:
                       << " ----------------------------------------------------------- \n"
                       << " iR=          "         << m_data[Q::iR][it] << "\n"
                       << " itt=         "        << m_data[Q::itt][it] << "\n"
+                      << " imom=        " << m_data[Q::imom][it] << "\n"
                       << " iGamma=      " << m_data[Q::iGamma][it] << "\n"
                       << " iGammaFsh=   " << m_data[Q::iGammaFsh][it] << "\n"
                       << " iEint2=      " << m_data[Q::iEint2][it] << "\n"
@@ -797,7 +802,7 @@ public:
                     (*p_log)(LOG_ERR, AT) << "one of the blast-wave initial data arrays is empty. \n";
                     exit(1);
                 }
-                (*p_log)(LOG_INFO,AT)<<"Init. [pw] "
+                (*p_log)(LOG_INFO,AT) << " Init. [pw] "
                                      << " E0="<<latStruct.dist_E0_pw[ilayer]
                                      << " M0="<<latStruct.dist_M0_pw[ilayer]
                                      << " G0="<<latStruct.dist_G0_pw[ilayer]

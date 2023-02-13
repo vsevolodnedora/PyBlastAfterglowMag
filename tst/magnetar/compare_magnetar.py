@@ -7,17 +7,30 @@ from scipy.integrate import ode
 import matplotlib.pyplot as plt
 from scipy import interpolate
 # import pytest
-from pathlib import Path
-from matplotlib.colors import Normalize, LogNorm
-from matplotlib import cm
 import os
 
-from package.src.PyBlastAfterglowMag.interface import BPA_METHODS as PBA
-from package.src.PyBlastAfterglowMag.interface import cgs, latex_float
-from package.src.PyBlastAfterglowMag.id_maker_from_thc_ourflow import prepare_kn_ej_id_1d, prepare_kn_ej_id_2d
+try:
+    from PyBlastAfterglowMag.interface import modify_parfile_par_opt
+    from PyBlastAfterglowMag.interface import BPA_METHODS
+    from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
+    from PyBlastAfterglowMag.utils import latex_float, cgs, get_beta, get_Gamma
+except ImportError:
+    try:
+        from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
+        from package.src.PyBlastAfterglowMag.interface import BPA_METHODS
+        from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
+        from package.src.PyBlastAfterglowMag.utils import latex_float, cgs, get_beta, get_Gamma
+    except ImportError:
+        raise ImportError("Cannot import PyBlastAfterglowMag")
+
+
+
 
 def main():
-    pba = PBA(os.getcwd()+"/",readparfileforpaths=True)
+    workdir = os.getcwd()+'/'
+    parfile_name = "parfile.par"
+    pba = BPA_METHODS(workingdir=workdir, readparfileforpaths=True, parfile=parfile_name)
+    pba.run()
     mag = pba.get_mag_obj()
     print(np.array(mag["n_grav"]))
     print(mag.keys())

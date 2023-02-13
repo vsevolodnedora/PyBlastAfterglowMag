@@ -15,12 +15,10 @@
 void cast_times_freqs(Vector& lc_times, Vector& lc_freqs,
                       Vector& _times, Vector& _freqs,
                       bool is_one_to_one_already, std::unique_ptr<logger> & p_log){
-
     if (lc_times.empty() || lc_freqs.empty()){
         (*p_log)(LOG_ERR,AT)<<" empty time or freq arr.\n";
         exit(1);
     }
-
     if (is_one_to_one_already){
         if (lc_times.size()!=lc_freqs.size()){
             (*p_log)(LOG_ERR,AT)<<" size mismatch between arrays time and freq (for one-to-one freq-to-time)\n";
@@ -43,7 +41,6 @@ void cast_times_freqs(Vector& lc_times, Vector& lc_freqs,
             }
         }
     }
-
 }
 
 class PyBlastAfterglow{
@@ -159,7 +156,8 @@ public:
 
         // ---------------------------------------------------------------
         // place all blast wave into the "evolver"
-        t_grid = TOOLS::MakeLogspace(log10(p_pars->tb0), log10(p_pars->tb1),p_pars->ntb);
+        t_grid = TOOLS::MakeLogspace(std::log10(p_pars->tb0),
+                                     std::log10(p_pars->tb1),p_pars->ntb);
 
         // -------------------------------------------------------------
         p_pars->is_main_pars_set = true;
@@ -169,57 +167,8 @@ public:
 
     /// run the time-evolution
     void run(){
-//        size_t n_layers_j = 0;
-//        if ((!p_pars->run_jet_bws)&&(p_pars->is_jBW_init)){
-//            p_pars->is_jBW_init = false;
-//            p_bws_jet.clear();
-//        }
-//        if(p_pars->is_jBW_init) {
-//            n_layers_j = jetStruct.nlayers;//(p_pars->jet_method_eats == LatStruct::i_pw) ? jetStruct.nlayers_pw : jetStruct.nlayers_a ;
-//        }
-//
-//        size_t n_layers_ej = 0;
-//        if ((!p_pars->run_ejecta_bws)&&(p_pars->is_ejBW_init)){
-//            p_pars->is_ejBW_init = false;
-////            p_bws_ej.clear();
-//            p_ej.clear();
-//        }
-//        if(p_pars->is_ejBW_init){
-//            n_layers_ej = ejectaStructs.structs[0].nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStructs.structs[0].nlayers_pw : ejectaStructs.structs[0].nlayers_a ;
-//        }
-//
-//        if (!p_pars->is_main_pars_set){
-//            (*p_log)(LOG_ERR,AT) << " model parameters were not set. Cannot run model. \n";
-////            std::cerr << AT << "\n";
-//            exit(1);
-//        }
-//        if ((!p_pars->is_mag_pars_set)&&(p_pars->run_magnetar)){
-//            (*p_log)(LOG_ERR,AT)  << "magnetar pars are not set\n";
-////            std::cerr << AT << "\n";
-//            exit(1);
-//        }
-//        if ((!p_pars->is_jBW_init)&&(p_pars->run_jet_bws)){
-//            (*p_log)(LOG_ERR,AT)  << "jet BWs are not set \n";
-////            std::cerr << AT << "\n";
-//            exit(1);
-//        }
-//        if ((!p_pars->is_ejBW_init)&&(p_pars->run_ejecta_bws)){
-//            std::cerr << " ejecta BWs are not set\n Exiting...\n";
-//            std::cerr << AT << "\n";
-//            exit(1);
-//        }
-//        if ((!p_pars->is_mag_pars_set)&&(!p_pars->is_jBW_init)&&(!p_pars->is_ejBW_init)){
-//            (*p_log)(LOG_ERR,AT) << " magnetar AND jet AND ejecta BWs are not set\n";
-////            std::cerr << AT << "\n";
-//            exit(1);
-//        }
-
         p_model = std::make_unique<EvolveODEsystem>( p_mag, p_grb, p_ej, t_grid,
                                                      p_pars->integrator, m_loglevel );
-//                p_magnetar, p_bws_jet, p_ej,
-//                p_pars->run_magnetar, p_pars->run_jet_bws, p_pars->run_ejecta_bws,
-//                t_grid, 0, ejectaStructs.nshells,
-//                n_layers_j, n_layers_ej, p_pars->integrator, p_pars->loglevel);
         p_model->pIntegrator()->pPars()->rtol = p_pars->rtol;
         p_model->pIntegrator()->pPars()->atol = p_pars->rtol;
         p_model->pIntegrator()->pPars()->nmax = p_pars->nmax;
@@ -1515,7 +1464,7 @@ private:
             }
         }
         double flux_pj, flux_cj; size_t ii = 0;
-        Image image;
+//        Image image;
         double rtol = p_ej->ej_rtol;
         Image image_i ( ncells );
         Image im_pj ( ncells );
@@ -1535,7 +1484,7 @@ private:
                         << " theta_layer="<<ilayer<<"/"<<nlayers
                         << " phi_cells="<<LatStruct::CellsInLayer(ilayer)<<"\n";
                 model->getBW(ishell)->evalForwardShockLightCurve(image_i, im_pj, im_cj,
-                                                                 light_curves[ishell][ilayer], obs_times, obs_freqs);
+                                                                     light_curves[ishell][ilayer], obs_times, obs_freqs);
 
 //                for (size_t it = 0; it < obs_times.size(); it++) {
 //                    if (model->getPars()->m_method_eats == LatStruct::i_pw) {

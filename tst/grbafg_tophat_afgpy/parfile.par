@@ -15,26 +15,26 @@
 tb0 = 1.e3
 tb1 = 1.e11
 ntb = 1000
-rtol = 1e-12
+rtol = 1e-8
 nmax = 1000
 
 A0 = -1
 s = -1
 r_ej = -1
 r_ism = -1
-n_ism = 0.00031
-d_l = 1.27e+26
-z = 0.0099
-theta_obs = 0.3752
+n_ism = 1.e-3
+d_l = 3.09e26
+z = 0.028
+theta_obs = 0
 
 * Settings
 
-lc_freqs = array 3.e9
-lc_times = array logspace 1.e4 1.e10 50
+lc_freqs = array 1e9 1e18
+lc_times = array logspace 1.e4 1.e10 100
 lc_use_freq_to_time = no
 
-skymap_freqs = array 1e9
-skymap_times = array 20736000
+skymap_freqs = array 1e9 1e18
+skymap_times = array logspace 8.e5 2e9 50
 
 integrator = DOP853E
 
@@ -55,21 +55,21 @@ save_magnetar = no
 
 * Parameters
 
-Eiso_c = 1e52
-Gamma0c = 300.
+Eiso_c = 1.e52
+Gamma0c = 150.
 M0c = -1.
-theta_c = 0.085
-theta_w = 0.2618
-nlayers_pw = 350
-nlayers_a = 10
+theta_c = 0.1
+theta_w = 0.1
+nlayers_pw = 150
+nlayers_a = 1
 
-a = 1.0
+a = 0.0
 fraction_of_Gamma0_when_spread = 0.1
 
-eps_e = 0.0708
-eps_b = 0.0052
+eps_e = 0.1
+eps_b = 0.01
 eps_t = 0.
-p = 2.16
+p = 2.2
 ksi_n = 1.
 
 freq1 = 1.e5
@@ -78,28 +78,28 @@ nfreq = 200
 
 save_dyn_every_it = 10
 rtol_adapt = 1e-5
-fnu_min_frac = 1e-4
+fnu_min_frac = 1e-5
 
 * Settings
+
+method_eats = piece-wise # adaptive # piece-wise
 
 run_jet_bws = yes
 save_j_dynamics = no
 do_j_ele = yes
 do_j_spec = no
-do_j_lc = no
-do_j_skymap = yes
+do_j_lc = yes
+do_j_skymap = no
 
-method_eats = piece-wise # adaptive # piece-wise
-
-type = gaussian
+type = uniform
 gflat = no
 
 fname_dyn = dyn_grb_gauss.h5
-fname_light_curve = lc_grb_gauss.h5
+fname_light_curve = tophat_0_WSPN99.h5
 fname_light_curve_layers = none
 fname_sky_map = skymap_grb_gauss.h5
 
-method_spread = AA
+method_spread = None
 method_dgdr = our
 method_eos = Nava13
 method_GammaSh = useJKwithGammaRel  # default -- "useGamma"
@@ -110,14 +110,14 @@ method_Rsh = useGammaSh
 method_dmdr = usingdthdr
 method_shock_vel = sameAsBW
 use_dens_prof_behind_jet_for_ejecta = no
-method_synchrotron = Joh06
+method_synchrotron = WSPN99
 method_lf_min = useU_e
 method_ne = usenprime
 method_tau = smooth
 use_ssa = yes
 emissivity = em
 absorption = abs
-method_comp_mode = observFlux # observFlux   # "comovSpec"
+method_comp_mode = observFlux   # "comovSpec"
 method_quad = CADRE
 
 # --------------------------- END ---------------------------
@@ -127,6 +127,8 @@ method_quad = CADRE
 * Parameters
 
 * Settings
+
+method_eats = piece-wise
 
 run_ejecta_bws = no
 save_ej_dynamics = no

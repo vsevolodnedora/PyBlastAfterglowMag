@@ -28,8 +28,12 @@ class CumulativeShell{
     size_t m_nshells;
     std::unique_ptr<logger> p_log;
     std::vector<std::unique_ptr<RadBlastWave>> p_bws_ej;
+    std::vector<std::unique_ptr<RadBlastWave>> p_sorted_bws_ej;
     std::vector<std::vector<size_t>> relative_position;
-    std::vector<size_t> current_indexes;
+    std::vector<size_t> m_idxs;
+    Vector m_rho;
+    Vector m_radii;
+    Vector m_kappas;
 public:
 
     CumulativeShell( Array t_grid, size_t nshells, int ilayer, int loglevel ){
@@ -39,11 +43,12 @@ public:
         for (size_t ishell = 0; ishell < nshells; ishell++)
             p_bws_ej.emplace_back( std::make_unique<DynRadBlastWave>(t_grid, ishell, ilayer, loglevel ) );
 
-
-
         relative_position.resize( nshells );
         for (auto & arr : relative_position)
             arr.resize( t_grid.size() );
+
+        m_rho.resize(nshells, 0.0);
+        m_radii.resize(nshells, 0.0);
     }
     std::unique_ptr<RadBlastWave> & getBW(size_t ish){
         if (p_bws_ej.empty()){
@@ -56,17 +61,69 @@ public:
     }
     inline size_t nBWs() const { return p_bws_ej.size();}
     inline std::vector<std::unique_ptr<RadBlastWave>> & getBWs() {return p_bws_ej; }
-    inline std::vector<size_t> & getCurrentIndexes( ) { return current_indexes; }
-    inline void evalRelativePosition(double x, const double * Y){
-        Vector radii ( m_nshells );
+    inline std::vector<size_t> & getCurrentIndexes( ) { return m_idxs; }
+
+#if 0
+    void evaluateOptDepthAtCurrR(size_t i_cur, double x, const double * Y){
+        /// evaluate relative positions of shells at this time
         for (size_t i=0; i<m_nshells; i++){
             auto & bw = p_bws_ej[i];
             double r = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
-            radii[i] = r == 0. ? 1e90 : r;
+            m_radii[i] = r == 0. ? 1e90 : r;
 //            radii[i] = p_bws_ej[i]->getLastVal(std::static_pointer_cast<BlastWaveBase::Q>())
         }
+        /// get indexes of sorted shells by radius
+        sort_indexes(m_radii, m_idxs);
+        /// evaluate opacity of each shell up to current
+        double tau = 0.;
+        for (auto & i : m_idxs){
+            double kappa = 10.;
+            double dr = 0.;
+            if (i == 0) {
+                double dr1 = 0.5 * (m_radii[0] - m_radii[1]);
+                double dr2 = 0.5 * (m_radii[1] - m_radii[2]);
+                dr = linearExtrapolate(m_radii[1], m_radii[2], dr1, dr2, m_radii[0]);
+            }
+            else if (i==m_idxs.back()){
+                size_t
+                double drnm2 = 0.5 * (m_radii[0] - m_radii[1]);
+                double drnm1 = 0.5 * (m_radii[1] - m_radii[2]);
+                dr = linearExtrapolate(m_radii[1], m_radii[2], dr1, dr2, m_radii[0]);
+            }
+            else
+                dr = 0.5 * (m_radii[i+1]-m_radii[i-1])
+            tau +=
+        }
+
+
+        /// optical depth at a given radius
+        double tau = 0;
+        auto & bw_cur = p_bws_ej[i_cur];
+        double r_cur = Y[bw_cur->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+        for (size_t i=0; i<bw_cur->getPars()->i_position_in_layer; i++) {
+            auto &bw = p_bws_ej[i];
+            tau += bw->getVal(RadBlastWave::Q::ikappa, bw->getPars()->)
+        }
+
+    }
+
+
+
+
+
+    inline void evalRelativePosition(double x, const double * Y){
+        for (size_t i=0; i<m_nshells; i++){
+            auto & bw = p_bws_ej[i];
+            double r = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+            m_radii[i] = r == 0. ? 1e90 : r;
+//            radii[i] = p_bws_ej[i]->getLastVal(std::static_pointer_cast<BlastWaveBase::Q>())
+        }
+        sort_indexes(m_radii, m_idxs);
+
+        iota(current_indexes.begin(), current_indexes.end(), 0);
+        stable_sort(current_indexes.begin(), current_indexes.end(), [&v](size_t i1, size_t i2) {return v[i1] < v[i2];});
 //        std::cout << radii << "\n";
-        current_indexes = sort_indexes(radii);
+        current_indexes = sort_indexes(m_radii);
 //        std::cout << idxes << "\n";
 //        if (idxes[0]!=0){
 //            std::cout << x << " " << x / CGS::day << " " << x / CGS::year;
@@ -74,7 +131,54 @@ public:
 //            std::cout << idxes << "\n" ;
 //            exit(1);
 //        }
+        for (size_t i=0; i<m_nshells; i++){
+            auto & bw = p_bws_ej[i];
+            bw->getPars()->i_position_in_layer = current_indexes[i];
+        }
+
+        std::vector<std::unique_ptr<RadBlastWave>> p_sorted_bws;
+        for (size_t & idx : current_indexes){
+            p_sorted_bws.emplace_back(p_bws_ej[idx]);
+        }
+
     }
+    ///
+    void evaluateDensityProfileFromBWpositions(){
+        for (size_t & idx : current_indexes) {
+            auto & bw = p_bws_ej[idx];
+
+            double rho_i = bw->getPars()->M0 / (4./3.*CGS::pi*())
+        }
+
+        Vector rho ( m_nshells, 0.0 );
+        for (size_t i = 0; i < m_nshells; i++){
+            size_t idx = current_indexes[i];
+
+        }
+    }
+
+    void evaluateOpticalDepthToMagnetarEmission(size_t i_cur, double x, const double * Y){
+        double tau = 0;
+        auto & bw_cur = p_bws_ej[i_cur];
+        double r_cur = Y[bw_cur->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+        for (size_t i=0; i<bw_cur->getPars()->i_position_in_layer; i++) {
+            auto &bw = p_bws_ej[i];
+            tau += bw->getVal(RadBlastWave::Q::ikappa, bw->getPars()->)
+        }
+
+        double tau = 0;
+        auto & bw_cur = p_bws_ej[i_cur];
+        for (size_t i=0; i<m_nshells; i++){
+            auto & bw = p_bws_ej[i];
+            if (r_cur > bw->)
+        }
+
+        for (size_t i = 0; i < i_position; i++){
+            tau +=
+        }
+    }
+
+#endif
 };
 
 class GRB{
@@ -615,12 +719,13 @@ public:
         if (p_pars->p_magnetar->run_magnetar){
             auto & magnetar = p_pars->p_magnetar;
             magnetar->setInitConditions(m_InitData, ii);
+            ii += magnetar->getNeq();
         }
         // ***************************************
         if (p_pars->p_grb->run_jet_bws) {
             auto & jet_bws = p_pars->p_grb->getBWs();
             for (size_t il = 0; il < jet_bws.size(); il++) {
-                auto &j_pars = jet_bws[il]->getPars();
+//                auto &j_pars = jet_bws[il]->getPars();
 //            double beta0 = EQS::Beta(j_pars->Gamma0);
 //            double R0    = j_pars->tb0 * beta0 * CGS::c;
 //            jet_bws[il]->getDensIsm()->evaluateRhoDrhoDrDefault(R0, j_pars->ctheta0);
@@ -633,7 +738,7 @@ public:
         if ((p_pars->p_grb->run_jet_bws)&&(p_pars->p_ej->run_ej_bws))
             setRelativePositions();
         // ***************************************
-        if (p_pars->p_ej->run_ej_bws > 0) {
+        if (p_pars->p_ej->run_ej_bws) {
             auto & ej_bws = p_pars->p_ej->getShells();
             for (size_t il=0; il<ej_bws.size(); il++){
                 for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++){
@@ -654,8 +759,8 @@ public:
         }
         // **************************************
         if ( !isThereATermination() ){
-            (*p_log)(LOG_ERR,AT)  << " termination at initialization\n Exiting...";
-            exit(1);
+            (*p_log)(LOG_ERR,AT)  <<" termination at initialization. Evolution canceled\n";
+//            exit(1);
         }
         // **************************************
         if ( !isSolutionOk() ) {
@@ -912,6 +1017,7 @@ private:
         if (p_pars->p_magnetar->run_magnetar) {
             auto & magnetar = p_pars->p_magnetar;
             magnetar->insertSolution(m_CurSol, it, ii);
+            ii += magnetar->getNeq();
         }
         if (p_pars->p_grb->run_jet_bws) {
             auto & jet_bws = p_pars->p_grb->getBWs();
@@ -993,43 +1099,43 @@ private:
                 ii += jet_bws[i]->getNeq();//n_eq_j_bws;
             }
         }
-        else
-            std::vector<std::unique_ptr<BlastWaveBase>> jet_bws ;
+//        else
+//            std::vector<std::unique_ptr<BlastWaveBase>> jet_bws ;
 
 
         /// evaluate RHS for the ejecta (advance it to the next sub-step)
         if (p_pars->p_ej->run_ej_bws) {
-            auto &ej_bws = p_pars->p_ej->getShells();
-            for (size_t il=0; il<ej_bws.size(); il++){
-                ej_bws[il]->evalRelativePosition(x, Y); // dEinjdt
-                for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
-                    auto &bw = ej_bws[il]->getBW(ish);
+            auto &ej_layers = p_pars->p_ej->getShells();
+            for (size_t il=0; il < ej_layers.size(); il++){
+//                ej_layers[il]->evalRelativePosition(x, Y); // dEinjdt
+                for(size_t ish=0; ish < ej_layers[il]->nBWs(); ish++) {
+                    auto & ej_bw = ej_layers[il]->getBW(ish);
                     if (p_pars->p_grb->run_jet_bws) {
-                        auto &jet_bws = p_pars->p_grb->getBWs();
-                        bw->evaluateRhsDensModel2(out_Y, ii, x, Y,
-                                                  & reinterpret_cast<std::vector<std::unique_ptr<BlastWaveBase>> &>(jet_bws),
-                                                  p_pars->ix);
+                        auto & jet_bws = p_pars->p_grb->getBWs();
+                        ej_bw->evaluateRhsDensModel2(out_Y, ii, x, Y,
+                                                     & reinterpret_cast<std::vector<std::unique_ptr<BlastWaveBase>> &>(jet_bws),
+                                                     p_pars->ix);
                     }
                     else
-                        bw->evaluateRhsDensModel2(out_Y, ii, x, Y,
-                                                  NULL,
-                                                  p_pars->ix);
-                    ii += bw->getNeq();
+                        ej_bw->evaluateRhsDensModel2(out_Y, ii, x, Y,
+                                                     NULL,
+                                                     p_pars->ix);
+                    ii += ej_bw->getNeq();
                 }
             }
 
 
 //            for(size_t iej = 0; iej < p_pars->n_ej_bws; iej++) {
-////            if (ii!=ej_bws[iej]->getPars()->ii_eq){ // -------------- TO BE REMOVED
-////                std::cerr<<AT << ii << " != "<< ej_bws[iej]->getPars()->ii_eq << "\n";
+////            if (ii!=ej_layers[iej]->getPars()->ii_eq){ // -------------- TO BE REMOVED
+////                std::cerr<<AT << ii << " != "<< ej_layers[iej]->getPars()->ii_eq << "\n";
 ////                exit(1);
 ////            }
-////            if (ej_bws[iej]->getPars()->end_evolution)
+////            if (ej_layers[iej]->getPars()->end_evolution)
 ////                continue;
-//                ej_bws[iej]->evaluateRhsDensModel2(out_Y, ii, x, Y,
+//                ej_layers[iej]->evaluateRhsDensModel2(out_Y, ii, x, Y,
 //                     reinterpret_cast<std::vector<std::unique_ptr<BlastWaveBase>> &>(jet_bws), p_pars->ix);
 ////                ii += p_pars->n_eq_ej_bws;
-//                ii += ej_bws[iej]->getNeq();
+//                ii += ej_layers[iej]->getNeq();
 //            }
         }
 
@@ -1058,7 +1164,7 @@ private:
     int m_loglevel{};
     IntegratorBase * p_Integrator;
     bool is_initialized = false;
-    Array m_t_grid;
+//    Array m_t_grid;
 };
 
 #endif //SRC_BLASTWAVE_SET_H
