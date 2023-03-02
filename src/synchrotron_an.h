@@ -1238,7 +1238,7 @@ public:
         }
         p_pars->m_methodsLfmin = val_lfmin;
 
-        bool tmp = getBoolOpt("use_ssa", opts, AT,p_log, false);
+        bool tmp = getBoolOpt("use_ssa", opts, AT,p_log, false, true);
         if (tmp) p_pars->m_methods_ssa = SynchrotronAnalytic::METHODS_SSA::iSSAon;
         else p_pars->m_methods_ssa = SynchrotronAnalytic::METHODS_SSA::iSSAoff;
 

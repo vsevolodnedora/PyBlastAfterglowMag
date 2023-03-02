@@ -77,7 +77,7 @@ public:
     }
 
     void setPars(StrDbMap & pars, StrStrMap & opts){
-        run_magnetar = getBoolOpt("run_magnetar", opts, AT,p_log,true);
+        run_magnetar = getBoolOpt("run_magnetar", opts, AT,p_log, false, true);
         if (!run_magnetar)
             return;
         // *************************************
@@ -269,9 +269,39 @@ public:
         /// domega/dt
         double domegadt = (n_dip + n_acc + n_grav)/p_pars->eos_i;
 
+        double dEsddt = n_dip*omega;
+        double dEpropdt = n_acc*omega - CGS::gravconst*p_pars->ns_mass*mdot/r_mag;
         // **************************
         out_Y[iOmega] = domegadt;
+//        out_Y[idEsddt] = -n_dip*omega;
+//        out_Y[idEpropdt] = -n_acc*omega - CGS::gravconst*p_pars->ns_mass*mdot/r_mag;
         // **************************
+    }
+
+    inline double getLdip(double tburst, const double * Y, size_t i){
+        double omega = Y[i+Q_SOL::iomega]; /// dOmega/dt
+        double mdot = dmacc_dt(tburst);
+        double r_lc = CGS::c/omega;
+        double r_mag = radius_magnetospheric(mdot, r_lc);
+        /// Compute Dipole spindown torque. Eq (8) of Zhang and Meszaros 2001
+        double n_dip = torque_dipol(omega, r_lc, r_mag);
+        /// Dipole spindown luminosity
+        double ldip = -n_dip*omega;
+        return ldip;
+    }
+
+    inline double getLprop(double tburst, const double * Y, size_t i){
+        double omega = Y[i+Q_SOL::iomega]; /// dOmega/dt
+        double mdot = dmacc_dt(tburst);
+        double r_lc = CGS::c/omega;
+        double r_mag = radius_magnetospheric(mdot, r_lc);
+        double r_corot =  std::pow(CGS::gravconst * p_pars->ns_mass / (omega*omega), 1./3.);
+        double fastness = std::pow(r_mag / r_corot, 1.5);
+        /// compute accretion torque ( Accretion torque, taking into account the propeller model ) Eq (6-7) of Gompertz et al. 2014
+        double n_acc = torque_propeller(omega, fastness, r_mag, mdot);
+        /// propeller luminocity (Gompertz et al. (2014))
+        double lprop = - n_acc*omega - CGS::gravconst*p_pars->ns_mass*mdot/r_mag;
+        return lprop;
     }
 
     void addOtherVariables( size_t it ){
@@ -318,8 +348,13 @@ public:
     void applyUnits( double * sol, size_t i ){
 
     }
+};
 
+
+class Magnetar2{
+    Magnetar2(){}
 
 };
+
 
 #endif //SRC_MAGNETAR_H

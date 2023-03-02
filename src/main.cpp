@@ -235,34 +235,7 @@ Vector makeVecFromString(std::string line, std::unique_ptr<logger> & p_log){
     return std::move( res );
 }
 
-struct Timer {
 
-    //std::chrono::time_point<std::chrono::steady_clock> start, end;
-    std::chrono::system_clock::time_point start, end;
-    std::chrono::duration<float> duration;
-
-    Timer() {
-        start = std::chrono::high_resolution_clock::now();
-    }
-
-    auto checkPoint() const{
-        using namespace std::literals::chrono_literals;
-        auto m_end = std::chrono::high_resolution_clock::now();
-        auto m_duration = m_end-start; // duration in seconds
-        auto duration_ms = m_duration.count()/1.e9;// * 1000.0f;
-        return duration_ms; // s ???
-//        std::cout << "Time took " << duration_ms << " ms" << std::endl;
-    }
-
-//    ~Timer()
-//    {
-//        end = std::chrono::high_resolution_clock::now();
-//        duration = end-start; // duration in seconds
-//        float duration_ms = duration.count() * 1000.0f;
-//        std::cout << "Time took " << duration_ms << " ms" << std::endl;
-//    }
-
-};
 
 // driver function
 int main(int argc, char** argv) {
@@ -281,14 +254,14 @@ int main(int argc, char** argv) {
 //        working_dir = "../../tst/grbafg_gauss_offaxis/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/knafg_nrinformed/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-//        working_dir = "../../tst/magnetar/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../../tst/magnetar/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_tophat_wind/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/knafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../projects/grbtophat_parallel/"; parfilename="tophat_EisoC500_Gamma0c1000_thetaC50_thetaW50_theta00_nism10_p22_epse05_epsb05_parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../projects/grbgauss_mcmc/working/"; parfilename="tophat_7549a8d74ce86fc502b087d8eb0e341656ee536a.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/problems/"; parfilename="tst.par"; loglevel=LOG_INFO;
-        working_dir = "../../tst/problems/"; parfilename="failed_tophat_4d4f9670289d90ea734b93aeb3ba05795defeca9.par"; loglevel=LOG_INFO;
+//        working_dir = "../../tst/problems/"; parfilename="failed_tophat_4d4f9670289d90ea734b93aeb3ba05795defeca9.par"; loglevel=LOG_INFO;
         std::cerr << " working directory and parfile are not given. Using default: "
                   << " workdir=" << working_dir << " parfile="<<parfilename << " loglevel="<< loglevel<<"\n";
     }
@@ -324,6 +297,7 @@ int main(int argc, char** argv) {
         }
 //        parfile_arrs_path = argv[2]; // "../../tst/dynamics/parfile_arrs.par"
     }
+//    std::cout << " Starting...\n";
     std::unique_ptr<logger>(p_log);
     p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "main");
     Timer timer;
@@ -364,12 +338,12 @@ int main(int argc, char** argv) {
     readParFile2(grb_pars, grb_opts, working_dir+parfilename,
                  "# ---------------------- GRB afterglow ----------------------",
                  "# --------------------------- END ---------------------------");
-    bool run_jet_bws = getBoolOpt("run_jet_bws", grb_opts, AT, p_log, false, true);
-    bool save_j_dynamics = getBoolOpt("save_j_dynamics", grb_opts, AT, p_log, false, true);
-    bool do_j_ele = getBoolOpt("do_j_ele", grb_opts, AT, p_log, false, true);
-    bool do_j_spec = getBoolOpt("do_j_spec", grb_opts, AT, p_log, false, true);
-    bool do_j_lc = getBoolOpt("do_j_lc", grb_opts, AT, p_log, false, true);
-    bool do_j_skymap = getBoolOpt("do_j_skymap", grb_opts, AT, p_log, false, true);
+    const bool run_jet_bws = getBoolOpt("run_jet_bws", grb_opts, AT, p_log, false, true);
+    const bool save_j_dynamics = getBoolOpt("save_j_dynamics", grb_opts, AT, p_log, false, true);
+    const bool do_j_ele = getBoolOpt("do_j_ele", grb_opts, AT, p_log, false, true);
+    const bool do_j_spec = getBoolOpt("do_j_spec", grb_opts, AT, p_log, false, true);
+    const bool do_j_lc = getBoolOpt("do_j_lc", grb_opts, AT, p_log, false, true);
+    const bool do_j_skymap = getBoolOpt("do_j_skymap", grb_opts, AT, p_log, false, true);
     for (auto & key : {"n_ism","d_l","z","theta_obs","A0","s","r_ej","r_ism"}){
         if (main_pars.find(key) == main_pars.end()){
             (*p_log)(LOG_ERR,AT) << " keyword '"<<key<<"' is not found in main parameters. \n";
@@ -389,12 +363,17 @@ int main(int argc, char** argv) {
     readParFile2(kn_pars, kn_opts, working_dir + parfilename,
                  "# ----------------------- kN afterglow ----------------------",
                  "# --------------------------- END ---------------------------");
-    bool run_ejecta_bws = getBoolOpt("run_ejecta_bws", kn_opts, AT, p_log, false, true);
-    bool save_ej_dynamics = getBoolOpt("save_ej_dynamics", kn_opts, AT, p_log, false, true);
-    bool do_ej_ele = getBoolOpt("do_ej_ele", kn_opts, AT, p_log, false, true);
-    bool do_ej_spec = getBoolOpt("do_ej_spec", kn_opts, AT, p_log, false, true);
-    bool do_ej_lc = getBoolOpt("do_ej_lc", kn_opts, AT, p_log, false, true);
-    bool do_ej_skymap = getBoolOpt("do_ej_skymap", kn_opts, AT, p_log, false, true);
+    const bool run_ejecta_bws = getBoolOpt("run_ej_bws", kn_opts, AT, p_log, false, true);
+//    if (run_ejecta_bws) {
+//        for (const auto& i : kn_opts)
+//            std::cout << i.first << "=" << i.second << "|" << std::endl;
+//        std::cerr << AT << "\n"; exit(1);
+//    }
+    const bool save_ej_dynamics = getBoolOpt("save_ej_dynamics", kn_opts, AT, p_log, false, true);
+    const bool do_ej_ele = getBoolOpt("do_ej_ele", kn_opts, AT, p_log, false, true);
+    const bool do_ej_spec = getBoolOpt("do_ej_spec", kn_opts, AT, p_log, false, true);
+    const bool do_ej_lc = getBoolOpt("do_ej_lc", kn_opts, AT, p_log, false, true);
+    const bool do_ej_skymap = getBoolOpt("do_ej_skymap", kn_opts, AT, p_log, false, true);
     for (auto & key : {"n_ism","d_l","z","theta_obs","A0","s","r_ej","r_ism"}){
         if (main_pars.find(key) == main_pars.end()){
             (*p_log)(LOG_ERR,AT) << " keyword '"<<key<<"' is not found in main parameters. \n";

@@ -15,7 +15,7 @@
 tb0 = 1.e1
 tb1 = 5.e8
 ntb = 1000
-rtol = 1e-7
+rtol = 1e-10
 nmax = 1000
 
 A0 = -1
@@ -116,8 +116,8 @@ rtol_adapt = 1e-5
 
 * Settings
 
-run_ejecta_bws = yes
-save_ej_dynamics = no
+run_ej_bws = yes
+save_ej_dynamics = yes
 do_ej_ele = yes
 do_ej_spec = no
 do_ej_lc = yes

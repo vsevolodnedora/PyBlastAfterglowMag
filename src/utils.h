@@ -100,8 +100,46 @@ namespace TOOLS{
 
 }
 
-bool getBoolOpt(std::string opt, std::unordered_map<std::string,std::string> & opts,
-                const char *loc, std::unique_ptr<logger> & p_log, bool def = false, bool req = false){
+struct Timer {
+
+    //std::chrono::time_point<std::chrono::steady_clock> start, end;
+    std::chrono::system_clock::time_point start, end;
+    std::chrono::duration<float> duration;
+
+    Timer() {
+        start = std::chrono::high_resolution_clock::now();
+    }
+
+    auto checkPoint() const{
+        using namespace std::literals::chrono_literals;
+        auto m_end = std::chrono::high_resolution_clock::now();
+        auto m_duration = m_end-start; // duration in seconds
+        auto duration_ms = m_duration.count()/1.e9;// * 1000.0f;
+        return duration_ms; // s ???
+//        std::cout << "Time took " << duration_ms << " ms" << std::endl;
+    }
+
+//    ~Timer()
+//    {
+//        end = std::chrono::high_resolution_clock::now();
+//        duration = end-start; // duration in seconds
+//        float duration_ms = duration.count() * 1000.0f;
+//        std::cout << "Time took " << duration_ms << " ms" << std::endl;
+//    }
+
+};
+
+/// https://stackoverflow.com/questions/42533070/finding-minimum-element-of-a-vector-in-c
+size_t indexOfMinimumElement(const std::vector<double>& input)
+{
+    if (input.empty())
+        return -1;
+    auto ptrMinElement = std::min_element(input.begin(), input.end());
+    return std::distance(input.begin(), ptrMinElement);
+}
+
+bool getBoolOpt(std::string opt, StrStrMap & opts,
+                const char *loc, std::unique_ptr<logger> & p_log, const bool def, const bool req){
 //    opt = "use_dens_prof_behind_jet_for_ejecta";
     bool b_val;
     std::string val;
@@ -134,8 +172,8 @@ bool getBoolOpt(std::string opt, std::unordered_map<std::string,std::string> & o
     }
     return b_val;
 }
-std::string getStrOpt(std::string opt, std::unordered_map<std::string,std::string> & opts,
-                      const char *loc, std::unique_ptr<logger> & p_log, std::string def = "", bool req = false){
+std::string getStrOpt(std::string opt, StrStrMap & opts,
+                      const char *loc, std::unique_ptr<logger> & p_log, const std::string& def, const bool req){
 //    opt = "use_dens_prof_behind_jet_for_ejecta";
     std::string b_val;
     std::string val;
@@ -153,8 +191,8 @@ std::string getStrOpt(std::string opt, std::unordered_map<std::string,std::strin
     }
     return val;
 }
-double getDoublePar(std::string par, std::unordered_map<std::string,double> & pars,
-                    const char *loc, std::unique_ptr<logger> & p_log, double def = 0., bool req = false){
+double getDoublePar(std::string par, StrDbMap & pars,
+                    const char *loc, std::unique_ptr<logger> & p_log, double def, const bool req){
     double val;
     if ( pars.find(par) == pars.end() ){
         if (req){
@@ -186,7 +224,7 @@ double linearExtrapolate(double x1, double x2, double y1, double y2, double new_
 
 /// https://stackoverflow.com/questions/1577475/c-sorting-and-keeping-track-of-indexes
 template <typename T>
-std::vector<size_t> sort_indexes(const std::vector<T> &v, std::vector<size_t> & idx) {
+void sort_indexes(const std::vector<T> &v, std::vector<size_t> & idx) {
 
     // initialize original index locations
 //    std::vector<size_t> idx(v.size());
@@ -196,10 +234,9 @@ std::vector<size_t> sort_indexes(const std::vector<T> &v, std::vector<size_t> & 
     // using std::stable_sort instead of std::sort
     // to avoid unnecessary index re-orderings
     // when v contains elements of equal values
-    stable_sort(idx.begin(), idx.end(),
-                [&v](size_t i1, size_t i2) {return v[i1] < v[i2];});
+    stable_sort(idx.begin(), idx.end(), [&v](size_t i1, size_t i2) { return v[i1] < v[i2]; });
 
-    return std::move( idx );
+//    return std::move( idx );
 }
 template <typename T>
 std::valarray<size_t> sort_indexes(const std::valarray<T> &v) {
@@ -952,6 +989,35 @@ public:
 
 };
 
+/// https://www.techiedelight.com/print-keys-values-map-cpp/
+class myclass
+{
+    template<typename K, typename V>
+    void operator()(const std::pair<K, V> &p) {
+        std::cout << "{" << p.first << ": " << p.second << "}\n";
+    }
+} ob;
 
+template<typename K, typename V>
+void print(const std::pair<K, V> &p) {
+    std::cout << "{" << p.first << ": " << p.second << "}\n";
+}
+
+template<typename K, typename V>
+void print_map(std::unordered_map<K, V> const &m)
+{
+    // specify a lambda expression
+    std::for_each(m.begin(),
+                  m.end(),
+                  [](const std::pair<int, char> &p) {
+                      std::cout << "{" << p.first << ": " << p.second << "}\n";
+                  });
+
+    // or pass an object of a class overloading the ()operator
+    // std::for_each(m.begin(), m.end(), ob);
+
+    // or specify a function
+    // std::for_each(m.begin(), m.end(), print<K, V>);
+}
 
 #endif //SRC_UTILS_H

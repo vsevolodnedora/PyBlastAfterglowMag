@@ -25,31 +25,102 @@
  * Here the velocity distribution, relative position and photosphere can be found.
  */
 class CumulativeShell{
-    size_t m_nshells;
+    struct FsolvePars{
+        EOSadi * p_eos = nullptr;
+        FsolvePars(EOSadi * eos_pointer) : p_eos(eos_pointer){ }
+        double gam1{}, beta1{}, mass1{}, eint1{}, adi1{};
+        double gam2{}, beta2{}, mass2{}, eint2{}, adi2{};
+        int getTheMostMassive() const{ return mass1 > mass2 ? 1 : 2; }
+        int getTheFastest() const{ return gam1 > gam2 ? 1 : 2; }
+        int getTheMostEnergetic() const{ return eint1 > eint2 ? 1 : 2; }
+        /// chose which shell to delete: the slowest/less energetic/less massive
+        int choseShell(){
+            int idx_massive = getTheMostMassive();
+            int idx_energetic = getTheMostEnergetic();
+            int idx_fastest = getTheFastest();
+            if (idx_massive == idx_energetic && idx_massive == idx_fastest){ return idx_massive;}
+            if (idx_massive != idx_energetic && idx_massive == idx_fastest){ return idx_massive;}
+            if (idx_massive == idx_energetic && idx_massive != idx_fastest){ return idx_fastest;}
+            if (idx_massive != idx_energetic && idx_massive != idx_fastest){ return idx_fastest;}
+            std::cerr<<AT<<" ERROR\n";
+            exit(1);
+        }
+
+        /// main switch for combined model dynamics
+//    bool use_dens_prof_behind_jet_for_ejecta = true;
+
+//    /// main switch
+//    bool use_dens_prof_behind_jet_for_ejecta = true;
+//    size_t which_jet_layer_to_use = 0;
+//
+//    /// exp decay && floor behaviour
+//    bool use_exp_rho_decay_as_floor = true;
+//    bool use_flat_dens_floor = false;
+//    double steepnes_of_exp_decay = 1.;
+////    double dens_floor_frac = 1e-20;
+//
+//    /// ST profile
+//    bool use_st_dens_profile = true;
+//    double Gamma_when_st_starts = 2.;
+//
+//    /// BM profile
+//    bool use_bm_dens_profile = false;
+//    double fraction_of_Gamma0_when_bm_for_bm = 1.98; // if > 1 -- BM also in free coasting
+
+    };
+    FsolvePars * p_colsolve;
+//    enum Q { ikapp};
     std::unique_ptr<logger> p_log;
     std::vector<std::unique_ptr<RadBlastWave>> p_bws_ej;
     std::vector<std::unique_ptr<RadBlastWave>> p_sorted_bws_ej;
     std::vector<std::vector<size_t>> relative_position;
     std::vector<size_t> m_idxs;
+    std::vector<size_t> idx_tau_eq1;
     Vector m_rho;
-    Vector m_radii;
-    Vector m_kappas;
+    Vector m_radii_init;
+    Vector m_radii_sorted;
+    Vector m_dtau;
+    Vector m_dtau_cum;
+    VecVector m_shell_data;
+    size_t m_tarr_size;
+    const Array m_t_grid;
 public:
-
-    CumulativeShell( Array t_grid, size_t nshells, int ilayer, int loglevel ){
+    size_t m_nshells;
+    size_t n_active_shells;
+    size_t mylayer{};
+    CumulativeShell( Array t_grid, size_t nshells, int ilayer, int loglevel )
+     : m_t_grid(t_grid) {
         m_nshells = nshells;
+        n_active_shells = nshells; // as shells collide this number will decrease
 
         p_log = std::make_unique<logger>(std::cout, std::cerr, CurrLogLevel, "LatStruct");
         for (size_t ishell = 0; ishell < nshells; ishell++)
             p_bws_ej.emplace_back( std::make_unique<DynRadBlastWave>(t_grid, ishell, ilayer, loglevel ) );
 
+        idx_tau_eq1.resize(t_grid.size(), 0);
         relative_position.resize( nshells );
         for (auto & arr : relative_position)
             arr.resize( t_grid.size() );
 
         m_rho.resize(nshells, 0.0);
-        m_radii.resize(nshells, 0.0);
+        m_radii_init.resize(nshells, std::numeric_limits<double>::max());
+        m_radii_sorted.resize(nshells, std::numeric_limits<double>::max());
+        m_dtau.resize(nshells, 0.0);
+        m_dtau_cum.resize(nshells, 0.0);
+//        m_shell_data.resize(m_nshells);
+//        for (auto arr:)
+        m_idxs.resize(nshells, nshells-1); // fill with last value (if not active)
+        mylayer = ilayer;
+        m_tarr_size = t_grid.size();
+//        p_colsolve = std::make_unique<FsolvePars>(p_bws_ej[0]->getEos());
+        p_colsolve = new FsolvePars(p_bws_ej[0]->getEos());
+//        p_colsolve->p_eos;
+
     }
+    ~CumulativeShell(){ delete p_colsolve; }
+    Vector & getSortedRadii(){return m_radii_init;}
+    std::vector<size_t> & getIdx(){return m_idxs;}
+    double getR(size_t i){return m_radii_init[m_idxs[i]];}
     std::unique_ptr<RadBlastWave> & getBW(size_t ish){
         if (p_bws_ej.empty()){
             (*p_log)(LOG_ERR, AT) << " shell does not contain blast waves\n"; exit(1);
@@ -61,10 +132,740 @@ public:
     }
     inline size_t nBWs() const { return p_bws_ej.size();}
     inline std::vector<std::unique_ptr<RadBlastWave>> & getBWs() {return p_bws_ej; }
-    inline std::vector<size_t> & getCurrentIndexes( ) { return m_idxs; }
+    /// Evaluate the relative order of the ejecta velocity shells
+//    void setShellOrder( double x, const double * Y ){
+//        double r = 0.;
+//        /// evaluate relative positions of shells at this time
+//        for (size_t i=0; i<m_nshells; i++){
+//            auto & bw = p_bws_ej[i];
+//            r = Y[bw->getPars()->ii_eq + DynRadBlastWaconstve::Q_SOL::iR];
+//            m_radii[i] = r == 0. ? 1e90 : r;
+////            radii[i] = p_bws_ej[i]->getLastVal(std::static_pointer_cast<BlastWaveBase::Q>())
+//        }
+//        /// get indexes of sorted shells by radius
+//        sort_indexes(m_radii, m_idxs);
+//    }
+
+//    void updateSortActiveShells(const double * Y){
+//        std::fill(m_radii_init.begin(), m_radii_init.end(),-1);
+//        size_t n=0;
+//        for (size_t i=0; i<m_nshells; i++) {
+//            if (p_bws_ej[i]->getPars()->end_evolution)
+//                continue;
+//            m_idxs[i] = i;
+//            n+=1;
+//        }
+//        sort_indexes(m_radii_init, m_idxs );
+//        n_active_shells = n;
+//    }
+
+    /// update the number of active shells
+    void updateActiveShells(){
+        std::fill(m_idxs.begin(), m_idxs.end(),std::numeric_limits<size_t>::max());
+        n_active_shells = m_nshells;
+        size_t idx = 0;
+        for (size_t i=0; i<n_active_shells; i++) {
+            /// loop over all blastwaves and collect the active ones
+            if (p_bws_ej[i]->getPars()->end_evolution) { continue; }
+            /// if shell is active record its current index (order)
+            m_idxs[idx] = i; // add only active shells to the list
+            idx++;
+        }
+        n_active_shells = idx;
+    }
+    /// check if active shells are ordered according to their radius
+    bool checkIfActiveShellsOrdered(const double * Y, size_t & idx0, size_t & idx1 ){
+        idx0 = std::numeric_limits<size_t>::max();
+        idx1 = std::numeric_limits<size_t>::max();
+        std::fill(m_radii_init.begin(), m_radii_init.end(),std::numeric_limits<double>::max());
+        bool is_sorted = true;
+        for (size_t i=0; i<n_active_shells; i++) {
+            size_t idx = m_idxs[i];
+            m_radii_init[i] = Y[ p_bws_ej[idx]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ];
+        }
+        for (size_t i=1; i<n_active_shells; i++) {
+            size_t idx = m_idxs[i];
+            double rim1 = m_radii_init[i-1];
+            /// if the next shells in the list has a radius > than the previous; shells not ordered
+            if (m_radii_init[i] > rim1){
+                rim1 = m_radii_init[i];
+            }
+            else {
+                is_sorted = false;
+//                (*p_log)(LOG_INFO,AT) << "\tLayer [il="<<mylayer<<"] active shells are not ordered at "
+//                                      << " (r[i] - r[i-1]) = "<< m_radii_init[i] - m_radii_init[i-1]
+//                                      << " is negative (overrun)"
+//                                      << " \n";
+                /// store where the overrun occured
+                if (idx0 == std::numeric_limits<size_t>::max()){
+                    idx0 = m_idxs[i-1];
+                    idx1 = m_idxs[i];
+                }
+                break;
+            }
+        }
+        return is_sorted;
+    }
+
 
 #if 0
+    /// check if shells are ordered radially
+    bool checkIfShellsOrderedSetIndexes( const double * Y, size_t & idx0, size_t & idx1 ){
+        /// clear arrays to avoid keeping inacitve shells here
+        std::fill(m_radii_init.begin(), m_radii_init.end(),std::numeric_limits<double>::max());
+        std::fill(m_idxs.begin(), m_idxs.end(),std::numeric_limits<size_t>::max());
+        /// collect radii of the blast wave
+        double r = -1.;
+        std::vector<size_t> idxs_to_collide;
+        size_t idx = 0; double ri = 0; bool is_sorted = true;
+        idx0 = std::numeric_limits<size_t>::max();
+        idx1 = std::numeric_limits<size_t>::max();
+        for (size_t i=0; i<n_active_shells; i++) {
+            /// if shell shell is deactivated; skip
+            if (p_bws_ej[i]->getPars()->end_evolution) {
+                continue;
+            }
+            /// if shell is active record its current index (order)
+            m_idxs[idx] = i; // add only active shells to the list
+//            std::cerr << "i="<<i<<" R="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ]<<"\n";
+            m_radii_init[idx] = Y[p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ];
+            /// if the next shells in the list has a radius > than the previous; shells not ordered
+            if (m_radii_init[idx] > ri){
+                ri = m_radii_init[idx];
+            }
+            else {
+                is_sorted = false;
+                (*p_log)(LOG_INFO,AT) << "Active shells are not ordered at "
+                                   << " ilayer=" << mylayer
+                                   << " i[idx-1]=" << idx - 1 << " r[idx-1]=" << m_radii_init[idx-1]
+                                   << " i[idx]=" << idx << " r[idx]="<<m_radii_init[idx]
+                                   << " \n";
+                /// store where the overrun occured
+                if (idx0 == std::numeric_limits<size_t>::max()){
+                    idx0 = idx-1;
+                    idx1 = idx;
+                }
+            }
+            idx++;
+        }
+        n_active_shells = idx;
+//        bool is_sorted = std::is_sorted(m_radii_init.begin(),m_radii_init.end());
+//        if (!is_sorted){
+//            std::cout << m_radii_init << "\n";
+//        }
+        return is_sorted;
+    }
+
+    /// set indexes 'm_idxs' of shells based on their radii
+//    void oderShells( const double * Y ){
+//        areShellsOrderedRadially(Y);
+//        sort_indexes(m_radii_init, m_idxs );
+//    }
+#endif
+
+
+    /// get indexes of shells that will collide next
+    void evalWhichShellsCollideNext(size_t & ish1, size_t & ish2, double & tcoll,
+                                    double tim1, double ti, const double * Ym1_, const double * Y_){
+        Vector _tcoll{};
+        std::vector<size_t> _idx1s{};
+        std::vector<size_t> _idx2s{};
+        tcoll = std::numeric_limits<double>::max();
+        if (tim1 > ti){
+            (*p_log)(LOG_ERR,AT)<<"tim1="<<tim1<<" is larger than ti="<<ti<<"\n";
+            exit(1);
+        }
+        (*p_log)(LOG_INFO, AT)
+                << "\tLayer [il="<<mylayer<<" Checking which shells will collide in"
+                <<" between tim1="<<tim1<<" and ti="<<ti<<"\n";
+        size_t n_collisions = 0;
+        for (size_t ii=0; ii<n_active_shells; ii++) {
+            n_collisions = 0;
+            size_t i_idx = m_idxs[ii];
+            double r_i = m_radii_init[ii];
+            if (r_i == std::numeric_limits<double>::max()){
+                continue;
+            }
+            std::vector<size_t> overrun_shells;
+            Vector t_at_which_overrun;
+            /// now check which blast-waves has this one overrun
+
+            for (size_t jj = ii; jj < n_active_shells; jj++) {
+                size_t j_idx = m_idxs[jj];
+                double r_j = m_radii_init[jj];
+                if (r_i > r_j) {
+                    n_collisions += 1;
+                    overrun_shells.push_back(j_idx);
+                    /// interpolate the time at which shells collided
+//                    double tim1 = m_t_grid[ix - 1];
+//                    double ti = m_t_grid[ix];
+                    double dt = ti - tim1;
+                    double r0im1 = Ym1_[p_bws_ej[i_idx]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];//p_bws_ej[i]->getVal(BlastWaveBase::iR, (int) (ix - 1));
+                    double r0i   = Y_[p_bws_ej[i_idx]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+                    double r1im1 = Ym1_[p_bws_ej[j_idx]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];//p_bws_ej[j]->getVal(BlastWaveBase::iR, (int) (ix - 1));
+                    double r1i   = Y_[p_bws_ej[j_idx]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+                    double slope0 = (r0i - r0im1) / dt;
+                    double slope1 = (r1i - r1im1) / dt;
+                    double r0int = r0im1 - slope0 * tim1;
+                    double r1int = r1im1 - slope1 * tim1;
+                    double tc = (r1int - r0int) / (slope0 - slope1);
+                    double rc = slope1 * tc + r0int;
+                    if (!std::isfinite(tc)){
+                        (*p_log)(LOG_ERR, AT)<< " nan in tcoll evaluation tc=" << tc << "\n";
+                        exit(1);
+                    }
+                    if ((tc < tim1) or (tc > ti)) {
+                        (*p_log)(LOG_ERR, AT)<< " inferred tcoll=" << tc
+                                              << " is not in tim1-ti range [" << tim1 << ", " << ti << "]"
+                                              << " ish1="<<i_idx<<" ish2="<<j_idx
+                                              <<" len(overruns)="<<overrun_shells.size()<<"\n";
+                        exit(1);
+                    }
+                    /// log the result
+//                    (*p_log)(LOG_WARN, AT)
+//                            << " Interpolating shell collision time" << " [ilayer=" << mylayer
+//                            << " ishell=" << i << "] "
+//                            << " mom=" << Y[p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom]
+//                            << " (mom0=" << p_bws_ej[i]->getPars()->mom0 << ") "
+//                            << " has overrun shell j=" << overrun_shells[0]
+//                            << " with momenta "
+//                            << Y[p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom]
+//                            << " (mom0=" << p_bws_ej[overrun_shells[0]]->getPars()->mom0 << ") "
+//                            << "\n";
+//                    if (x < tcoll)
+                    /// record the collision shells
+//                    ish1 = i_idx;
+//                    ish2 = j_idx;
+//                    tcoll = tc;
+                    _idx1s.push_back(i_idx);
+                    _idx2s.push_back(j_idx);
+                    _tcoll.push_back(tc);
+//                    dt_from_ix_to_coll = tc - m_t_grid[ix];
+//                    return;
+                }
+            }
+        }
+        size_t idx_min = indexOfMinimumElement(_tcoll);
+        tcoll = _tcoll[idx_min];
+        ish1 = _idx1s[idx_min];
+        ish2 = _idx2s[idx_min];
+        (*p_log)(LOG_INFO, AT) << "\tLayer [il="<<mylayer<<"] interpolated tcoll="<<tcoll
+                                         <<" [idx1="<<ish1<<" idx2="<<ish2<<"]\n";
+        if ((tcoll == std::numeric_limits<double>::max())||(!std::isfinite(tcoll))){
+            (*p_log)(LOG_ERR,AT)<<" Failed to find tcoll in layer="<<mylayer<<"\n";
+            exit(1);
+        }
+    }
+
+    /// solve energy, momentum and mass conservation to get properties of the shell after collision
+    void collideBlastWaves(size_t idx1, size_t idx2, double * Y){
+        if (idx1 == idx2){
+            (*p_log)(LOG_ERR,AT) << " shells staged for collision are the same ish=idx2=" << idx1 << "\n";
+            exit(1);
+        }
+        if (p_colsolve->p_eos == nullptr){
+            (*p_log)(LOG_ERR,AT) << " eos pointer is not set\n;";
+            exit(1);
+        }
+        auto & bw1 = p_bws_ej[idx1];
+        auto & bw2 = p_bws_ej[idx2];
+        if (bw1->getPars()->end_evolution || bw2->getPars()->end_evolution){
+            (*p_log)(LOG_ERR,AT) << " of the shells staged for collision is not active: "
+                                   "idx1=" << idx1 << " idx2=" << idx2 << "\n";
+            exit(1);
+        }
+        /// Extract data for first shell
+//        double gam1, beta1, mass1, eint1, adi1;
+        p_colsolve->gam1 = EQS::GamFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        p_colsolve->beta1 = EQS::BetFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        p_colsolve->mass1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
+        p_colsolve->eint1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        p_colsolve->adi1 = bw1->getEos()->getGammaAdi(p_colsolve->gam1, p_colsolve->beta1);
+        /// apply units for the first shell (mass and energy)
+        p_colsolve->mass1 = (p_colsolve->mass1 * bw1->getPars()->M0) + bw1->getPars()->M0;
+        p_colsolve->eint1 = p_colsolve->eint1 * (bw1->getPars()->M0 * CGS::c * CGS::c);
+        /// extract data for the second shell
+//        double gam2, beta2, mass2, eint2, adi2;
+        p_colsolve->gam2 = EQS::GamFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        p_colsolve->beta2 = EQS::BetFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        p_colsolve->mass2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
+        p_colsolve->eint2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        p_colsolve->adi2 = bw2->getEos()->getGammaAdi(p_colsolve->gam2, p_colsolve->beta2);
+        /// apply units for the second shell (mass and energy)
+        p_colsolve->mass2 = (p_colsolve->mass2 * bw2->getPars()->M0) + bw2->getPars()->M0;
+        p_colsolve->eint2 = p_colsolve->eint2 * (bw2->getPars()->M0 * CGS::c * CGS::c);
+        /// log the data
+        (*p_log)(LOG_INFO,AT) << " Colliding shells: "
+            << "Masses=("<<p_colsolve->mass1<<", "<<p_colsolve->mass2<<") "
+            << "Gammas=("<<p_colsolve->gam1<<", "<<p_colsolve->gam2<<") "
+            << "betas=("<<p_colsolve->beta1<<", "<<p_colsolve->beta2<<") "
+            << "Eint2=("<<p_colsolve->eint1<<", "<<p_colsolve->eint2<<") "
+            << "\n";
+        /// solve equation for the shell collision
+        /// set initial guess for the solver
+        double i_gM = (p_colsolve->gam1*p_colsolve->mass1 + p_colsolve->gam2*p_colsolve->mass2)
+                    / (p_colsolve->mass1+p_colsolve->mass2);
+        double i_mM = p_colsolve->mass1 + p_colsolve->mass2;
+        double i_eM = (p_colsolve->eint1*p_colsolve->mass1+p_colsolve->eint2*p_colsolve->mass2)
+                    / (p_colsolve->mass1+p_colsolve->mass2);
+        int x_ = 1;
+        // define a system of non-linear equations to solve
+        auto func = []( int n, double x[], double fx[],
+                                                               int &iflag, void * pars ){
+            auto pp = (struct FsolvePars *) pars;
+            double gM = x[0];
+            double eM = x[1];
+            double gAdiM = pp->p_eos->getGammaAdi(gM, EQS::Beta(gM));
+            /// total mass conservation
+            double mM = pp->mass1 + pp->mass2;
+            /// total energy consercation (Ek + Eint)
+            double fx1 = (pp->gam1 * pp->mass1 + EQS::get_GammaEff(pp->gam1, pp->adi1) * pp->eint1)
+                       + (pp->gam2 * pp->mass2 + EQS::get_GammaEff(pp->gam2, pp->adi2) * pp->eint2)
+                       - (gM * mM + EQS::get_GammaEff(gM,gAdiM) * eM );
+            /// total momentum conservation
+            double fx2 = sqrt(pp->gam1 * pp->gam1 - 1) * (pp->mass1 + pp->adi1 * pp->eint1 )
+                       + sqrt(pp->gam2 * pp->gam2 - 1) * (pp->mass2 + pp->adi2 * pp->eint2 )
+                       - sqrt(gM * gM - 1) * (mM + gAdiM * eM );
+            if (!std::isfinite(fx1) || !std::isfinite(fx2))
+                iflag = -1;
+
+            if (!std::isfinite(sqrt(pp->gam1 * pp->gam1 - 1)))
+                iflag = -1;
+
+            fx[0] = fx1;//std::log10(fx1);// * fx1; TODO THis is wrong. It should not be sqred!
+            fx[1] = fx2;//std::log10(fx2);// * fx2;
+        };
+        using func_ptr = void(*)(int, double *, double *, int&, void*);
+        func_ptr p_func = func;
+
+        /// solve the system using a 'fsolve'
+        auto solve = [&]( ){
+            double *fx;
+            int iflag;
+            int info;
+            int lwa;
+            int n = 2;
+            double tol = 1e-3;
+            double *wa;
+            double *x;
+
+            lwa = ( n * ( 3 * n + 13 ) ) / 2;
+            fx = new double[n];
+            wa = new double[lwa];
+            x = new double[n];
+
+//            (*p_log)(LOG_INFO,AT) << "\n";
+//            (*p_log)(LOG_INFO,AT) << "fsolve_test2():\n";
+//            (*p_log)(LOG_INFO,AT) << "fsolve() solves a nonlinear system of 2 equations.\n";
+
+            x[0] = i_gM;
+            x[1] = i_eM;
+            iflag = 0;
+            func ( n, x, fx, iflag, p_colsolve );
+//            r8vec2_print ( n, x, fx, "  Initial X, F(X)" );
+            info = fsolve ( func, n, x, p_colsolve, fx, tol, wa, lwa );
+
+            if (info<0){
+                (*p_log)(LOG_WARN,AT)<< "Fsolve failed (try setting 'tol' lower). "
+                                                   "Using initial guess values. New shell has "
+                          <<"Gamma="<<i_gM<<" beta="<<EQS::Beta(i_gM)<<" Eint="<<i_eM<<"\n";
+//                i_gM = x[0];
+//                i_eM = x[1];
+            }
+            else{
+                (*p_log)(LOG_INFO,AT)<< "Fsolve successful. New shell has "
+                                             <<"Gamma="<<x[0]
+                                             <<" beta="<<EQS::Beta(x[0])
+                                             <<" Eint="<<x[1]<<"\n";
+                i_gM = x[0];
+                i_eM = x[1];
+            }
+//            std::cout << "\n";
+//            std::cout << "  Returned value of INFO = " << info << "\n";
+//            r8vec2_print ( n, x, fx, "  Final X, FX" );
+            delete [] fx;
+            delete [] wa;
+            delete [] x;
+        };
+        solve();
+        /// chose which shell to terminate (the slower one)
+        int ish = p_colsolve->choseShell();
+        size_t iieq;
+        if (ish == 1){
+            bw1->getPars()->M0 = i_mM; // update the total mass of the shell
+            iieq = bw1->getPars()->ii_eq;
+            // terminated collided shell
+            bw2->getPars()->end_evolution = true;
+        }
+        else{
+            bw2->getPars()->M0 = i_mM; // update the total mass of the shell
+            iieq = bw2->getPars()->ii_eq;
+            // terminated collided shell
+            bw1->getPars()->end_evolution = true;
+        }
+        /// using the solution (mass, lorentz factor, energy) update the state vector
+        Y[iieq + DynRadBlastWave::Q_SOL::imom] = i_gM * EQS::Beta(i_gM);
+        Y[iieq + DynRadBlastWave::Q_SOL::iEint2] = i_eM / ( i_mM * CGS::c * CGS::c ); // use ODE units
+//        Y[iieq + DynRadBlastWave::Q_SOL::i] = i_gM * EQS::Beta(i_gM);
+        ///
+    }
+
+#if 0
+    /// get the time at which shells collided
+    double evalShellCollisionTime( double x, size_t ix, const double * Y ){
+        /// if not sorted however, we need to check what blast wave overrun what blastwave(s)...
+        size_t n_overruns = 0;
+        Vector min_t_at_which_overrun;
+
+        for (size_t i=0; i<m_nshells; i++) {
+            double r_i = m_radii_init[i];
+            std::vector<size_t> overrun_shells;
+            Vector t_at_which_overrun;
+            /// now check which blast-waves has this one overrun
+            for (size_t j=i; j<m_nshells; j++){
+                double r_j = m_radii_init[j];
+                if (r_i > r_j){
+                    overrun_shells.push_back(j);
+                    /// interpolate the time at which shells collided
+                    double tim1 = m_t_grid[ix-1];
+                    double ti = m_t_grid[ix];
+                    double r0im1 = p_bws_ej[i]->getVal(BlastWaveBase::iR,(int)(ix-1));
+                    double r0i = Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ];
+                    double r1im1 = p_bws_ej[j]->getVal(BlastWaveBase::iR,(int)(ix-1));
+                    double r1i = Y[ p_bws_ej[j]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ];
+                    double slope0 = (r0i - r0im1) / (ti - tim1);
+                    double slope1 = (r1i - r1im1) / (ti - tim1);
+                    double r0int = r0im1 - slope0 * tim1;
+                    double r1int = r1im1 - slope1 * tim1;
+                    double tcoll = (r1int - r0int) / (slope0 - slope1);
+                    double rcoll = slope1 * tcoll + r0int;
+                    if ((tcoll < tim1)or(tcoll>ti)){
+                        (*p_log)(LOG_ERR,AT) << " inferred tcoll="<<tcoll
+                        <<" is not in tim1-ti range ["<<tim1<<", "<<ti<<"]\n";
+                        exit(1);
+                    }
+                    t_at_which_overrun.push_back( tcoll );
+                }
+//                if (overrun_shells.empty()){
+//                    std::cerr << AT << " error.\n";
+//                    exit(1);
+//                }
+            }
+            if (overrun_shells.size() > 1){
+                (*p_log)(LOG_ERR,AT)
+                        <<" at t="<<x << " ("<<ix<<"/"<<m_tarr_size << ")" <<" [ilayer="<<mylayer<<" ishell="<<i<<"] "
+                        <<" mom="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+                        <<" (mom0="<<p_bws_ej[i]->getPars()->mom0<<") "
+                        <<" has overrun n_shells="<<overrun_shells.size()
+                        <<" with momenta ["<<Y[ p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+                        <<" (mom0="<<p_bws_ej[overrun_shells[0]]->getPars()->mom0<<") "
+                        <<" ... " << Y[ p_bws_ej[overrun_shells.back()]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+                        <<"] \n";
+
+//                (*p_log)(LOG_ERR,AT) << " shell i="<<i<<" has overrun n="<<overrun_shells.size()<<" other shells.\n";
+                return -1;
+            }
+            if (overrun_shells.size() == 1){
+                (*p_log)(LOG_WARN,AT)
+                        <<" at t="<<x << " ("<<ix<<"/"<<m_tarr_size << ")" <<" [ilayer="<<mylayer<<" ishell="<<i<<"] "
+                        <<" mom="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+                        <<" (mom0="<<p_bws_ej[i]->getPars()->mom0<<") "
+                        <<" has overrun shell j="<<overrun_shells[0]
+                        <<" with momenta "<<Y[ p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+                        <<" (mom0="<<p_bws_ej[overrun_shells[0]]->getPars()->mom0<<") "
+                        <<"\n";
+                n_overruns += 1;
+            }
+            /// get time till the nearest collision
+            min_t_at_which_overrun.push_back()
+        }
+        if (n_overruns > 1){
+            (*p_log)(LOG_ERR,AT)
+
+                    << " at t="<<x << " multimple overruns have occured n_overruns="<<n_overruns<<"\n";
+//                    <<" with mom="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+//                    <<" has overrun n_shells="<<overrun_shells.size()
+//                    <<" with momenta ["<<Y[ p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ]
+//                    <<" ... " << Y[ p_bws_ej[overrun_shells.back()]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ]
+//                    <<" \n";
+
+//            (*p_log)(LOG_ERR,AT) << "n_overruns="<<n_overruns<<"\n";
+            return -1;
+        }
+        return 1;
+    }
+    int areShellsOrderedRadially( double x, size_t ix, const double * Y ){
+        /// collect radii of the blast wave
+        double r = -1.;
+        std::vector<size_t> idxs_to_collide;
+        for (size_t i=0; i<m_nshells; i++) {
+            m_idxs[i] = i;
+            if (p_bws_ej[i]->getPars()->end_evolution)
+                continue;
+            m_radii_init[i] = Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ];
+        }
+
+        /// check if radii are sorted
+
+        bool is_sorted = std::is_sorted(m_radii_init.begin(),m_radii_init.end());
+        /// if sorted returm 0 as there is no collision and no problem)
+        if (is_sorted)
+            return 0;
+
+        /// if not sorted however, we need to check what blast wave overrun what blastwave(s)...
+        size_t n_overruns = 0;
+        for (size_t i=0; i<m_nshells; i++) {
+            double r_i = m_radii_init[i];
+            std::vector<size_t> overrun_shells;
+            /// now check which blast-waves has this one overrun
+            for (size_t j=i; j<m_nshells; j++){
+                double r_j = m_radii_init[j];
+                if (r_i > r_j){
+                    overrun_shells.push_back(j);
+                }
+//                if (overrun_shells.empty()){
+//                    std::cerr << AT << " error.\n";
+//                    exit(1);
+//                }
+            }
+            if (overrun_shells.size() > 1){
+                (*p_log)(LOG_ERR,AT)
+                    <<" at t="<<x << " ("<<ix<<"/"<<m_tarr_size << ")" <<" [ilayer="<<mylayer<<" ishell="<<i<<"] "
+                    <<" mom="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+                    <<" (mom0="<<p_bws_ej[i]->getPars()->mom0<<") "
+                    <<" has overrun n_shells="<<overrun_shells.size()
+                    <<" with momenta ["<<Y[ p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+                    <<" (mom0="<<p_bws_ej[overrun_shells[0]]->getPars()->mom0<<") "
+                    <<" ... " << Y[ p_bws_ej[overrun_shells.back()]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+                    <<"] \n";
+
+//                (*p_log)(LOG_ERR,AT) << " shell i="<<i<<" has overrun n="<<overrun_shells.size()<<" other shells.\n";
+                return -1;
+            }
+            if (overrun_shells.size() == 1){
+                (*p_log)(LOG_WARN,AT)
+                <<" at t="<<x << " ("<<ix<<"/"<<m_tarr_size << ")" <<" [ilayer="<<mylayer<<" ishell="<<i<<"] "
+                <<" mom="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+                <<" (mom0="<<p_bws_ej[i]->getPars()->mom0<<") "
+                <<" has overrun shell j="<<overrun_shells[0]
+                <<" with momenta "<<Y[ p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+                <<" (mom0="<<p_bws_ej[overrun_shells[0]]->getPars()->mom0<<") "
+                <<"\n";
+                n_overruns += 1;
+            }
+        }
+        if (n_overruns > 1){
+            (*p_log)(LOG_ERR,AT)
+
+                    << " at t="<<x << " multimple overruns have occured n_overruns="<<n_overruns<<"\n";
+//                    <<" with mom="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+//                    <<" has overrun n_shells="<<overrun_shells.size()
+//                    <<" with momenta ["<<Y[ p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ]
+//                    <<" ... " << Y[ p_bws_ej[overrun_shells.back()]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ]
+//                    <<" \n";
+
+//            (*p_log)(LOG_ERR,AT) << "n_overruns="<<n_overruns<<"\n";
+            return -1;
+        }
+        return 1;
+    }
+
+#endif
+
+    void evalShellThicknessIsolated(size_t idx, const double * Y){
+
+        double r_i=0., r_ip1=0., dr_i = 0., vol_i=0.;
+        double frac = 0.1; // fraction of the shell volume to be used as its width. Inaccurate as we need adjacent shells to get the volume...
+        auto & bw = p_bws_ej[idx];
+        r_i =  Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+        dr_i = frac * r_i;
+        vol_i = frac * (4./3.) * CGS::pi * (r_i*r_i*r_i) / bw->getPars()->ncells;
+        bw->getPars()->thickness = dr_i;
+        bw->getPars()->volume = vol_i;
+    }
+    /// Evaluate shell thickness using various methods. Assumes sorted shells (no overruns)
+    void evalShellThickness( const double * Y ){
+        double r_i=0., r_ip1=0., dr_i = 0., vol_i=0.;
+        /// if there is one shell we cannot have the shell width that comes from shell separation.
+        if (n_active_shells == 1){ evalShellThicknessIsolated(0, Y); }
+        else{
+            for (size_t ii=0; ii<n_active_shells-1; ii++) {
+                r_i = 0., r_ip1 = 0., dr_i = 0., vol_i = 0.;
+                ///
+                size_t idx = m_idxs[ii];
+                size_t nextidx = m_idxs[ii + 1];
+                auto &bw = p_bws_ej[idx];
+                auto &nextbw = p_bws_ej[nextidx];
+                if ((bw->getPars()->end_evolution) || (nextbw->getPars()->end_evolution)){
+                    evalShellThicknessIsolated(idx, Y);
+                }
+//            double r_cur = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+//            double r_cur = bw->getVal(DynRadBlastWave::Q::iR, 0);
+                r_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+                r_ip1 = Y[nextbw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+                if ((r_i == 0.) || (r_ip1 == 0.)) {
+//                (*p_log)(LOG_WARN,AT)<<" shell="<<idx<<" has r_i="<<r_i<<" and r_ip1="<<r_ip1<<"\n";
+                    continue;
+                }
+                dr_i = r_ip1 - r_i;
+                /// evaluate the volume of the shell (fraction of the 4pi)
+                vol_i = (4./3.) * CGS::pi * (r_ip1*r_ip1*r_ip1 - r_i*r_i*r_i) / bw->getPars()->ncells;
+                /// --------------------------- |
+                bw->getPars()->thickness = dr_i;
+                bw->getPars()->volume = vol_i;
+            }
+        }
+    }
+
+    /// Evaluate the radial extend of a velocity shell. Assume ordered shells. Assumes sorted shells
+    void evalShellOptDepth(  const double * Y ){
+
+        double kappa_i = 5.; // bw->getPars()->kappa0; // TODO!
+
+        double r_i=0., r_ip1=0., dr_i = 0., m_i=0., m_ip1=0., vol_i=0., rho_i=0., dtau_i=0., tau_tot=0.;
+
+        /// if there is one shell we cannot have the shell width that comes from shell separation.
+        if (n_active_shells == 1){
+            double frac = 0.1; // fraction of the shell volume to be used as its width. Inaccurate as we need adjacent shells to get the volume...
+            auto & bw = p_bws_ej[0];
+//            r_i =  Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+            dr_i = bw->getPars()->thickness;//frac * r_i;
+            vol_i = bw->getPars()->volume;// = frac * (4./3.) * CGS::pi * (r_i*r_i*r_i) / bw->getPars()->ncells;
+            m_i = bw->getPars()->M0;
+            rho_i = m_i / vol_i;
+            m_dtau[0] = kappa_i * rho_i * dr_i;
+            m_dtau_cum[0] = 0.; // opt. depth to this shell
+        }
+
+        /// compute shell width from the shell separation
+        for (size_t ii=0; ii<n_active_shells-1; ii++){
+            r_i=0., r_ip1=0., dr_i = 0., m_i=0., m_ip1=0., vol_i=0., rho_i=0., kappa_i=0., dtau_i=0.;
+            ///
+            size_t idx = m_idxs[ii];
+            size_t nextidx = m_idxs[ii+1];
+            auto & bw = p_bws_ej[idx];
+            auto & nextbw = p_bws_ej[nextidx];
+
+            dr_i = bw->getPars()->thickness;//r_ip1 - r_i;
+
+            /// evaluate mass within the shell
+            m_i = bw->getPars()->M0;
+            m_ip1 = nextbw->getPars()->M0;
+            /// evaluate the volume of the shell (fraction of the 4pi)
+            vol_i = bw->getPars()->volume;//(4./3.) * CGS::pi * (r_ip1*r_ip1*r_ip1 - r_i*r_i*r_i) / bw->getPars()->ncells;
+            /// evaluate density within a shell (neglecting the accreted by the shock!)
+            rho_i = m_i / vol_i;
+
+            /// evaluate optical depth
+
+            dtau_i = kappa_i * rho_i * dr_i;
+            tau_tot += dtau_i;
+            if ((!std::isfinite(dtau_i)) || (dtau_i < 0)){
+                (*p_log)(LOG_ERR,AT) << "dtau is nan or < 0 and dtau="<<dtau_i<<"\n";
+                exit(1);
+            }
+            m_dtau[ii] = dtau_i;
+        }
+//        (*p_log)(LOG_INFO,AT)<<" optical depth is evaluated. Total tau="<<tau_tot<<"\n";
+
+
+        /// based on where tau = 1 get the photosphere radius, i.e., in which shell is the photosphere
+        double tmp_tau = 0;
+        size_t idx_photo = n_active_shells;
+        for (size_t i = n_active_shells-1; i > 0; i--){
+            size_t idx = m_idxs[i];
+            auto & bw = p_bws_ej[idx];
+//            if (bw->getPars()->M0 == 0)
+//                continue;
+            tmp_tau+=m_dtau[idx];
+            if (tmp_tau > 1.){
+                idx_photo = (int)idx+1;
+                break;
+            }
+        }
+//        (*p_log)(LOG_INFO,AT)<<" Photosphere located at idx="<<idx_photo<<"\n";
+
+
+        /// Compute the optical depth from 0 to a given shell
+//        for (auto & cur_idx : m_idxs){
+        for (size_t ii = 0 ; ii < n_active_shells; ii++){
+            size_t cur_idx = m_idxs[ii];
+            double tau_cum = 0.;
+//            for (auto & other_idx : m_idxs){
+            for (size_t jj = 0 ; jj < n_active_shells; jj++){
+                size_t other_idx = m_idxs[jj];
+                if (other_idx < cur_idx)
+                    tau_cum += m_dtau[other_idx];
+            }
+            m_dtau_cum[cur_idx] = tau_cum;
+        }
+//        (*p_log)(LOG_INFO,AT)<<" Cumulative optical depth to idx0"
+//                                       <<" tau0="<<m_dtau_cum[0]
+//                                       <<" tau[-1]="<<m_dtau_cum[n_active_shells-1]<<"\n";
+
+
+        /// save results for the use in ODE when solving Energy equation
+//        for (auto & cur_idx : m_idxs){
+        for (size_t ii = 0 ; ii < n_active_shells; ii++){
+            size_t cur_idx = m_idxs[ii];
+            auto & bw = p_bws_ej[cur_idx];
+            bw->getPars()->tau_to0 = m_dtau_cum[cur_idx];
+            bw->getPars()->dtau = m_dtau[cur_idx];
+            bw->getPars()->is_above_tau1 = idx_photo > cur_idx ? false : true;
+        }
+
+
+
+//        if ((idx_photo < 10) && (idx_photo > 0)){
+//            int a = 1;
+//            std::cout << " i_photo="<<idx_photo << " TauToIt="<<m_dtau_cum[idx_photo]<< " remaining tau="<<tau_tot-m_dtau_cum[idx_photo]<<'\n';
+//        }
+
+
+//        for (size_t i = 0; i<m_nshells; i++){
+//            double tau_cum = 0.;
+//            for (size_t j = 0; j<m_nshells; j++) {
+//                if (i > j)
+//                    continue;
+//                else
+//                    tau_cum += m_dtau[i];
+//            }
+//            m_dtau_cum[i] = tau_cum;
+//        }
+//        if (idx_photo>0)
+//            std::cout << " i_photo="<<idx_photo << " TauToIt="<<m_dtau_cum[idx_photo]<< " remaining tau="<<tau_tot-m_dtau_cum[idx_photo]<<'\n';
+        /// for the last shell i don't have difference, so... just the same as previous one.
+//        size_t ish = m_idxs.back();
+//        p_bws_ej[ish]->getLastVal(DynRadBlastWave::Q::idR) = dr_i;
+//        p_bws_ej[ish]->getLastVal(DynRadBlastWave::Q::iRho) = rho_i;
+//        p_bws_ej[ish]->getLastVal(DynRadBlastWave::Q::iTau) = tau_i; // update blastwave thickness
+
+//        if (idx_photo == m_idxs.back()-1)
+//            idx_photo = (int)m_idxs.back();
+//        for (auto idx : m_idxs)
+//            std::cout << "i_photo=" <<idx_photo<< "; "<< p_bws_ej[idx]->getLastVal(DynRadBlastWave::Q::iTau) << ", ";
+//        std::cout <<"\n";
+
+//        double tau_out = 0, tau_out_i = 0;
+//        for (auto idx_curr : m_idxs){
+//            tau_out = 0.;
+//            for (auto idx = m_idxs.back(); idx > idx_curr; idx--){
+//                tau_out_i = p_bws_ej[idx]->getLastVal(DynRadBlastWave::Q::iTau);
+//                tau_out+=tau_out_i ;
+
+
+    }
+
+#if 0
+    inline std::vector<size_t> & getCurrentIndexes( ) { return m_idxs; }
+    void evaluateInitialShellLength(){
+
+    }
+
     void evaluateOptDepthAtCurrR(size_t i_cur, double x, const double * Y){
+
+        double kappa = 10.;
+
         /// evaluate relative positions of shells at this time
         for (size_t i=0; i<m_nshells; i++){
             auto & bw = p_bws_ej[i];
@@ -76,23 +877,27 @@ public:
         sort_indexes(m_radii, m_idxs);
         /// evaluate opacity of each shell up to current
         double tau = 0.;
-        for (auto & i : m_idxs){
-            double kappa = 10.;
+        for (auto & idx : m_idxs){
+            auto & bw = p_bws_ej[idx];
             double dr = 0.;
-            if (i == 0) {
-                double dr1 = 0.5 * (m_radii[0] - m_radii[1]);
-                double dr2 = 0.5 * (m_radii[1] - m_radii[2]);
-                dr = linearExtrapolate(m_radii[1], m_radii[2], dr1, dr2, m_radii[0]);
-            }
-            else if (i==m_idxs.back()){
-                size_t
-                double drnm2 = 0.5 * (m_radii[0] - m_radii[1]);
-                double drnm1 = 0.5 * (m_radii[1] - m_radii[2]);
-                dr = linearExtrapolate(m_radii[1], m_radii[2], dr1, dr2, m_radii[0]);
-            }
+            if (idx == 0)
+                dr =0.5 * (m_radii[2]-m_radii[1]);
+            else if (idx == m_idxs.back())
+                dr =(m_radii[idx]-m_radii[idx-1]);
             else
-                dr = 0.5 * (m_radii[i+1]-m_radii[i-1])
-            tau +=
+                dr = 0.5 * (m_radii[idx+1]-m_radii[idx-1]);
+//            if (idx == 0) {
+//                double dr1 = 0.5 * (m_radii[0] - m_radii[1]);
+//                double dr2 = 0.5 * (m_radii[1] - m_radii[2]);
+//                dr = linearExtrapolate(m_radii[1], m_radii[2], dr1, dr2, m_radii[0]);
+//            }
+//            else if (idx==m_idxs.back()){
+//                double drnm2 = 0.5 * (m_radii[m_radii.size()-2] - m_radii[m_radii.size()-3]);
+//                double drnm1 = 0.5 * (m_radii[m_radii.size()-1] - m_radii[m_radii.size()-2]);
+//                dr = linearExtrapolate(m_radii[1], m_radii[2], drnm1, drnm2, m_radii[0]);
+            double dvolume = (4./3.) * CGS::pi * dr * dr * dr;
+            double drho = bw->getPars()->M0 / dvolume;
+            double dtau = kappa * drho * dvolume;
         }
 
 
@@ -210,7 +1015,7 @@ public:
             return (p_bws_jet.size() * p_bws_jet[0]->getNeq());
     }
     void setJetStructAnalytic(StrDbMap pars, StrStrMap opts){
-        run_jet_bws = getBoolOpt("run_jet_bws", opts, AT,p_log,true);
+        run_jet_bws = getBoolOpt("run_jet_bws", opts, AT,p_log,true, true);
         if (!run_jet_bws)
             return;
         std::string _jet_eats_method = getStrOpt("method_eats",opts,AT,p_log,"", true);
@@ -228,7 +1033,7 @@ public:
         is_jet_struct_set = true;
     }
     void setJetBwPars(StrDbMap pars, StrStrMap opts, size_t ii_eq){
-        run_jet_bws = getBoolOpt("run_jet_bws", opts, AT,p_log,true);
+        run_jet_bws = getBoolOpt("run_jet_bws", opts, AT,p_log,true, true);
         if (!run_jet_bws)
             return;
 
@@ -251,6 +1056,21 @@ public:
         (*p_log)(LOG_INFO,AT) << "finished initializing jet...\n";
         is_jet_obs_pars_set = true;
         is_jBW_init = true;
+    }
+    void infoFastestLayer(size_t it, logger &sstream){
+        size_t fastest = 0;
+        double mom = 0;
+        for (size_t il = 0; il < jetStruct.nlayers; il++){
+            if (p_bws_jet[il]->getVal(RadBlastWave::Q::imom,(int)it) > mom) {
+                mom = p_bws_jet[il]->getVal(RadBlastWave::Q::imom, (int) it);
+                fastest = il;
+            }
+        }
+        sstream << "[Jet: "<<"[l="<<fastest<<"]"
+                << " Mom=" << string_format("%.2e",p_bws_jet[fastest]->getVal(RadBlastWave::Q::imom, (int) it))
+                << " R=" << string_format("%.2e",p_bws_jet[fastest]->getVal(RadBlastWave::Q::iR, (int) it))
+                << " Eint=" << string_format("%.2e",p_bws_jet[fastest]->getVal(RadBlastWave::Q::iEint2, (int) it))
+                << "] ";
     }
 };
 
@@ -328,7 +1148,7 @@ public:
     }
 //    static std::vector<std::string> listParsNumericEjectaStruct(){ return VelocityAngularStruct::list_pars_v_ns(); }
     void setEjectaStructNumericUniformInTheta(Vector & dist_thetas0, Vector & dist_betas, Vector & dist_ek, size_t nlayers, double mfac, StrStrMap & opts){
-        run_ej_bws = getBoolOpt("run_ej_bws", opts, AT,p_log,true);
+        run_ej_bws = getBoolOpt("run_ej_bws", opts, AT,p_log, false, true);
         if (!run_ej_bws)
             return;
         std::string ej_eats_method = getStrOpt("method_eats",opts,AT,p_log,"", true);
@@ -338,7 +1158,7 @@ public:
         is_ejecta_struct_set = true;
     }
     void setEjectaStructNumeric(Vector dist_thetas, Vector dist_betas, VecVector dist_ek, bool force_grid, StrStrMap & opts){
-        run_ej_bws = getBoolOpt("run_ej_bws", opts, AT,p_log,true);
+        run_ej_bws = getBoolOpt("run_ej_bws", opts, AT,p_log,false, true);
         if (!run_ej_bws)
             return;
         std::string ej_eats_method = getStrOpt("method_eats",opts,AT,p_log,"", true);
@@ -349,7 +1169,7 @@ public:
     }
     void setEjectaBwPars(StrDbMap pars, StrStrMap opts, size_t ii_eq, size_t n_layers_jet){
 
-        run_ej_bws = getBoolOpt("run_ej_bws", opts, AT,p_log,true);
+        run_ej_bws = getBoolOpt("run_ej_bws", opts, AT,p_log, false, true);
         if (!run_ej_bws)
             return;
         bool is_within = false;
@@ -501,6 +1321,25 @@ public:
         (*p_log)(LOG_INFO,AT) << "finished initializing ejecta...\n";
     }
     double ej_rtol = 1e-5;
+    void infoFastestShell(size_t it, logger &sstream){
+        size_t fastest_sh = 0;
+        size_t fastest_l = 0;
+        double mom = 0;
+        for (size_t ish = 0; ish < ejectaStructs.nshells; ish++){
+            for (size_t il = 0; il < ejectaStructs.structs[0].nlayers; il++){
+                if (p_ej[il]->getBW(ish)->getVal(RadBlastWave::Q::imom,(int)it) > mom) {
+                    mom = p_ej[il]->getBW(ish)->getVal(RadBlastWave::Q::imom,(int)it) > mom;
+                    fastest_l = il;
+                    fastest_sh = ish;
+                }
+            }
+        }
+        sstream << "[Ej: "<<"[l="<<fastest_l<<", sh="<<fastest_sh<<"]"
+                << " Mom=" << string_format("%.2e",p_ej[fastest_l]->getBW(fastest_sh)->getVal(RadBlastWave::Q::imom,(int)it))
+                << " R=" << string_format("%.2e",p_ej[fastest_l]->getBW(fastest_sh)->getVal(RadBlastWave::Q::iR,(int)it))
+                << " Eint=" << string_format("%.2e",p_ej[fastest_l]->getBW(fastest_sh)->getVal(RadBlastWave::Q::iEint2,(int)it))
+                << "] ";
+    }
 };
 
 class EvolveODEsystem{
@@ -635,6 +1474,7 @@ public:
                                         << " (total " << p_pars->n_tot_eqs << ") equations. \n";
         m_InitData = new double [ p_pars->n_tot_eqs ];
         m_CurSol   = new double [ p_pars->n_tot_eqs ];
+        m_TmpSol   = new double [ p_pars->n_tot_eqs ]; // for shell collision
         // checks for the settings of BWs interaction prescription
 
         // chose the integrator for the system
@@ -676,6 +1516,7 @@ public:
     ~EvolveODEsystem(){
         delete [] m_InitData;
         delete [] m_CurSol;
+        delete [] m_TmpSol;
         delete p_pars;
         delete p_Integrator;
     }
@@ -737,6 +1578,7 @@ public:
         }
         if ((p_pars->p_grb->run_jet_bws)&&(p_pars->p_ej->run_ej_bws))
             setRelativePositions();
+        /// get indexes of sorted (with respect to the radius) shells
         // ***************************************
         if (p_pars->p_ej->run_ej_bws) {
             auto & ej_bws = p_pars->p_ej->getShells();
@@ -755,18 +1597,33 @@ public:
 
         // ***************************************
         for (size_t i = 0; i < p_pars->n_tot_eqs; i++){
+            m_TmpSol[i] = m_InitData[i]; /// will be used for ix-1 solutions for restarts.
             m_CurSol[i] = m_InitData[i];
         }
         // **************************************
         if ( !isThereATermination() ){
             (*p_log)(LOG_ERR,AT)  <<" termination at initialization. Evolution canceled\n";
-//            exit(1);
+            exit(1);
         }
         // **************************************
         if ( !isSolutionOk() ) {
             (*p_log)(LOG_ERR,AT)   << " Unphysical value in the initial data for evolution \n Exiting...";
             exit(1);
         }
+        // ***************************************
+        if (p_pars->p_ej->run_ej_bws) //  sort; get thickness; optical depth
+            for (auto & cumShell : p_pars->p_ej->getShells()) {
+                size_t _i, _j;
+                cumShell->updateActiveShells();
+                if (!cumShell->checkIfActiveShellsOrdered(m_InitData, _i, _j)){
+                    (*p_log)(LOG_ERR,AT) << " shells are initially not radially ordered: "
+                                                    << " shell idx="<<_i<<"overruns shell idx="<<_j<<"\n";
+                    exit(1);
+//                    cumShell->updateSortActiveShells(m_InitData);
+                }
+                cumShell->evalShellThickness(m_InitData);
+                cumShell->evalShellOptDepth(m_InitData);
+            }
         // **************************************
         for (size_t i = 0; i < p_pars->n_tot_eqs; i++){
             if (!std::isfinite(m_InitData[i])){
@@ -783,7 +1640,9 @@ public:
         // add other variables (that are not part of ODE but still needed)
         addOtherVariables(0);
         // add electron properties (needed for synchron calculation)
+
 //        addComputeForwardShockMicrophysics(0);
+
         is_initialized = true;
 
     }
@@ -793,37 +1652,22 @@ public:
             (*p_log)(LOG_ERR,AT)<<" bw set is not initialized. Cannot evolve\n";
             exit(1);
         }
+        Timer timer;
+        Array & t_grid = p_pars->t_grid;
         // eval relative geometry (which BW is behind what BW)
 //        check_layer_relative_position( ix );
+/// also, update the shell thickness and optical depth after the substap
+        for (size_t il = 0; il < p_pars->p_ej->nlayers(); il++) {
+            auto &cumShell = p_pars->p_ej->getShells()[il];
+            cumShell->evalShellThickness(m_TmpSol);
+            cumShell->evalShellOptDepth(m_TmpSol);
+        }
         // solve the ODE system for x_i = x_{i-1} + dx
         p_Integrator->Integrate( dx );
         // extract the solution vector from the ODE solver
         p_Integrator->GetY( m_CurSol );
-        // apply units, e.g., energy is usually evolved in E/E0
-        applyUnits();
-        // ---
-        Array & t_grid = p_pars->t_grid;
-        if ( ix % 10 == 0 ) {
-            // std::cout << p_pars->p_ej[0]->getCurrentIndexes() << "\n";
-            (*p_log)(LOG_INFO,AT) << "it=" << ix << "/" << t_grid.size() << " t=" << t_grid[ix] << "\n";
-        }
-//        for(size_t i_ej = 0; i_ej < p_pars->p_bws_ej.size(); i_ej++){
-//            auto & ej = p_pars->p_bws_ej[i_ej];
-//            std::cout << " ish=" << ej->getPars()->ishell
-//                      << " il="  << ej->getPars()->ishell
-//                      << " G=" << string_format("%.2e", ej->getVal(DynRadBlastWave::Q::iGamma, ix))
-//                      << " M2=" << string_format("%.2e", ej->getVal(DynRadBlastWave::Q::iM2, ix))
-//                      << " R=" << string_format("%.2e", ej->getVal(DynRadBlastWave::Q::iR, ix))
-//                      << " rho=" << string_format("%.2e", ej->getDensIsm()->m_rho)
-//                      << " drho=" << string_format("%.2e", ej->getDensIsm()->m_drhodr)
-//                      << " Grho=" << string_format("%.2e", ej->getDensIsm()->m_drhodr)
-//                      << " Grel=" << string_format("%.2e", ej->getDensIsm()->m_GammaRel)
-//                      << " dGrho=" << string_format("%.2e", ej->getDensIsm()->m_dGammaRhodR)
-//                      << " dGrhodG=" << string_format("%.2e", ej->getDensIsm()->m_dGammaReldGamma)
-//                      << " Grel=" << string_format("%.2e", ej->getDensIsm()->m_GammaRel)
-//        }
 
-        // check if there one of the layers is terminated
+        /// check if there one of the layers is terminated
         if ( !isThereATermination() ){
             if(p_pars->i_restarts > 1){
                 (*p_log)(LOG_ERR,AT)  << " second restart. Should not occure. Exiting...";
@@ -833,6 +1677,221 @@ public:
             evolve( dx, ix );
             p_pars->i_restarts += 1;
         }
+        /// check if any of the kilonova blastwaves have collided
+//        std::cout << m_CurSol[p_pars->p_ej->getShells()[0]->getBW(0)->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2]<<"\n";
+        if (p_pars->p_ej->run_ej_bws){
+            size_t n_unordered_layers = 0;
+            std::vector<size_t> il_unordered{};
+            double tcoll_min;// = std::numeric_limits<double>::max();
+            /// loop over all layers(cumShells) and see if there is a collision in any, and when
+            bool are_shells_sorted = true;
+            size_t _i, _j;
+            for (size_t il = 0; il < p_pars->p_ej->nlayers(); il++){
+                auto & cumShell = p_pars->p_ej->getShells()[il];
+                /// update the active shells (indexes array)
+                cumShell->updateActiveShells();
+                /// check if active shells are in order
+                are_shells_sorted = cumShell->checkIfActiveShellsOrdered(m_CurSol, _i, _j);
+                if (!are_shells_sorted){
+                    n_unordered_layers+=1;
+                    il_unordered.push_back(il);
+                }
+            }
+            /// if the active shells are not in order, it means there was a collision; step back; collide; evolve
+            if (n_unordered_layers > 0){
+                are_shells_sorted = false;
+                (*p_log)(LOG_INFO,AT) << "============================================================== \n";
+                (*p_log)(LOG_INFO,AT) << "Shell collision detected at it="<<ix
+                                                << " between t[i-1]="<<t_grid[ix-1]<< " and t[i]="<<t_grid[ix]
+                                                << " in Nlayer="<<n_unordered_layers
+                                                << " e.g., i="<<_i<<" and j="<<_j
+                                                << " \n";
+//                double target_dx = 0;
+                double trunning = t_grid[ix - 1];
+                size_t i_substeps = 0;
+                size_t ish1, ish2;
+                size_t _ish1, _ish2;
+                double tcoll;
+                /// do substepping until all shells, staged for collision in this step has collided
+
+
+                while (!are_shells_sorted) {
+//                    std::cout << m_CurSol[p_pars->p_ej->getShells()[0]->getBW(0)->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2]<<"\n";
+                    i_substeps += 1;
+                    /// check if there is anything left to collide
+                    if (i_substeps > p_pars->p_ej->nshells()-2){
+                        (*p_log)(LOG_ERR,AT) << "N substeps exceeded n_shells.\n";
+                        exit(1);
+                    }
+                    (*p_log)(LOG_INFO,AT) << "Starting i="<<i_substeps<<" substep.\n";
+                    /// set lists of shells for a each layer to collide simultaneously
+                    size_t il_in_which_collision = 0;
+                    std::vector<size_t> multi_collision{};
+                    std::vector<size_t> multi_collision_ish1_arr{};
+                    std::vector<size_t> multi_collision_ish2_arr{};
+                    ish1 = 0; ish2 = 0;
+                    /// locate which shell will collide first (in different layers it may happen simultaneously)
+                    tcoll_min = std::numeric_limits<double>::max();
+                    Vector tcolls{};
+                    bool _is_actually_sorted = true;
+                    for (size_t il = 0; il < p_pars->p_ej->nlayers(); il++) {
+                        auto &cumShell = p_pars->p_ej->getShells()[il];
+                        if (!cumShell->checkIfActiveShellsOrdered(m_CurSol, _i, _j)) {
+                            (*p_log)(LOG_INFO,AT)<< "\tLayer [il="<<il<<"] with active shells"
+                                                           <<" N="<<cumShell->n_active_shells<<"/"<<cumShell->m_nshells
+                                                           <<" e.g. (i="<<_i<<" j="<<_j<<" collision)" <<" \n";
+                            tcoll = 0.; _ish1 = 0; _ish2 = 0;
+                            /// evaluate time between trunning and t_grid[ix] at which shells collide
+                            cumShell->evalWhichShellsCollideNext(_ish1, _ish2, tcoll,
+                                                                 trunning, t_grid[ix],
+                                                                 m_TmpSol, m_CurSol);
+                            tcolls.push_back(tcoll);
+                            if (tcoll < tcoll_min) {
+                                if (std::abs(tcoll - tcoll_min) < 1e-7*trunning) { // TODO ADD epsilon window within which shell collision is simultanous!
+                                    multi_collision.push_back(il); // this can only be entered second time
+                                    multi_collision_ish1_arr.push_back(_ish1);
+                                    multi_collision_ish2_arr.push_back(_ish2);
+                                } else {
+                                    (*p_log)(LOG_INFO,AT)<<"\tLayer [il="<<il<<"] tcoll="<<tcoll<<"\n";
+                                    tcoll_min = tcoll;
+                                    il_in_which_collision = il;
+                                    ish1 = _ish1;
+                                    ish2 = _ish2;
+                                }
+                            }
+                            _is_actually_sorted = false;
+                        }
+                    }
+//                    tcoll_min = tcolls[ indexOfMinimumElement(tcolls)  ];
+                    (*p_log)(LOG_INFO,AT)<<"Nearest collision is in"
+                                         <<" ilayer="<<il_in_which_collision
+                                         <<" /"<<n_unordered_layers<< " initially unordered layers with "
+                                         <<" tcoll="<<tcoll_min<<"\n";
+
+                    if (_is_actually_sorted){
+                        (*p_log)(LOG_ERR,AT)<<" _is_actually_sorted\n";
+                        exit(1);
+                    }
+                    if (tcoll_min == std::numeric_limits<double>::max()){
+                        (*p_log)(LOG_ERR,AT)<<" failed to fined tcoll_min\n";
+                        exit(1);
+                    }
+                    if ((tcoll_min <= t_grid[ix-1]) || (tcoll_min >= t_grid[ix])){
+                        (*p_log)(LOG_ERR, AT) << " tcoll_min is outside t[i-1], t[i] range; "
+                                              << " tcol_min="<<tcoll_min
+                                              <<" t_grid[ix-1]="<<t_grid[ix-1]
+                                              <<" t_grid[ix]="<<t_grid[ix]
+                                              <<" \n";
+                        exit(1);
+                    }
+
+                    /// insert the first layer in which there is a collision to a vector of layer with a collision
+                    multi_collision.insert(multi_collision.begin(), il_in_which_collision);
+                    multi_collision_ish1_arr.insert(multi_collision_ish1_arr.begin(), ish1);
+                    multi_collision_ish2_arr.insert(multi_collision_ish2_arr.begin(), ish2);
+                    /// log info
+                    (*p_log)(LOG_INFO, AT) << "Nearest collision is at"
+                                           << " tcoll_min=" << tcoll_min
+                                           << " while timestep is=["<<trunning<<", " << t_grid[ix]<<"]"
+                                           << " t_to_coll="<<trunning-tcoll_min<< "\n";
+                    if (trunning - tcoll_min == 0){
+                        (*p_log)(LOG_ERR,AT)<<" tcoll=trunning Multiple collisions?\n";
+                        exit(1);
+                    }
+                    if (multi_collision.size() > 1) {
+                        (*p_log)(LOG_INFO, AT) << "Multi-collision at tcoll_min=" << tcoll_min
+                                               << " N=" << multi_collision.size()
+                                               << " collisions (in N layers) occurs simultaneously at\n";
+                        (*p_log)(LOG_INFO, AT) << "Performing i=" << i_substeps
+                                               << " substep from trunning=" << trunning
+                                               << " to tcoll_min=" << tcoll_min << "\n";
+                    }
+                    /// advance the ODE to time of the collision. Use previous solution [ix-1] as a starting point
+                    p_Integrator->Integrate(trunning, tcoll_min, m_TmpSol);
+                    /// extract the solution vector from the ODE solver into 'm_CurSol'
+                    p_Integrator->GetY(m_CurSol);
+
+                    /// in case of 'simultaneous' collision, collide shells in each layer
+                    for (size_t j = 0; j < multi_collision.size(); j++) {
+                        auto &cumShell = p_pars->p_ej->getShells()[multi_collision[j]];
+                        /// collide shells within each layer
+                        cumShell->collideBlastWaves(multi_collision_ish1_arr[j],
+                                                    multi_collision_ish2_arr[j],
+                                                    m_CurSol);
+                        /// update the active shells (as one was deleted)
+                        cumShell->updateActiveShells();
+                    }
+                    /// after shells collided put the outcome of the shell collision into ODE solver internal storage
+                    p_Integrator->SetY(m_CurSol);
+                    /// copy this solution into temporary storage for restarts ' m_TmpSol '
+                    for (size_t i = 0; i < p_pars->n_tot_eqs; i++)
+                        m_TmpSol[i] = m_CurSol[i];
+                    /// also, update the shell thickness and optical depth after the substap
+                    for (size_t il = 0; il < p_pars->p_ej->nlayers(); il++) {
+                        auto & cumShell = p_pars->p_ej->getShells()[il];
+                        /// check if after the collision the shells are now in order (they should be...)
+                        are_shells_sorted = cumShell->checkIfActiveShellsOrdered(m_CurSol, _i, _j);
+                        if (!are_shells_sorted) {
+                            (*p_log)(LOG_ERR, AT) << "\tLayer [il="<< il << "] Not ordered after Nsteps="
+                                                  <<i_substeps<<" Collision e.g. (i=" << _i << " j=" << _j << "), "
+                                                  << " (R[i]=" <<cumShell->getR(_i)
+                                                  << " R[j]=" <<cumShell->getR(_j)
+                                                  << ") dR[j-i]="<<cumShell->getR(_j)-cumShell->getR(_i)
+                                                  << " \n";
+                            exit(1);
+                        }
+                    }
+                    /// advance the target timestep:
+                    trunning = tcoll_min;
+                    if (trunning == t_grid[ix]){
+                        exit(1);
+                    }
+                    if (trunning > t_grid[ix]) {
+                        (*p_log)(LOG_ERR, AT) << " trunning=" << trunning << " is larger than t_grid[ix]="
+                                              << t_grid[ix] << "\n";
+                        exit(1);
+                    }
+                    /// update the shell thickness and optical depth after the substap
+                    for (size_t il = 0; il < p_pars->p_ej->nlayers(); il++) {
+                        auto &cumShell = p_pars->p_ej->getShells()[il];
+                        cumShell->evalShellThickness(m_CurSol);
+                        cumShell->evalShellOptDepth(m_CurSol);
+                    }
+                    /// try to complete the timestep, itegrating from trunning to t_grid[ix]
+                    p_Integrator->Integrate(trunning, t_grid[ix], m_TmpSol);
+                    /// extract the solution vector from the ODE solver into 'm_CurSol'
+                    p_Integrator->GetY(m_CurSol);
+                    /// check if now shells are ordered:
+                    for (size_t il = 0; il < p_pars->p_ej->nlayers(); il++){
+                        auto & cumShell = p_pars->p_ej->getShells()[il];
+                        are_shells_sorted = cumShell->checkIfActiveShellsOrdered(m_CurSol, _i, _j);
+                        if (!are_shells_sorted){
+                            (*p_log)(LOG_INFO,AT)<<"\tLayer [il="<<il<<"]"
+                                                            <<" Collisions in a substep N="
+                                                            << i_substeps
+                                                            <<" e.g., (i="<<_i<<" j="<<_j<<")"
+                                                            <<" Continuing substep loop.\n";
+                            (*p_log)(LOG_INFO,AT) << "--------------------------------------------------- \n";
+                            break;
+                        }
+                    }
+                    if (are_shells_sorted){
+                        (*p_log)(LOG_INFO,AT)<<"Substepping is complete successfully after "
+                                             <<"N="<<i_substeps<< " t[i]="<<t_grid[ix]<<" reached.\n";
+                        (*p_log)(LOG_INFO,AT) << "============================================================== \n";
+                    }
+                }
+            }
+        }
+        for (size_t i = 0; i < p_pars->n_tot_eqs; i++)
+            m_TmpSol[i] = m_CurSol[i];
+        // apply units, e.g., energy is usually evolved in E/E0
+        applyUnits();
+        // --- Log main results of the integration
+
+
+//        isThereACollisionBetweenKnBlastWaves( dx, ix );
+        /// check if blast wave has fully expanded
         isThereLateralExpansionTermiantion();
         // check if there are no nans/unphysical vals in solution
         if ( !isSolutionOk() ) {
@@ -848,10 +1907,56 @@ public:
         addOtherVariables(ix);
         // add electron properties (needed for synchron calculation)
 //        addComputeForwardShockMicrophysics(ix);
+        ///
+
+        double time_took = timer.checkPoint();
+//        (*p_log)(LOG_INFO, AT) << "Initialization finished [" << timer.checkPoint() << " s]" << "\n";
+        /// --- Log main results of the integration
+        if ( ix % 10 == 0 ) {
+            if ((*p_log).getLogLevel()>LOG_WARN){
+                auto & sstream = (*p_log)(LOG_INFO,AT);
+                sstream << "it=" << ix << "/" << t_grid.size()
+                        << " t=" << string_format("%.2e",t_grid[ix]) << " s, "
+                        << string_format("%.2e",t_grid[ix]/CGS::day) << " d "
+                        << "[Solver="<< string_format("%.2e",time_took)<<" s] ";
+//                if (p_pars->p_grb->run_jet_bws){
+//                    p_pars->p_grb->infoFastestLayer(ix, sstream);
+//                }
+//                if (p_pars->p_ej->run_ej_bws){
+//                    p_pars->p_ej->infoFastestShell(ix, sstream);
+//                }
+                sstream << "\n";
+            }
+
+
+//        for(size_t i_ej = 0; i_ej < p_pars->p_bws_ej.size(); i_ej++){
+//            auto & ej = p_pars->p_bws_ej[i_ej];
+//            std::cout << " ish=" << ej->getPars()->ishell
+//                      << " il="  << ej->getPars()->ishell
+//                      << " G=" << string_format("%.2e", ej->getVal(DynRadBlastWave::Q::iGamma, ix))
+//                      << " M2=" << string_format("%.2e", ej->getVal(DynRadBlastWave::Q::iM2, ix))
+//                      << " R=" << string_format("%.2e", ej->getVal(DynRadBlastWave::Q::iR, ix))
+//                      << " rho=" << string_format("%.2e", ej->getDensIsm()->m_rho)
+//                      << " drho=" << string_format("%.2e", ej->getDensIsm()->m_drhodr)
+//                      << " Grho=" << string_format("%.2e", ej->getDensIsm()->m_drhodr)
+//                      << " Grel=" << string_format("%.2e", ej->getDensIsm()->m_GammaRel)
+//                      << " dGrho=" << string_format("%.2e", ej->getDensIsm()->m_dGammaRhodR)
+//                      << " dGrhodG=" << string_format("%.2e", ej->getDensIsm()->m_dGammaReldGamma)
+//                      << " Grel=" << string_format("%.2e", ej->getDensIsm()->m_GammaRel)
+//        }
+//             std::cout << p_pars->p_ej[0]->getCurrentIndexes() << "\n";
+//        (*p_log)(LOG_INFO,AT) << "it=" << ix << "/"
+//                                            << t_grid.size() << " t=" << t_grid[ix] << ", " << t_grid[ix]/CGS::day << "\n";
+        }
+        /// save previous step in a temporary solution for restarts
+
     }
     inline auto * pIntegrator() { return p_Integrator; }
 
 private:
+    void collisions(){
+
+    }
     void applyUnits(){
         size_t ii = 0;
         if (p_pars->p_magnetar->run_magnetar) {
@@ -897,9 +2002,9 @@ private:
                     jet_bws[i]->getPars()->end_evolution = true; // SET TO END
                 }
                 ii += jet_bws[i]->getNeq();
-
             }
         }
+
         if (p_pars->p_ej->run_ej_bws) {
             auto & ej_bws = p_pars->p_ej->getShells();
             for (size_t il=0; il<ej_bws.size(); il++){
@@ -948,6 +2053,58 @@ private:
         }
         return is_ok;
     }
+#if 0
+    int isThereACollisionBetweenKnBlastWaves(double x, size_t ix){
+        if (p_pars->p_ej->run_ej_bws){
+            /// for one shell there is no collision possible
+            if (p_pars->p_ej->nshells() == 1)
+                return true;
+//            std::cout << "nshells="<<p_pars->p_ej->nshells()<<"\n"; exit(1);
+            auto &ej_bws = p_pars->p_ej->getShells();
+            for (size_t il=0; il<ej_bws.size(); il++){
+                int order_info = ej_bws[il]->areShellsOrderedRadially( m_CurSol );
+                (*p_log)(LOG_INFO,AT)<< " Shell Order Infor " << order_info << "\n";
+            }
+        }
+        return true;
+        //        size_t ii = 0; bool is_ok = true;
+//        /// move the ii beyong GRB
+//        if (p_pars->p_grb->run_jet_bws) {
+//            auto & jet_bws = p_pars->p_grb->getBWs();
+//            for (size_t i = 0; i < jet_bws.size(); i++) {
+//                ii += jet_bws[i]->getNeq();
+//            }
+//        }
+
+//        if (p_pars->p_ej->run_ej_bws) {
+//            auto & ej_bws = p_pars->p_ej->getShells();
+//            for (size_t il=0; il<ej_bws.size(); il++){
+//                ej_bws[il]->setShellOrder(ix, m_InitData);
+//            }
+//        }
+
+
+//        if (p_pars->p_ej->run_ej_bws) {
+//            auto & ej_bws = p_pars->p_ej->getShells();
+//            for (size_t il=0; il<ej_bws.size(); il++){
+//                Vector rs (ej_bws[il]->nBWs(), 0.0);
+//                for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
+//                    auto & bw = ej_bws[il]->getBW(ish);
+//
+//
+//                    if (bw->isToTerminate(m_CurSol, ii)) {
+//                        is_ok = false;
+//                        bw->getPars()->end_evolution = true; // SET TO END
+//                        (*p_log)(LOG_ERR,AT) << " Terminating ejecta BW [ish=" << ish << " il=" << il << " "
+//                                             << " ii_eq=" << bw->getPars()->ii_eq
+//                                             << " ] \n";
+//                    }
+//                    ii += bw->getNeq();//p_pars->n_eq_ej_bws;
+//                }
+//            }
+//        }
+    }
+#endif
     bool isSolutionOk(){
 //        auto & magnetar = p_pars->p_magnetar;
 //        auto & jet_bws = p_pars->p_bws_jet;
@@ -1067,10 +2224,6 @@ private:
 //        }
     }
     /// get offset of the equations in the combined solution vector for a given blast wave from its ilayer and ishell
-//    static inline size_t idx(std::unique_ptr<RadBlastWave> & bwPtr, void *pars){
-//        auto * p_pars = (struct Pars *) pars;
-//        return bwPtr->getNeq() * (bwPtr->getPars()->ilayer + p_pars->n_layers_j * bwPtr->getPars()->ishell);
-//    }
     static void RHS_comb(double * out_Y,
                          size_t n_eq,
                          double x,
@@ -1084,10 +2237,14 @@ private:
 
         /// advance magnetar to the next timestep
         size_t ii = 0;
+        double dEsddt, dEpropdt;
         if (p_pars->p_magnetar->run_magnetar) {
             auto & magnetar = p_pars->p_magnetar;
             magnetar->evaluateRhs(out_Y, ii, x, Y);
+            dEsddt = p_pars->p_magnetar->getLdip(x, Y, ii);
+            dEpropdt = p_pars->p_magnetar->getLprop(x, Y, ii);
             ii += magnetar->getNeq();
+
         }
 
         /// evaluate RHS for the jet (advance it to the next sub-step)
@@ -1107,9 +2264,15 @@ private:
         if (p_pars->p_ej->run_ej_bws) {
             auto &ej_layers = p_pars->p_ej->getShells();
             for (size_t il=0; il < ej_layers.size(); il++){
-//                ej_layers[il]->evalRelativePosition(x, Y); // dEinjdt
+//                ej_layers[il]->setShellOrder(x, Y);
+//                ej_layers[il]->evalShellOptDepth(x, Y); // dEinjdt
                 for(size_t ish=0; ish < ej_layers[il]->nBWs(); ish++) {
                     auto & ej_bw = ej_layers[il]->getBW(ish);
+                    ej_bw->getPars()->dEinjdt = (dEpropdt + dEsddt);
+                    if (ej_bw->getPars()->dEinjdt < 0){
+                        ej_bw->getPars()->dEinjdt = 0.;
+                        (*ej_bw->getPars()->p_log)(LOG_ERR,AT) << " wrong value of dEinjdt="<<ej_bw->getPars()->dEinjdt<<"\n";
+                    }
                     if (p_pars->p_grb->run_jet_bws) {
                         auto & jet_bws = p_pars->p_grb->getBWs();
                         ej_bw->evaluateRhsDensModel2(out_Y, ii, x, Y,
@@ -1160,6 +2323,7 @@ private:
 private:
     double * m_InitData{};
     double * m_CurSol{};
+    double * m_TmpSol{};
     Integrators::METHODS m_Method{};
     int m_loglevel{};
     IntegratorBase * p_Integrator;

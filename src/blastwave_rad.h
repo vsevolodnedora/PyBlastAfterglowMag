@@ -210,7 +210,7 @@ public:
         }
         p_eats->method_shock_vel = methodsShockVel;
 
-        p_eats->counter_jet = getBoolOpt("counter_jet", opts, AT, p_log,true);
+        p_eats->counter_jet = getBoolOpt("counter_jet", opts, AT, p_log,true, false);
 
         opt = "method_comp_mode";
         METHODS_RAD methodCompMode;

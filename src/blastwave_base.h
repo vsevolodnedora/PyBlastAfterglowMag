@@ -64,11 +64,20 @@ struct Pars{
     METHOD_dmdr m_method_dmdr{};
     METHOD_dgdr m_method_dgdr{};
     LatStruct::METHOD_eats m_method_eats{};
+    /// For Magnetar
+    double thickness = -1;
+    double volume = -1;
+    double Rho0 = -1;
+    double kappa0 = -1;
+    double dtau = -1;
+    double tau_to0 = -1;
+    bool is_above_tau1 = false;
     /// blast wave initial conditions
     double M0 = -1.;
     double R0 = -1.;
     double tb0 = -1.;
     double Gamma0 = -1.;
+    double mom0 = -1.;
     double E0 = -1.;
     double theta_a = -1.;
     double theta_b0 = -1.;
@@ -269,6 +278,8 @@ public:
     virtual void applyUnits( double * sol, size_t i ) = 0;
     // ---------------------------------------------------------
     enum Q {
+        // --- properties of the ejecta element
+        iRho, idR, iTau, iTauOut, iEinj,
         // -- dynamics ---
         iR, iRsh, irho, idrhodr, iGammaCBM, iGammaREL, idGammaCBMdr, idGammaRELdGamma, iPcbm, idPCBMdrho, iMCBM, iCSCBM,
         iGamma, ibeta, imom, iEint2, iU_p, itheta, ictheta, iErad2, iEsh2, iEad2, iM2,
@@ -281,6 +292,8 @@ public:
         ijl, ir_dist
     };
     std::vector<std::string> m_vnames{
+            // --- properties of the ejecta element
+            "Rho", "dR", "Tau", "TauOut", "Einj",
             // --- dynamics ---
             "R", "Rsh", "rho", "drhodr", "GammaRho", "GammaRel", "dGammaRhodr", "dGammaReldGamma", "PCBM", "dPCBMdrho", "MCBM", "CSCBM",
             "Gamma", "beta", "mom", "Eint2", "U_p", "theta", "ctheta", "Erad2", "Esh2", "Ead2", "M2",
@@ -292,7 +305,7 @@ public:
             // ---
             "ijl", "r_dist"
     };
-    static constexpr size_t NVALS = 43; // number of variables to save
+    static constexpr size_t NVALS = 47; // number of variables to save
     // ---------------------------------------------------------
     Array & getTbGrid() {return m_tb_arr;}
     Array getTbGrid(size_t every_it) {
@@ -341,7 +354,7 @@ public:
         }
         return ctheta;
     }
-    inline Array & getArr(Q var){ return m_data[var]; }
+    inline Array & getData(Q var){ return m_data[var]; }
     inline double & getVal(Q var, int ix){
         auto ixx = (size_t)ix;
         if (ix == -1) { ixx = m_data[0].size()-1; }
@@ -470,8 +483,8 @@ public:
                       << " Gamma0="<<p_pars->Gamma0 <<" E0="<<p_pars->E0<<" theta0="<<p_pars->theta_b0
                       << " theta_max="<<p_pars->theta_max <<" ncells="<<p_pars->ncells<< "\n"
                       << " ----------------------------------------------------------- \n"
-                      << " iR=          "         << m_data[Q::iR][it] << "\n"
-                      << " itt=         "        << m_data[Q::itt][it] << "\n"
+                      << " iR=          " << m_data[Q::iR][it] << "\n"
+                      << " itt=         " << m_data[Q::itt][it] << "\n"
                       << " imom=        " << m_data[Q::imom][it] << "\n"
                       << " iGamma=      " << m_data[Q::iGamma][it] << "\n"
                       << " iGammaFsh=   " << m_data[Q::iGammaFsh][it] << "\n"
@@ -480,6 +493,7 @@ public:
                       << " iEsh2=       " << m_data[Q::iEsh2][it] << "\n"
                       << " ictheta=     " << m_data[Q::ictheta][it] << "\n"
                       << " irho=        " << m_data[Q::irho][it] << "\n"
+                      << " iEinj=       " << m_data[Q::iEint2][it] << "\n"
                       //                      << " idlnrho1_dr="<< m_data[Q::idlnrho1_dr][it] << "\n"
                       << " idrhodr=     " << m_data[Q::idrhodr][it] << "\n"
                       << " iGammaCBM=   " << m_data[Q::iGammaCBM][it] << "\n"
@@ -495,8 +509,8 @@ public:
             exit(1);
         }
     }
-    virtual void evaluateCollision(double * out_Y, size_t i, double x, double const * Y,
-                                   std::unique_ptr<BlastWaveBase> & other, size_t other_i ) = 0;
+//    virtual void evaluateCollision(double * out_Y, size_t i, double x, double const * Y,
+//                                   std::unique_ptr<BlastWaveBase> & other, size_t other_i ) = 0;
     virtual void evaluateRhsDensModel2(double * out_Y, size_t i, double x, double const * Y,
                                        void * others, size_t prev_ix) = 0; // std::vector<std::unique_ptr<BlastWaveBase>>
     void setAllParametersForOneLayer(LatStruct & latStruct, //RadBlastWave & bw_obj,
@@ -768,22 +782,22 @@ public:
 
         /// set boolean pars
         p_pars->use_dens_prof_behind_jet_for_ejecta =
-                getBoolOpt("use_dens_prof_behind_jet_for_ejecta", opts, AT,p_log,false);
+                getBoolOpt("use_dens_prof_behind_jet_for_ejecta", opts, AT,p_log,false, false);
 
         p_pars->use_exp_rho_decay_as_floor =
-                getBoolOpt("use_exp_rho_decay_as_floor", opts, AT,p_log,false);
+                getBoolOpt("use_exp_rho_decay_as_floor", opts, AT,p_log,false, false);
 
         p_pars->use_flat_dens_floor =
-                getBoolOpt("use_flat_dens_floor", opts, AT,p_log,false);
+                getBoolOpt("use_flat_dens_floor", opts, AT,p_log,false, false);
 
         p_pars->use_st_dens_profile =
-                getBoolOpt("use_st_dens_profile", opts, AT,p_log,false);
+                getBoolOpt("use_st_dens_profile", opts, AT,p_log,false, false);
 
         p_pars->use_bm_dens_profile =
-                getBoolOpt("use_bm_dens_profile", opts, AT,p_log,false);
+                getBoolOpt("use_bm_dens_profile", opts, AT,p_log,false, false);
 
         p_pars->adiabLoss =
-                getBoolOpt("use_adiabLoss", opts, AT,p_log,true);
+                getBoolOpt("use_adiabLoss", opts, AT,p_log,true, false);
 
         /// set sedov-taylor profile (for jet to be seen by ejecta as it moves behind)
         if (p_pars->use_st_dens_profile) {
@@ -841,6 +855,7 @@ public:
                 p_pars->E0        = latStruct.dist_E0_pw[ilayer];
                 p_pars->M0        = latStruct.dist_M0_pw[ilayer];
                 p_pars->Gamma0    = latStruct.dist_G0_pw[ilayer];
+                p_pars->mom0      = latStruct.dist_G0_pw[ilayer]*EQS::Beta(latStruct.dist_G0_pw[ilayer]); // TODO replace Gamma with momentum
                 p_pars->tb0       = m_tb_arr[0];
                 p_pars->theta_a   = 0.; // theta_a
                 p_pars->theta_b0  = latStruct.m_theta_w; // theta_b0

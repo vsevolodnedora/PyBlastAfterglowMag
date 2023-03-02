@@ -22,13 +22,14 @@ import os
 import sys
 import argparse
 
-from .id_maker_tools import (reinterpolate_hist, compute_ek_corr)
+from .id_maker_tools import (reinterpolate_hist, reinterpolate_hist2, compute_ek_corr)
 from .utils import (cgs, get_Gamma, get_Beta, find_nearest_index)
 
 
 def get_ej_data_for_text(datadir : str,
                          req_times=np.array([25]),
                          new_theta_len=None,
+                         new_vinf_len=None,
                          verbose = True):
     """
         Load Kenta's data for various extraction times and get it
@@ -148,8 +149,11 @@ def get_ej_data_for_text(datadir : str,
                 #print(pars["ejecta_prefix"])
 
                 masses = np.array(dfile[tkeys[idx]]["Mejecta"], dtype=np.float64)  # / cgs.solar_m
-                thetas, masses = reinterpolate_hist(thetas, masses[:-1, :], new_theta_len=new_theta_len)
+                # thetas, masses = reinterpolate_hist(thetas, masses[:-1, :], new_theta_len=new_theta_len)
+                v_inf, thetas, masses = reinterpolate_hist2(v_inf, thetas, masses[:, :],
+                                                            new_theta_len=new_theta_len, new_vinf_len=new_vinf_len)
                 thetas = 0.5 * (thetas[1:] + thetas[:-1])
+                v_inf  = 0.5 * (v_inf[1:] + v_inf[:-1])
                 # v_inf = 0.5 * (v_inf[1:])
                 # masses = masses[::-1, :]
                 # masses = masses[thetas > 0, :]
@@ -222,6 +226,7 @@ def prepare_kn_ej_id_2d(datadir : str,
                         dist="pw",
                         req_times=np.array([25]),
                         new_theta_len=None,
+                        new_vinf_len=None,
                         verbose = True,
                         ):
 
@@ -232,13 +237,16 @@ def prepare_kn_ej_id_2d(datadir : str,
         raise NotImplementedError(" ID for other EATS methods are not available")
 
     selected_par_list, sorted_vals = \
-        get_ej_data_for_text(datadir=datadir, req_times=req_times, new_theta_len=new_theta_len, verbose = verbose)
+        get_ej_data_for_text(datadir=datadir, req_times=req_times,
+                             new_theta_len=new_theta_len, new_vinf_len=new_vinf_len, verbose = verbose)
 
     for pars, outfpath in zip(selected_par_list, outfpaths):
         theta_corr2 = pars["thetas"]
         vinf_corr2 = pars["betas"]
         ek_corr2 = compute_ek_corr(pars["betas"], pars["masses"]).T
         if verbose: print(theta_corr2.shape, vinf_corr2.shape, ek_corr2.shape)
+
+
 
         # self.o_pba.setEjectaStructNumeric(theta_corr2, vinf_corr2, ek_corr2, fac, True, self.pars_kn["eats_method"])
 
@@ -250,3 +258,10 @@ def prepare_kn_ej_id_2d(datadir : str,
         dfile.close()
         if verbose: print("file saved: {}".format(outfpath))
 
+def load_init_data(fpath):
+    dfile = h5py.File(fpath, "r")
+    theta_corr2 = np.array(dfile["theta"],dtype=np.float64)
+    vinf_corr2 = np.array(dfile["vel_inf"],dtype=np.float64)
+    ek_corr2 = np.array(dfile["ek"],dtype=np.float64)
+    dfile.close()
+    return (vinf_corr2, theta_corr2, ek_corr2)

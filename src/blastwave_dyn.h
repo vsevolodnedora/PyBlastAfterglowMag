@@ -22,53 +22,16 @@
 
 /// specific set of equations for a blast wave
 class DynRadBlastWave : public RadBlastWave{
-    struct FsolvePars{
-
-        double gJ    = -1;
-        double mJ    = -1;
-        double eJ    = -1;
-        double gAdiJ = -1;
-        // ejecta
-        double gEJ    = -1;
-        double mEJ    = -1;
-        double eEJ    = -1;
-        double gAdiEJ = -1;
-
-        EOSadi * p_eos {};
-
-        /// main switch for combined model dynamics
-//    bool use_dens_prof_behind_jet_for_ejecta = true;
-
-//    /// main switch
-//    bool use_dens_prof_behind_jet_for_ejecta = true;
-//    size_t which_jet_layer_to_use = 0;
-//
-//    /// exp decay && floor behaviour
-//    bool use_exp_rho_decay_as_floor = true;
-//    bool use_flat_dens_floor = false;
-//    double steepnes_of_exp_decay = 1.;
-////    double dens_floor_frac = 1e-20;
-//
-//    /// ST profile
-//    bool use_st_dens_profile = true;
-//    double Gamma_when_st_starts = 2.;
-//
-//    /// BM profile
-//    bool use_bm_dens_profile = false;
-//    double fraction_of_Gamma0_when_bm_for_bm = 1.98; // if > 1 -- BM also in free coasting
-
-    };
-    FsolvePars * pfsolvePars;
     std::unique_ptr<logger> p_log;
 public:
     explicit DynRadBlastWave(Array & tb_arr, size_t ishell, size_t ilayer, int loglevel )
             : RadBlastWave(tb_arr, ishell, ilayer, loglevel) {
 //        p_log = std::make_unique<logger>(std::cout, loglevel, "RadBlastWave");
-        pfsolvePars = new FsolvePars;
-        pfsolvePars->p_eos = p_eos;
+//        pfsolvePars = new FsolvePars;
+//        pfsolvePars->p_eos = p_eos;
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "DynRadBlastWave");
     }
-    ~DynRadBlastWave(){ delete pfsolvePars; }
+    ~DynRadBlastWave(){ }
 //    FsolvePars *& getCombPars(){ return pfsolvePars; }
     // RHS settings
     const static int neq = 11;
@@ -382,7 +345,7 @@ public:
             if ((igamma < 1.) || (mom < 0)) {
                 // REMOVING LOGGER
 
-                //            std::cout << "theta:" << getArr(Q::iR)<<"\n";
+                //            std::cout << "theta:" << getData(Q::iR)<<"\n";
                 (*p_log)(LOG_ERR,AT)  << AT << " \n"
                            << " Gamma < 1. ishell="<<p_pars->ishell<<" ilayer="<<p_pars->ilayer
                            << " with Gamma0="<<p_pars->Gamma0 << " [iteration="<<p_pars->comp_ix<<"] \n";
@@ -404,8 +367,8 @@ public:
                 (*p_log)(LOG_ERR,AT)<< " beta[" << p_pars->comp_ix - 3 << "]="
                            << string_format("%.9e", getVal(Q::ibeta, p_pars->comp_ix - 3))
                            << "\n";
-//                std::cerr << "Gamma:" << getArr(Q::iGamma) << "\n";
-//                std::cerr << "R:" << getArr(Q::iR) << "\n";
+//                std::cerr << "Gamma:" << getData(Q::iGamma) << "\n";
+//                std::cerr << "R:" << getData(Q::iR) << "\n";
                 (*p_log)(LOG_ERR,AT)  << " Gamma cannot be less than 1. or too large. "
                                          "Found: Gamma(" << igamma << "). Gamma0="<<p_pars->Gamma0<<" \n";
                 no_issues = false;
@@ -618,6 +581,12 @@ public:
         double Eint2  = Y[i+Q_SOL::iEint2];
         double theta  = Y[i+Q_SOL::itheta];
         double M2     = Y[i+Q_SOL::iM2];
+        if (mom < 0){
+            (*p_log)(LOG_ERR,AT) << "Error\n";
+            mom = 1e-5;
+            Gamma = EQS::GamFromMom(Y[i+Q_SOL::imom]);
+            beta = EQS::BetFromMom(Y[i+Q_SOL::imom]);
+        }
         // ****************************************
 //        if (Gamma <= 1.) { // TODO to be removed
 //            Gamma = 1.0001;
@@ -627,10 +596,10 @@ public:
 //            Gamma = p_pars->Gamma0;
 //            (*p_log)(LOG_ERR, AT) << " Gamma > Gamma0 in RHS for kN Ejecta\n";
 //        }
-        if (mom < 0.){
-            (*p_log)(LOG_ERR, AT) << " mom < 0 = "<< mom << " in kN RHS dynamics\n";
-            exit(1);
-        }
+//        if (mom < 0.){
+//            (*p_log)(LOG_ERR, AT) << " mom < 0 = "<< mom << " in kN RHS dynamics\n";
+//            exit(1);
+//        }
 
 
 
@@ -706,17 +675,32 @@ public:
             exit(1);
         }
 
+        // --- Energy injection
+        double xi_inj = 1.;
+        double dEinjdt = p_pars->dEinjdt / (p_pars->M0 * CGS::c * CGS::c) / p_pars->ncells;
+        double dEinjdR = dEinjdt / dRdt;
+        double theta_ej = 0.; // assume that ejecta is alinged with magnetar emission?..
+        double Doppler = Gamma / (1. - beta * std::cos(theta_ej));
+        double dEinjdR_dop = dEinjdR * Doppler;
+        double dEingdR_abs = dEinjdR * ( 1. - std::exp(-1.*p_pars->dtau) ) * std::exp(-1.*p_pars->tau_to0);
+        double dEingdR_abs_dop = dEingdR_abs / Doppler / Doppler;
+
+
         // --- dGammadR ---
-        double dGammadR = 0., GammaEff=0.,dGammaEffdGamma=0.,num=0.,denum=0.;
+        double dGammadR = 0., GammaEff=0.,dGammaEffdGamma=0.,num1=0.,num2=0.,num3=0.,denum1=0.,denum2=0.,denom3=0.;
+        double _tmp = (1. - GammaEff / Gamma * xi_inj) * dEingdR_abs;
         switch (p_pars->m_method_dgdr) {
 
             case iour:
                 GammaEff = get_GammaEff(Gamma_, gammaAdi); // TODO check if GammaRel should be used for this!!!
                 dGammaEffdGamma = get_dGammaEffdGamma(Gamma_, gammaAdi);
-                num = -(Gamma - GammaRho + GammaEff * (GammaRel - 1.)) * dM2dR
-                      + GammaEff * (gammaAdi - 1.) * Eint2 * (dM2dR/M2 - drhodr/rho - dGammaRhodR / GammaRho);
-                denum=(1.+M2) + Eint2 * dGammaEffdGamma + GammaEff * (gammaAdi - 1.) * Eint2 * dGammaRelDGamma / GammaRel;
-                dGammadR = num / denum;
+                num1 = (Gamma - GammaRho + GammaEff * (GammaRel - 1.)) * dM2dR;
+                num2 = - GammaEff * (gammaAdi - 1.) * Eint2 * (dM2dR/M2 - drhodr/rho - dGammaRhodR / GammaRho); // - 3.*Eint2/R
+                num3 = + (1. - GammaEff / Gamma * xi_inj) * dEingdR_abs;
+                denum1 = (1.+M2);
+                denum2 = Eint2 * dGammaEffdGamma;
+                denom3 = GammaEff * (gammaAdi - 1.) * Eint2 * dGammaRelDGamma / GammaRel;
+                dGammadR = -1. * (num1 + num2 + num3) / (denum1+denum2+denom3);
                 break;
             case ipeer:
                 dGammadR = EQS::dgdr(1, Gamma, beta, M2, gammaAdi, dM2dR);
@@ -740,13 +724,18 @@ public:
         // -- Energies --
 
 //        double dlnV2dR  = dM2dR / M2 - m_drhodr - dGammadR / Gamma;
-        double dlnV2dR  = dM2dR / M2 - drhodr / rho - (1./GammaRel)*dGammaRelDGamma*dGammadR + dGammaRhodR / GammaRho;
+        double dlnV2dR  = dM2dR / M2 - drhodr / rho - (1./GammaRel)*dGammaRelDGamma*dGammadR + dGammaRhodR / GammaRho;// + 3./R;
+        double dlnVdR = (3./R) - (1/Gamma * dGammadR);
         double dEad2dR  = 0.0;
         if ( p_pars->adiabLoss )
             dEad2dR = -(gammaAdi - 1.0) * Eint2 * dlnV2dR;
         double dx = dRdt * (x - p_pars->x);
 //        double Eint_ = Eint2 + dEad2dR * dRdt * (x - p_pars->x);
 //        if (Eint_ < 0){
+//            int x = 1;
+//        }
+//        double mom_ = mom + dmomdR * dRdt * (x - p_pars->x);
+//        if (mom_ < 0){
 //            int x = 1;
 //        }
 
@@ -763,9 +752,10 @@ public:
 //        double dEsh2dR  = (GammaRel - 1.0) * dM2dR; // Shocked energy;
         // -- Radiative losses
         double dErad2dR = p_pars->eps_rad * dEsh2dR;
-        double dEinj = p_pars->dEinjdt / (p_pars->M0 * CGS::c * CGS::c);
         // -- Energy equation
-        double dEint2dR = dEsh2dR + dEad2dR - dErad2dR; // / (m_pars.M0 * c ** 2)
+        double dEint2dR = dEsh2dR + dEad2dR - dErad2dR + dEingdR_abs_dop;// dEingdR_abs_dop; // / (m_pars.M0 * c ** 2)
+        double _x = dEint2dR/Eint2;
+
         double dtcomov_dR = 1.0 / beta / Gamma / CGS::c;
         double dttdr;
 //        if (p_spread->m_method != LatSpread::METHODS::iNULL)
@@ -795,6 +785,10 @@ public:
 //                      << " p_dens->m_P_cbm="<<p_dens->m_P_cbm<<"\n";
 //            exit(1);
 //        }
+        if (mom < 0.){
+            (*p_log)(LOG_ERR, AT) << " mom < 0 = "<< mom << " in kN RHS dynamics\n";
+//            exit(1);
+        }
         if (!std::isfinite(dRdt) || !std::isfinite(dGammadR) || dM2dR < 0.
             || !std::isfinite(dlnV2dR) || !std::isfinite(dthetadr)) {
             (*p_log)(LOG_ERR,AT)  << " nan in derivatives (may lead to crash) " << "\n"
@@ -882,6 +876,7 @@ public:
         out_Y[i+Q_SOL::imom]    = dRdt * dmomdR; //dRdt * dGammadR / Gamma;
 //        out_Y[i+Q_SOL::iGamma]  = 0.;//dRdt * dGammadR; //dRdt * dGammadR / Gamma;
         out_Y[i+Q_SOL::iEint2]  = dRdt * dEint2dR;
+//        out_Y[i+Q_SOL::iEinj]   = dRdt * dEingdR_abs;
         out_Y[i+Q_SOL::itheta]  = dRdt * dthetadr;
         out_Y[i+Q_SOL::iErad2]  = dRdt * dErad2dR;
         out_Y[i+Q_SOL::iEsh2]   = dRdt * dEsh2dR;
@@ -1372,8 +1367,7 @@ public:
 //            exit(1);
 //        }
     }
-    void evaluateRhsDensModel2(double * out_Y, size_t i, double x, double const * Y,
-                               void * others, size_t evaled_ix) override { // std::vector<std::unique_ptr<BlastWaveBase>>
+    void evaluateRhsDensModel2(double * out_Y, size_t i, double x, double const * Y, void * others, size_t evaled_ix) override {
 
         /// do not evaluate RHS if the evolution was terminated
         if (p_pars->end_evolution) {
@@ -1392,20 +1386,20 @@ public:
             double theta_b0  = p_pars->theta_b0;
             double ej_theta  = Y[i + DynRadBlastWave::Q_SOL::itheta];
             double ej_ctheta = LatStruct::ctheta(ej_theta,p_pars->ilayer,p_pars->nlayers);//ctheta(ej_theta);
-            if (ej_Gamma>10.){
-                (*p_log)(LOG_ERR,AT)
-                        << "["<<p_pars->ishell<<", "<<p_pars->ilayer<<"]"
-                        << " ii_eq = "<<p_pars->ii_eq
-                        << " i = " << i
-                        << " Gamma="<<ej_Gamma
-                        << " R = " << ej_R
-                        << " theta_b0 = " <<theta_b0
-                        << " ctheta =" <<ej_ctheta
-                        << "\n"
-                        << " Exiting...\n";
-//                std::cerr << AT << "\n";
-                exit(1);
-            }
+//            if (ej_Gamma>10.){
+//                (*p_log)(LOG_ERR,AT)
+//                        << "["<<p_pars->ishell<<", "<<p_pars->ilayer<<"]"
+//                        << " ii_eq = "<<p_pars->ii_eq
+//                        << " i = " << i
+//                        << " Gamma="<<ej_Gamma
+//                        << " R = " << ej_R
+//                        << " theta_b0 = " <<theta_b0
+//                        << " ctheta =" <<ej_ctheta
+//                        << "\n"
+//                        << " Exiting...\n";
+////                std::cerr << AT << "\n";
+//                exit(1);
+//            }
             set_standard_ism(ej_R, ej_ctheta, ej_Gamma);
         }
 
@@ -1415,126 +1409,7 @@ public:
     }
 
     /// ---
-    void evaluateCollision(double * out_Y, size_t i, double x, double const * Y,
-                           std::unique_ptr<BlastWaveBase> & other, size_t other_i ) override {
-        //
-        auto & p_pars2 = other->getPars();
-        auto & p_eos2 = other->getEos();
-        // jet
-        pfsolvePars->gJ    = EQS::GamFromMom( Y[i+Q_SOL::imom]);
-//        pfsolvePars->gJ    = Y[i+Q_SOL::iGamma];
-        pfsolvePars->mJ    = p_pars->M0 * ( Y[i+Q_SOL::iM2] + 1. );
-        pfsolvePars->eJ    = p_pars->E0 * Y[i+Q_SOL::iEint2];
-        pfsolvePars->gAdiJ = p_eos->getGammaAdi(pfsolvePars->gJ, EQS::Beta(pfsolvePars->gJ));
-        // ejecta
-        pfsolvePars->gEJ    = EQS::GamFromMom(Y[other_i+Q_SOL::imom]);
-//        pfsolvePars->gEJ    = Y[other_i+Q_SOL::iGamma];
-        pfsolvePars->mEJ    = p_pars2->M0 * ( Y[other_i+Q_SOL::iM2] + 1. );
-        pfsolvePars->eEJ    = p_pars2->E0 * Y[other_i+Q_SOL::iEint2];
-        pfsolvePars->gAdiEJ = p_eos2->getGammaAdi(pfsolvePars->gEJ, EQS::Beta(pfsolvePars->gEJ));
-        // initial guess for the solution
-        (*p_log)(LOG_INFO,AT) << "------------------------------------------------------\n";
-        (*p_log)(LOG_INFO,AT) << "Shells colliding: \n"
-                  << " gJ="<< pfsolvePars->gJ
-                  << " mJ="<< pfsolvePars->mJ
-                  << " eJ=" << pfsolvePars->eJ
-                  << " gAdiJ=" << pfsolvePars->gAdiJ
-                  << " \n"
-                  << " gEJ=" << pfsolvePars->gEJ
-                  << " mEJ=" << pfsolvePars->mEJ
-                  << " eEJ=" << pfsolvePars->eEJ
-                  << " gAdiEJ=" << pfsolvePars->gAdiEJ
-                  << " \n"
-                  << " dthetaJ0="<< p_pars->theta_c_h - p_pars->theta_c_l
-                  << " dthetaEJ0="<< p_pars2->theta_c_h - p_pars2->theta_c_l
-                  << " \n"
-//                  << " dthetaJ="<< theta1(Y[i+Q_SOL::itheta]) - p_pars->theta_c_l
-//                  << " dthetaEJ="<<other->theta1(Y[other_i+Q_SOL::itheta]) - p_pars2->theta_c_l
-                  << "\n";
-        (*p_log)(LOG_INFO,AT) << "------------------------------------------------------\n";
 
-        // -
-        double i_gM=pfsolvePars->gJ;
-        double i_mM=pfsolvePars->mJ + pfsolvePars->mEJ;
-        double i_eM=pfsolvePars->eJ;
-//        //
-//        double dthetaJ = p_pars->theta_c_h - p_pars->theta_c_l;
-//        double dthetaEJ = p_pars2->theta_c_h - p_pars2->theta_c_l;
-//        //
-//        double dtheta1J = theta1(Y[i+Q_SOL::itheta]) - p_pars->theta_c_l;
-//        double dtheta1EJ= other->theta1(Y[other_i+Q_SOL::itheta]) - p_pars2->theta_c_l;
-        // collision
-        auto func = []( int n, double x[], double fx[], int &iflag, void * pars ){
-            auto * pp = (struct FsolvePars *) pars;
-            double gM = x[0];
-            double eM = x[1];
-            double gAdiM = pp->p_eos->getGammaAdi(gM, EQS::Beta(gM));
-            double mM = pp->mJ + pp->mEJ;
-            /// total energy consercation (Ek + Eint)
-            double fx1 = (pp->gJ * pp->mJ + EQS::get_GammaEff(pp->gJ, pp->gAdiJ) * pp->eJ)
-                         + (pp->gEJ * pp->mEJ + EQS::get_GammaEff(pp->gEJ, pp->gAdiEJ) * pp->eEJ)
-                         - (gM * mM + EQS::get_GammaEff(gM,gAdiM) * eM );
-            /// total momentum conservation
-            double fx2 = sqrt(pp->gJ * pp->gJ - 1) * (pp->mJ + pp->gAdiJ * pp->eJ ) +
-                         sqrt(pp->gEJ * pp->gEJ - 1) * (pp->mEJ + pp->gAdiEJ * pp->eEJ ) -
-                         sqrt(gM * gM - 1) * (mM + gAdiM * eM );
-            if (!std::isfinite(fx1) || !std::isfinite(fx2))
-                iflag = -1;
-            fx[0] = fx1;
-            fx[1] = fx2;
-        };
-        using func_ptr = void(*)(int, double *, double *, int&, void*);
-        func_ptr p_func = func;
-
-        //
-        auto solve = [&](){
-            double *fx;
-            int iflag;
-            int info;
-            int lwa;
-            int n = 2;
-            double tol = 1e-12;
-            double *wa;
-            double *x;
-
-            lwa = ( n * ( 3 * n + 13 ) ) / 2;
-            fx = new double[n];
-            wa = new double[lwa];
-            x = new double[n];
-
-            std::cout << "\n";
-            std::cout << "fsolve_test2():\n";
-            std::cout << "  fsolve() solves a nonlinear system of 2 equations.\n";
-
-            x[0] = i_gM+0.01;
-            x[1] = i_eM;
-            iflag = 0;
-            func ( n, x, fx, iflag, pfsolvePars );
-
-            r8vec2_print ( n, x, fx, "  Initial X, F(X)" );
-
-            info = fsolve ( func, n, x, pfsolvePars, fx, tol, wa, lwa );
-
-            std::cout << "\n";
-            std::cout << "  Returned value of INFO = " << info << "\n";
-            r8vec2_print ( n, x, fx, "  Final X, FX" );
-
-            if (x[0] > i_gM+0.001){
-                exit(1);
-            }
-
-            //
-//  Free memory.
-//
-            delete [] fx;
-            delete [] wa;
-            delete [] x;
-        };
-        solve();
-
-
-        auto y = 1;
-    }
 
 };
 

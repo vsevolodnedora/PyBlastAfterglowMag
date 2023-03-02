@@ -168,7 +168,7 @@ public:
     /// run the time-evolution
     void run(){
         p_model = std::make_unique<EvolveODEsystem>( p_mag, p_grb, p_ej, t_grid,
-                                                     p_pars->integrator, m_loglevel );
+                                                       p_pars->integrator, m_loglevel );
         p_model->pIntegrator()->pPars()->rtol = p_pars->rtol;
         p_model->pIntegrator()->pPars()->atol = p_pars->rtol;
         p_model->pIntegrator()->pPars()->nmax = p_pars->nmax;

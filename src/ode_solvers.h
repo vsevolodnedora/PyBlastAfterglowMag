@@ -2054,6 +2054,9 @@ public:
     void Integrate( const double &dx ) {
         m_method( m_X, m_Y_o, m_n_eq, m_Func, m_rhs_pars, dx );
     }
+//    void Integrate( const double &x0, const double &x1, double * Y0 ){
+//        m_method( x0, Y0, m_n_eq, m_Func, m_rhs_pars, x1-x0 );
+//    }
     void SetIntegratorPars( const std::unordered_map<std::string, double> &pars ) { unused(pars); }
     void SetIntegratorPars( Integrators::dop853_integrator::param_t & pars ) { unused(pars); }
 
@@ -2089,6 +2092,8 @@ public:
     }
     void SetInitCond( double x_0, double * Y_0 ){ m_X = x_0; m_Y_o = Y_0; }
     void GetY( double * out_Y ) { for (size_t i = 0; i < m_n_eq; i++) out_Y[i] = m_Y_o[i]; }
+    void SetY( const double * out_Y ) { for (size_t i = 0; i < m_n_eq; i++) m_Y_o[i] = out_Y[i]; }
+    virtual void Integrate( const double &x0, const double &x1, double * Y0 ) = 0;
     virtual void Integrate( const double &dx ) = 0;
     inline Integrators::dop853_integrator::param_t * pPars() { return p_params; }
 };
@@ -2105,6 +2110,13 @@ public:
     }
     void Integrate( const double &dx ) override {
         m_method( m_X, m_Y_o, m_n_eq, m_Func, m_rhs_pars, dx );
+    }
+    /// updates the m_x with x0 and m_Y_o with Y0 and integrates till x1
+    void Integrate( const double &x0, const double &x1, double * Y0 ) override {
+        /// udate x and the state vector with new values:
+        m_X = x0;
+        for (size_t i = 0; i < m_n_eq; i++) { m_Y_o[i] = Y0[i]; }
+        m_method( m_X, m_Y_o, m_n_eq, m_Func, m_rhs_pars, x1-x0 );
     }
 };
 
@@ -2133,7 +2145,23 @@ public:
         m_params.nmax = nmax;
         m_params.verbocity = verpocity;
     }
-    void Integrate( const double &dx )  override  {
+    /// updates the m_x with x0 and m_Y_o with Y0 and integrates till x1
+    void Integrate( const double &x0, const double &x1, double * Y0 ) override {
+        Integrators::stat_t stat;
+        m_params.rhs_pars = m_rhs_pars;
+        /// udate x and the state vector with new values:
+        m_X = x0;
+        for (size_t i = 0; i < m_n_eq; i++) { m_Y_o[i] = Y0[i]; }
+        m_method.integrate(m_X,        // beginning of the step 'x'
+                           m_Y_o,      // pointer to double[] with initial conidtions to be overridden?
+                           m_n_eq,     // number of equations in the system
+                           m_Func,     // function
+                           x1,//m_X + dx,   // the end of the step 'x + dx'
+                           stat,       // statistics of the solver and internal vars
+                           m_params    // options for the solver i.e tolerence, max iterations, struct rhs_pars
+        );
+    }
+    void Integrate( const double &dx  )  override  {
         Integrators::stat_t stat;
         m_params.rhs_pars = m_rhs_pars;
         m_method.integrate(m_X,        // beginning of the step 'x'

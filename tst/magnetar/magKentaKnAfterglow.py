@@ -25,14 +25,14 @@ try:
     from PyBlastAfterglowMag.interface import BPA_METHODS
     from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
     from PyBlastAfterglowMag.utils import latex_float, cgs, get_beta, get_Gamma
-    from PyBlastAfterglowMag.id_maker_from_kenta_bns import prepare_kn_ej_id_2d
+    from PyBlastAfterglowMag.id_maker_from_kenta_bns import prepare_kn_ej_id_2d, load_init_data
 except ImportError:
     try:
         from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
         from package.src.PyBlastAfterglowMag.interface import BPA_METHODS
         from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
         from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma)
-        from package.src.PyBlastAfterglowMag.id_maker_from_kenta_bns import prepare_kn_ej_id_2d
+        from package.src.PyBlastAfterglowMag.id_maker_from_kenta_bns import prepare_kn_ej_id_2d, load_init_data
     except ImportError:
         raise ImportError("Cannot import PyBlastAfterglowMag")
 
@@ -334,20 +334,28 @@ def plot_init_profile(ctheta, betas, eks,
 
 def main():
     workdir = os.getcwd()+'/'
-    ###  locate and extract the data from the original ejecta profiles from Kenta
-    # path_to_original_data = "/media/vsevolod/data/KentaData/SFHo_13_14_150m_11/" #
-    # if not os.path.isdir(path_to_original_data):
-    #     raise FileExistsError("Input ejecta data is not found")
+    ##  locate and extract the data from the original ejecta profiles from Kenta
+    path_to_original_data = "/media/vsevolod/data/KentaData/SFHo_13_14_150m_11/" #
+    if not os.path.isdir(path_to_original_data):
+        raise FileExistsError("Input ejecta data is not found")
 
-    # lead the original data and prepare the ID file for PyBlastAfterglow
+    # print(np.gradient([0.1,0.3], edge_order=1))
+
+    ## lead the original data and prepare the ID file for PyBlastAfterglow
     text = 25.
     label = f"corr_id_SFHo_13_14_150m_11_text{int(text)}"
-    # prepare_kn_ej_id_2d(datadir=path_to_original_data,
-    #                     outfpaths=[workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5"],
-    #                     req_times=np.array([text]),
-    #                     new_theta_len=None,
-    #                     verbose=True,
-    #                     dist="pw")
+    prepare_kn_ej_id_2d(datadir=path_to_original_data,
+                        outfpaths=[workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5"],
+                        req_times=np.array([text]),
+                        new_theta_len=3,
+                        new_vinf_len=None,
+                        verbose=True,
+                        dist="pw")
+
+    vinf, theta, ek = load_init_data(workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5")
+    plot_init_profile(theta, vinf, ek,
+                      figpath=None,#FIGPATH+"ang_mass_dist" + r"_text{}".format(int(times[idx])),
+                      title=r"$t_{\rm ext}="+r"{}$ [ms]".format(int(text)))
 
     # data_par_list, data_par_list_all = get_ej_data_for_text(datadir=path_to_original_data,
     #                                                        req_times=np.array([text]),
