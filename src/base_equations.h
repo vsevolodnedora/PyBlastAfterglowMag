@@ -447,6 +447,20 @@ inline namespace EQS{
 
 }
 
+namespace MEQS{
+    /// Binding energy of the NS
+    //  Prescription from Lattimer and Prakash (2001)
+    double e_bind( const double ns_mass, const double ns_radius){
+        double num = CGS::gravconst*ns_mass;
+        double den = ns_radius * CGS::c*CGS::c - 0.5*CGS::gravconst * ns_mass;
+        double out = 0.6 * ns_mass * CGS::c*CGS::c * num / den;
+        return out;
+    }
+    double e_rot( const double ns_inertia, const double omega ){
+        return 0.5 * ns_inertia * omega * omega;
+    }
+}
+
 /// Blandford-McKee self-simialr solution
 class BlandfordMcKee2{
     struct Pars{

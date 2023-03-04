@@ -1609,7 +1609,7 @@ class Nava_fs_rhs_t2:
         dGammaEffdGamma = Nava_fs_rhs.dGammaEffdGamma(Gamma, gammaAdi);
         num1 = (Gamma - GammaRho + GammaEff * (GammaRel - 1.)) * dM2dR;
         num2 = - GammaEff * (gammaAdi - 1.) * Eint2 * (dM2dR/M2 - drhodr/rho - dGammaRhodR / GammaRho); # - 3.*Eint2/R
-        num3 = + (1. - GammaEff / Gamma * xi_inj) * dEingdR_abs;
+        num3 = - (1. - GammaEff / Gamma * xi_inj) * dEingdR_abs * 1;
         denum1 = (1.+M2);
         denum2 = Eint2 * dGammaEffdGamma;
         denom3 = GammaEff * (gammaAdi - 1.) * Eint2 * dGammaRelDGamma / GammaRel;
@@ -2247,7 +2247,7 @@ if __name__ == '__main__':
     dyn2t2 = Driver_Nava_FS_t2(E0=1e45, Gamma0=200, M0=1e45 / (cgs.c ** 2 * 200), tstart=tarr[0], Rstart = RR[0], ctheta_j = 0.01, theta_w_j = 0.1,
                                rho0=rho, useSpread=True, aa=-1., ncells=1, theta0=0.16,
                                # ----------
-                               Gamma0_ej_0=get_Gamma(0.3), M0_ej_0=1e47 / (cgs.c ** 2 * get_Gamma(0.3)),
+                               Gamma0_ej_0=get_Gamma(0.3), M0_ej_0=1e45 / (cgs.c ** 2 * get_Gamma(0.3)),
                                tstart_ej_0=tarr[0], Rstart_ej_0=RR[0], ctheta_ej_0 = 0.10, theta_w_ej_0 = np.pi/2.,
                                rho0_ej_0=rho,
                                # ----------
@@ -2255,7 +2255,7 @@ if __name__ == '__main__':
                                tstart_ej_1=tarr[0], Rstart_ej_1=RR[0], ctheta_ej_1 = 0.10, theta_w_ej_1 = np.pi/2.,
                                rho0_ej_1=rho,
                                # ----------
-                               Gamma0_ej_2=get_Gamma(0.3), M0_ej_2=1e44 / (cgs.c ** 2 * get_Gamma(0.3)),
+                               Gamma0_ej_2=get_Gamma(0.3), M0_ej_2=1e45 / (cgs.c ** 2 * get_Gamma(0.3)),
                                tstart_ej_2=tarr[0], Rstart_ej_2=RR[0], ctheta_ej_2 = 0.10, theta_w_ej_2 = np.pi/2.,
                                rho0_ej_2=rho,
                                # ----------

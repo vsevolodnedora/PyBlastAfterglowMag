@@ -16,12 +16,10 @@ public:
         iLagrangeUnivariate3m, // Lagrange univariate three - point linear interpolation
         iSmoothCubicPolynomial,  // Smooth interpolation Cubic polynomial interpolation
     };
-    static InterpBase::METHODS select( const std::string & method, int loglevel ){
+    static InterpBase::METHODS select( const std::string & method, std::unique_ptr<logger> & p_log ){
 
         // REMOVING LOGGER
 //        logger log(std::cerr, loglevel, "InterpBase" );
-
-        std::vector<std::string> options { "linear", "univariate", "cubic"};
 
         METHODS _opt;
 
@@ -33,11 +31,9 @@ public:
             _opt = InterpBase::METHODS::iSmoothCubicPolynomial;
         else{
             // REMOVING LOGGER
-            std::cerr << AT << " Interpolation option " << method << " is not recognized. Possible options: \n[ ";
-            for (const auto& opt : options){
-                std::cout << opt << " ";
-            }
-            std::cout << "]\n";
+            (*p_log)(LOG_ERR,AT)
+                << " Interpolation option=" << method << " is not recognized. Possible options: "
+                << "linear" << " , " << "univariate" << " , " << "cubic" << "\n";
             exit(1);
         }
         return _opt;

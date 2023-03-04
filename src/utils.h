@@ -150,6 +150,7 @@ bool getBoolOpt(std::string opt, StrStrMap & opts,
             exit(1);
         }
         else{
+            (*p_log)(LOG_WARN, loc) << "Option " << opt << " not given. Using default value="<<def<<"\n";
             b_val = def;
         }
     else{
@@ -175,7 +176,7 @@ bool getBoolOpt(std::string opt, StrStrMap & opts,
 std::string getStrOpt(std::string opt, StrStrMap & opts,
                       const char *loc, std::unique_ptr<logger> & p_log, const std::string& def, const bool req){
 //    opt = "use_dens_prof_behind_jet_for_ejecta";
-    std::string b_val;
+//    std::string b_val;
     std::string val;
     if ( opts.find(opt) == opts.end() )
         if (req){
@@ -184,7 +185,8 @@ std::string getStrOpt(std::string opt, StrStrMap & opts,
             exit(1);
         }
         else{
-            b_val = def;
+            (*p_log)(LOG_WARN, loc) << "Option " << opt << " not given. Using default value="<<def<<"\n";
+            val = def;
         }
     else{
         val = (std::string)opts.at(opt);
@@ -201,6 +203,7 @@ double getDoublePar(std::string par, StrDbMap & pars,
             exit(1);
         }
         else{
+            (*p_log)(LOG_WARN, loc) << "Parameter " << par << " not given. Using default value="<<def<<"\n";
             val = def;
         }
     }
@@ -215,6 +218,12 @@ Vector arrToVec(Array & array){
     vec.assign(std::begin(array), std::end(array));
     return std::move( vec );
 }
+void vecToArr(Vector & source, Array & target){
+    if ((target.size() != source.size())){ target.resize(source.size());  }
+    for (size_t i = 0; i < source.size(); i++)
+        target[i] = source[i];
+}
+
 
 double linearExtrapolate(double x1, double x2, double y1, double y2, double new_x){
     double y;

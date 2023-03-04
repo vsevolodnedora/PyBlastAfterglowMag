@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """propeller_parameter_search_Bdecay.ipynb: a notebook to recreate results of Ronchi et al. (2022)"""
+import h5py
+
 #
 # __author__ = "Michele Ronchi"
 # __copyright__ = "Copyright 2022"
@@ -101,15 +103,15 @@ rcParams["font.family"] = "Liberation serif"
 
 
 # Characteristic neutron star radius in [cm].
-NS_radius = 1.1e6
+NS_radius = 1.2e6
 
 # Characteristic neutron star mass in solar masses.
-NS_mass = 1.4 * const.M_SUN
+NS_mass = 1.9 * const.M_SUN
 
 NS_critical_beta = 0.27 # bar-mode instability criterion (for rryand options only)
 
 # NS magnetic field
-B0 = 5.0e15
+B0 = 1e16
 
 # Dimensionless coefficients k_0, k_1, k_2 for a force-free magnetosphere
 # taken from Spitkovsky (2006) and Philippov et al. (2014).
@@ -133,30 +135,32 @@ alpha0 = 0.2 # TODO why does it circularises wo quickly???
 
 # Dominant conductivity based on phonon or impurity scattering, in [1/s].
 # For details see Cumming et al. (2004) or Gourgouliatos and Cumming (2014).
-sigma = 1e24
+sigma_conductivity = 1e24
 
 # Characteristic length scale of the magnetic field in [cm].
-L = 1e5
+characteristic_length = 1e5
 
 # Characteristic electron density in [g/cm^3].
-n_e = 1e35
+characteristic_electron_dens = 1e35
 
 # Eddington luminosity assuming Thompson scattering in [erg / s].
-L_Edd = 4.0 * np.pi * const.G * NS_mass * const.M_P * const.C / const.SIGMA_T
+eddigton_lum = 4.0 * np.pi * const.G * NS_mass * const.M_P * const.C / const.SIGMA_T
 
 # Circularization radius of the disk in [cm].
-r_d = 1.0e8
+circularization_disk_radius = 1.0e9
+print(1.0e8 / 1000 / 100)
 
 # Initial disk central temperature in [K].
-T_c = 1.0e6
+characteristic_disk_temp = 1.0e9
 
 
 # typical initial viscousity timescale of the disk in [s] see Menou et al. 2001.
 method_t_vis = "menou" # "menou" "gompertz" "rrayand"
 if method_t_vis == "menou":
-    t_v = 2080.0 * (T_c / 1.0e6) ** (-1.0) * (r_d / 10 ** 8) ** (1.0 / 2.0) # s
+    t_v = 2080.0 * (characteristic_disk_temp / 1.0e6) ** (-1.0) * (circularization_disk_radius / 10 ** 8) ** (1.0 / 2.0) # s
 elif method_t_vis == "gompertz":
     disk_radius = 5.e8
+    print(5.e8/1000/100)
     disk_alpha = 0.1  # disk viscosity parameter
     disk_cs = 1e7
     t_v = disk_radius / (3. * disk_alpha * disk_cs * disk_radius) # s
@@ -173,11 +177,11 @@ else:
 
 
 # accretion rate0
-method_mdot0 = "given" # "given" "disk0"
+method_mdot0 = "disk0" # "given" "disk0"
 if method_mdot0 == "given" :
     Mdot0 = 1.0e24
 elif method_mdot0 == "disk0" : # [requires disk mass]
-    diskmass = 1.e-2
+    diskmass = 1.e-2 * 1.989e+33
     Mdot0 = diskmass / t_v
 else: raise KeyError()
 
@@ -190,11 +194,11 @@ time_grid = np.logspace(np.log10(10.0), np.log10(t_max), 2000)
 disk_acc_rate_pl = 1.2
 
 # Power-law index for the disk outer radius evolution.
-gamma = 0.44
+disk_rout_evol_idx = 0.44
 
 
 # Initial spin period of the neutron star in [s].
-method_P0 = "given" # "given" "crit"
+method_P0 = "crit" # "given" "crit"
 def E_bind():
     """
     Binding energy of the NS
@@ -206,11 +210,11 @@ def E_bind():
     out = 0.6*NS_mass*const.C**2*num/den
     return out
 if method_P0 == "given":
-    P_in = 2e-3#0.01
+    P_in = 1e-3#0.01
 elif method_P0 == "crit":
     # NS_critical_beta = 0.27 # bar-mode instability criterion
     Omega0 = np.sqrt(2.*NS_critical_beta*E_bind()/NS_inertia)
-    P_in = 2*np.pi*Omega0
+    P_in = 2*np.pi/Omega0
 else:
     raise KeyError()
 
@@ -266,6 +270,8 @@ elif method_omega_crit == "fromTOV":
 else:
     raise KeyError()
 
+
+
 ''' ---------------------------------------------------------------------------------------------------------------- '''
 # TODO Add (i) Bext/Bint for ellipticity; (ii) NS_mass/Radius evolution; (iii) Collapse criterion (iv) does Ldip = f(alpha)?
 class Magnetar:
@@ -292,8 +298,8 @@ class Magnetar:
             (float): magnetic field derivatives for a simulated pulsars in [G/yr].
         """
 
-        tau_Ohm = Magnetar.timescale_Ohm(L, sigma)
-        tau_Hall = Magnetar.timescale_Hall(B_initial, L, n_e)
+        tau_Ohm = Magnetar.timescale_Ohm(characteristic_length, sigma_conductivity)
+        tau_Hall = Magnetar.timescale_Hall(B_initial, characteristic_length, characteristic_electron_dens)
 
         B_deriv = -B / tau_Ohm - B ** 2 / (tau_Hall * B_initial)
 
@@ -411,7 +417,7 @@ class Magnetar:
         # Magnetic moment.
         mu = B * NS_radius ** 3 / 2.0
 
-        Mdot_Edd = (L_Edd / (const.G * NS_mass)) ** (7.0 / 9.0) * (
+        Mdot_Edd = (eddigton_lum / (const.G * NS_mass)) ** (7.0 / 9.0) * (
                 mu ** 4.0 / (2.0 * const.G * NS_mass)
         ) ** (1.0 / 9.0)
 
@@ -432,7 +438,7 @@ class Magnetar:
         # Light cylinder radius.
         r_lc = Magnetar.radius_lc(omega)
 
-        Mdot_Edd = 2 * L_Edd * r_lc / (const.G * NS_mass)
+        Mdot_Edd = 2 * eddigton_lum * r_lc / (const.G * NS_mass)
 
         return Mdot_Edd
 
@@ -480,7 +486,7 @@ class Magnetar:
             (float): disk accretion rate in [g s^-1] as a function of time.
         """
 
-        r_out = r_d * (1 + t / t_v) ** gamma
+        r_out = circularization_disk_radius * (1 + t / t_v) ** disk_rout_evol_idx
 
         return r_out
 
@@ -523,12 +529,14 @@ class Magnetar:
             Mdot_din = Mdot_d
         elif Mdot_d >= Mdot_Edd:
             Mdot_din = Mdot_Edd
-
+        else:
+            raise ValueError()
         # When the disk is disrupted because r_in > r_out set the accretion rate to 0 afterwards.
         if t_disrupt is not None:
             if t > t_disrupt:
-                Mdot_din = 0.0
-
+                Mdot_din = 1e-20
+        if Mdot_din == 0:
+            raise ValueError()
         return Mdot_din
     @staticmethod
     def disk_accretion_rate_in_t_numpy(
@@ -1220,7 +1228,11 @@ def run_magnetar():
     r_in = np.minimum(r_m, r_lc)
     r_out = Magnetar.disk_outer_radius_t(time * const.YR_TO_S)
 
-
+    # prepare evolution file for the C++ code
+    dfile = h5py.File("magnetar_evol.h5", "w")
+    dfile.create_dataset(name="tburst", data=time)
+    dfile.create_dataset(name="ltot", data=ldip+lacc)
+    dfile.close()
 
 
 # def plot_magnetar():

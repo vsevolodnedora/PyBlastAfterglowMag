@@ -2035,7 +2035,7 @@ protected:
     double*  m_Y_o   = nullptr;
     void*  m_rhs_pars = nullptr;
     size_t m_n_eq   = 0;
-    int m_loglevel  = CurrLogLevel;
+    int m_loglevel{};
 public:
     IntegratorRk4(int loglevel ) {
         m_method = Integrators::rk4_integrator();
@@ -2077,7 +2077,7 @@ protected:
     double*  m_Y_o   = nullptr;
     void*  m_rhs_pars = nullptr;
     size_t m_n_eq   = 0;
-    int m_loglevel  = CurrLogLevel;
+    int m_loglevel{};
     // REMOVING LOGGER
 //    std::unique_ptr<logger> p_log;
     Integrators::dop853_integrator::param_t m_params{};
@@ -2092,7 +2092,10 @@ public:
     }
     void SetInitCond( double x_0, double * Y_0 ){ m_X = x_0; m_Y_o = Y_0; }
     void GetY( double * out_Y ) { for (size_t i = 0; i < m_n_eq; i++) out_Y[i] = m_Y_o[i]; }
-    void SetY( const double * out_Y ) { for (size_t i = 0; i < m_n_eq; i++) m_Y_o[i] = out_Y[i]; }
+    void SetY( const double * out_Y ) {
+        for (size_t i = 0; i < m_n_eq; ++i)
+            m_Y_o[i] = out_Y[i];
+    }
     virtual void Integrate( const double &x0, const double &x1, double * Y0 ) = 0;
     virtual void Integrate( const double &dx ) = 0;
     inline Integrators::dop853_integrator::param_t * pPars() { return p_params; }

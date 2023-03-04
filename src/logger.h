@@ -52,13 +52,13 @@
 //
 //#endif
 
-int CurrLogLevel = LOG_DEBUG;
+//int CurrLogLevel = LOG_DEBUG;
 
 
 class logger{
 private:
     unsigned _message_level;
-    unsigned _loglevel = CurrLogLevel;
+    unsigned _loglevel = LOG_DEBUG;
     std::ostream& _fac;
     std::ostream& _err;
     std::string _name;

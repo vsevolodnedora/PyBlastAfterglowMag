@@ -675,9 +675,10 @@ public:
             exit(1);
         }
 
-        // --- Energy injection
+        // --- Energy injection --- ||
         double xi_inj = 1.;
-        double dEinjdt = p_pars->dEinjdt / (p_pars->M0 * CGS::c * CGS::c) / p_pars->ncells;
+        double dEindt = 1e49; double __tmp = p_pars->dEinjdt*1;
+        double dEinjdt = dEindt / (p_pars->M0 * CGS::c * CGS::c) / p_pars->ncells;
         double dEinjdR = dEinjdt / dRdt;
         double theta_ej = 0.; // assume that ejecta is alinged with magnetar emission?..
         double Doppler = Gamma / (1. - beta * std::cos(theta_ej));
@@ -696,7 +697,7 @@ public:
                 dGammaEffdGamma = get_dGammaEffdGamma(Gamma_, gammaAdi);
                 num1 = (Gamma - GammaRho + GammaEff * (GammaRel - 1.)) * dM2dR;
                 num2 = - GammaEff * (gammaAdi - 1.) * Eint2 * (dM2dR/M2 - drhodr/rho - dGammaRhodR / GammaRho); // - 3.*Eint2/R
-                num3 = + (1. - GammaEff / Gamma * xi_inj) * dEingdR_abs;
+                num3 = - (1. + GammaEff / Gamma * xi_inj) * dEingdR_abs;
                 denum1 = (1.+M2);
                 denum2 = Eint2 * dGammaEffdGamma;
                 denom3 = GammaEff * (gammaAdi - 1.) * Eint2 * dGammaRelDGamma / GammaRel;
@@ -822,11 +823,16 @@ public:
 ////            exit(1);
 //            dthetadr = 0.;
 //        }
-        p_pars->x = x; // update
-
-        if ( std::abs(dRdt * dGammadR ) > 2. * p_pars->Gamma0 ){
-            dGammadR = 0.;
-        }
+//        if (dGammadR > 0){
+//            std::cout << " Gamma="<<Gamma<< " Gamma0="<<p_pars->Gamma0<<" Gamma/Gamma0="<<Gamma/p_pars->Gamma0<<"\n";
+//        }
+//        p_pars->x = x; // update
+//        if (Gamma > 2.*p_pars->Gamma0){
+//            int x = 1;
+//        }
+//        if ( std::abs(dRdt * dGammadR ) > 2. * p_pars->Gamma0 )+{
+//            dGammadR = 0.;
+//        }
 //        if ( std::abs(dRdt * dGammadR ) > p_pars->Gamma0 ){
 //            std::cerr << AT
 //                      << "i="<< i << "["<<p_pars->ishell<<", "<<p_pars->ilayer<<"] " << "\n"
@@ -1381,7 +1387,10 @@ public:
         else{
             double ej_Gamma  = EQS::GamFromMom( Y[i + DynRadBlastWave::Q_SOL::imom] );
 //            double ej_Gamma  = Y[i + DynRadBlastWave::Q_SOL::iGamma];
-            if (ej_Gamma < 1.) ej_Gamma = 1.+1e-5;
+            if (ej_Gamma < 1.) {
+                (*p_log)(LOG_ERR,AT) << "Gamma < 1\n";
+                ej_Gamma = 1. + 1e-5;
+            }
             double ej_R      = Y[i + DynRadBlastWave::Q_SOL::iR];
             double theta_b0  = p_pars->theta_b0;
             double ej_theta  = Y[i + DynRadBlastWave::Q_SOL::itheta];

@@ -627,11 +627,11 @@ public:
 //    static std::vector<std::string> list_arr_v_ns() { return {"dist_thetas", "dist_EEs", "dist_Gam0s", "dist_MM0s"}; }
 //    static std::vector<std::string> list_pars_v_ns() { return {"nlayers", "mfac"}; };
 //    static std::vector<std::string> list_opts_v_ns() { return {"force_grid"}; }
-    void initUniform( Vector & dist_thetas0, Vector & dist_betas, Vector & dist_ek, size_t nlayers, double mfac=1.,
-                      std::string eats_method="piece-wise", unsigned loglevel=CurrLogLevel){
+    void initUniform( Vector & dist_thetas0, Vector & dist_betas, Vector & dist_ek, size_t nlayers, double mfac,
+                      std::string eats_method, unsigned loglevel){
 
 //        p_log = new logger(std::cout, CurrLogLevel, "LatStruct");
-        p_log = std::make_unique<logger>(std::cout, std::cerr, CurrLogLevel, "LatStruct");
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "LatStruct");
 //        p_log->set_log_level(loglevel);
 
         method = iUniform;
@@ -686,13 +686,13 @@ public:
      * @param dist_ek      VecVec[n_betas][n_thetas]
      * @param mfac
      */
-    void initCustom( Vector & dist_thetas, Vector & dist_betas, VecVector & dist_ek, bool force_grid=true,
-                     std::string method_eats="piece-wise", unsigned loglevel=CurrLogLevel){
+    void initCustom( Vector & dist_thetas, Vector & dist_betas, VecVector & dist_ek, bool force_grid,
+                     std::string method_eats, unsigned loglevel){
 
 //        p_log = new logger(std::cout, CurrLogLevel, "LatStruct");
 //        p_log = std::make_unique<logger>(std::cout, CurrLogLevel, "LatStruct");
 //        p_log->set_log_level(loglevel);
-        p_log = std::make_unique<logger>(std::cout, std::cerr, CurrLogLevel, "LatStruct");
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "LatStruct");
         if (dist_betas.size() != dist_ek.size()){
             (*p_log)(LOG_ERR, AT) << "Size mismatch in ejecta distrib. arrs betas="
                 <<dist_betas.size() << " dist_ek"<<dist_ek.size() << "\n";
@@ -951,7 +951,7 @@ struct Image {
 
     VecVector m_data {};
     std::unique_ptr<logger> p_log;
-    explicit Image( size_t size=1, double fill_value=0., unsigned loglevel=CurrLogLevel) {
+    explicit Image( size_t size=1, double fill_value=0., unsigned loglevel=LOG_DEBUG) {
 //        p_log = new logger(std::cout, loglevel, "Image");
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "Image");
 //        std::cerr << " creating image...\n";

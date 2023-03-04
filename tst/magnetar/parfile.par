@@ -12,10 +12,10 @@
 
 * Parameters
 
-tb0 = 1.e1
+tb0 = 1.e-5
 tb1 = 5.e8
 ntb = 1000
-rtol = 1e-10
+rtol = 1.e-9
 nmax = 1000
 
 A0 = -1
@@ -45,32 +45,42 @@ method_eats = piece-wise # piece-wise
 
 * Parameters
 
-# DD2
-eos_tov_mass = 2.18 # Msun
-eos_alpha = 4.678e-10
-eos_beta = -2.738
-eos_i = 4.37e45
+NS_mass0 = 1.4          # NS mass in [Msun]
+NS_radius0 = 11.        # NS radius in [kM]
+NS_I0 = -1.             # NS moment of inertia [cgs]
+NS_eps0 = 0.1           # NS ellipticity (for GWs only)
+NS_crit_beta = 0.27     # bar-mode instability criterion
+NS_B0 = 5.e15           # NS magnetic field [Gauss]
+NS_alpha0 = 0.2         # NS inclination angle in [rad].
+NS_sigma_cond = 1.e24   # NS Dominant conductivity [1/s]
+NS_char_length = 1.e5   # NS char. length scale of the MF [cm]
+NS_char_edens = 1.e35   # NS char. electron density [g/cm^3].
 
-ns_b = 1.e15
-ns_period = -1
-ns_crit_beta = 0.27 # bar-mode instability criterion
-ns_mass = 1.4
-ns_radius = 12.4e5
-ns_ellipticity = 0.1
-
-disk_radius = 5.e8 # 5000 km
-disk_alpha = 0.1  # disk viscosity parameter
-disk_mass0 = 1.e-2
-disk_aspect_ratio = 0.3 # Aspect ratio H/R
+Disk_circ_R0 = 1000.    # Disk circularization radius [km]
+Disk_cent_T0 = 1.e6     # Disk initial central temperature in [K]
+Disk_R0 = 5000.         # Disk radius (for gompertz/rrayand)
+Disk_alpha = 0.1        # Disk viscosity (for gompertz/rrayand)
+Disk_cs = -1            # Disk sound speed (for gompertz)
+Disk_H/R0 = 0.3         # Disk aspect ratio (H/R) (for rrayand)
+Disk_mdot0 = -1         # Disk accretion rate [g/s] (for given)
+Disk_mass0 = 1.e-2      # Disk mass [Msun] (for disk0)
+Disk_acc_pl = 1.2       # Disk power-law index for accretion rate (pl)
+Disk_acc_exp = 0.44     # Disk exponent index for accretion rate (exp)
 
 save_mag_every_it = 10
 
 * Settings
 
-run_magnetar = yes
-save_magnetar = yes
+method_tvis = menou     # menou gompertz rrayand
+method_mdot0 = given    # given disk0
+method_disk_acc = pl    # pl exp
+method_intep = linear   #
 
-useGompertz = no
+run_magnetar = no
+load_magnetar = yes
+save_magnetar = no
+
+fname_magnetar_evol = magnetar_evol.h5
 fname_mag = magnetar.h5
 
 # --------------------------- END ---------------------------
@@ -98,6 +108,7 @@ eps_e = 0.1
 eps_b = 0.01
 eps_t = 1.0
 p = 2.05
+ksi_n = 1.
 
 nlayers = 30
 mfac = 2.0
@@ -113,6 +124,7 @@ freq2 = 1.e12
 nfreq = 100
 
 rtol_adapt = 1e-5
+save_dyn_every_it = 1
 
 * Settings
 
@@ -125,7 +137,7 @@ do_ej_skymap = no
 
 method_eats = piece-wise # piece-wise
 
-fname_dyn = dyn_kn_gauss.h5
+fname_dyn = magnetar_driven_ej.h5
 fname_light_curve = corr_id_SFHo_13_14_150m_11_text25.lc
 fname_light_curve_layers = none
 fname_sky_map = skymap_kn.h5

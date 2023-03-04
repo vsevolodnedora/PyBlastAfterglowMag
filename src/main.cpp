@@ -113,8 +113,44 @@ public:
     Vector & getEkHist(){ return m_ek_hist; }
 };
 
+/// ----------- Read H5 file with magnetar table -------
+class ReadMagnetarEvolutionFile{
+    std::unique_ptr<logger> p_log;
+    LoadH5 m_ldata;
+    size_t data_size = 0; // track the size of arrays to avoid mismatching
+public:
+    ReadMagnetarEvolutionFile(std::string fapth, int loglevel) {
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "ReadMagnetarEvolutionFile");
+//        auto path_to_table = pars.m_path_to_ejecta_id;
+//        path_to_table = "../../tst/dynamics/corr_vel_inf_theta.h5";
+        if (!std::experimental::filesystem::exists(fapth))
+            throw std::runtime_error("File not found. " + fapth);
+        /// loading the datafile
+        m_ldata.setFileName(fapth);
+        (*p_log)(LOG_INFO, AT) << "Ejecta ID loaded\n";
+    }
+
+    Vector get(std::string varname) {
+        m_ldata.setVarName(varname);
+        Vector data = m_ldata.getData();
+        if (data_size == 0)
+            data_size =  m_ldata.getSize();
+        if (m_ldata.getSize() != data_size){
+            (*p_log)(LOG_ERR,AT)<<"Input data size mismatch. All arrays should be the same size."
+                                <<" Given array v_n="<<varname<<" has size="<<m_ldata.getSize()
+                                <<" Expected size="<<data_size<<"\n";
+            exit(1);
+        }
+        else
+            data_size = m_ldata.getSize();
+        return std::move(data);
+    }
+};
+
+
 void readParFile2(std::unordered_map<std::string, double> & pars,
                  std::unordered_map<std::string, std::string> & opts,
+                 std::unique_ptr<logger> & p_log,
                  std::string parfile_path,
                  std::string from_line, std::string until_line
                  ){
@@ -128,8 +164,8 @@ void readParFile2(std::unordered_map<std::string, double> & pars,
             "lc_freqs", "lc_times", "skymap_freqs", "skymap_times"
     };
 
-    std::unique_ptr<logger> p_log;
-    p_log = std::make_unique<logger>(std::cout, std::cerr, CurrLogLevel, "readParFile2");
+//    std::unique_ptr<logger> p_log;
+//    p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "readParFile2");
     if (!std::experimental::filesystem::exists(parfile_path)) {
         (*p_log)(LOG_ERR, AT) << " Parfile not found. " + parfile_path << "\n";
         exit(1);
@@ -308,7 +344,7 @@ int main(int argc, char** argv) {
 
     /// read main parameters of the model
     StrDbMap main_pars; StrStrMap main_opts;
-    readParFile2(main_pars, main_opts, working_dir + parfilename,
+    readParFile2(main_pars, main_opts, p_log, working_dir + parfilename,
                  "# -------------------------- main ---------------------------",
                  "# --------------------------- END ---------------------------");
     pba.setModelPars(main_pars, main_opts);
@@ -322,20 +358,36 @@ int main(int argc, char** argv) {
 
     /// read magnetar parameters of the magnetar # TODO
     StrDbMap mag_pars; StrStrMap mag_opts;
-    readParFile2(mag_pars, mag_opts, working_dir + parfilename,
+    readParFile2(mag_pars, mag_opts, p_log, working_dir + parfilename,
                  "# ------------------------ Magnetar -------------------------",
                  "# --------------------------- END ---------------------------");
     bool run_magnetar = getBoolOpt("run_magnetar", mag_opts, AT, p_log, false, true);
+    bool load_magnetar = getBoolOpt("load_magnetar", mag_opts, AT, p_log, false, true);
     bool save_magnetar = getBoolOpt("save_magnetar", mag_opts, AT, p_log, false, true);
+    if (load_magnetar && run_magnetar){
+        (*p_log)(LOG_ERR,AT)<<"Cannot run and load magnetar evolution at the same time. Chose one.\n";
+        exit(1);
+    }
+    if (load_magnetar){
+        std::string fname_magnetar_ev = getStrOpt("fname_magnetar_evol", mag_opts, AT, p_log, "", true);
+        if (!std::experimental::filesystem::exists(working_dir+fname_magnetar_ev)){
+            (*p_log)(LOG_ERR, AT) << " File not found. " + working_dir+fname_magnetar_ev << "\n";
+            exit(1);
+        }
+        /// load the magnetar evolution h5 file and parse the key quantity to magnetar class
+        ReadMagnetarEvolutionFile dfile(working_dir+fname_magnetar_ev, loglevel);
+        pba.getMag()->loadEvolution(Magnetar::Q::itb, dfile.get("tburst"));
+        pba.getMag()->loadEvolution(Magnetar::Q::iLtot, dfile.get("ltot"));
+    }
     if (run_magnetar) {
-        pba.getMag()->setPars(mag_pars, mag_opts);
-//        pba.setMagnetarPars(mag_pars, mag_opts);
+        /// pass the t_array manually as when loaded, the time grid may be different
+        pba.getMag()->setPars(pba.getTburst(),mag_pars, mag_opts);
     }
 
 
     /// read grb afterglow parameters
     StrDbMap grb_pars; StrStrMap grb_opts;
-    readParFile2(grb_pars, grb_opts, working_dir+parfilename,
+    readParFile2(grb_pars, grb_opts, p_log, working_dir+parfilename,
                  "# ---------------------- GRB afterglow ----------------------",
                  "# --------------------------- END ---------------------------");
     const bool run_jet_bws = getBoolOpt("run_jet_bws", grb_opts, AT, p_log, false, true);
@@ -360,7 +412,7 @@ int main(int argc, char** argv) {
 
     /// read kn afterglow parameters
     StrDbMap kn_pars; StrStrMap kn_opts;
-    readParFile2(kn_pars, kn_opts, working_dir + parfilename,
+    readParFile2(kn_pars, kn_opts, p_log, working_dir + parfilename,
                  "# ----------------------- kN afterglow ----------------------",
                  "# --------------------------- END ---------------------------");
     const bool run_ejecta_bws = getBoolOpt("run_ej_bws", kn_opts, AT, p_log, false, true);

@@ -117,7 +117,7 @@ public:
 //        for(auto & arr : m_cspec)
 //            arr.resize( arr.resize(getTbGrid()) )
 //        std::unique_ptr<logger>(p_log);
-        p_log = std::make_unique<logger>(std::cout, std::cerr, CurrLogLevel, "RadBlastWave");
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "RadBlastWave");
 
     }
 
@@ -1516,10 +1516,10 @@ public:
         double flux = 0.;
         auto & m_data = p_pars->m_data;
         if (p_pars->end_evolution){
-            (*p_log)(LOG_ERR,AT)
-                    << "\n [ishell=" << p_pars->ishell << " ilayer="<<p_pars->ilayer << "] "
-                    << " Evolution was terminated at ix="<<p_pars->comp_ix<<"\n"
-                    << " error might occure here... [TODO] Check if limited calcs to this ix works..\n";
+            (*p_log)(LOG_WARN,AT)
+                    << "[ish=" << p_pars->ishell << ", il="<<p_pars->ilayer << "] "
+                    << " Evolution was terminated at ix="<<p_pars->comp_ix<<" "
+                    << " Error might occure here... [TODO] Check if limited calcs to this ix works..\n";
         }
         Array ttobs( 1e200, m_data[BlastWaveBase::Q::iR].size()  );
         Array cphis = LatStruct::getCphiGridPW(p_pars->ilayer);
@@ -1681,7 +1681,7 @@ public:
 //                        std::cerr << AT << "\n";
                     exit(1);
                 } else if ((i_end_r < nr) && (t_obs > ttobs[i_end_r - 1])) {
-                    (*p_log)(LOG_ERR,AT) << " time grid was shorten to i=" << i_end_r << " from nr=" << nr
+                    (*p_log)(LOG_WARN,AT) << " time grid was shorten to i=" << i_end_r << " from nr=" << nr
                                          << " and now ends at t_grid[i_end_r-1]=" << ttobs[i_end_r - 1]
                                          << " while t_obs=" << t_obs << "\n";
                     continue;
@@ -1694,7 +1694,7 @@ public:
 
                 double r = interpSegLog(ia, ib, t_obs, ttobs, m_data[BlastWaveBase::Q::iR]);
                 if ((r <= 0.0) || !std::isfinite(r)) {
-                    (*p_log)(LOG_ERR,AT) << " R <= 0. Extend R grid (increasing R0, R1). "
+                    (*p_log)(LOG_WARN,AT) << " R <= 0. Extend R grid (increasing R0, R1). "
                                          << " Current R grid us ["
                                          << m_data[BlastWaveBase::Q::iR][0] << ", "
                                          << m_data[BlastWaveBase::Q::iR][m_tb_arr.size() - 1] << "] "

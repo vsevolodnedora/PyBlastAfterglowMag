@@ -1,0 +1,164 @@
+#
+#   This is an example parfile for the PyBlastAfterglowMag code
+#
+#    Convection :
+#    For each parameter use: ' NameOfTheVariable = Value ''
+#    Comments should start with ' # ''
+#    Double/int values located under ' * Model Parameters '
+#    String values located under ' * Model Settings '
+#
+
+# -------------------------- main ---------------------------
+
+* Parameters
+
+tb0 = 1.e1
+tb1 = 5.e8
+ntb = 1000
+rtol = 1e-10
+nmax = 1000
+
+A0 = -1
+s = -1
+r_ism = -1
+r_ej = -1
+n_ism = 0.001
+d_l = 3.0857e+26
+z = 0.001
+theta_obs = 0.785 # 45.
+
+* Settings
+
+lc_freqs = array 3.e9
+lc_times = array logspace 1.e4 1.e8 150
+lc_use_freq_to_time = no
+
+skymap_freqs = array 1e9 1e18
+skymap_times = array logspace 8.e5 2e9 50
+
+integrator = DOP853E
+method_eats = piece-wise # piece-wise
+
+# --------------------------- END ---------------------------
+#
+# ------------------------ Magnetar -------------------------
+
+* Parameters
+
+# DD2
+eos_tov_mass = 2.18 # Msun
+eos_alpha = 4.678e-10
+eos_beta = -2.738
+eos_i = 4.37e45
+
+ns_b = 1.e15
+ns_period = -1
+ns_crit_beta = 0.27 # bar-mode instability criterion
+ns_mass = 1.4
+ns_radius = 12.4e5
+ns_ellipticity = 0.1
+
+disk_radius = 5.e8 # 5000 km
+disk_alpha = 0.1  # disk viscosity parameter
+disk_mass0 = 1.e-2
+disk_aspect_ratio = 0.3 # Aspect ratio H/R
+
+save_mag_every_it = 10
+
+* Settings
+
+run_magnetar = yes
+save_magnetar = yes
+
+useGompertz = no
+fname_mag = magnetar.h5
+
+# --------------------------- END ---------------------------
+#
+# ---------------------- GRB afterglow ----------------------
+
+* Parameters
+
+* Settings
+
+run_jet_bws = no
+save_j_dynamics = no
+do_j_ele = no
+do_j_spec = no
+do_j_lc = no
+do_j_skymap = no
+
+# --------------------------- END ---------------------------
+#
+# ----------------------- kN afterglow ----------------------
+
+* Parameters
+
+eps_e = 0.1
+eps_b = 0.01
+eps_t = 1.0
+p = 2.05
+
+nlayers = 30
+mfac = 2.0
+
+which_jet_layer_to_use = 1e5
+steepnes_of_exp_decay = 1.0
+Gamma_when_st_starts = 2.0
+fraction_of_Gamma0_when_bm_for_bm = 1000.
+a = -1
+
+freq1 = 1.e7
+freq2 = 1.e12
+nfreq = 100
+
+rtol_adapt = 1e-5
+save_dyn_every_it = 1
+
+* Settings
+
+run_ej_bws = yes
+save_ej_dynamics = yes
+do_ej_ele = yes
+do_ej_spec = no
+do_ej_lc = yes
+do_ej_skymap = no
+
+method_eats = piece-wise # piece-wise
+
+fname_dyn = magnetar_driven_ej.h5
+fname_light_curve = corr_id_SFHo_13_14_150m_11_text25.lc
+fname_light_curve_layers = none
+fname_sky_map = skymap_kn.h5
+
+type = numeric
+fname_ejecta_id = corr_id_SFHo_13_14_150m_11_text25.h5
+enforce_angular_grid = yes
+
+method_spread = None
+method_eos = Nava13
+method_GammaSh = useJKwithGammaRel # small effect
+method_Up = useEint2 # !
+method_Delta = useJoh06
+use_adiabLoss = yes
+method_Rsh = useGammaSh # "useGammaSh",#"useGammaSh",
+method_dmdr = usingdthdr
+method_dgdr = our # !
+method_shock_vel = shockVel # !
+method_nonreldist = useGm # !
+method_synchrotron = Marg21 # Joh06 # !
+method_tau = smooth
+use_ssa = yes
+method_lf_min = useTheta # useU_e # !
+method_ne = usenprime # ! useNe is better here! (that is what was used before)
+use_dens_prof_behind_jet_for_ejecta = no
+use_exp_rho_decay_as_floor = yes
+use_flat_dens_floor = no
+use_st_dens_profile = yes
+use_bm_dens_profile = no
+method_quad = CADRE
+method_comp_mode = observFlux # "comovSpec",#"observFlux"
+emissivity = em
+absorption = abs
+
+# --------------------------- END ---------------------------

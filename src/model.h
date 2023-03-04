@@ -52,7 +52,7 @@ class PyBlastAfterglow{
 //        double ej_rtol = 1e-5;
 //        double jet_layer_fnu_stop_frac=1e-5;
         int nmax = 100000;
-        int loglevel = CurrLogLevel;
+        int loglevel{};
         // ---
 //        std::string method_eats = "";
 //        LatStruct::METHOD_eats method_eats{};
@@ -94,14 +94,14 @@ public:
     std::unique_ptr<Magnetar> & getMag(){return p_mag;}
     std::unique_ptr<GRB> & getGRB(){return p_grb;}
     std::unique_ptr<Ejecta> & getEj(){return p_ej;}
-
+    Array & getTburst(){return t_grid;}
     PyBlastAfterglow(int loglevel){
         m_loglevel = loglevel;
         p_pars = new Pars;
 //        p_pars->loglevel = loglevel;
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "PyBlastAfterglow");
 //        p_out = std::make_unique<Output>(loglevel);
-        p_mag = std::make_unique<Magnetar>(t_grid, loglevel);
+        p_mag = std::make_unique<Magnetar>(loglevel);
         p_grb = std::make_unique<GRB>(t_grid, loglevel);
         p_ej = std::make_unique<Ejecta>(t_grid, loglevel);
         p_out = std::make_unique<Output>(loglevel);
@@ -164,6 +164,8 @@ public:
 //        std::cout << "setting model pars...\n";
         //std::cout << pars << "\n";
     }
+
+//    void load
 
     /// run the time-evolution
     void run(){
@@ -306,7 +308,7 @@ public:
             for(size_t ilayer = 0; ilayer < nlayers; ilayer++){
                 table_names.push_back("shell="+std::to_string(ishell)+" layer="+std::to_string(ilayer));
                 tot_dyn_out[i].resize( arr_names.size() );
-                auto & bw = models[i]->getBW(ishell);
+                auto & bw = models[ilayer]->getBW(ishell);
 
                 std::unordered_map<std::string,double> group_attr{
                         {"Gamma0",bw->getPars()->Gamma0},
