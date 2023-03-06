@@ -20,19 +20,15 @@
 #include "blastwave_rad.h"
 #include "blastwave_dyn.h"
 
-/*
- * Class to hold blastwaves with the same angular coordinate (shells of the same layer)
- * Here the velocity distribution, relative position and photosphere can be found.
- */
-class CumulativeShell{
+class BlastWaveCollision{
     struct FsolvePars{
         EOSadi * p_eos = nullptr;
         FsolvePars(EOSadi * eos_pointer) : p_eos(eos_pointer){ }
-        double gam1{}, beta1{}, mass1{}, eint1{}, adi1{};
-        double gam2{}, beta2{}, mass2{}, eint2{}, adi2{};
-        int getTheMostMassive() const{ return mass1 > mass2 ? 1 : 2; }
-        int getTheFastest() const{ return gam1 > gam2 ? 1 : 2; }
-        int getTheMostEnergetic() const{ return eint1 > eint2 ? 1 : 2; }
+        double m_gam1{}, m_beta1{}, m_mass1{}, m_eint1{}, m_adi1{};
+        double m_gam2{}, m_beta2{}, m_mass2{}, m_eint2{}, m_adi2{};
+        int getTheMostMassive() const{ return m_mass1 > m_mass2 ? 1 : 2; }
+        int getTheFastest() const{ return m_gam1 > m_gam2 ? 1 : 2; }
+        int getTheMostEnergetic() const{ return m_eint1 > m_eint2 ? 1 : 2; }
         /// chose which shell to delete: the slowest/less energetic/less massive
         int choseShell(){
             int idx_massive = getTheMostMassive();
@@ -45,32 +41,339 @@ class CumulativeShell{
             std::cerr<<AT<<" ERROR\n";
             exit(1);
         }
-
-        /// main switch for combined model dynamics
-//    bool use_dens_prof_behind_jet_for_ejecta = true;
-
-//    /// main switch
-//    bool use_dens_prof_behind_jet_for_ejecta = true;
-//    size_t which_jet_layer_to_use = 0;
-//
-//    /// exp decay && floor behaviour
-//    bool use_exp_rho_decay_as_floor = true;
-//    bool use_flat_dens_floor = false;
-//    double steepnes_of_exp_decay = 1.;
-////    double dens_floor_frac = 1e-20;
-//
-//    /// ST profile
-//    bool use_st_dens_profile = true;
-//    double Gamma_when_st_starts = 2.;
-//
-//    /// BM profile
-//    bool use_bm_dens_profile = false;
-//    double fraction_of_Gamma0_when_bm_for_bm = 1.98; // if > 1 -- BM also in free coasting
-
+        void set(double gam1, double beta1, double mass1, double eint1, double adi1,
+                 double gam2, double beta2, double mass2, double eint2, double adi2){
+            m_gam1=gam1; m_beta1=beta1; m_mass1=mass1; m_eint1=eint1; m_adi1=adi1;
+            m_gam2=gam2; m_beta2=beta2; m_mass2=mass2; m_eint2=eint2; m_adi2=adi2;
+        }
     };
     FsolvePars * p_colsolve;
+    std::unique_ptr<logger> p_log;
+    EOSadi * p_eos = nullptr;
+//    std::unique_ptr<RadBlastWave> & p_bw1;
+//    std::unique_ptr<RadBlastWave> & p_bw2;
+public:
+//    BlastWaveCollision(std::unique_ptr<RadBlastWave> & p_bw1,
+//                       std::unique_ptr<RadBlastWave> & p_bw2,
+//                       std::unique_ptr<logger> & p_log)
+//        : p_bw1(p_bw1), p_bw2(p_bw2), p_log(p_log){
+//
+//    }
+    BlastWaveCollision(int loglevel){
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BlastWaveCollision");
+        p_eos = new EOSadi();
+        p_colsolve = new FsolvePars(p_eos);
+    }
+    ~BlastWaveCollision(){ delete p_colsolve; delete p_eos; }
+
+    void collideBlastWaves(std::unique_ptr<RadBlastWave> & bw1,
+                           std::unique_ptr<RadBlastWave> & bw2,
+                           double * Y, double rcoll, size_t il){
+        if (p_colsolve->p_eos == nullptr){
+            (*p_log)(LOG_ERR,AT) << " eos pointer is not set\n;";
+            exit(1);
+        }
+        if ((bw1->getPars()->end_evolution) || (bw2->getPars()->end_evolution)){
+            (*p_log)(LOG_ERR,AT) << " of the shells staged for collision is not active\n";
+            exit(1);
+        }
+        /// get relevant parameters
+        double gam1 = EQS::GamFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        double beta1 = EQS::BetFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        double m0_1 = bw1->getPars()->M0;
+        double m2_1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
+        double m2_1_ = m2_1 * m0_1;
+        double eint2_1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        double eint2_1_ = eint2_1 * bw1->getPars()->M0 * CGS::c * CGS::c;
+        double adi1 = bw1->getEos()->getGammaAdi(gam1, beta1);
+        /// --------------------
+        double gam2 = EQS::GamFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        double beta2 = EQS::BetFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        double m0_2 = bw2->getPars()->M0;
+        double m2_2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
+        double m2_2_ = m2_2 * m0_2;
+        double eint2_2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        double eint2_2_ = eint2_1 * bw2->getPars()->M0 * CGS::c * CGS::c;
+        double adi2 = bw2->getEos()->getGammaAdi(gam2, beta2);
+        /// -------------------
+        p_colsolve->set(gam1, beta1, m2_1_ + m0_1, eint2_1_, adi1,
+                        gam2, beta2, m2_2_ + m0_2, eint2_2_, adi2);
+        (*p_log)(LOG_INFO,AT) << "\tLayer [ll=" << il << "] Colliding shells: "
+                              << " Masses=(" << p_colsolve->m_mass1 << ", " << p_colsolve->m_mass2 << ")"
+                              << " Gammas=(" << p_colsolve->m_gam1 << ", " << p_colsolve->m_gam2 << ")"
+                              << " betas=(" << p_colsolve->m_beta1 << ", " << p_colsolve->m_beta2 << ")"
+                              << " Eint2=(" << p_colsolve->m_eint1 << ", " << p_colsolve->m_eint2 << ")"
+                              << "\n";
+        /// set initial guess for the solver
+        double i_gM = (p_colsolve->m_gam1 * p_colsolve->m_mass1 + p_colsolve->m_gam2 * p_colsolve->m_mass2)
+                      / (p_colsolve->m_mass1 + p_colsolve->m_mass2);
+        double i_mM = p_colsolve->m_mass1 + p_colsolve->m_mass2;
+        double i_eM = p_colsolve->m_eint1 + p_colsolve->m_eint2;
+                //(p_colsolve->m_eint1 * p_colsolve->m_mass1 + p_colsolve->m_eint2 * p_colsolve->m_mass2)
+                      /// (p_colsolve->m_mass1 + p_colsolve->m_mass2);
+        /// solve the collision
+        int result = solve(i_gM, i_eM, i_mM);
+        double m0_c = m0_2 + m0_1;
+        double eint2_c = i_eM / (m0_c * CGS::c * CGS::c);
+        double m2_c = (1 * (m2_1 + 1) / (m0_2/m0_1 + 1)) + (1 * (m2_2 + 1) / (1 + m0_1/m0_2));
+        if (m2_c==1)
+            m2_c = m2_1 + m2_2;
+        double mom_c = i_gM * EQS::Beta(i_gM);
+        /// chose which shell to update/delete
+        int ish = p_colsolve->choseShell();
+        double eint_before,eint_after,m2_before,m2_after,m0_before,m0_after;
+        if (ish == 1){
+            bw2->getPars()->end_evolution = true;
+            bw1->getPars()->M0 = m0_c;
+            Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] = mom_c;
+            Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2] = eint2_c;
+            Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2] = m2_c;
+        }
+        else {
+            bw1->getPars()->end_evolution = true;
+            bw2->getPars()->M0 = m0_c;
+            Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] = mom_c;
+            Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2] = eint2_c;
+            Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2] = m2_c;
+        }
+        (*p_log)(LOG_INFO,AT) << "\tLayer [il="<<il<<"] Outcome for"
+                              << " Eint2/M0c^2: ["<<eint2_1<<", "<<eint2_2<<"] -> "<<eint2_c
+                              << " M2/M0: ["<<m2_1<<", "<<m2_2<<"] -> "<<m2_c
+                              << " M0: ["<<m0_1<<", "<<m0_2<<"] -> "<<m0_c
+                              <<"\n";
+        if (!std::isfinite(i_gM)||(!std::isfinite(i_eM)||(!std::isfinite(i_mM)))){
+            (*p_log)(LOG_ERR,AT)<<"Nan in collision result\n";
+            exit(1);
+        }
+
+
+#if 0
+        /// Extract data for first shell
+        p_colsolve->m_gam1 = EQS::GamFromMom(Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        p_colsolve->m_beta1 = EQS::BetFromMom(Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        double m2_1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2] * bw1->getPars()->M0;
+        std::cout << " m2="<<Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2]
+                <<" m0="<<bw1->getPars()->M0<<" m2*m0="<<m2_1<<"\n";
+        p_colsolve->m_eint1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        p_colsolve->m_adi1 = bw1->getEos()->getGammaAdi(p_colsolve->m_gam1, p_colsolve->m_beta1);
+        /// apply units for the first shell (mass and energy)
+        double m0_1 = bw1->getPars()->M0;
+        p_colsolve->m_eint1 = p_colsolve->m_eint1 * (bw1->getPars()->M0 * CGS::c * CGS::c);
+        p_colsolve->m_mass1 = m0_1 + m2_1;
+
+        /// extract data for the second shell
+        p_colsolve->m_gam2 = EQS::GamFromMom(Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        p_colsolve->m_beta2 = EQS::BetFromMom(Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        double m2_2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2] * bw2->getPars()->M0;
+        std::cout << " m2="<<Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2]
+                  <<" m0="<<bw1->getPars()->M0<<" m2*m0="<<m2_1<<"\n";
+        p_colsolve->m_eint2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        p_colsolve->m_adi2 = bw2->getEos()->getGammaAdi(p_colsolve->m_gam2, p_colsolve->m_beta2);
+        /// apply units for the second shell (mass and energy)
+        double m0_2 = bw2->getPars()->M0;
+        p_colsolve->m_eint2 = p_colsolve->m_eint2 * (bw2->getPars()->M0 * CGS::c * CGS::c);
+        p_colsolve->m_mass2 = m2_2 + m0_2;
+
+        /// log the data
+        (*p_log)(LOG_INFO,AT) << "\tLayer [ll=" << il << "] Colliding shells: "
+//                              << "idx1="<<idx1<<", idx2="<<idx2
+                              << " Masses=(" << p_colsolve->m_mass1 << ", " << p_colsolve->m_mass2 << ")"
+                              << " Gammas=(" << p_colsolve->m_gam1 << ", " << p_colsolve->m_gam2 << ")"
+                              << " betas=(" << p_colsolve->m_beta1 << ", " << p_colsolve->m_beta2 << ")"
+                              << " Eint2=(" << p_colsolve->m_eint1 << ", " << p_colsolve->m_eint2 << ")"
+                              << "\n";
+
+        /// set initial guess for the solver
+        double i_gM = (p_colsolve->m_gam1 * p_colsolve->m_mass1 + p_colsolve->m_gam2 * p_colsolve->m_mass2)
+                      / (p_colsolve->m_mass1 + p_colsolve->m_mass2);
+        double i_mM = p_colsolve->m_mass1 + p_colsolve->m_mass2;
+        double i_eM = (p_colsolve->m_eint1 * p_colsolve->m_mass1 + p_colsolve->m_eint2 * p_colsolve->m_mass2)
+                      / (p_colsolve->m_mass1 + p_colsolve->m_mass2);
+
+        /// solve the collision
+        int result = solve(i_gM, i_eM);
+//        i_mM =
+
+        /// chose which shell to update/delete
+        int ish = p_colsolve->choseShell();
+        size_t iieq; size_t iieq_other;
+        double eint_before=0., eint_after=0.;
+        double m2_before=0., m2_after=0.;
+        double m0_before=0., m0_after=0.;
+        if (ish == 1){
+            iieq = bw1->getPars()->ii_eq;
+            iieq_other = bw2->getPars()->ii_eq;
+            eint_before = Y[iieq + DynRadBlastWave::Q_SOL::iEint2];
+            m2_before = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            m0_before = bw1->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::Q_SOL::iEad2] += Y[iieq + DynRadBlastWave::Q_SOL::iEint2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] += Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::Q_SOL::iR] = rcoll;
+            //
+            bw1->getPars()->M0 = bw2->getPars()->M0 + bw1->getPars()->M0;//i_mM; // update the total mass of the shell
+//            Y[iieq + DynRadBlastWave::Q_SOL::iM2] = i_mM / bw1->getPars()->M0;//Y[iieq + DynRadBlastWave::Q_SOL::iM2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+            Y[iieq + DynRadBlastWave::Q_SOL::iM2] = (m0_1 + m2_1 + m2_2 + m0_2) / (m0_1 + m0_2);
+            m2_after = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            // terminated collided shell
+            bw2->getPars()->end_evolution = true;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iR] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iM2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEint2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEsh2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iErad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iRsh] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itcomov] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itheta] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itt] = 0;
+            eint_after = i_eM / ( bw1->getPars()->M0 * CGS::c * CGS::c );
+            Y[iieq + DynRadBlastWave::Q_SOL::iEint2] = eint_after;
+            Y[iieq + DynRadBlastWave::Q_SOL::imom] = i_gM * EQS::Beta(i_gM);
+            m0_after = bw1->getPars()->M0;
+        }
+        else{
+            iieq = bw2->getPars()->ii_eq;
+            iieq_other = bw1->getPars()->ii_eq;
+            eint_before = Y[iieq + DynRadBlastWave::Q_SOL::iEint2];
+            m2_before = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            m0_before = bw2->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::Q_SOL::iEad2] += Y[iieq + DynRadBlastWave::Q_SOL::iEint2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] += Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::Q_SOL::iR] = rcoll;
+            ///
+            ///
+            bw2->getPars()->M0 = bw2->getPars()->M0 + bw1->getPars()->M0;//i_mM; // update the total mass of the shell
+//            Y[iieq + DynRadBlastWave::Q_SOL::iM2] = i_mM / bw2->getPars()->M0;// Y[iieq + DynRadBlastWave::Q_SOL::iM2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+            Y[iieq + DynRadBlastWave::Q_SOL::iM2] = (m0_1 + m2_1 + m2_2 + m0_2) / (m0_1 + m0_2);
+            m2_after = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            // terminated collided shell
+            bw1->getPars()->end_evolution = true;
+
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iR] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iM2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEint2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEsh2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iErad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iRsh] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itcomov] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itheta] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itt] = 0;
+            eint_after = i_eM / ( bw2->getPars()->M0 * CGS::c * CGS::c );
+            Y[iieq + DynRadBlastWave::Q_SOL::iEint2] = eint_after;
+            Y[iieq + DynRadBlastWave::Q_SOL::imom] = i_gM * EQS::Beta(i_gM);
+            m0_after = bw2->getPars()->M0;
+        }
+        /// using the solution (mass, lorentz factor, energy) update the state vector
+//        double _mom = i_gM * EQS::Beta(i_gM);
+//        double _eint2 = i_eM / ( i_mM * CGS::c * CGS::c );
+//        Y[iieq + DynRadBlastWave::Q_SOL::imom] = _mom;
+//        Y[iieq + DynRadBlastWave::Q_SOL::iEint2] = _eint2; // use ODE units
+
+        (*p_log)(LOG_INFO,AT) << "\tLayer [il="<<il<<"] Outcome for"
+//                              << " idx1="<<idx1<<", idx2="<<idx2 << " collision:"
+                              << " Eint2/M0c^2: "<<eint_before<<" -> "<<eint_after
+                              << " M2/M0: "<<m2_before<<" -> "<<m2_after
+                              << " M0: "<<m0_before<<" -> "<<m0_after
+                              <<"\n";
+        if (!std::isfinite(i_gM)||(!std::isfinite(i_eM)||(!std::isfinite(i_mM)))){
+            (*p_log)(LOG_ERR,AT)<<"Nan in collision result\n";
+            exit(1);
+        }
+#endif
+    }
+private:
+    static void func( int n, double x[], double fx[], int &iflag, void * pars ){
+        auto pp = (struct FsolvePars *) pars;
+        double gM = x[0];
+        double eM = x[1];
+//        double em = x[1];
+        double gAdiM = pp->p_eos->getGammaAdi(gM, EQS::Beta(gM));
+        /// total mass conservation
+        double mM = pp->m_mass1 + pp->m_mass2;
+        /// total energy consercation (Ek + Eint)
+        double fx1 = (pp->m_gam1 * pp->m_mass1 + EQS::get_GammaEff(pp->m_gam1, pp->m_adi1) * pp->m_eint1)
+                     + (pp->m_gam2 * pp->m_mass2 + EQS::get_GammaEff(pp->m_gam2, pp->m_adi2) * pp->m_eint2)
+                     - (gM * mM + EQS::get_GammaEff(gM,gAdiM) * eM );
+        /// total momentum conservation
+        double fx2 = sqrt(pp->m_gam1 * pp->m_gam1 - 1) * (pp->m_mass1 + pp->m_adi1 * pp->m_eint1 )
+                     + sqrt(pp->m_gam2 * pp->m_gam2 - 1) * (pp->m_mass2 + pp->m_adi2 * pp->m_eint2 )
+                     - sqrt(gM * gM - 1) * (mM + gAdiM * eM );
+//        double fx3 = em
+//                     - pp->m_mass1 + pp->m_mass2;
+        if (!std::isfinite(fx1) || !std::isfinite(fx2))
+            iflag = -1;
+
+        if (!std::isfinite(sqrt(pp->m_gam1 * pp->m_gam1 - 1)))
+            iflag = -1;
+
+        fx[0] = fx1;//std::log10(fx1);// * fx1; TODO THis is wrong. It should not be sqred!
+        fx[1] = fx2;//std::log10(fx2);// * fx2;
+//        fx[2] = fx3;
+    };
+    int solve(double & iGamma, double & iEint, double &im){
+        double *fx;
+        int iflag;
+        int info;
+        int lwa;
+        int n = 2;
+        double tol = 1e-8;
+        double *wa;
+        double *x;
+
+        lwa = ( n * ( 3 * n + 13 ) ) / 2;
+        fx = new double[n];
+        wa = new double[lwa];
+        x = new double[n];
+
+//            (*p_log)(LOG_INFO,AT) << "\n";
+//            (*p_log)(LOG_INFO,AT) << "fsolve_test2():\n";
+//            (*p_log)(LOG_INFO,AT) << "fsolve() solves a nonlinear system of 2 equations.\n";
+
+        x[0] = iGamma;
+        x[1] = iEint;
+//        x[2] = im;
+        iflag = 0;
+        func ( n, x, fx, iflag, p_colsolve );
+//            r8vec2_print ( n, x, fx, "  Initial X, F(X)" );
+        info = fsolve ( func, n, x, p_colsolve, fx, tol, wa, lwa );
+
+        if (info<0){
+            (*p_log)(LOG_ERR,AT)<< "\tFsolve failed (try setting 'tol' lower). "
+                                   "Using initial guess values. New shell has "
+                                <<"Gamma="<<iGamma<<" beta="<<EQS::Beta(iGamma)<<" Eint="<<iEint<<" im="<<im<<"\n";
+//                i_gM = x[0];
+//                i_eM = x[1];
+        }
+        else{
+            (*p_log)(LOG_INFO,AT)<< "Fsolve successful. New shell has "
+                                 <<"Gamma="<<x[0]
+                                 <<" beta="<<EQS::Beta(x[0])
+                                 <<" Eint="<<x[1]<<"\n";
+            iGamma = x[0];
+            iEint = x[1];
+//            im = x[2];
+        }
+//            std::cout << "\n";
+//            std::cout << "  Returned value of INFO = " << info << "\n";
+//            r8vec2_print ( n, x, fx, "  Final X, FX" );
+        delete [] fx;
+        delete [] wa;
+        delete [] x;
+        return info;
+    };
+};
+
+
+/*
+ * Class to hold blastwaves with the same angular coordinate (shells of the same layer)
+ * Here the velocity distribution, relative position and photosphere can be found.
+ */
+class CumulativeShell{
+
 //    enum Q { ikapp};
     std::unique_ptr<logger> p_log;
+    std::unique_ptr<BlastWaveCollision> p_coll;
     std::vector<std::unique_ptr<RadBlastWave>> p_bws_ej;
     std::vector<std::unique_ptr<RadBlastWave>> p_sorted_bws_ej;
     std::vector<std::vector<size_t>> relative_position;
@@ -85,11 +388,13 @@ class CumulativeShell{
     VecVector m_shell_data;
     size_t m_tarr_size;
     const Array m_t_grid;
+    bool do_collision;
 public:
     size_t m_nshells;
     size_t n_active_shells;
     size_t mylayer{};
-    CumulativeShell( Array t_grid, size_t nshells, int ilayer, int loglevel ) : m_t_grid(t_grid) {
+    CumulativeShell( Array t_grid, size_t nshells, int ilayer, int loglevel )
+        : m_t_grid(t_grid) {
         m_nshells = nshells;
         n_active_shells = nshells; // as shells collide this number will decrease
 
@@ -117,11 +422,13 @@ public:
         mylayer = ilayer;
         m_tarr_size = t_grid.size();
 //        p_colsolve = std::make_unique<FsolvePars>(p_bws_ej[0]->getEos());
-        p_colsolve = new FsolvePars(p_bws_ej[0]->getEos());
+//        p_colsolve = new FsolvePars(p_bws_ej[0]->getEos());
 //        p_colsolve->p_eos;
+        p_coll = std::make_unique<BlastWaveCollision>(loglevel);
+
 
     }
-    ~CumulativeShell(){ delete p_colsolve; }
+//    ~CumulativeShell(){ delete p_colsolve; }
     Vector & getSortedRadii(){return m_radii_init;}
 //    std::vector<size_t> & getIdx(){return m_idxs;}
     inline double getR(size_t i){return m_radii_init[m_idxs[i]];}
@@ -185,7 +492,16 @@ public:
         }
         return is_sorted;
     }
-
+    ///
+    void collide(size_t idx1, size_t idx2, double * Y, double rcoll){
+        if (idx1 == idx2){
+            (*p_log)(LOG_ERR,AT) << " shells staged for collision are the same ish=idx2=" << idx1 << "\n";
+            exit(1);
+        }
+        auto & bw1 = p_bws_ej[idx1];
+        auto & bw2 = p_bws_ej[idx2];
+        p_coll->collideBlastWaves(bw1, bw2, Y, rcoll, mylayer);
+    }
 
 #if 0
     /// check if shells are ordered radially
@@ -244,9 +560,10 @@ public:
 
 
     /// get indexes of shells that will collide next
-    void evalWhichShellsCollideNext(size_t & ish1, size_t & ish2, double & tcoll,
+    void evalWhichShellsCollideNext(size_t & ish1, size_t & ish2, double & tcoll, double & rcoll,
                                     double tim1, double ti, const double * Ym1_, const double * Y_){
         Vector _tcoll{};
+        Vector _rcoll{};
         std::vector<size_t> _idx1s{};
         std::vector<size_t> _idx2s{};
         tcoll = std::numeric_limits<double>::max();
@@ -300,6 +617,7 @@ public:
                                               <<" len(overruns)="<<overrun_shells.size()<<"\n";
                         exit(1);
                     }
+
                     /// log the result
 //                    (*p_log)(LOG_WARN, AT)
 //                            << " Interpolating shell collision time" << " [ilayer=" << mylayer
@@ -319,6 +637,7 @@ public:
                     _idx1s.push_back(i_idx);
                     _idx2s.push_back(j_idx);
                     _tcoll.push_back(tc);
+                    _rcoll.push_back(rc);
 //                    dt_from_ix_to_coll = tc - m_t_grid[ix];
 //                    return;
                 }
@@ -326,6 +645,7 @@ public:
         }
         size_t idx_min = indexOfMinimumElement(_tcoll);
         tcoll = _tcoll[idx_min];
+        rcoll = _rcoll[idx_min];
         ish1 = _idx1s[idx_min];
         ish2 = _idx2s[idx_min];
         (*p_log)(LOG_INFO, AT) << "\tLayer [il="<<mylayer<<"] interpolated tcoll="<<tcoll
@@ -336,8 +656,436 @@ public:
         }
     }
 
+#if 0
     /// solve energy, momentum and mass conservation to get properties of the shell after collision
-    void collideBlastWaves(size_t idx1, size_t idx2, double * Y){
+    void collideBlastWaves_old(size_t idx1, size_t idx2, double * Y, double rcoll){
+        if (idx1 == idx2){
+            (*p_log)(LOG_ERR,AT) << " shells staged for collision are the same ish=idx2=" << idx1 << "\n";
+            exit(1);
+        }
+        if (p_colsolve->p_eos == nullptr){
+            (*p_log)(LOG_ERR,AT) << " eos pointer is not set\n;";
+            exit(1);
+        }
+        auto & bw1 = p_bws_ej[idx1];
+        auto & bw2 = p_bws_ej[idx2];
+        if (bw1->getPars()->end_evolution || bw2->getPars()->end_evolution){
+            (*p_log)(LOG_ERR,AT) << " of the shells staged for collision is not active: "
+                                    "idx1=" << idx1 << " idx2=" << idx2 << "\n";
+            exit(1);
+        }
+        /// Extract data for first shell
+        p_colsolve->m_gam1 = EQS::GamFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        p_colsolve->m_beta1 = EQS::BetFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        p_colsolve->m_mass1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
+        p_colsolve->m_eint1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        p_colsolve->m_adi1 = bw1->getEos()->getGammaAdi(p_colsolve->m_gam1, p_colsolve->m_beta1);
+        /// apply units for the first shell (mass and energy)
+        p_colsolve->m_mass1 = bw1->getPars()->M0 + (p_colsolve->m_mass1 * bw1->getPars()->M0);
+        p_colsolve->m_eint1 = p_colsolve->m_eint1 * (bw1->getPars()->M0 * CGS::c * CGS::c);
+        /// extract data for the second shell
+        p_colsolve->m_gam2 = EQS::GamFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        p_colsolve->m_beta2 = EQS::BetFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        p_colsolve->m_mass2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
+        p_colsolve->m_eint2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        p_colsolve->m_adi2 = bw2->getEos()->getGammaAdi(p_colsolve->m_gam2, p_colsolve->m_beta2);
+        /// apply units for the second shell (mass and energy)
+        p_colsolve->m_mass2 = bw2->getPars()->M0 + (p_colsolve->m_mass2 * bw2->getPars()->M0);
+        p_colsolve->m_eint2 = p_colsolve->m_eint2 * (bw2->getPars()->M0 * CGS::c * CGS::c);
+        /// log the data
+        (*p_log)(LOG_INFO,AT) << "\tLayer [ll="<<mylayer<<"] Colliding shells: "
+                              << "idx1="<<idx1<<", idx2="<<idx2
+                              << " Masses=("<<p_colsolve->m_mass1<<", "<<p_colsolve->m_mass2<<")"
+                              << " Gammas=("<<p_colsolve->m_gam1<<", "<<p_colsolve->m_gam2<<")"
+                              << " betas=("<<p_colsolve->m_beta1<<", "<<p_colsolve->m_beta2<<")"
+                              << " Eint2=("<<p_colsolve->m_eint1<<", "<<p_colsolve->m_eint2<<")"
+                              << "\n";
+        /// solve equation for the shell collision
+        /// set initial guess for the solver
+        double i_gM = (p_colsolve->m_gam1*p_colsolve->m_mass1 + p_colsolve->m_gam2*p_colsolve->m_mass2)
+                      / (p_colsolve->m_mass1+p_colsolve->m_mass2);
+        double i_mM = p_colsolve->m_mass1 + p_colsolve->m_mass2;
+        double i_eM = (p_colsolve->m_eint1*p_colsolve->m_mass1+p_colsolve->m_eint2*p_colsolve->m_mass2)
+                      / (p_colsolve->m_mass1+p_colsolve->m_mass2);
+        int x_ = 1;
+        // define a system of non-linear equations to solve
+        auto func = []( int n, double x[], double fx[],
+                        int &iflag, void * pars ){
+            auto pp = (struct FsolvePars *) pars;
+            double gM = x[0];
+            double eM = x[1];
+            double gAdiM = pp->p_eos->getGammaAdi(gM, EQS::Beta(gM));
+            /// total mass conservation
+            double mM = pp->m_mass1 + pp->m_mass2;
+            /// total energy consercation (Ek + Eint)
+            double fx1 = (pp->m_gam1 * pp->m_mass1 + EQS::get_GammaEff(pp->m_gam1, pp->m_adi1) * pp->m_eint1)
+                         + (pp->m_gam2 * pp->m_mass2 + EQS::get_GammaEff(pp->m_gam2, pp->m_adi2) * pp->m_eint2)
+                         - (gM * mM + EQS::get_GammaEff(gM,gAdiM) * eM );
+            /// total momentum conservation
+            double fx2 = sqrt(pp->m_gam1 * pp->m_gam1 - 1) * (pp->m_mass1 + pp->m_adi1 * pp->m_eint1 )
+                         + sqrt(pp->m_gam2 * pp->m_gam2 - 1) * (pp->m_mass2 + pp->m_adi2 * pp->m_eint2 )
+                         - sqrt(gM * gM - 1) * (mM + gAdiM * eM );
+            if (!std::isfinite(fx1) || !std::isfinite(fx2))
+                iflag = -1;
+
+            if (!std::isfinite(sqrt(pp->m_gam1 * pp->m_gam1 - 1)))
+                iflag = -1;
+
+            fx[0] = fx1;//std::log10(fx1);// * fx1; TODO THis is wrong. It should not be sqred!
+            fx[1] = fx2;//std::log10(fx2);// * fx2;
+        };
+        using func_ptr = void(*)(int, double *, double *, int&, void*);
+        func_ptr p_func = func;
+
+        /// solve the system using a 'fsolve'
+        auto solve = [&]( ){
+            double *fx;
+            int iflag;
+            int info;
+            int lwa;
+            int n = 2;
+            double tol = 1e-3;
+            double *wa;
+            double *x;
+
+            lwa = ( n * ( 3 * n + 13 ) ) / 2;
+            fx = new double[n];
+            wa = new double[lwa];
+            x = new double[n];
+
+//            (*p_log)(LOG_INFO,AT) << "\n";
+//            (*p_log)(LOG_INFO,AT) << "fsolve_test2():\n";
+//            (*p_log)(LOG_INFO,AT) << "fsolve() solves a nonlinear system of 2 equations.\n";
+
+            x[0] = i_gM;
+            x[1] = i_eM;
+            iflag = 0;
+            func ( n, x, fx, iflag, p_colsolve );
+//            r8vec2_print ( n, x, fx, "  Initial X, F(X)" );
+            info = fsolve ( func, n, x, p_colsolve, fx, tol, wa, lwa );
+
+            if (info<0){
+                (*p_log)(LOG_ERR,AT)<< "Fsolve failed (try setting 'tol' lower). "
+                                       "Using initial guess values. New shell has "
+                                    <<"Gamma="<<i_gM<<" beta="<<EQS::Beta(i_gM)<<" Eint="<<i_eM<<"\n";
+//                i_gM = x[0];
+//                i_eM = x[1];
+            }
+            else{
+                (*p_log)(LOG_INFO,AT)<< "Fsolve successful. New shell has "
+                                     <<"Gamma="<<x[0]
+                                     <<" beta="<<EQS::Beta(x[0])
+                                     <<" Eint="<<x[1]<<"\n";
+                i_gM = x[0];
+                i_eM = x[1];
+            }
+//            std::cout << "\n";
+//            std::cout << "  Returned value of INFO = " << info << "\n";
+//            r8vec2_print ( n, x, fx, "  Final X, FX" );
+            delete [] fx;
+            delete [] wa;
+            delete [] x;
+        };
+        solve();
+        /// chose which shell to terminate (the slower one)
+        int ish = p_colsolve->choseShell();
+//        ish = 2;
+        size_t iieq; size_t iieq_other;
+        double eint_before, eint_after;
+        double m2_before, m2_after;
+        if (ish == 1){
+            iieq = bw1->getPars()->ii_eq;
+            iieq_other = bw2->getPars()->ii_eq;
+            eint_before = Y[iieq + DynRadBlastWave::Q_SOL::iEint2];
+            m2_before = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            Y[iieq + DynRadBlastWave::Q_SOL::iEad2] += Y[iieq + DynRadBlastWave::Q_SOL::iEint2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+            Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] += Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::Q_SOL::iR] = rcoll;
+            //
+            //
+            bw1->getPars()->M0 = bw2->getPars()->M0+bw1->getPars()->M0;//i_mM; // update the total mass of the shell
+            Y[iieq + DynRadBlastWave::Q_SOL::iM2] = i_mM / bw2->getPars()->M0;//Y[iieq + DynRadBlastWave::Q_SOL::iM2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+            m2_after = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            // terminated collided shell
+            bw2->getPars()->end_evolution = true;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iR] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iM2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEint2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEsh2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iErad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iRsh] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itcomov] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itheta] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itt] = 0;
+
+        }
+        else{
+            iieq = bw2->getPars()->ii_eq;
+            iieq_other = bw1->getPars()->ii_eq;
+            eint_before = Y[iieq + DynRadBlastWave::Q_SOL::iEint2];
+            m2_before = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            Y[iieq + DynRadBlastWave::Q_SOL::iEad2] += Y[iieq + DynRadBlastWave::Q_SOL::iEint2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+            Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] += Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::Q_SOL::iR] = rcoll;
+            ///
+            ///
+            bw2->getPars()->M0 = bw2->getPars()->M0+bw1->getPars()->M0;//i_mM; // update the total mass of the shell
+            Y[iieq + DynRadBlastWave::Q_SOL::iM2] = i_mM/ bw2->getPars()->M0;// Y[iieq + DynRadBlastWave::Q_SOL::iM2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+            m2_after = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            // terminated collided shell
+            bw1->getPars()->end_evolution = true;
+
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iR] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iM2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEint2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEsh2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iErad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iRsh] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itcomov] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itheta] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itt] = 0;
+        }
+        /// using the solution (mass, lorentz factor, energy) update the state vector
+        double _mom = i_gM * EQS::Beta(i_gM);
+        double _eint2 = i_eM / ( i_mM * CGS::c * CGS::c );
+        Y[iieq + DynRadBlastWave::Q_SOL::imom] = _mom;
+        Y[iieq + DynRadBlastWave::Q_SOL::iEint2] = _eint2; // use ODE units
+
+        (*p_log)(LOG_INFO,AT) << "\tLayer [il="<<mylayer<<"] Outcome for"
+                              << " idx1="<<idx1<<", idx2="<<idx2 << " collision:"
+                              << " Eint2/M0c^2: "<<eint_before<<" -> "<<_eint2
+                              << " M2/M0: "<<m2_before<<" -> "<<m2_after
+                              <<"\n";
+        if (!std::isfinite(i_gM)||(!std::isfinite(i_eM)||(!std::isfinite(i_mM)))){
+            (*p_log)(LOG_ERR,AT)<<"Nan in collision result\n";
+            exit(1);
+        }
+//
+
+
+//
+//        Y[iieq + DynRadBlastWave::Q_SOL::i] = i_gM * EQS::Beta(i_gM);
+
+
+    }
+    void collideBlastWaves(size_t idx1, size_t idx2, double * Y, double rcoll){
+        if (idx1 == idx2){
+            (*p_log)(LOG_ERR,AT) << " shells staged for collision are the same ish=idx2=" << idx1 << "\n";
+            exit(1);
+        }
+        if (p_colsolve->p_eos == nullptr){
+            (*p_log)(LOG_ERR,AT) << " eos pointer is not set\n;";
+            exit(1);
+        }
+        auto & bw1 = p_bws_ej[idx1];
+        auto & bw2 = p_bws_ej[idx2];
+        if (bw1->getPars()->end_evolution || bw2->getPars()->end_evolution){
+            (*p_log)(LOG_ERR,AT) << " of the shells staged for collision is not active: "
+                                    "idx1=" << idx1 << " idx2=" << idx2 << "\n";
+            exit(1);
+        }
+        /// Extract data for first shell
+        p_colsolve->m_gam1 = EQS::GamFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        p_colsolve->m_beta1 = EQS::BetFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        p_colsolve->m_mass1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
+        p_colsolve->m_eint1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        p_colsolve->m_adi1 = bw1->getEos()->getGammaAdi(p_colsolve->m_gam1, p_colsolve->m_beta1);
+        /// apply units for the first shell (mass and energy)
+        p_colsolve->m_mass1 = bw1->getPars()->M0 + (p_colsolve->m_mass1 * bw1->getPars()->M0);
+        p_colsolve->m_eint1 = p_colsolve->m_eint1 * (bw1->getPars()->M0 * CGS::c * CGS::c);
+        /// extract data for the second shell
+        p_colsolve->m_gam2 = EQS::GamFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        p_colsolve->m_beta2 = EQS::BetFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        p_colsolve->m_mass2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
+        p_colsolve->m_eint2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        p_colsolve->m_adi2 = bw2->getEos()->getGammaAdi(p_colsolve->m_gam2, p_colsolve->m_beta2);
+        /// apply units for the second shell (mass and energy)
+        p_colsolve->m_mass2 = bw2->getPars()->M0 + (p_colsolve->m_mass2 * bw2->getPars()->M0);
+        p_colsolve->m_eint2 = p_colsolve->m_eint2 * (bw2->getPars()->M0 * CGS::c * CGS::c);
+        /// log the data
+        (*p_log)(LOG_INFO,AT) << "\tLayer [ll="<<mylayer<<"] Colliding shells: "
+                              << "idx1="<<idx1<<", idx2="<<idx2
+                              << " Masses=("<<p_colsolve->m_mass1<<", "<<p_colsolve->m_mass2<<")"
+                              << " Gammas=("<<p_colsolve->m_gam1<<", "<<p_colsolve->m_gam2<<")"
+                              << " betas=("<<p_colsolve->m_beta1<<", "<<p_colsolve->m_beta2<<")"
+                              << " Eint2=("<<p_colsolve->m_eint1<<", "<<p_colsolve->m_eint2<<")"
+                              << "\n";
+        /// solve equation for the shell collision
+        /// set initial guess for the solver
+        double i_gM = (p_colsolve->m_gam1*p_colsolve->m_mass1 + p_colsolve->m_gam2*p_colsolve->m_mass2)
+                      / (p_colsolve->m_mass1+p_colsolve->m_mass2);
+        double i_mM = p_colsolve->m_mass1 + p_colsolve->m_mass2;
+        double i_eM = (p_colsolve->m_eint1*p_colsolve->m_mass1+p_colsolve->m_eint2*p_colsolve->m_mass2)
+                      / (p_colsolve->m_mass1+p_colsolve->m_mass2);
+        int x_ = 1;
+        // define a system of non-linear equations to solve
+        auto func = []( int n, double x[], double fx[],
+                        int &iflag, void * pars ){
+            auto pp = (struct FsolvePars *) pars;
+            double gM = x[0];
+            double eM = x[1];
+            double gAdiM = pp->p_eos->getGammaAdi(gM, EQS::Beta(gM));
+            /// total mass conservation
+            double mM = pp->m_mass1 + pp->m_mass2;
+            /// total energy consercation (Ek + Eint)
+            double fx1 = (pp->m_gam1 * pp->m_mass1 + EQS::get_GammaEff(pp->m_gam1, pp->m_adi1) * pp->m_eint1)
+                         + (pp->m_gam2 * pp->m_mass2 + EQS::get_GammaEff(pp->m_gam2, pp->m_adi2) * pp->m_eint2)
+                         - (gM * mM + EQS::get_GammaEff(gM,gAdiM) * eM );
+            /// total momentum conservation
+            double fx2 = sqrt(pp->m_gam1 * pp->m_gam1 - 1) * (pp->m_mass1 + pp->m_adi1 * pp->m_eint1 )
+                         + sqrt(pp->m_gam2 * pp->m_gam2 - 1) * (pp->m_mass2 + pp->m_adi2 * pp->m_eint2 )
+                         - sqrt(gM * gM - 1) * (mM + gAdiM * eM );
+            if (!std::isfinite(fx1) || !std::isfinite(fx2))
+                iflag = -1;
+
+            if (!std::isfinite(sqrt(pp->m_gam1 * pp->m_gam1 - 1)))
+                iflag = -1;
+
+            fx[0] = fx1;//std::log10(fx1);// * fx1; TODO THis is wrong. It should not be sqred!
+            fx[1] = fx2;//std::log10(fx2);// * fx2;
+        };
+        using func_ptr = void(*)(int, double *, double *, int&, void*);
+        func_ptr p_func = func;
+
+        /// solve the system using a 'fsolve'
+        auto solve = [&]( ){
+            double *fx;
+            int iflag;
+            int info;
+            int lwa;
+            int n = 2;
+            double tol = 1e-3;
+            double *wa;
+            double *x;
+
+            lwa = ( n * ( 3 * n + 13 ) ) / 2;
+            fx = new double[n];
+            wa = new double[lwa];
+            x = new double[n];
+
+//            (*p_log)(LOG_INFO,AT) << "\n";
+//            (*p_log)(LOG_INFO,AT) << "fsolve_test2():\n";
+//            (*p_log)(LOG_INFO,AT) << "fsolve() solves a nonlinear system of 2 equations.\n";
+
+            x[0] = i_gM;
+            x[1] = i_eM;
+            iflag = 0;
+            func ( n, x, fx, iflag, p_colsolve );
+//            r8vec2_print ( n, x, fx, "  Initial X, F(X)" );
+            info = fsolve ( func, n, x, p_colsolve, fx, tol, wa, lwa );
+
+            if (info<0){
+                (*p_log)(LOG_ERR,AT)<< "Fsolve failed (try setting 'tol' lower). "
+                                       "Using initial guess values. New shell has "
+                                    <<"Gamma="<<i_gM<<" beta="<<EQS::Beta(i_gM)<<" Eint="<<i_eM<<"\n";
+//                i_gM = x[0];
+//                i_eM = x[1];
+            }
+            else{
+                (*p_log)(LOG_INFO,AT)<< "Fsolve successful. New shell has "
+                                     <<"Gamma="<<x[0]
+                                     <<" beta="<<EQS::Beta(x[0])
+                                     <<" Eint="<<x[1]<<"\n";
+                i_gM = x[0];
+                i_eM = x[1];
+            }
+//            std::cout << "\n";
+//            std::cout << "  Returned value of INFO = " << info << "\n";
+//            r8vec2_print ( n, x, fx, "  Final X, FX" );
+            delete [] fx;
+            delete [] wa;
+            delete [] x;
+        };
+        solve();
+        /// chose which shell to terminate (the slower one)
+        int ish = p_colsolve->choseShell();
+//        ish = 2;
+        size_t iieq; size_t iieq_other;
+        double eint_before, eint_after;
+        double m2_before, m2_after;
+        if (ish == 1){
+            iieq = bw1->getPars()->ii_eq;
+            iieq_other = bw2->getPars()->ii_eq;
+            eint_before = Y[iieq + DynRadBlastWave::Q_SOL::iEint2];
+            m2_before = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            Y[iieq + DynRadBlastWave::Q_SOL::iEad2] += Y[iieq + DynRadBlastWave::Q_SOL::iEint2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+            Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] += Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::Q_SOL::iR] = rcoll;
+            //
+            //
+            bw1->getPars()->M0 = bw2->getPars()->M0+bw1->getPars()->M0;//i_mM; // update the total mass of the shell
+            Y[iieq + DynRadBlastWave::Q_SOL::iM2] = i_mM / bw2->getPars()->M0;//Y[iieq + DynRadBlastWave::Q_SOL::iM2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+            m2_after = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            // terminated collided shell
+            bw2->getPars()->end_evolution = true;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iR] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iM2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEint2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEsh2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iErad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iRsh] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itcomov] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itheta] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itt] = 0;
+
+        }
+        else{
+            iieq = bw2->getPars()->ii_eq;
+            iieq_other = bw1->getPars()->ii_eq;
+            eint_before = Y[iieq + DynRadBlastWave::Q_SOL::iEint2];
+            m2_before = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            Y[iieq + DynRadBlastWave::Q_SOL::iEad2] += Y[iieq + DynRadBlastWave::Q_SOL::iEint2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+            Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] += Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::Q_SOL::iR] = rcoll;
+            ///
+            ///
+            bw2->getPars()->M0 = bw2->getPars()->M0+bw1->getPars()->M0;//i_mM; // update the total mass of the shell
+            Y[iieq + DynRadBlastWave::Q_SOL::iM2] = i_mM/ bw2->getPars()->M0;// Y[iieq + DynRadBlastWave::Q_SOL::iM2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+            m2_after = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            // terminated collided shell
+            bw1->getPars()->end_evolution = true;
+
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iR] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iM2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEint2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEsh2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iErad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iRsh] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itcomov] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itheta] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itt] = 0;
+        }
+        /// using the solution (mass, lorentz factor, energy) update the state vector
+        double _mom = i_gM * EQS::Beta(i_gM);
+        double _eint2 = i_eM / ( i_mM * CGS::c * CGS::c );
+        Y[iieq + DynRadBlastWave::Q_SOL::imom] = _mom;
+        Y[iieq + DynRadBlastWave::Q_SOL::iEint2] = _eint2; // use ODE units
+
+        (*p_log)(LOG_INFO,AT) << "\tLayer [il="<<mylayer<<"] Outcome for"
+                              << " idx1="<<idx1<<", idx2="<<idx2 << " collision:"
+                              << " Eint2/M0c^2: "<<eint_before<<" -> "<<_eint2
+                              << " M2/M0: "<<m2_before<<" -> "<<m2_after
+                              <<"\n";
+        if (!std::isfinite(i_gM)||(!std::isfinite(i_eM)||(!std::isfinite(i_mM)))){
+            (*p_log)(LOG_ERR,AT)<<"Nan in collision result\n";
+            exit(1);
+        }
+//
+
+
+//
+//        Y[iieq + DynRadBlastWave::Q_SOL::i] = i_gM * EQS::Beta(i_gM);
+
+
+    }
+#endif
+
+#if 0
+    void collideBlastWaves(size_t idx1, size_t idx2, double * Y, double rcoll){
         if (idx1 == idx2){
             (*p_log)(LOG_ERR,AT) << " shells staged for collision are the same ish=idx2=" << idx1 << "\n";
             exit(1);
@@ -354,40 +1102,40 @@ public:
             exit(1);
         }
         /// Extract data for first shell
-//        double gam1, beta1, mass1, eint1, adi1;
-        p_colsolve->gam1 = EQS::GamFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        p_colsolve->beta1 = EQS::BetFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        p_colsolve->mass1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
-        p_colsolve->eint1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
-        p_colsolve->adi1 = bw1->getEos()->getGammaAdi(p_colsolve->gam1, p_colsolve->beta1);
+//        double m_gam1, m_beta1, m_mass1, m_eint1, m_adi1;
+        p_colsolve->m_gam1 = EQS::GamFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        p_colsolve->m_beta1 = EQS::BetFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        p_colsolve->m_mass1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
+        p_colsolve->m_eint1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        p_colsolve->m_adi1 = bw1->getEos()->getGammaAdi(p_colsolve->m_gam1, p_colsolve->m_beta1);
         /// apply units for the first shell (mass and energy)
-        p_colsolve->mass1 = (p_colsolve->mass1 * bw1->getPars()->M0) + bw1->getPars()->M0;
-        p_colsolve->eint1 = p_colsolve->eint1 * (bw1->getPars()->M0 * CGS::c * CGS::c);
+        p_colsolve->m_mass1 = bw1->getPars()->M0 + (p_colsolve->m_mass1 * bw1->getPars()->M0);
+        p_colsolve->m_eint1 = p_colsolve->m_eint1 * (bw1->getPars()->M0 * CGS::c * CGS::c);
         /// extract data for the second shell
-//        double gam2, beta2, mass2, eint2, adi2;
-        p_colsolve->gam2 = EQS::GamFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        p_colsolve->beta2 = EQS::BetFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        p_colsolve->mass2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
-        p_colsolve->eint2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
-        p_colsolve->adi2 = bw2->getEos()->getGammaAdi(p_colsolve->gam2, p_colsolve->beta2);
+//        double m_gam2, m_beta2, m_mass2, m_eint2, m_adi2;
+        p_colsolve->m_gam2 = EQS::GamFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        p_colsolve->m_beta2 = EQS::BetFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        p_colsolve->m_mass2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
+        p_colsolve->m_eint2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        p_colsolve->m_adi2 = bw2->getEos()->getGammaAdi(p_colsolve->m_gam2, p_colsolve->m_beta2);
         /// apply units for the second shell (mass and energy)
-        p_colsolve->mass2 = (p_colsolve->mass2 * bw2->getPars()->M0) + bw2->getPars()->M0;
-        p_colsolve->eint2 = p_colsolve->eint2 * (bw2->getPars()->M0 * CGS::c * CGS::c);
+        p_colsolve->m_mass2 = bw2->getPars()->M0 + (p_colsolve->m_mass2 * bw2->getPars()->M0);
+        p_colsolve->m_eint2 = p_colsolve->m_eint2 * (bw2->getPars()->M0 * CGS::c * CGS::c);
         /// log the data
-        (*p_log)(LOG_INFO,AT) << "\tLayer["<<mylayer<<"] Colliding shells: "
+        (*p_log)(LOG_INFO,AT) << "\tLayer [ll="<<mylayer<<"] Colliding shells: "
             << "idx1="<<idx1<<", idx2="<<idx2
-            << " Masses=("<<p_colsolve->mass1<<", "<<p_colsolve->mass2<<")"
-            << " Gammas=("<<p_colsolve->gam1<<", "<<p_colsolve->gam2<<")"
-            << " betas=("<<p_colsolve->beta1<<", "<<p_colsolve->beta2<<")"
-            << " Eint2=("<<p_colsolve->eint1<<", "<<p_colsolve->eint2<<")"
+            << " Masses=("<<p_colsolve->m_mass1<<", "<<p_colsolve->m_mass2<<")"
+            << " Gammas=("<<p_colsolve->m_gam1<<", "<<p_colsolve->m_gam2<<")"
+            << " betas=("<<p_colsolve->m_beta1<<", "<<p_colsolve->m_beta2<<")"
+            << " Eint2=("<<p_colsolve->m_eint1<<", "<<p_colsolve->m_eint2<<")"
             << "\n";
         /// solve equation for the shell collision
         /// set initial guess for the solver
-        double i_gM = (p_colsolve->gam1*p_colsolve->mass1 + p_colsolve->gam2*p_colsolve->mass2)
-                    / (p_colsolve->mass1+p_colsolve->mass2);
-        double i_mM = p_colsolve->mass1 + p_colsolve->mass2;
-        double i_eM = (p_colsolve->eint1*p_colsolve->mass1+p_colsolve->eint2*p_colsolve->mass2)
-                    / (p_colsolve->mass1+p_colsolve->mass2);
+        double i_gM = (p_colsolve->m_gam1*p_colsolve->m_mass1 + p_colsolve->m_gam2*p_colsolve->m_mass2)
+                    / (p_colsolve->m_mass1+p_colsolve->m_mass2);
+        double i_mM = p_colsolve->m_mass1 + p_colsolve->m_mass2;
+        double i_eM = (p_colsolve->m_eint1*p_colsolve->m_mass1+p_colsolve->m_eint2*p_colsolve->m_mass2)
+                    / (p_colsolve->m_mass1+p_colsolve->m_mass2);
         int x_ = 1;
         // define a system of non-linear equations to solve
         auto func = []( int n, double x[], double fx[],
@@ -397,19 +1145,19 @@ public:
             double eM = x[1];
             double gAdiM = pp->p_eos->getGammaAdi(gM, EQS::Beta(gM));
             /// total mass conservation
-            double mM = pp->mass1 + pp->mass2;
+            double mM = pp->m_mass1 + pp->m_mass2;
             /// total energy consercation (Ek + Eint)
-            double fx1 = (pp->gam1 * pp->mass1 + EQS::get_GammaEff(pp->gam1, pp->adi1) * pp->eint1)
-                       + (pp->gam2 * pp->mass2 + EQS::get_GammaEff(pp->gam2, pp->adi2) * pp->eint2)
+            double fx1 = (pp->m_gam1 * pp->m_mass1 + EQS::get_GammaEff(pp->m_gam1, pp->m_adi1) * pp->m_eint1)
+                       + (pp->m_gam2 * pp->m_mass2 + EQS::get_GammaEff(pp->m_gam2, pp->m_adi2) * pp->m_eint2)
                        - (gM * mM + EQS::get_GammaEff(gM,gAdiM) * eM );
             /// total momentum conservation
-            double fx2 = sqrt(pp->gam1 * pp->gam1 - 1) * (pp->mass1 + pp->adi1 * pp->eint1 )
-                       + sqrt(pp->gam2 * pp->gam2 - 1) * (pp->mass2 + pp->adi2 * pp->eint2 )
+            double fx2 = sqrt(pp->m_gam1 * pp->m_gam1 - 1) * (pp->m_mass1 + pp->m_adi1 * pp->m_eint1 )
+                       + sqrt(pp->m_gam2 * pp->m_gam2 - 1) * (pp->m_mass2 + pp->m_adi2 * pp->m_eint2 )
                        - sqrt(gM * gM - 1) * (mM + gAdiM * eM );
             if (!std::isfinite(fx1) || !std::isfinite(fx2))
                 iflag = -1;
 
-            if (!std::isfinite(sqrt(pp->gam1 * pp->gam1 - 1)))
+            if (!std::isfinite(sqrt(pp->m_gam1 * pp->m_gam1 - 1)))
                 iflag = -1;
 
             fx[0] = fx1;//std::log10(fx1);// * fx1; TODO THis is wrong. It should not be sqred!
@@ -470,28 +1218,88 @@ public:
         solve();
         /// chose which shell to terminate (the slower one)
         int ish = p_colsolve->choseShell();
-        size_t iieq;
+//        ish = 2;
+        size_t iieq; size_t iieq_other;
+        double eint_before, eint_after;
+        double m2_before, m2_after;
         if (ish == 1){
-            bw1->getPars()->M0 = i_mM; // update the total mass of the shell
             iieq = bw1->getPars()->ii_eq;
+            iieq_other = bw2->getPars()->ii_eq;
+            eint_before = Y[iieq + DynRadBlastWave::Q_SOL::iEint2];
+            eint_before = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            Y[iieq + DynRadBlastWave::Q_SOL::iEad2] += Y[iieq + DynRadBlastWave::Q_SOL::iEint2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+            Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] += Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::Q_SOL::iR] = rcoll;
+            //
+            //
+            bw1->getPars()->M0 = bw2->getPars()->M0+bw1->getPars()->M0;//i_mM; // update the total mass of the shell
+            Y[iieq + DynRadBlastWave::Q_SOL::iM2] = i_mM / bw2->getPars()->M0;//Y[iieq + DynRadBlastWave::Q_SOL::iM2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+            m2_after = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
             // terminated collided shell
             bw2->getPars()->end_evolution = true;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iR] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iM2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEint2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEsh2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iErad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iRsh] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itcomov] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itheta] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itt] = 0;
+
         }
         else{
-            bw2->getPars()->M0 = i_mM; // update the total mass of the shell
             iieq = bw2->getPars()->ii_eq;
+            iieq_other = bw1->getPars()->ii_eq;
+            eint_before = Y[iieq + DynRadBlastWave::Q_SOL::iEint2];
+            eint_before = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            Y[iieq + DynRadBlastWave::Q_SOL::iEad2] += Y[iieq + DynRadBlastWave::Q_SOL::iEint2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+            Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] += Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::Q_SOL::iR] = rcoll;
+            ///
+            ///
+            bw2->getPars()->M0 = bw2->getPars()->M0+bw1->getPars()->M0;//i_mM; // update the total mass of the shell
+            Y[iieq + DynRadBlastWave::Q_SOL::iM2] = i_mM/ bw2->getPars()->M0;// Y[iieq + DynRadBlastWave::Q_SOL::iM2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+            m2_after = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
             // terminated collided shell
             bw1->getPars()->end_evolution = true;
+
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iR] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iM2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEint2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEsh2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iErad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::iRsh] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itcomov] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itheta] = 0;
+//            Y[iieq_other + DynRadBlastWave::Q_SOL::itt] = 0;
         }
         /// using the solution (mass, lorentz factor, energy) update the state vector
-        Y[iieq + DynRadBlastWave::Q_SOL::imom] = i_gM * EQS::Beta(i_gM);
-        Y[iieq + DynRadBlastWave::Q_SOL::iEint2] = i_eM / ( i_mM * CGS::c * CGS::c ); // use ODE units
+        double _mom = i_gM * EQS::Beta(i_gM);
+        double _eint2 = i_eM / ( i_mM * CGS::c * CGS::c );
+        Y[iieq + DynRadBlastWave::Q_SOL::imom] = _mom;
+        Y[iieq + DynRadBlastWave::Q_SOL::iEint2] = _eint2; // use ODE units
+
+        (*p_log)(LOG_INFO,AT) << "\tLayer [ll="<<mylayer<<"] Outcome for"
+                              << " idx1="<<idx1<<", idx2="<<idx2 << " collision:"
+                              << " Eint2/M0c^2: "<<eint_before<<" -> "<<_eint2
+                              << " M2/M0: "<<m2_before<<" -> "<<m2_after
+                              <<"\n";
+        if (!std::isfinite(i_gM)||(!std::isfinite(i_eM)||(!std::isfinite(i_mM)))){
+            (*p_log)(LOG_ERR,AT)<<"Nan in collision result\n";
+            exit(1);
+        }
+//
+
+
+//
 //        Y[iieq + DynRadBlastWave::Q_SOL::i] = i_gM * EQS::Beta(i_gM);
 
 
     }
 
-#if 0
     /// get the time at which shells collided
     double evalShellCollisionTime( double x, size_t ix, const double * Y ){
         /// if not sorted however, we need to check what blast wave overrun what blastwave(s)...
@@ -1117,6 +1925,7 @@ class Ejecta{
     Array & t_arr;
 public:
     bool run_ej_bws = false;
+    bool do_collision = false;
     bool is_ejecta_obs_pars_set = false;
     bool is_ejecta_anal_synch_computed = false;
     Ejecta(Array & t_arr, int loglevel) : t_arr(t_arr), m_loglevel(loglevel){
@@ -1174,8 +1983,10 @@ public:
         std::vector<std::vector<size_t>> n_empty_images_layer_shell;
         for (auto & n_empty_images_layer : n_empty_images_layer_shell)
             n_empty_images_layer.resize(nshells);
+        /// include blastwave collision between velocioty shells into the run
         for(size_t il = 0; il < n_layers_ej; il++){
-            p_ej.push_back( std::make_unique<CumulativeShell>(t_arr, nshells, il, p_log->getLogLevel()) );
+            p_ej.push_back( std::make_unique<CumulativeShell>(t_arr, nshells, il,
+                                                              p_log->getLogLevel()) );
             for (size_t ish = 0; ish < nshells; ish++){
                 auto & bw = p_ej[il]->getBW(ish);
                 auto & struc = ejectaStructs.structs[ish];
@@ -1310,6 +2121,12 @@ public:
 
         ej_rtol = getDoublePar("rtol_adapt",pars,AT,p_log,-1, true);
 
+        std::string method_collision = getStrOpt("method_collision", opts, AT,p_log, "none", true);
+        if (method_collision != "none") {
+            do_collision = true;
+            (*p_log)(LOG_INFO,AT)<<"Including shell collision into kN ejecta dynamics\n";
+        }
+
         (*p_log)(LOG_INFO,AT) << "finished initializing ejecta...\n";
     }
     double ej_rtol = 1e-5;
@@ -1320,9 +2137,11 @@ public:
         size_t n_decel_max = 0; int il_with_n_decel_max = -1;
 
         double Mom_max_over_Gamma0 = 0;
-        int il_wich_fastest = -1; int ish_with_fastest;
+        int il_wich_fastest = -1; int ish_with_fastest = -1;
+        double Eint2max = 0.;
+        int il_wich_energetic = -1; int ish_with_energetic = -1;
         double Mom_min_over_Gamma0 = std::numeric_limits<double>::max();
-        int il_with_slowest = -1; int ish_with_slowest;
+        int il_with_slowest = -1; int ish_with_slowest = -1;
         /// collect info in active shells
         for (size_t il = 0; il < nlayers(); il++ ){
             if (p_ej[il]->n_active_shells > n_active_max){
@@ -1340,6 +2159,7 @@ public:
                 auto & bws = p_ej[il]->getBW(ish);
                 double MomIm1 = Ym1[bws->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom];
                 double MomI = Y[bws->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom];
+                double Eint2I = Y[bws->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
                 double Mom0 = bws->getPars()->mom0;
                 if (MomI > MomIm1){
                     /// acceleration
@@ -1361,6 +2181,12 @@ public:
                     il_with_slowest = (int)il;
                     ish_with_slowest = (int)ish;
                 }
+                /// most energetic
+                if (Eint2max < Eint2I){
+                    Eint2max = Eint2I;
+                    il_wich_energetic= (int)il;
+                    ish_with_energetic = (int)ish;
+                }
             }
             /// record layer with the maximum number of accelerating and decelerating shells
             if (n_accel > n_accel_max){
@@ -1379,6 +2205,7 @@ public:
             <<" MAX_Nacc/dec="<<n_accel_max<<"/"<<n_decel_max<<" (il="<<il_with_n_accel_max<<"/"<<il_with_n_decel_max<<")"
             <<" Mmax/M0="<<Mom_max_over_Gamma0<<" (il="<<il_wich_fastest<<", ish="<<ish_with_fastest<<")"
             <<" Mmin/M0="<<Mom_min_over_Gamma0<<" (il="<<il_with_slowest<<", ish="<<ish_with_slowest<<")"
+            <<" Eint2max="<<Eint2max<<" (il="<<il_wich_energetic<<", ish="<<ish_with_energetic<<")"
             <<"]";
 
 //
@@ -1744,11 +2571,11 @@ public:
         /// check if any of the kilonova blastwaves have collided
 //        std::cout << m_CurSol[p_pars->p_ej->getShells()[0]->getBW(0)->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2]<<"\n";
         /// TODO DEBUG: this helps when collisions are extremenly close to ofset the trunning back a bit
-        double col_prec_fac = 1e-8;
-        if (p_pars->p_ej->run_ej_bws){
+        double col_prec_fac = 1e-11;
+        if ((p_pars->p_ej->run_ej_bws) && (p_pars->p_ej->do_collision)){
             size_t n_unordered_layers = 0;
             std::vector<size_t> il_unordered{};
-            double tcoll_min;// = std::numeric_limits<double>::max();
+            double tcoll_min, rcoll_min;// = std::numeric_limits<double>::max();
             /// loop over all layers(cumShells) and see if there is a collision in any, and when
             bool are_shells_sorted = true;
             size_t _i, _j;
@@ -1777,7 +2604,7 @@ public:
                 size_t i_substeps = 0;
                 size_t ish1, ish2;
                 size_t _ish1, _ish2;
-                double tcoll;
+                double tcoll, rcoll;
                 /// do substepping until all shells, staged for collision in this step has collided
 
 
@@ -1806,9 +2633,9 @@ public:
                             (*p_log)(LOG_INFO,AT)<< "\tLayer [il="<<il<<"] with active shells"
                                                            <<" N="<<cumShell->n_active_shells<<"/"<<cumShell->m_nshells
                                                            <<" e.g. (i="<<_i<<" j="<<_j<<" collision)" <<" \n";
-                            tcoll = 0.; _ish1 = 0; _ish2 = 0;
+                            tcoll = 0.; _ish1 = 0; _ish2 = 0; rcoll = 0;
                             /// evaluate time between trunning and t_grid[ix] at which shells collide
-                            cumShell->evalWhichShellsCollideNext(_ish1, _ish2, tcoll,
+                            cumShell->evalWhichShellsCollideNext(_ish1, _ish2, tcoll, rcoll,
                                                                  trunning, t_grid[ix],
                                                                  m_TmpSol, m_CurSol);
                             tcolls.push_back(tcoll);
@@ -1817,9 +2644,11 @@ public:
                                     multi_collision.push_back(il); // this can only be entered second time
                                     multi_collision_ish1_arr.push_back(_ish1);
                                     multi_collision_ish2_arr.push_back(_ish2);
-                                } else {
+                                }
+                                else {
 //                                    (*p_log)(LOG_INFO,AT)<<"\tLayer [il="<<il<<"] tcoll="<<tcoll<<"\n";
                                     tcoll_min = tcoll;
+                                    rcoll_min = rcoll;
                                     il_in_which_collision = il;
                                     ish1 = _ish1;
                                     ish2 = _ish2;
@@ -1879,6 +2708,9 @@ public:
                         (*p_log)(LOG_ERR,AT)<<" no collisions?\n";
                         exit(1);
                     }
+                    (*p_log)(LOG_INFO,AT)
+                            <<"Trying to integrate to collision from "
+                            <<"trunning="<<trunning<<" to tcoll="<<tcoll_min<<" Precision is set="<<col_prec_fac<<"\n";
                     /// advance the ODE to time of the collision. Use previous solution [ix-1] as a starting point
                     p_Integrator->Integrate(trunning, tcoll_min*(1.-col_prec_fac), m_TmpSol);
                     /// extract the solution vector from the ODE solver into 'm_CurSol'
@@ -1888,9 +2720,8 @@ public:
                     for (size_t j = 0; j < multi_collision.size(); ++j) {
                         auto &cumShell = p_pars->p_ej->getShells()[multi_collision[j]];
                         /// collide shells within each layer
-                        cumShell->collideBlastWaves(multi_collision_ish1_arr[j],
-                                                    multi_collision_ish2_arr[j],
-                                                    m_CurSol);
+                        cumShell->collide(multi_collision_ish1_arr[j],multi_collision_ish2_arr[j],
+                                         m_CurSol, rcoll_min);
                         /// update the active shells (as one was deleted)
                         cumShell->updateActiveShells();
                     }
@@ -1906,7 +2737,21 @@ public:
                             exit(1);
                         }
                     }
+                    for (size_t il = 0; il < p_pars->p_ej->nlayers(); ++il){
+                        auto &cumShell = p_pars->p_ej->getShells()[il];
+                        for (size_t ish = 0; ish < cumShell->n_active_shells; ish++){
+                            size_t _ieq0 = cumShell->getBW(ish)->getPars()->ii_eq;
+                            size_t _ieq1 = cumShell->getBW(ish)->getNeq();
+                            for (size_t ii = _ieq0; ii < _ieq0 + _ieq1; ++ii){
+                                if (!std::isfinite(m_CurSol[ii])||(m_CurSol[ii]>1e60)){
 
+                                    std::cerr << ii << " " << m_CurSol[ii] << "\n";
+                                    (*p_log)(LOG_ERR,AT)<<"nans...\n";
+                                    exit(1);
+                                }
+                            }
+                        }
+                    }
                     /// after shells collided put the outcome of the shell collision into ODE solver internal storage
                     p_Integrator->SetY(m_CurSol);
                     /// copy this solution into temporary storage for restarts ' m_TmpSol '
@@ -1943,8 +2788,10 @@ public:
                         cumShell->evalShellThickness(m_CurSol);
                         cumShell->evalShellOptDepth(m_CurSol);
                     }
+                    (*p_log)(LOG_INFO,AT)
+                        <<"Trying to integrate after collision from trunning="<<trunning<<" to t[ix]="<<t_grid[ix]<<"\n";
                     /// try to complete the timestep, itegrating from trunning to t_grid[ix]
-                    p_Integrator->Integrate(trunning, t_grid[ix], m_TmpSol);
+                    p_Integrator->Integrate(trunning, t_grid[ix], m_CurSol);
                     /// extract the solution vector from the ODE solver into 'm_CurSol'
                     p_Integrator->GetY(m_CurSol);
                     /// check if now shells are ordered:
@@ -1966,37 +2813,26 @@ public:
                                              <<"N="<<i_substeps<< " t[i]="<<t_grid[ix]<<" reached.\n";
                         (*p_log)(LOG_INFO,AT) << "============================================================== \n";
                     }
+                    for (size_t il = 0; il < p_pars->p_ej->nlayers(); ++il){
+                        auto &cumShell = p_pars->p_ej->getShells()[il];
+                        for (size_t ish = 0; ish < cumShell->n_active_shells; ish++){
+                            size_t _ieq0 = cumShell->getBW(ish)->getPars()->ii_eq;
+                            size_t _ieq1 = cumShell->getBW(ish)->getNeq();
+                            for (size_t ii = _ieq0; ii < _ieq0 + _ieq1; ++ii){
+                                if (!std::isfinite(m_CurSol[ii])||(m_CurSol[ii]>1e60)){
+
+                                    std::cerr << ii << " " << m_CurSol[ii] << "\n";
+                                    (*p_log)(LOG_ERR,AT)<<"nans...\n";
+                                    exit(1);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
-
-        // apply units, e.g., energy is usually evolved in E/E0
-        applyUnits();
-        // --- Log main results of the integration
-
-
-//        isThereACollisionBetweenKnBlastWaves( dx, ix );
-        /// check if blast wave has fully expanded
-        isThereLateralExpansionTermiantion();
-        // check if there are no nans/unphysical vals in solution
-        if ( !isSolutionOk() ) {
-            (*p_log)(LOG_ERR,AT)  << " Unphysical value in the solution \n";
-            exit(1);
-        }
-        p_pars->ix = ix;// latest solution
-        p_pars->dx = dx;// latest solution
-        p_pars->x = t_grid[ix];
-        // plug the solution vector to the solution container of a given blast wave
-        insertSolution(ix);
-        // add other variables (that are not part of ODE but still needed)
-        addOtherVariables(ix);
-        // add electron properties (needed for synchron calculation)
-//        addComputeForwardShockMicrophysics(ix);
-        ///
-
-        double time_took = timer.checkPoint();
-//        (*p_log)(LOG_INFO, AT) << "Initialization finished [" << timer.checkPoint() << " s]" << "\n";
         /// --- Log main results of the integration
+        double time_took = timer.checkPoint();
         if ( ix % 10 == 0 ) {
             if ((*p_log).getLogLevel()>LOG_WARN){
                 auto & sstream = (*p_log)(LOG_INFO,AT);
@@ -2036,6 +2872,33 @@ public:
         /// save previous step in a temporary solution for restarts
         for (size_t i = 0; i < p_pars->n_tot_eqs; ++i)
             m_TmpSol[i] = m_CurSol[i];
+        // apply units, e.g., energy is usually evolved in E/E0
+        applyUnits();
+        // --- Log main results of the integration
+
+
+//        isThereACollisionBetweenKnBlastWaves( dx, ix );
+        /// check if blast wave has fully expanded
+        isThereLateralExpansionTermiantion();
+        // check if there are no nans/unphysical vals in solution
+        if ( !isSolutionOk() ) {
+            (*p_log)(LOG_ERR,AT)  << " Unphysical value in the solution \n";
+            exit(1);
+        }
+        p_pars->ix = ix;// latest solution
+        p_pars->dx = dx;// latest solution
+        p_pars->x = t_grid[ix];
+        // plug the solution vector to the solution container of a given blast wave
+        insertSolution(ix);
+        // add other variables (that are not part of ODE but still needed)
+        addOtherVariables(ix);
+        // add electron properties (needed for synchron calculation)
+//        addComputeForwardShockMicrophysics(ix);
+        ///
+
+
+//        (*p_log)(LOG_INFO, AT) << "Initialization finished [" << timer.checkPoint() << " s]" << "\n";
+
 
     }
     inline auto * pIntegrator() { return p_Integrator; }
@@ -2360,6 +3223,7 @@ private:
 //                ej_layers[il]->evalShellOptDepth(x, Y); // dEinjdt
                 for(size_t ish=0; ish < ej_layers[il]->nBWs(); ish++) {
                     auto & ej_bw = ej_layers[il]->getBW(ish);
+//                    if (ej_bw->getPars()->end_evolution)
                     ej_bw->getPars()->dEinjdt = dEinj;
                     if (ej_bw->getPars()->dEinjdt < 0){
                         ej_bw->getPars()->dEinjdt = 0.;

@@ -47,6 +47,7 @@ integrator = DOP853E
 * Settings
 
 run_magnetar = no
+load_magnetar = no
 save_magnetar = no
 
 # --------------------------- END ---------------------------
@@ -128,7 +129,7 @@ method_quad = CADRE
 
 * Settings
 
-run_ejecta_bws = no
+run_ej_bws = no
 save_ej_dynamics = no
 do_ej_ele = no
 do_ej_spec = no

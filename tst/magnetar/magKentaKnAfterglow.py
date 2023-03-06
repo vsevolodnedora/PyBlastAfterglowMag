@@ -15,6 +15,10 @@ from mpl_toolkits.axes_grid1 import ImageGrid
 from mpl_toolkits.axisartist.grid_finder import MaxNLocator
 from matplotlib.colors import BoundaryNorm
 from matplotlib.ticker import MaxNLocator
+from matplotlib.colors import Normalize, LogNorm
+from matplotlib import ticker, cm, rc, rcParams
+from matplotlib.patches import Rectangle
+import matplotlib.colors as colors
 from matplotlib import cm
 import os
 from matplotlib import cm
@@ -332,6 +336,170 @@ def plot_init_profile(ctheta, betas, eks,
     # # if (save_figs): plt.savefig(PAPERPATH + figname + ".pdf")
     # plt.show()
 
+def plot_ejecta_dyn_evol_for_movie():
+    def plot_timestep_ejecta(self):
+        dfile_ej = h5py.File(curdir + "ejecta_dynamics_shells_layers.h5", "r")
+    print(dfile_ej.keys())
+    print(dfile_ej[list(dfile_ej.keys())[0]].keys())
+    print(dfile_ej.attrs.keys())
+
+    ishell = 20
+    all_shells = int(dfile_ej.attrs["nshells"])
+    all_layers = int(dfile_ej.attrs["nlayers"])
+    print("all_shells={} all_layers={}".format(all_shells, all_shells))
+
+    r_grid = np.array(dfile_ej["shell={} layer={}".format(0, 0)]["R"])
+
+    n = all_layers * all_layers
+
+    cthetas = np.zeros((all_layers, all_shells))
+    rs = np.zeros((all_layers, all_shells))
+    val = np.zeros((all_layers, all_shells))
+
+    ir = 100
+
+    for ilayer in range(int(all_layers)):
+        for ishell in range(int(all_shells)):
+            key = "shell={} layer={}".format(ishell, ilayer)
+            cthetas[ilayer, ishell] = np.array(dfile_ej[key]["ctheta"])[ir]
+            rs[ilayer, ishell] = np.array(dfile_ej[key]["R"])[ir]
+            i_val = np.array(dfile_ej[key]["beta"]) * np.array(dfile_ej[key]["Gamma"])
+            val[ilayer, ishell] = i_val[ir]
+
+            # cthetas = np.vstack(( cthetas, np.array(dfile_ej[key]["ctheta0"]) ))
+            # rs = np.vstack(( rs, np.array(dfile_ej[key]["R"]) ))
+            # i_val = np.array( dfile_ej[key]["beta"] ) * np.array( dfile_ej[key]["Gamma"] )
+            # val = np.vstack(( val, i_val ))
+
+    # lrs = np.log10(rs)
+
+    # val.append( np.array( dfile_ej[key]["GammaRho"] ) * np.array( dfile_ej[key]["GammaRho"] ) )
+    # val.append( np.log10( np.array( dfile_ej[key]["rho"] )/np.array( dfile_ej[key]["rho"] )[-1] ))#* ( np.array( dfile_ej[key]["rho"][-1] ) ) ) )
+    # val.append( np.log10(np.array( dfile_ej[key]["rho2"] ) / ( np.array( dfile_ej[key]["rho2"][0] ) ) ) )
+    # plt.semilogx(Rs, val[-1])
+    # plt.show()
+    cthetas = np.array(cthetas)  # [::-1] # INVERT DATA ----------------------------------------------------------
+
+    print("ctheta: {}".format(cthetas.shape))
+    print("Rs: {}".format(rs.shape))
+
+    print("Jet Data loaded")
+
+    # cthetas = np.array(cthetas)#[::-1] # INVERT DATA ----------------------------------------------------------
+    # cthetas0 = np.array(cthetas0)#[::-1] # INVERT DATA ----------------------------------------------------------
+    # cthetas = np.array(cthetas)[::-1,:] # INVERT DATA ----------------------------------------------------------
+    #
+    # print("ctheta: {}".format(cthetas0.shape))
+    # print("Rs: {}".format(Rs0.shape))
+    #
+    # val = np.reshape(np.array(val), (len(cthetas0), len(Rs0)))
+    # ctheta = np.reshape(np.array(cthetas), (len(cthetas0), len(Rs0)))
+    # Rs = np.reshape(np.array(Rs), (len(cthetas0), len(Rs0)))
+    # print("Val: {}".format(val.shape))
+    #
+    # print("ctheta={}, {}".format(cthetas[0] * 180 / np.pi, cthetas[-1] * 180 / np.pi))
+    # print("Rs={}, {}".format(Rs0[0],Rs0[-1]))
+
+    # ---------------------------------
+
+    angle_ticks = range(0, 100, 10)
+    angle_ticks_rads = [a * np.pi / 180.0 for a in angle_ticks]  # [::-1] # INVERT TICKS -------------------
+    angle_ticks_rads_plus_offset = [a for a in angle_ticks_rads]
+    # angle_ticks_rads_plus_offset = angle_ticks_rads_plus_offset[::-1] # Polar Angle
+    angle_ticks_for_plot = []
+    for i in range(len(angle_ticks)):
+        angle_ticks_for_plot.append((angle_ticks_rads_plus_offset[i], r"$" + str(angle_ticks[i]) + "$"))
+
+    print("Angle ticks prepared")
+
+    # lRs = np.log10(Rs/Rs0[0])
+    # lRs0 = np.log10(Rs0/Rs0[0])
+
+    # rs = rs/rs.min()
+    lrs = np.log2(rs) - 0.9 * np.log2(rs)[0, 0]
+    # lrs /= lrs.min()
+    radius_ticks = range(int(lrs[0, 0]), int(lrs[0, -1]), 1)
+    radius_ticks_for_plot = []
+    for i in range(len(radius_ticks)):
+        radius_ticks_for_plot.append((radius_ticks[i], r"$" + str(radius_ticks[i]) + "$"))
+
+    print("Radial ticks prepared")
+
+    # ---------------------------------------
+
+    scale = 1.5
+    aspect = 1.20
+    height = 3.0
+    fig = plt.figure(1, figsize=(height * aspect * scale, height * scale))
+    fig.subplots_adjust(wspace=0.1, left=0.05, right=0.95, top=0.94)
+    fig.subplots_adjust()
+
+    ax2, aux_ax2 = self.setup_arc_radial_axes(fig, 111, angle_ticks_for_plot, radius_ticks_for_plot, 1,
+                                              radius_ticks[-1])
+
+    # r, theta = np.meshgrid(lRs,cthetas)
+    values = val
+
+    # levels = ticker.LogLocator(base=10,numticks=1000).tick_values(1e-4, 0.8)
+    levels = MaxNLocator(nbins=20).tick_values(val.min(), val.max())
+    cmap = plt.get_cmap('viridis')  # seismic
+    norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
+    norm = colors.TwoSlopeNorm(vmin=val.min(), vcenter=0.1, vmax=val.max())
+
+    # im = aux_ax2.pcolormesh(cthetas, lrs, values, cmap=cmap, norm=norm, alpha=0.7)
+    im = aux_ax2.pcolormesh(cthetas, lrs, values, cmap=cmap, alpha=0.7, norm=LogNorm(vmin=1e-3, vmax=5e-1),
+                            rasterized=True)
+
+    cbar = plt.colorbar(im, orientation='vertical')
+    cbar.ax.set_ylabel(r'$\log_{10}( \rho/\rho_{\rm ISM} )$', fontsize=12)
+
+    # ax2.axis["bottom"].axes.set_xlabel('Angle [deg]', fontsize=20, weight="bold")
+
+    plt.suptitle(' Jet layer dynamics ', fontsize=14, weight="bold")
+    plt.legend(loc=3, prop={'size': 14})
+    # plt.xlabel('Angle [deg]', fontsize=20, weight="bold", rotation=30)
+    plt.ylabel(r'Radius $[R/R_0]$', fontsize=14, weight="bold")
+
+    # plt.show()
+    plt.savefig('plot.png', dpi=256)
+    plt.show()
+    plt.close()
+
+    fig, ax = plt.subplots(figsize=(4, 3), subplot_kw={'projection': 'polar'}, ncols=1, nrows=1)
+    # ax = plt.subplot(111, polar=True)
+    # levels = MaxNLocator(nbins=25).tick_values(val.min(), val.max())
+    levels = ticker.LogLocator(base=2, numticks=100).tick_values(val.min(), val.max())
+
+    cmap = plt.get_cmap('inferno')
+    norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
+    im = ax.pcolormesh(cthetas, lrs, val, cmap=cmap, norm=norm)
+    fig.colorbar(im, ax=ax)
+    # ax.set_title('pcolormesh with levels')
+    print(ax.get_rmin(), ax.get_rmax())
+    # ax.set_rmax(10)
+    # ax.set_rmin(20)
+    print(ax.get_rmin(), ax.get_rmax())
+
+    max_theta = 90
+    # ax.set_theta_zero_location("U")
+    # ax.set_theta_offset(np.pi/2)
+
+    ax.set_thetamax(90)
+    # ax.set_thetamin(0)
+    # ax.set_rlim(10,20)
+
+    # ax.set_rlim(Rs.min(), Rs.max())
+    # ax.set_rscale("log")
+    # ax.set_rscale('log')
+    #
+    # ticklabels = ax.get_yticklabels()
+    # labels = range(80, 0, -10)
+    # for i in range(0, len(labels)):
+    #     ticklabels[i] = str(labels[i])
+    # ax.set_yticklabels(ticklabels)
+
+    plt.show()
+
 def main():
     workdir = os.getcwd()+'/'
     ### locate and extract the data from the original ejecta profiles from Kenta
@@ -372,7 +540,7 @@ def main():
                            )
     pba = BPA_METHODS(workingdir=os.getcwd()+'/',readparfileforpaths=True)
     pba.reload_parfile()
-    pba.run(loglevel="err")
+    pba.run(loglevel="info")
 
 
 

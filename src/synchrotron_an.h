@@ -1320,10 +1320,10 @@ public:
         // ---
 //        (*p_log)(LOG_INFO,AT) << " allocating memory for gamma_arr\n";
 
-//        double gam1 = 1.;
-//        double gam2 = 1e6;
+//        double m_gam1 = 1.;
+//        double m_gam2 = 1e6;
 //        int ngam = (int)getDoublePar("ngamma",pars,AT,p_log,-1.,true);
-//        m_gamma_arr = TOOLS::MakeLogspaceVec(std::log10(gam1), std::log10(gam2), ngam, 10);
+//        m_gamma_arr = TOOLS::MakeLogspaceVec(std::log10(m_gam1), std::log10(m_gam2), ngam, 10);
 //        m_tmp_arr1.resize(m_gamma_arr.size(), 0.);
 //        m_tmp_arr2.resize(m_gamma_arr.size(), 0.);
 

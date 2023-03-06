@@ -2296,8 +2296,8 @@ if __name__ == '__main__':
     for ii, color in zip([0,1,2], ["blue", "green", "red"]):
         gamAdi = EqOpts.gamma_adi_peer(dyn2t2.get(f"Gamma_ej_{ii}"),get_beta(dyn2t2.get(f"Gamma_ej_{ii}")))
         GammaEff = Nava_fs_rhs.GammaEff(dyn2t2.get(f"Gamma_ej_{ii}"),gamAdi)
-        Etot = (dyn2t2.get(f"Gamma_ej_{ii}") -1)* cgs.c ** 2 * \
-               (dyn2t2.get(f"M2_ej_{ii}")+1e48 / (cgs.c ** 2 * dyn2t2.get(f"Gamma_ej_{ii}")[0])) + GammaEff * dyn2t2.get(f"Eint2_ej_{ii}")
+        Etot = (dyn2t2.get(f"Gamma_ej_{ii}") - 1)* cgs.c ** 2 * \
+               (dyn2t2.get(f"M2_ej_{ii}") + 1e48 / (cgs.c ** 2 * dyn2t2.get(f"Gamma_ej_{ii}")[0])) + GammaEff * dyn2t2.get(f"Eint2_ej_{ii}")
         axes[0].plot(dyn2t2.get("tburst"),Etot / 1,label=r"$E_{\rm tot}$",color=color,ls='-')
         axes[0].plot(dyn2t2.get("tburst"),GammaEff * dyn2t2.get(f"Eint2_ej_{ii}") / 1,label=r"$E_{\rm int} \Gamma_{\rm eff}$",color=color,ls='--')
         axes[0].plot(dyn2t2.get("tburst"),( dyn2t2.get(f"Gamma_ej_{ii}") - 1) * cgs.c  ** 2

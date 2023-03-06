@@ -570,9 +570,6 @@ public:
     void evaluateRhsDens( double * out_Y, size_t i, double x, double const * Y ) override {
 //        double Gamma = Y[i+Q_SOL::iGamma];//EQS::GamFromMom(Y[i+Q_SOL::imom]);
         double mom = Y[i+Q_SOL::imom];
-        double Gamma = EQS::GamFromMom(Y[i+Q_SOL::imom]);
-//        double beta = EQS::Beta(Y[i+Q_SOL::iGamma]);//EQS::BetFromMom(Y[i+Q_SOL::imom]);
-        double beta = EQS::BetFromMom(Y[i+Q_SOL::imom]);
         // ****************************************
         double R      = Y[i+Q_SOL::iR];
         double Rsh    = Y[i+Q_SOL::iRsh];
@@ -581,6 +578,10 @@ public:
         double Eint2  = Y[i+Q_SOL::iEint2];
         double theta  = Y[i+Q_SOL::itheta];
         double M2     = Y[i+Q_SOL::iM2];
+        // *****************************************
+        double Gamma = EQS::GamFromMom(Y[i+Q_SOL::imom]);
+//        double beta = EQS::Beta(Y[i+Q_SOL::iGamma]);//EQS::BetFromMom(Y[i+Q_SOL::imom]);
+        double beta = EQS::BetFromMom(Y[i+Q_SOL::imom]);
         if (mom < 0){
             (*p_log)(LOG_ERR,AT) << "Error\n";
             mom = 1e-5;
@@ -588,6 +589,17 @@ public:
             beta = EQS::BetFromMom(Y[i+Q_SOL::imom]);
         }
         // ****************************************
+        if (!std::isfinite(R) || !std::isfinite(Gamma) || M2 < 0.
+            || !std::isfinite(M2) || !std::isfinite(Eint2) || Eint2<0) {
+            (*p_log)(LOG_ERR,AT)  << " nan in derivatives (may lead to crash) " << "\n"
+                                  << " R="<<R<<"\n"
+                                  << " M2="<<M2<<"\n"
+                                  << " Gamma=" << Gamma << "\n"
+                                  << " Mom=" << mom << "\n"
+                                  << " Eint2=" << Eint2
+                                  << " \n";
+            exit(1);
+        }
 //        if (Gamma <= 1.) { // TODO to be removed
 //            Gamma = 1.0001;
 //            (*p_log)(LOG_ERR, AT) << " Gamma < 1 in RHS for kN Ejecta\n";
@@ -677,7 +689,7 @@ public:
 
         // --- Energy injection --- ||
         double xi_inj = 1.;
-        double dEindt = 1e49; double __tmp = p_pars->dEinjdt*1;
+        double dEindt = p_pars->dEinjdt*100;
         double dEinjdt = dEindt / (p_pars->M0 * CGS::c * CGS::c) / p_pars->ncells;
         double dEinjdR = dEinjdt / dRdt;
         double theta_ej = 0.; // assume that ejecta is alinged with magnetar emission?..

@@ -36,7 +36,7 @@ lc_use_freq_to_time = no
 skymap_freqs = array 1e9 1e18
 skymap_times = array logspace 8.e5 2e9 50
 
-integrator = DOP853
+integrator = DOP853E
 
 # --------------------------- END ---------------------------
 #
@@ -47,6 +47,7 @@ integrator = DOP853
 * Settings
 
 run_magnetar = no
+load_magnetar = no
 save_magnetar = no
 
 # --------------------------- END ---------------------------
@@ -92,13 +93,14 @@ rtol_adapt = 1e-5
 
 * Settings
 
-run_ejecta_bws = yes
+run_ej_bws = yes
 save_ej_dynamics = no
 do_ej_ele = yes
 do_ej_spec = no
 do_ej_lc = yes
 do_ej_skymap = no
 
+method_collision = none # none
 method_eats = piece-wise # piece-wise
 
 fname_dyn = dyn_kn_gauss.h5

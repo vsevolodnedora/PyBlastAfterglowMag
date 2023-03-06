@@ -354,6 +354,10 @@ public:
         }
         return ctheta;
     }
+//    inline double etot(dobule Gamma){
+//        double etot = (dyn2t2.get(f"Gamma_ej_{ii}") - 1)* cgs.c ** 2 * \
+//               (dyn2t2.get(f"M2_ej_{ii}") + 1e48 / (cgs.c ** 2 * dyn2t2.get(f"Gamma_ej_{ii}")[0])) + GammaEff * dyn2t2.get(f"Eint2_ej_{ii}")
+//    }
     inline Array & getData(Q var){ return m_data[var]; }
     inline double & getVal(Q var, int ix){
         auto ixx = (size_t)ix;
@@ -511,6 +515,7 @@ public:
     }
 //    virtual void evaluateCollision(double * out_Y, size_t i, double x, double const * Y,
 //                                   std::unique_ptr<BlastWaveBase> & other, size_t other_i ) = 0;
+
     virtual void evaluateRhsDensModel2(double * out_Y, size_t i, double x, double const * Y,
                                        void * others, size_t prev_ix) = 0; // std::vector<std::unique_ptr<BlastWaveBase>>
     void setAllParametersForOneLayer(LatStruct & latStruct, //RadBlastWave & bw_obj,

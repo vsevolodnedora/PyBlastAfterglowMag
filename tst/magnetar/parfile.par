@@ -14,8 +14,8 @@
 
 tb0 = 1.e-5
 tb1 = 5.e8
-ntb = 1000
-rtol = 1.e-9
+ntb = 5000
+rtol = 1.e-11
 nmax = 1000
 
 A0 = -1
@@ -130,11 +130,12 @@ save_dyn_every_it = 1
 
 run_ej_bws = yes
 save_ej_dynamics = yes
-do_ej_ele = yes
+do_ej_ele = no
 do_ej_spec = no
-do_ej_lc = yes
+do_ej_lc = no
 do_ej_skymap = no
 
+method_collision = any
 method_eats = piece-wise # piece-wise
 
 fname_dyn = magnetar_driven_ej.h5
