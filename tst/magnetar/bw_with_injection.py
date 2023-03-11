@@ -2292,8 +2292,8 @@ if __name__ == '__main__':
     # plt.legend()
     # plt.show()
 
-    fig, axes = plt.subplots(ncols=1,nrows=3,sharex="all")
-    for ii, color in zip([0,1,2], ["blue", "green", "red"]):
+    fig, axes = plt.subplots(ncols=1,nrows=2,sharex="all",figsize=(5,5))
+    for ii, color in zip([0,], ["blue"]): # , "green", "red"
         gamAdi = EqOpts.gamma_adi_peer(dyn2t2.get(f"Gamma_ej_{ii}"),get_beta(dyn2t2.get(f"Gamma_ej_{ii}")))
         GammaEff = Nava_fs_rhs.GammaEff(dyn2t2.get(f"Gamma_ej_{ii}"),gamAdi)
         Etot = (dyn2t2.get(f"Gamma_ej_{ii}") - 1)* cgs.c ** 2 * \
@@ -2307,13 +2307,18 @@ if __name__ == '__main__':
         # plt.loglog(dyn2t2.get("R"),dyn2t2.get("Esh2"),label="sh")
         # plt.loglog(dyn2t2.get("R"),dyn2t2.get("Eint2")+dyn2t2.get("Esh2"),label="tot")
         axes[1].plot(dyn2t2.get("tburst"),dyn2t2.get(f"Gamma_ej_{ii}")*get_beta(dyn2t2.get(f"Gamma_ej_{ii}")),label=r"Momentum",color=color,ls='-',marker='.')
-        axes[2].plot(dyn2t2.get("tburst"),dyn2t2.get(f"R_ej_{ii}"),label=r"Radius",color=color,ls='-',marker='.')
-    axes[1].plot(tarrm,np.log10(ldip+lacc),label=r"$log_{10}(L_{\rm dip}+L_{\rm acc})$",color='gray',ls='--')
+        # axes[2].plot(dyn2t2.get("tburst"),dyn2t2.get(f"R_ej_{ii}"),label=r"Radius",color=color,ls='-',marker='.')
+        axes[0].set_ylabel("Energy [ergs]",fontsize=12)
+        axes[1].set_ylabel(r"Momentum $\Gamma\beta$",fontsize=12)
+    axes[0].plot(tarrm,ldip+lacc,label=r"$log_{10}(L_{\rm dip}+L_{\rm acc})$",color='gray',ls='-')
+    axes[0].set_ylim(1e41,1e51)
     for ax in axes:
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.legend(loc="best")
         ax.grid()
+    axes[len(axes)-1].set_xlabel("time [s]",fontsize=12)
+    plt.savefig("./one_bw_dynamics.png",dpi=256)
     plt.show()
 
 

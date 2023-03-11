@@ -1510,7 +1510,7 @@ public:
     /// Evaluate the radial extend of a velocity shell. Assume ordered shells. Assumes sorted shells
     void evalShellOptDepth(  const double * Y ){
 
-        double kappa_i = 5.; // bw->getPars()->kappa0; // TODO!
+        double kappa_i = 5.e50; // bw->getPars()->kappa0; // TODO!
 
         double r_i=0., r_ip1=0., dr_i = 0., m_i=0., m2_i=0., m_ip1=0.,
                 m2_ip1=0., vol_i=0., rho_i=0., dtau_i=0., tau_tot=0.;

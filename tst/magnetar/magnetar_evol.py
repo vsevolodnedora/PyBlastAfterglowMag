@@ -111,7 +111,7 @@ NS_mass = 1.9 * const.M_SUN
 NS_critical_beta = 0.27 # bar-mode instability criterion (for rryand options only)
 
 # NS magnetic field
-B0 = 1e16
+B0 = 1e15
 
 # Dimensionless coefficients k_0, k_1, k_2 for a force-free magnetosphere
 # taken from Spitkovsky (2006) and Philippov et al. (2014).
@@ -128,7 +128,7 @@ ns_ellipticity = 0.1
 beta_ax = 1.0 / 4.0 * NS_radius ** 6 / (NS_inertia * const.C ** 3)
 
 # Assume an inclination angle in [rad].
-alpha0 = 0.2 # TODO why does it circularises wo quickly???
+alpha0 = 0.0 # TODO why does it circularises wo quickly???
 
 # # Incorporate the inclination angle dependence into a constant.
 # beta_1 = beta * (k_coefficients[0] + k_coefficients[1] * np.sin(chi) ** 2)
@@ -177,9 +177,9 @@ else:
 
 
 # accretion rate0
-method_mdot0 = "disk0" # "given" "disk0"
+method_mdot0 = "given" # "given" "disk0"
 if method_mdot0 == "given" :
-    Mdot0 = 1.0e24
+    Mdot0 = 1.0e29
 elif method_mdot0 == "disk0" : # [requires disk mass]
     diskmass = 1.e-2 * 1.989e+33
     Mdot0 = diskmass / t_v
@@ -198,7 +198,7 @@ disk_rout_evol_idx = 0.44
 
 
 # Initial spin period of the neutron star in [s].
-method_P0 = "crit" # "given" "crit"
+method_P0 = "given" # "given" "crit"
 def E_bind():
     """
     Binding energy of the NS
@@ -210,7 +210,7 @@ def E_bind():
     out = 0.6*NS_mass*const.C**2*num/den
     return out
 if method_P0 == "given":
-    P_in = 1e-3#0.01
+    P_in = 0.001#0.01
 elif method_P0 == "crit":
     # NS_critical_beta = 0.27 # bar-mode instability criterion
     Omega0 = np.sqrt(2.*NS_critical_beta*E_bind()/NS_inertia)
@@ -220,7 +220,7 @@ else:
 
 method_ndip = "original" # "original", "gompertz", "rryand"
 
-method_nacc = "original"
+method_nacc = "original" #
 
 def E_rot(omega):
     """
@@ -270,7 +270,9 @@ elif method_omega_crit == "fromTOV":
 else:
     raise KeyError()
 
+k = -1; #0.9 # # Following Gibson+ (capping) r_m <= k * r_lc
 
+method_mdot = "2" # "1", "2", "3"
 
 ''' ---------------------------------------------------------------------------------------------------------------- '''
 # TODO Add (i) Bext/Bint for ellipticity; (ii) NS_mass/Radius evolution; (iii) Collapse criterion (iv) does Ldip = f(alpha)?
@@ -417,9 +419,8 @@ class Magnetar:
         # Magnetic moment.
         mu = B * NS_radius ** 3 / 2.0
 
-        Mdot_Edd = (eddigton_lum / (const.G * NS_mass)) ** (7.0 / 9.0) * (
-                mu ** 4.0 / (2.0 * const.G * NS_mass)
-        ) ** (1.0 / 9.0)
+        Mdot_Edd = (eddigton_lum / (const.G * NS_mass)) ** (7.0 / 9.0) \
+                 * (mu ** 4.0 / (2.0 * const.G * NS_mass)) ** (1.0 / 9.0)
 
         return Mdot_Edd
 
@@ -537,6 +538,10 @@ class Magnetar:
                 Mdot_din = 1e-20
         if Mdot_din == 0:
             raise ValueError()
+
+
+
+
         return Mdot_din
     @staticmethod
     def disk_accretion_rate_in_t_numpy(
@@ -657,7 +662,6 @@ class Magnetar:
                 n_dip = - beta_1 * B ** 2 * omega ** 3 * NS_inertia
             else:
                 raise ValueError()
-
         elif method_ndip == "gompertz":
             ################################################################
             ## Gompertz uses the disk's alfven radius
@@ -666,7 +670,6 @@ class Magnetar:
             ################################################################
             mu = B * NS_radius**3
             n_dip = - 2./3. * mu**2 * omega**3 / const.C**3 * (r_lc/r_m)**3
-
         elif method_ndip == "rryand":
             #  Standard dipole spindown, no wind or disk
             mu = B * NS_radius**3
@@ -739,16 +742,28 @@ class Magnetar:
         B = initial_cond[0]
         omega = initial_cond[1]
         alpha = initial_cond[2]
+        # mdot = initial_cond[3]
 
         Bdot = Magnetar.field_derivative(B, B0)
         alphadot = Magnetar.alpha_derivatives(B, omega, alpha)
 
-        Mdot_d = Magnetar.disk_accretion_rate_t(Mdot_d0, alpha, t)
-        Mdot_din = Magnetar.disk_accretion_rate_in_t(B, omega, Mdot_d0, alpha, t, t_disrupt)
+        Mdot = 0.
+        if (method_mdot == "1"):
+            Mdot = Magnetar.disk_accretion_rate_t(Mdot_d0, alpha, t)
+        elif (method_mdot == "2"):
+            Mdot=Mdot_din = Magnetar.disk_accretion_rate_in_t(B, omega, Mdot_d0, alpha, t, t_disrupt)
+        elif (method_mdot == "3"):
+            pass
+        else:
+            raise KeyError()
 
-        r_m = Magnetar.radius_magnetospheric(B, Mdot_din)
+        r_m = Magnetar.radius_magnetospheric(B, Mdot)
         r_c = Magnetar.radius_corotation(omega)
         r_lc = Magnetar.radius_lc(omega)
+
+        # Following Gibson+ (capping)
+        if ((k>0)and(r_m > k * r_lc)):
+            r_m = k * r_lc
 
         if not (np.isfinite(r_m)&np.isfinite(r_c)&np.isfinite(r_lc)):
             raise ValueError()
@@ -759,7 +774,7 @@ class Magnetar:
 
         # omegadot = 0.0
 
-        n_acc = Magnetar.Nacc(omega,Mdot_din,r_m,r_lc,r_c)
+        n_acc = Magnetar.Nacc(omega,Mdot,r_m,r_lc,r_c)
         n_dip = Magnetar.Ndip(B,omega,r_m,r_lc,alpha)
         n_grav = Magnetar.Ngrav(omega,alpha)
 
@@ -941,12 +956,23 @@ class Magnetar:
             B = B_arr[i]
             alpha = alpha_arr[i]
 
-            Mdot_d = Magnetar.disk_accretion_rate_t(Mdot_d0, alpha, ti)
-            Mdot_din = Magnetar.disk_accretion_rate_in_t(B, omega, Mdot_d0, alpha, ti, t_disrupt)
+            Mdot = 0.
+            if (method_mdot == "1"):
+                Mdot = Magnetar.disk_accretion_rate_t(Mdot_d0, alpha, t[i])
+            elif (method_mdot == "2"):
+                Mdot=Mdot_din = Magnetar.disk_accretion_rate_in_t(B, omega, Mdot_d0, alpha, t[i], t_disrupt)
+            elif (method_mdot == "3"):
+                pass
+            else:
+                raise KeyError()
 
-            r_m = Magnetar.radius_magnetospheric(B, Mdot_din)
+            r_m = Magnetar.radius_magnetospheric(B, Mdot)
             r_c = Magnetar.radius_corotation(omega)
             r_lc = Magnetar.radius_lc(omega)
+
+            # Following Gibson+ (capping)
+            if ((k>0) and (r_m > k * r_lc)):
+                r_m = k * r_lc
 
             # omegadot = np.zeros(len(t))
 
@@ -971,7 +997,7 @@ class Magnetar:
             # else:
             #     raise ValueError()
 
-            n_acc[i] = Magnetar.Nacc(omega,Mdot_din,r_m,r_lc,r_c)
+            n_acc[i] = Magnetar.Nacc(omega,Mdot,r_m,r_lc,r_c)
             n_dip[i] = Magnetar.Ndip(B,omega,r_m,r_lc,alpha)
             n_grav[i] = Magnetar.Ngrav(omega,alpha)
             omegadot[i] = (n_dip[i] + n_acc[i] + n_grav[i]) / NS_inertia
@@ -1222,6 +1248,27 @@ def run_magnetar():
 
     time, P, Pdot, B, alpha, r_m, r_c, r_lc, Mdot_d, Mdot_din, ldip, lacc, _, _, _ \
         = Magnetar.rotational_evolution( B0, P_in, Mdot0, alpha0 )
+
+    # plt.loglog(time,B)
+    # plt.show()
+
+    n_acc = np.zeros_like(time)
+    n_dip = np.zeros_like(time)
+    n_grav = np.zeros_like(time)
+    for it, t in enumerate(time):
+        n_acc[it] = Magnetar.Nacc(2.0 * np.pi / P[it],Mdot_din[it],r_m[it],r_lc[it],r_c[it])
+        n_dip[it] = Magnetar.Ndip(B[it],2.0 * np.pi / P[it],r_m[it],r_lc[it],alpha[it])
+        n_grav[it] = Magnetar.Ngrav(2.0 * np.pi / P[it],alpha[it])
+
+        # = Magnetar.Nacc(2.0 * np.pi / P,Mdot_din,r_m,r_lc,r_c)
+    # n_dip = Magnetar.Ndip(B,2.0 * np.pi / P,r_m,r_lc,alpha)
+    # n_grav = Magnetar.Ngrav(2.0 * np.pi / P,alpha)
+
+    # plt.loglog(time*const.YR_TO_S,np.abs(2.0 * np.pi / P),color='green')
+    # plt.loglog(time*const.YR_TO_S,np.abs(n_acc),color='green')
+    # plt.loglog(time*const.YR_TO_S,np.abs(n_dip),color='blue')
+    # plt.loglog(time*const.YR_TO_S,np.abs(n_grav),color='red')
+    plt.show()
 
     print(alpha)
     # Compute the inner and outer radius of the disk.
