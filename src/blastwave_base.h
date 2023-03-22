@@ -838,10 +838,10 @@ public:
                 // double theta_c_l, double theta_c_h, double theta_w, double theta_max, double epsilon_e_rad,
                 // size_t ii_eq,
                 // double ncells
-//                setPars(latStruct.dist_E0_pw[ilayer],  = double E0,
+//                setMagPars(latStruct.dist_E0_pw[ilayer],  = double E0,
 //                        latStruct.dist_M0_pw[ilayer], = double M0,
 //                        latStruct.dist_G0_pw[ilayer], = double Gamma0,
-//                        m_tb_arr[0],                  = double tb0
+//                        m_mag_time[0],                  = double tb0
 //                        0.,                           = double theta_a
 //                        latStruct.m_theta_w,          = double theta_b0,
 //                        latStruct.theta_pw[ilayer],   = double theta_c_l,
@@ -929,7 +929,7 @@ public:
                 // double theta_c_l, double theta_c_h, double theta_w, double theta_max, double epsilon_e_rad,
                 // size_t ii_eq,
                 // double ncells
-//                bw_obj.setPars(latStruct.dist_E0_a[ilayer], = double E0,
+//                bw_obj.setMagPars(latStruct.dist_E0_a[ilayer], = double E0,
 //                               latStruct.dist_M0_a[ilayer], = double M0,
 //                               latStruct.dist_G0_a[ilayer], = double Gamma0,
 //                               t_grid[0],                   = double tb0,
@@ -957,7 +957,7 @@ public:
 
 };
 
-//    void setPars(double E0, double M0, double Gamma0, double tb0, double theta_a, double theta_b0,
+//    void setMagPars(double E0, double M0, double Gamma0, double tb0, double theta_a, double theta_b0,
 //                 double theta_c_l, double theta_c_h, double theta_w, double theta_max, double epsilon_e_rad,
 //                 size_t ii_eq,
 //                 double ncells){

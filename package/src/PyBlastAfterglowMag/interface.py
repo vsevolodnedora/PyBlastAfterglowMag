@@ -606,7 +606,7 @@ class BPA_METHODS(PBA_BASE):
         nlayers = int(dfile.attrs["nlayers"])
         times = self.get_jet_lc_times()
         freqs = self.get_jet_lc_freqs()
-        fluxes = np.array(dfile["fluxes"])
+        fluxes = np.array(dfile["total_fluxes"])
         if freq is None:
             return fluxes
         if (not freq in freqs):
@@ -1509,7 +1509,7 @@ class BPA_METHODS(PBA_BASE):
         nshells = int(dfile.attrs["nshells"])
         times = self.get_ej_lc_times()
         freqs = self.get_ej_lc_freqs()
-        fluxes = np.array(dfile["fluxes"])
+        fluxes = np.array(dfile["total_fluxes"])
         if (freq is None):
             return fluxes
         if (not freq in freqs):
@@ -1694,7 +1694,7 @@ class BPA_METHODS(PBA_BASE):
         # _x = np.concatenate(all_xrs)
         # _y = np.concatenate(all_yrs)
         # _z = np.concatenate(all_zz)
-        xc_m, yc_m = compute_position_of_the_flux_centroid(all_xrs, all_yrs, all_zz, float(dfile.attrs["d_L"]))
+        xc_m, yc_m = compute_position_of_the_flux_centroid(all_xrs, all_yrs, all_zz, float(dfile.attrs["d_l"]))
         return (xc_m, yc_m)
 
     @staticmethod
@@ -2134,7 +2134,7 @@ class BPA_METHODS(PBA_BASE):
         freqs = self.get_ej_skymap_freqs()
         dfile = self.get_ej_skymap_obj()
         nshells = int(dfile.attrs["nshells"])
-        d_l = float(self.get_ej_skymap_obj().attrs["d_L"])
+        d_l = float(self.get_ej_skymap_obj().attrs["d_l"])
         if ((not time is None) and (not time in times)):
             raise ValueError(
                 "time={} day is not in the list for skypams={} days".format(time / cgs.day, times / cgs.day))

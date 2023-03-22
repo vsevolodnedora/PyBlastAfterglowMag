@@ -56,7 +56,7 @@ def main():
         "show_figs": True,
         "grid": False,
         "figsize": (4.8, 4.8),
-        "rerun":False, "precompute": False,
+        "rerun":False, "precompute": True,
         # "precompute_fpath": "/media/vsevolod/Data/postprocessed5/tmp/" + sim + "_single_time{}".format(time) + ".h5",
         "precompute_fpath": fname + ".h5",
         "kn_skymap": {

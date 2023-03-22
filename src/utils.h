@@ -219,8 +219,10 @@ Vector arrToVec(Array & array){
     return std::move( vec );
 }
 void vecToArr(Vector & source, Array & target){
-    if ((target.size() != source.size())){ target.resize(source.size());  }
-    for (size_t i = 0; i < source.size(); i++)
+    if ((target.size() != source.size())){
+        target.resize(source.size(), 0.0);
+    }
+    for (size_t i = 0; i < source.size(); ++i)
         target[i] = source[i];
 }
 
@@ -391,7 +393,8 @@ std::ostream& stream_arr(std::ostream& os, vecarr &data, std::vector<std::string
 /*
  * Print Array in a form to copy-past in PyBlastAfterglow
  */
-static void print_xy_as_numpy(double * x_arr, double * y_arr, int nxy, int ever_i=10) {
+template<class T>
+static void print_xy_as_numpy(T * x_arr, double * y_arr, int nxy, int ever_i=10) {
     int i = 0;
     std::cout << "x_arr = np.array([ ";
     for (i = 0; i < nxy; i++) {
@@ -418,12 +421,15 @@ static void print_xy_as_numpy(double * x_arr, double * y_arr, int nxy, int ever_
     std::cout << "plt.loglog(x_arr, y_arr, ls='--', label='afg')" << "\n";
     std::cout << "\n";
 }
-static void print_xy_as_numpy(Array & x_arr, Array & y_arr, int nxy, int ever_i=10) {
+template<class T>
+static void print_xy_as_numpy(T & x_arr, T & y_arr, int nxy, int ever_i=10) {
     int i = 0;
     std::cout << "x_arr = np.array([ ";
     for (i = 0; i < nxy; i++) {
         if (i % ever_i == 0) {
             if ( (i != nxy - 1) && i != 0 )
+                std::cout << ", " << x_arr[i];
+            else if (i > 0)
                 std::cout << ", " << x_arr[i];
             else
                 std::cout << x_arr[i];
@@ -436,6 +442,8 @@ static void print_xy_as_numpy(Array & x_arr, Array & y_arr, int nxy, int ever_i=
         if (i % ever_i == 0){
             if ( (i != nxy - 1) && i != 0 )
                 std::cout << ", " << y_arr[i];
+            else if (i > 0)
+                std::cout << ", " << y_arr[i];
             else
                 std::cout << y_arr[i];
         }
@@ -445,7 +453,8 @@ static void print_xy_as_numpy(Array & x_arr, Array & y_arr, int nxy, int ever_i=
     std::cout << "plt.loglog(x_arr, y_arr, ls='--', label='afg')" << "\n";
     std::cout << "\n";
 }
-static void print_x_as_numpy(Array & x_arr, int ever_i, std::string name="x_arr", std::string label="") {
+template<class T>
+static void print_x_as_numpy(T & x_arr, int ever_i, std::string name="x_arr", std::string label="") {
     int i = 0;
     if (!label.empty()){
         std::cout << label << "\n";

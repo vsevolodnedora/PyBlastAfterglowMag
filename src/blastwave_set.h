@@ -16,6 +16,7 @@
 #include "synchrotron_an.h"
 
 #include "magnetar.h"
+//#include "pulsar_wind_nebula.h"
 #include "blastwave_base.h"
 #include "blastwave_rad.h"
 #include "blastwave_dyn.h"
@@ -364,7 +365,6 @@ private:
     };
 };
 
-
 /*
  * Class to hold blastwaves with the same angular coordinate (shells of the same layer)
  * Here the velocity distribution, relative position and photosphere can be found.
@@ -381,14 +381,17 @@ class CumulativeShell{
     std::vector<size_t> m_idxs0;
     std::vector<size_t> idx_tau_eq1;
     Vector m_rho;
+    Vector m_beta;
     Vector m_radii_init;
-    Vector m_radii_sorted;
+//    Vector m_radii_sorted;
     Vector m_dtau;
     Vector m_dtau_cum;
     VecVector m_shell_data;
     size_t m_tarr_size;
     const Array m_t_grid;
     bool do_collision;
+    double total_mass;
+    double mass_averaged_beta;
 public:
     size_t m_nshells;
     size_t n_active_shells;
@@ -409,9 +412,10 @@ public:
 
         m_rho.resize(nshells, 0.0);
         m_radii_init.resize(nshells, std::numeric_limits<double>::max());
-        m_radii_sorted.resize(nshells, std::numeric_limits<double>::max());
+//        m_radii_sorted.resize(nshells, std::numeric_limits<double>::max());
         m_dtau.resize(nshells, 0.0);
         m_dtau_cum.resize(nshells, 0.0);
+        m_beta.resize(nshells, 0.0);
 //        m_shell_data.resize(m_nshells);
 //        for (auto arr:)
         m_idxs.resize(nshells, nshells-1); // fill with last value (if not active)
@@ -428,10 +432,16 @@ public:
 
 
     }
+
+
 //    ~CumulativeShell(){ delete p_colsolve; }
     Vector & getSortedRadii(){return m_radii_init;}
 //    std::vector<size_t> & getIdx(){return m_idxs;}
     inline double getR(size_t i){return m_radii_init[m_idxs[i]];}
+    inline Vector & getRvec(){return m_radii_init; }
+    inline Vector & getBetaVec(){return m_beta; }
+    inline Vector & getRhoVec(){return m_rho; }
+    inline Vector & getTauVec(){return m_dtau; }
     std::unique_ptr<RadBlastWave> & getBW(size_t ish){
         if (p_bws_ej.empty()){
             (*p_log)(LOG_ERR, AT) << " shell does not contain blast waves\n";
@@ -1510,10 +1520,11 @@ public:
     /// Evaluate the radial extend of a velocity shell. Assume ordered shells. Assumes sorted shells
     void evalShellOptDepth(  const double * Y ){
 
-        double kappa_i = 5.e50; // bw->getPars()->kappa0; // TODO!
+        double kappa_i = 5.; // bw->getPars()->kappa0; // TODO!
 
         double r_i=0., r_ip1=0., dr_i = 0., m_i=0., m2_i=0., m_ip1=0.,
                 m2_ip1=0., vol_i=0., rho_i=0., dtau_i=0., tau_tot=0.;
+
 
         /// if there is one shell we cannot have the shell width that comes from shell separation.
         if (n_active_shells == 1){
@@ -1562,9 +1573,15 @@ public:
                 exit(1);
             }
             m_dtau[ii] = dtau_i;
+
+            ///store also velocity
+            m_beta[ii] = EQS::BetFromMom( Y[nextbw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+
         }
 //        (*p_log)(LOG_INFO,AT)<<" optical depth is evaluated. Total tau="<<tau_tot<<"\n";
-
+//        print_xy_as_numpy<Vector>(m_radii_init,m_rho,m_rho.size(),1);
+//        std::cout << " rho_ave="<<getRho(Y)<<"\n";
+//        std::cout << " m_tot="<<getMass(Y)<<"\n";
 
         /// based on where tau = 1 get the photosphere radius, i.e., in which shell is the photosphere
         double tmp_tau = 0;
@@ -1654,6 +1671,39 @@ public:
 //                tau_out+=tau_out_i ;
 
 
+    }
+
+    /// Evaluate shell total mass, volume, density
+    /// next three functions compute mass, volume and average density of the entire shell
+    double getMass(const double * Y_){
+        double mtot = 0.;
+        for (size_t ii=0; ii<n_active_shells; ++ii){
+            size_t i_idx = m_idxs[ii];
+            double m2 = Y_[p_bws_ej[i_idx]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
+            double m0 = p_bws_ej[i_idx]->getPars()->M0;
+            double m2plus0 = (1. + m2) * m0;
+            mtot+=m2plus0;
+        }
+        if (!std::isfinite(mtot) || (mtot < 0)){
+            (*p_log)(LOG_ERR,AT) << "mtot is nan or < 0; mtot="<<mtot<<"\n";
+            exit(1);
+        }
+        return mtot;
+    }
+    double getVolume(const double * Y){
+        double r0 = Y[p_bws_ej[ m_idxs[0] ]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+        double r1 = Y[p_bws_ej[ m_idxs[n_active_shells-1] ]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+        if ((r0 >= r1)||(r0==0)||(r1==0)){
+            (*p_log)(LOG_ERR,AT)<<" r0 > r1. in the shell; r0="<<r0<<" r1="<<r1<<"\n";
+            exit(1);
+        }
+        double delta = r1-r0;
+        double volume = (4./3.) * CGS::pi * (r1*r1*r1 - r0*r0*r0) / p_bws_ej[ m_idxs[0] ]->getPars()->ncells;
+    }
+    double getRho(const double * Y){
+        double mtot = getMass(Y);
+        double volume = getVolume(Y);
+        return mtot / volume;
     }
 
 #if 0
@@ -2239,12 +2289,13 @@ class EvolveODEsystem{
                 std::unique_ptr<Magnetar> & p_magnetar,
                 std::unique_ptr<GRB> & p_grb,
                 std::unique_ptr<Ejecta> & p_ej,
+                std::unique_ptr<PWNset> & p_ej_pwn,
 //                std::vector<std::unique_ptr<RadBlastWave>> & p_bws_jet,
 //                std::vector<std::unique_ptr<CumulativeShell>> & p_ej,
 //                bool run_magnetar, bool run_jet_bws, bool run_ej_bws,
                 Array & t_grid
         ) :
-        p_magnetar(p_magnetar), p_grb(p_grb), p_ej(p_ej),
+        p_magnetar(p_magnetar), p_grb(p_grb), p_ej(p_ej), p_ej_pwn(p_ej_pwn),
 //            run_magnetar(run_magnetar), run_jet_bws(run_jet_bws), run_ej_bws(run_ej_bws),
             t_grid(t_grid){
 //            if (!p_bws_jet.empty()) {
@@ -2283,6 +2334,7 @@ class EvolveODEsystem{
         }
         Array & t_grid;
         std::unique_ptr<Magnetar> & p_magnetar;
+        std::unique_ptr<PWNset> & p_ej_pwn;
 //        std::vector<std::unique_ptr<RadBlastWave>> & p_bws_jet;
 //        std::vector<std::unique_ptr<CumulativeShell>> & p_ej;
         std::unique_ptr<GRB> & p_grb;
@@ -2341,13 +2393,14 @@ public:
     EvolveODEsystem(std::unique_ptr<Magnetar> & p_mag,
                     std::unique_ptr<GRB> & p_grb,//std::vector<std::unique_ptr<RadBlastWave>> & p_bws_jet,
                     std::unique_ptr<Ejecta> & p_ej,//std::vector<std::unique_ptr<CumulativeShell>> & p_ej,
+                    std::unique_ptr<PWNset> & p_ej_pwn,
 //                    bool run_magnetar,
                     Array & t_grid,
 //                  size_t n_shells_j, size_t n_shells_ej, size_t n_layers_j, size_t n_layers_ej,
                     const Integrators::METHODS integrator,
                     int loglevel
     ){
-        p_pars = new Pars(p_mag, p_grb, p_ej, t_grid);
+        p_pars = new Pars(p_mag, p_grb, p_ej, p_ej_pwn, t_grid);
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "EvolveODEsystem");
 //        p_pars->n_layers_j  = run_jet_bws ? n_layers_j : 0;
 //        p_pars->n_layers_ej = run_ej_bws ? n_layers_ej : 0;
@@ -2357,11 +2410,12 @@ public:
 
         // allocate memory for the IC and solution
 //        p_pars->n_j_bws =
-        p_pars->n_tot_eqs = (int)p_mag->getNeq() + (int)p_grb->getNeq() + (int)p_ej->getNeq();
+        p_pars->n_tot_eqs = (int)p_mag->getNeq() + (int)p_grb->getNeq() + (int)p_ej->getNeq() + (int)p_ej_pwn->getNeq();
         (*p_log)(LOG_INFO,AT) << " ODE will solve"
                                         << " N_mag="<<p_mag->getNeq()
                                         << " N_grb="<<p_grb->getNeq()
                                         << " N_ej="<<p_ej->getNeq()
+                                        << " N_ej_pwn="<<p_ej_pwn->getNeq()
                                         << " (total " << p_pars->n_tot_eqs << ") equations. \n";
         m_InitData = new double [ p_pars->n_tot_eqs ];
         m_CurSol   = new double [ p_pars->n_tot_eqs ];
@@ -2447,13 +2501,13 @@ public:
     /// fill the 'm_InitData' - vector of initial conditions for all blast waves
     void setInitialConditions( const double tb0 ){
         size_t ii = 0;
-        // ***************************************
+        // ***********| M A G N E T A R |***********
         if (p_pars->p_magnetar->run_magnetar){
             auto & magnetar = p_pars->p_magnetar;
             magnetar->setInitConditions(m_InitData, ii);
             ii += magnetar->getNeq();
         }
-        // ***************************************
+        // ***********| G R B |********
         if (p_pars->p_grb->run_jet_bws) {
             auto & jet_bws = p_pars->p_grb->getBWs();
             for (size_t il = 0; il < jet_bws.size(); il++) {
@@ -2467,26 +2521,70 @@ public:
             }
             double jet_extend = jet_bws[jet_bws.size()-1]->getPars()->ctheta0; // UNUSED
         }
+        // ***********| ????? |********
+        /// get indexes of sorted (with respect to the radius) shells
         if ((p_pars->p_grb->run_jet_bws)&&(p_pars->p_ej->run_ej_bws))
             setRelativePositions();
-        /// get indexes of sorted (with respect to the radius) shells
-        // ***************************************
+
+
+        // ***********| E J E C T A |***********
         if (p_pars->p_ej->run_ej_bws) {
-            auto & ej_bws = p_pars->p_ej->getShells();
-            for (size_t il=0; il<ej_bws.size(); il++){
-                for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++){
+            auto &ej_bws = p_pars->p_ej->getShells();
+            for (size_t il = 0; il < ej_bws.size(); il++) {
+                for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
                     ej_bws[il]->getBW(ish)->setInitConditions(m_InitData, ii);
                     ii += ej_bws[il]->getBW(ish)->getNeq();
                 }
             }
-//            for (size_t il = 0; il < p_pars->n_ej_bws; il++) {
-//                ej_bws[il]->setInitConditions(m_InitData, ii);
-//                ii += p_pars->n_eq_ej_bws;
-//            }
+            /// optical depth of the shell system
+            for (auto &cumShell: p_pars->p_ej->getShells()) {
+                size_t _i, _j;
+                cumShell->updateActiveShells();
+                if (!cumShell->checkIfActiveShellsOrdered(m_InitData, _i, _j)) {
+                    (*p_log)(LOG_ERR, AT) << " shells are initially not radially ordered: "
+                                          << " shell idx=" << _i << "overruns shell idx=" << _j << "\n";
+                    exit(1);
+//                    cumShell->updateSortActiveShells(m_InitData);
+                }
+                cumShell->evalShellThickness(m_InitData);
+                cumShell->evalShellOptDepth(m_InitData);
+            }
+            // PWN bound by ejecta
+            if (p_pars->p_ej_pwn->run_pwn){
+                auto & pwn = p_pars->p_ej_pwn;
+                auto & ej_pwns = p_pars->p_ej_pwn->getPWNs();
+                auto & cumShells = p_pars->p_ej->getShells();
+                for (size_t il=0; il<pwn->m_nlayers; il++){
+                    /// update the properties of the outer boundary that PWN faces
+                    ej_pwns[il]->updateOuterBoundary(
+                            cumShells[il]->getRvec(),
+                            cumShells[il]->getBetaVec(),
+                            cumShells[il]->getRhoVec(),
+                            cumShells[il]->getTauVec()
+                            );
+                    /// Set PWN ODE ICs
+                    double ldip = -1;
+                    double lacc = -1;
+                    if (p_pars->p_magnetar->run_magnetar) {
+                        (*p_log)(LOG_ERR,AT) << " not implemented\n";
+                        exit(1);
+                    }
+                    else if (p_pars->p_magnetar->load_magnetar){
+                        ldip = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ildip, tb0);
+                        lacc = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ilacc, tb0);
+                    } else{
+                        (*p_log)(LOG_ERR,AT) << " magnetar is neither loaded nor computed.\n";
+                        exit(1);
+                    }
+                    ej_pwns[il]->updateMagnetar(ldip, lacc);
+                    ej_pwns[il]->setInitConditions(m_InitData, ii);
+                    ii += ej_pwns[il]->getNeq();
+                }
+            }
         }
-        // ***************************************
 
-        // ***************************************
+
+        //************| S E T  I N I T I A L  V E C T O R |******
         for (size_t i = 0; i < p_pars->n_tot_eqs; i++){
             m_TmpSol[i] = m_InitData[i]; /// will be used for ix-1 solutions for restarts.
             m_CurSol[i] = m_InitData[i];
@@ -2497,25 +2595,12 @@ public:
             exit(1);
         }
         // **************************************
+
+        // **************************************
         if ( !isSolutionOk() ) {
             (*p_log)(LOG_ERR,AT)   << " Unphysical value in the initial data for evolution \n Exiting...";
             exit(1);
         }
-        // ***************************************
-        if (p_pars->p_ej->run_ej_bws) //  sort; get thickness; optical depth
-            for (auto & cumShell : p_pars->p_ej->getShells()) {
-                size_t _i, _j;
-                cumShell->updateActiveShells();
-                if (!cumShell->checkIfActiveShellsOrdered(m_InitData, _i, _j)){
-                    (*p_log)(LOG_ERR,AT) << " shells are initially not radially ordered: "
-                                                    << " shell idx="<<_i<<"overruns shell idx="<<_j<<"\n";
-                    exit(1);
-//                    cumShell->updateSortActiveShells(m_InitData);
-                }
-                cumShell->evalShellThickness(m_InitData);
-                cumShell->evalShellOptDepth(m_InitData);
-            }
-        // **************************************
         for (size_t i = 0; i < p_pars->n_tot_eqs; i++){
             if (!std::isfinite(m_InitData[i])){
                 (*p_log)(LOG_ERR,AT) << AT << "\n Nan in initial data: i="<<i<<" val="<<m_InitData[i]<<"\n";
@@ -2552,6 +2637,14 @@ public:
             auto &cumShell = p_pars->p_ej->getShells()[il];
             cumShell->evalShellThickness(m_TmpSol);
             cumShell->evalShellOptDepth(m_TmpSol);
+            /// update the shell properties for the PWN if needed
+            if (p_pars->p_ej_pwn->run_pwn){
+                auto & pwn = p_pars->p_ej_pwn->getPWN(il);
+                pwn->updateOuterBoundary(cumShell->getRvec(),
+                                         cumShell->getBetaVec(),
+                                         cumShell->getRhoVec(),
+                                         cumShell->getTauVec());
+            }
         }
         // solve the ODE system for x_i = x_{i-1} + dx
         p_Integrator->Integrate( dx );
@@ -2572,7 +2665,7 @@ public:
 //        std::cout << m_CurSol[p_pars->p_ej->getShells()[0]->getBW(0)->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2]<<"\n";
         /// TODO DEBUG: this helps when collisions are extremenly close to ofset the trunning back a bit
         double col_prec_fac = 1e-11;
-        if ((p_pars->p_ej->run_ej_bws) && (p_pars->p_ej->do_collision)){
+        if ( (p_pars->p_ej->run_ej_bws) && (p_pars->p_ej->do_collision) ){
             size_t n_unordered_layers = 0;
             std::vector<size_t> il_unordered{};
             double tcoll_min, rcoll_min;// = std::numeric_limits<double>::max();
@@ -2737,6 +2830,8 @@ public:
                             exit(1);
                         }
                     }
+#if 1
+                    /// check for nans anywhere
                     for (size_t il = 0; il < p_pars->p_ej->nlayers(); ++il){
                         auto &cumShell = p_pars->p_ej->getShells()[il];
                         for (size_t ish = 0; ish < cumShell->n_active_shells; ish++){
@@ -2752,6 +2847,7 @@ public:
                             }
                         }
                     }
+#endif
                     /// after shells collided put the outcome of the shell collision into ODE solver internal storage
                     p_Integrator->SetY(m_CurSol);
                     /// copy this solution into temporary storage for restarts ' m_TmpSol '
@@ -2787,6 +2883,14 @@ public:
                         auto &cumShell = p_pars->p_ej->getShells()[il];
                         cumShell->evalShellThickness(m_CurSol);
                         cumShell->evalShellOptDepth(m_CurSol);
+                        /// update the shell properties for the PWN if needed
+                        if (p_pars->p_ej_pwn->run_pwn){
+                            auto & pwn = p_pars->p_ej_pwn->getPWN(il);
+                            pwn->updateOuterBoundary(cumShell->getRvec(),
+                                                     cumShell->getBetaVec(),
+                                                     cumShell->getRhoVec(),
+                                                     cumShell->getTauVec());
+                        }
                     }
                     (*p_log)(LOG_INFO,AT)
                         <<"Trying to integrate after collision from trunning="<<trunning<<" to t[ix]="<<t_grid[ix]<<"\n";
@@ -2813,6 +2917,8 @@ public:
                                              <<"N="<<i_substeps<< " t[i]="<<t_grid[ix]<<" reached.\n";
                         (*p_log)(LOG_INFO,AT) << "============================================================== \n";
                     }
+#if 1
+                    /// check fo nans
                     for (size_t il = 0; il < p_pars->p_ej->nlayers(); ++il){
                         auto &cumShell = p_pars->p_ej->getShells()[il];
                         for (size_t ish = 0; ish < cumShell->n_active_shells; ish++){
@@ -2828,6 +2934,7 @@ public:
                             }
                         }
                     }
+#endif
                 }
             }
         }
@@ -2937,7 +3044,6 @@ private:
     }
     bool isThereATermination(){
 //        auto & magnetar = p_pars->p_magnetar;
-
         size_t ii = 0; bool is_ok = true;
         if (p_pars->p_grb->run_jet_bws) {
             auto & jet_bws = p_pars->p_grb->getBWs();
@@ -2954,7 +3060,6 @@ private:
                 ii += jet_bws[i]->getNeq();
             }
         }
-
         if (p_pars->p_ej->run_ej_bws) {
             auto & ej_bws = p_pars->p_ej->getShells();
             for (size_t il=0; il<ej_bws.size(); il++){
@@ -3114,6 +3219,20 @@ private:
 //                ii += p_pars->n_eq_ej_bws;
 //            }
         }
+        if (p_pars->p_ej_pwn->run_pwn) {
+            auto & pwns = p_pars->p_ej_pwn->getPWNs();
+            for (size_t il = 0; il < pwns.size(); ++il){
+                if (!pwns[il]->isSolutionOk(m_CurSol, ii)){
+                    (*p_log)(LOG_ERR,AT)  << " PWN bound by ejecta (il="<<il<<") "
+                                          //                           << " [ishell=" << jet_bws[i]->getPars()->ishell
+                                          //                           << " ilayer=" << jet_bws[i]->getPars()->ilayer
+                                          //                           << " ii_eq=" << jet_bws[i]->getPars()->ii_eq
+                                          << " \n";
+                    is_ok = false;
+                }
+                ii += pwns[il]->getNeq();
+            }
+        }
         return is_ok;
     }
     void insertSolution(size_t it){
@@ -3147,6 +3266,13 @@ private:
 //                ii += p_pars->n_eq_ej_bws;
 //            }
         }
+        if (p_pars->p_ej_pwn->run_pwn) {
+            auto & pwns = p_pars->p_ej_pwn->getPWNs();
+            for (auto & pwn : pwns){
+                pwn->insertSolution(m_CurSol, it, ii);
+                ii += pwn->getNeq();
+            }
+        }
     }
     void addOtherVariables(size_t it){
         if (p_pars->p_magnetar->run_magnetar) {
@@ -3167,7 +3293,12 @@ private:
                 }
             }
         }
-
+        if (p_pars->p_ej_pwn->run_pwn) {
+            auto & pwns = p_pars->p_ej_pwn->getPWNs();
+            for (auto & pwn : pwns){
+                pwn->addOtherVariables(it);
+            }
+        }
 
 //        for(size_t i = 0; i < p_pars->n_ej_bws; i++){
 //            p_pars->p_bws_ej[i]->addOtherVars( it );
@@ -3187,19 +3318,23 @@ private:
 
         /// advance magnetar to the next timestep
         size_t ii = 0;
-//        double dEsddt, dEpropdt;
-        double dEinj = 0;
+        double ldip = 0;
+        double lacc = 0;
         if (p_pars->p_magnetar->run_magnetar) {
             auto & magnetar = p_pars->p_magnetar;
-            magnetar->evaluateRhs(out_Y, ii, x, Y);
+            magnetar->evaluateRhsMag(out_Y, ii, x, Y);
 //            dEsddt = p_pars->p_magnetar->getLdip(x, Y, ii);
 //            dEpropdt = p_pars->p_magnetar->getLprop(x, Y, ii);
-            dEinj = p_pars->p_magnetar->getValInt(Magnetar::Q::iLtot, x);
+            ldip = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ildip, x);
+            lacc = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ilacc, x);
             ii += magnetar->getNeq();
         }
         else if (p_pars->p_magnetar->load_magnetar){
-            dEinj = p_pars->p_magnetar->getValInt(Magnetar::Q::iLtot, x);
+            ldip = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ildip, x);
+            lacc = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ilacc, x);
         }
+
+
 
         /// evaluate RHS for the jet (advance it to the next sub-step)
         if (p_pars->p_grb->run_jet_bws) {
@@ -3224,7 +3359,7 @@ private:
                 for(size_t ish=0; ish < ej_layers[il]->nBWs(); ish++) {
                     auto & ej_bw = ej_layers[il]->getBW(ish);
 //                    if (ej_bw->getPars()->end_evolution)
-                    ej_bw->getPars()->dEinjdt = dEinj;
+                    ej_bw->getPars()->dEinjdt = lacc + ldip;
                     if (ej_bw->getPars()->dEinjdt < 0){
                         ej_bw->getPars()->dEinjdt = 0.;
                         (*ej_bw->getPars()->p_log)(LOG_ERR,AT) << " wrong value of dEinjdt="<<ej_bw->getPars()->dEinjdt<<"\n";
@@ -3240,6 +3375,18 @@ private:
                                                      NULL,
                                                      p_pars->ix);
                     ii += ej_bw->getNeq();
+                }
+            }
+            // PWN bound by ejecta
+            if (p_pars->p_ej_pwn->run_pwn){
+                auto & pwn = p_pars->p_ej_pwn;
+                auto & ej_pwns = p_pars->p_ej_pwn->getPWNs();
+                auto & cumShells = p_pars->p_ej->getShells();
+                for (size_t il=0; il<pwn->m_nlayers; il++){
+                    /// Set PWN ODE ICs
+                    ej_pwns[il]->updateMagnetar(ldip, lacc);
+                    ej_pwns[il]->evaluateRhs(out_Y, ii, x, Y);
+                    ii += ej_pwns[il]->getNeq();
                 }
             }
 
@@ -3258,24 +3405,15 @@ private:
 //            }
         }
 
+
+
+
         // ****************************************
         // Place to add interaction between blast waves
         // ****************************************
 
     }
-    /// TODO add method for BW collision
-//    static void collision(const double * Y, std::unique_ptr<RadBlastWave> & jetPtr,
-//                          std::unique_ptr<RadBlastWave> & ejPtr, void *pars){
-//
-//        auto * p_pars = (struct Pars *) pars;
-//        // ii = il + nlayers * ish
-//        double gJ = Y[idx(jetPtr, pars) + DynRadBlastWave::Q_SOL::iGamma ]; //Gamma;
-////        double mJ=M2*M0 + M0;  double eJ=Eint2*M0;  double gAdiJ=gammaAdi;
-//        double gEJ= Y[idx(ejPtr, pars) + DynRadBlastWave::Q_SOL::iGamma ];//Gamma_ej;
-////        double mEJ=M2_ej*M0_ej+M0_ej; double eEJ=Eint2_ej*M0_ej; double gAdiEJ=gammaAdi_ej
-////        double i_gM=Gamma_ej; double i_mM=M2_ej*M0_ej+M2*M0; double i_eM=Eint2_ej*M0_ej;
-//        exit(1);
-//    }
+
 private:
     double * m_InitData{};
     double * m_CurSol{};

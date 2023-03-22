@@ -7,6 +7,8 @@
 
 #include "pch.h"
 #include "logger.h"
+#include "utils.h"
+#include "interpolators.h"
 
 class Magnetar_OLD{
     struct Pars{
@@ -314,7 +316,7 @@ public:
         size_t ia = findIndex(tb, m_tb_arr, m_tb_arr.size());
         size_t ib = ia + 1;
         /// interpolate the time in comobing frame that corresponds to the t_obs in observer frame
-//        double val = interpSegLin(ia, ib, tb, m_data[vname], m_tb_arr);
+//        double val = interpSegLin(ia, ib, tb, m_data[vname], m_mag_time);
         double val = interpSegLog(ia, ib, tb, m_data[vname], m_tb_arr);
         return val;
     }
@@ -370,7 +372,7 @@ class Magnetar{
     struct Pars{
 
     };
-    Array m_tb_arr;
+    Array m_mag_time;
     VecArray m_data{}; // container for the solution of the evolution
     std::unique_ptr<logger> p_log;
     std::unique_ptr<Pars> p_pars;
@@ -388,83 +390,109 @@ public:
         else
             return neq;
     }
-    enum Q_SOL { iomega };
+    enum Q_SOL {
+        iomega,
+    };
 
     /// All variables
     enum Q {
         // -- dynamics ---
-        itb, iOmega, iMdot, iRlc, iRmag, iRcorot, iFastness, iNdip, iNacc, iNgrav, iLdip, iLprop, iLtot
+        itb, iOmega, ildip, ilacc
+
     };
     std::vector<std::string> m_vnames{
-            "tburst", "omega", "mdot", "r_lc", "r_mag", "r_corot", "fastness", "n_dip", "n_acc", "n_grav", "ldip", "lprop", "ltot"
+            "tburst", "omega", "ildip", "ilacc"
     };
 //    static constexpr size_t NVALS = 1; // number of variables to save
     inline Array & operator[](unsigned ll){ return m_data[ll]; }
     inline double & operator()(size_t ivn, size_t ir){ return m_data[ivn][ir]; }
 
-    Magnetar( int loglevel ){// : m_tb_arr(t_grid) {
+    Magnetar( int loglevel ){// : m_mag_time(t_grid) {
         p_pars = std::make_unique<Pars>();
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "Magnetar");
     }
 
-    Array & getTbGrid() { return m_tb_arr; }
+    Array & getTbGrid() { return m_mag_time; }
     Array getTbGrid(size_t every_it) {
-        if ((every_it == 1)||(every_it==0)) return m_tb_arr;
+        if ((every_it == 1)||(every_it==0)) return m_mag_time;
         Vector tmp{};
-        for (size_t it = 0; it < m_tb_arr.size(); it = it + every_it){
-            tmp.push_back(m_tb_arr[it]);
+        for (size_t it = 0; it < m_mag_time.size(); it = it + every_it){
+            tmp.push_back(m_mag_time[it]);
         }
         Array tmp2 (tmp.data(), tmp.size());
         return std::move(tmp2);
     }
-    double getValInt(Q vname, double tb){
-        if (tb < m_tb_arr[0] or tb > m_tb_arr[m_tb_arr.size()-1])
+    double getMagValInt(Q vname, double tb){
+//        std::cerr << m_data[0][0] << " " << m_data[1][0] << " " << m_data[2][0] << " " << m_data[3][0] << "\n";
+        if (!is_mag_pars_set || !load_magnetar){
+            (*p_log)(LOG_ERR,AT) << " magnetar is not set/loaded\n";
+            exit(1);
+        }
+        if (tb < m_mag_time[0] or tb > m_mag_time[m_mag_time.size() - 1])
             return 0.;
-        if (tb == m_tb_arr[0])
+        if (tb == m_mag_time[0])
             return m_data[vname][0];
-        if (tb == m_tb_arr[m_tb_arr.size()-1])
-            return m_data[vname][m_tb_arr.size()-1];
+        if (tb == m_mag_time[m_mag_time.size() - 1])
+            return m_data[vname][m_mag_time.size() - 1];
         /// interpolate value
-        size_t ia = findIndex(tb, m_tb_arr, m_tb_arr.size());
+        size_t ia = findIndex(tb, m_mag_time, m_mag_time.size());
         size_t ib = ia + 1;
         /// interpolate the time in comobing frame that corresponds to the t_obs in observer frame
-//        double val = interpSegLin(ia, ib, tb, m_data[vname], m_tb_arr);
-        double val = interpSegLog(ia, ib, tb, m_tb_arr, m_data[vname]);
+//        double val = interpSegLin(ia, ib, tb, m_data[vname], m_mag_time);
+        if ((m_data[vname][ia] == 0.) || (m_data[vname][ib]==0.))
+            return 0.;
+        double val = interpSegLog(ia, ib, tb, m_mag_time, m_data[vname]);
+        if (!std::isfinite(val)){
+            (*p_log)(LOG_ERR,AT) << " nan in interpolated value\n";
+            std::cout << m_mag_time << "\n";
+            std::cout << m_data[vname] << "\n";
+            exit(1);
+        }
         return val;
     }
 
     /// --------- LOAD MAGNETAR -------------
 
-    void loadEvolution(Q vname, Vector values){
+    void loadMagnetarEvolution(Q vname, Vector values){
         load_magnetar = true;
         // *************************************
-        if ((m_tb_arr.size() == 0) || (m_tb_arr.size() != values.size()))
-            m_tb_arr.resize( values.size(), 0.0 );
+        if ((m_mag_time.size() == 0) || (m_mag_time.size() != values.size()))
+            m_mag_time.resize(values.size(), 0.0 );
         // *************************************
-        m_data.resize(m_vnames.size());
-        for (auto & arr : m_data)
-            arr.resize( m_tb_arr.size() );
+        if (m_data.empty()) {
+            m_data.resize(m_vnames.size());
+            for (auto &arr: m_data)
+                arr.resize(m_mag_time.size());
+        }
         // **************************************
         mth = InterpBase::select("linear",p_log);
         // **************************************
         if (vname == Q::itb)
-            vecToArr(values, m_tb_arr);
+            vecToArr(values, m_mag_time);
         else
             vecToArr(values,m_data[vname]);
         is_mag_pars_set = true;
+//        std::cerr << m_data[0][0] << " " << m_data[1][0] << " " << m_data[2][0] << " " << m_data[3][0] << "\n";
     }
 
     /// ------- EVOLVE MAGNETAR -------------
+    void setPars(StrDbMap & pars, StrStrMap & opts){
+        (*p_log)(LOG_ERR,AT) << " not implemented\n";
+        exit(1);
+    }
+#if 0
+    void setPars(StrDbMap & pars, StrStrMap & opts){
 
-    void setPars(Array & t_arr, StrDbMap & pars, StrStrMap & opts){
         run_magnetar = getBoolOpt("run_magnetar", opts, AT,p_log, false, true);
+        load_magnetar = getBoolOpt("load_magnetar", opts, AT,p_log, false, true);
+
         if (!run_magnetar)
             return;
-        m_tb_arr = t_arr; // TODO May Not Work. But mangetar needs its own time array...
+        m_mag_time = t_arr; // TODO May Not Work. But mangetar needs its own time array...
         // *************************************
         m_data.resize(m_vnames.size());
         for (auto & arr : m_data)
-            arr.resize( m_tb_arr.size() );
+            arr.resize( m_mag_time.size() );
         // **************************************
         double ns_mass = getDoublePar("NS_mass0",pars,AT,p_log,-1,true);
         ns_mass *= CGS::solar_m; // Msun -> g
@@ -588,16 +616,17 @@ public:
         // *************************************
         is_mag_pars_set = true;
     }
-
+#endif
     void setInitConditions( double * arr, size_t i ) {
-
     }
 
     void insertSolution( const double * sol, size_t it, size_t i ){
 
     }
+    void evaluateRhsMag( double * out_Y, size_t i, double x, double const * Y ){
 
-    void evaluateRhs( double * out_Y, size_t i, double x, double const * Y ){
+    }
+    void evaluateRhsPWN( double * out_Y, size_t i, double x, double const * Y ){
 
     }
 
@@ -615,5 +644,233 @@ public:
 
 };
 
+
+class PWNmodel{
+    struct Pars{
+        // --------------
+        size_t iieq{};
+        double radius_w0{};
+        double vel_w0{};
+        // ---------------
+        double eps_e{};
+        double eps_mag{};
+        double eps_th{};
+        // --------------
+        double rho_ej_curr{};
+        double tau_ej_curr{};
+        double r_ej_curr{};
+        double v_ej_curr{};
+        // -------------
+        double curr_ldip{};
+        double curr_lacc{};
+    };
+    Array m_tb_arr;
+    VecArray m_data{}; // container for the solution of the evolution
+    std::unique_ptr<logger> p_log;
+    std::unique_ptr<Pars> p_pars;
+public:
+    bool run_pwn = false;
+    /// RHS pars
+    const static int neq = 2;
+    std::vector<std::string> vars {  };
+    size_t getNeq() const {
+        if (!run_pwn)
+            return 0;
+        else
+            return neq;
+    }
+    enum Q_SOL {
+        iRw, // Wind radius (PWN radius)
+        iEnb // PWN total energy
+    };
+
+    /// All variables
+    enum Q {
+        // -- dynamics ---
+        itb, iRwind, iEnebula,
+
+    };
+    std::vector<std::string> m_vnames{
+            "tburst", "Rwing", "Enebula"
+    };
+//    static constexpr size_t NVALS = 1; // number of variables to save
+    inline Array & operator[](unsigned ll){ return m_data[ll]; }
+    inline double & operator()(size_t ivn, size_t ir){ return m_data[ivn][ir]; }
+
+    PWNmodel( Array & tarr, int loglevel ) : m_tb_arr(tarr) {// : m_mag_time(t_grid) {
+        run_pwn = true;
+        p_pars = std::make_unique<Pars>();
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "PWN");
+        // ------------
+        m_data.resize(m_vnames.size());
+        for (auto & arr : m_data)
+            arr.resize(tarr.size(), 0.0);
+    }
+
+    Array & getTbGrid() { return m_tb_arr; }
+    Array getTbGrid(size_t every_it) {
+        if ((every_it == 1)||(every_it==0)) return m_tb_arr;
+        Vector tmp{};
+        for (size_t it = 0; it < m_tb_arr.size(); it = it + every_it){
+            tmp.push_back(m_tb_arr[it]);
+        }
+        Array tmp2 (tmp.data(), tmp.size());
+        return std::move(tmp2);
+    }
+
+    void updateOuterBoundary(Vector & r, Vector & beta, Vector & rho, Vector & tau){
+        if (r[0] < 0 || beta[0] < 0 || rho[0] < 0 || tau[0] < 0){
+            (*p_log)(LOG_ERR,AT) << " wrong value\n";
+            exit(1);
+        }
+        p_pars->rho_ej_curr = rho[0];
+        p_pars->tau_ej_curr = tau[0];
+        p_pars->r_ej_curr = r[0];
+        p_pars->v_ej_curr = beta[0] * CGS::c;
+//        std::cout << rho[0] << " "
+//                  << tau[0] << " "
+//                  << r[0] << " "
+//                  << beta[0] * CGS::c
+//                  << "\n";
+//        int x = 1;
+    }
+
+    void updateMagnetar(double ldip, double lacc){
+        if (ldip < 0 or !std::isfinite(ldip)){
+            (*p_log)(LOG_ERR,AT) << " ldip < 0 or nan; ldip="<<ldip<<"\n";
+        }
+        if (lacc < 0 or !std::isfinite(lacc)){
+            (*p_log)(LOG_ERR,AT) << " lacc < 0 or nan; lacc="<<lacc<<"\n";
+        }
+        // ----------------------
+        p_pars->curr_ldip = ldip;
+        p_pars->curr_lacc = lacc;
+    }
+
+    /// ------- PWN -------------
+    void setPars(StrDbMap & pars, StrStrMap & opts, size_t iieq){
+        double radius_wind_0 = getDoublePar("Rw0",pars,AT,p_log,-1,true); // PWN radius at t=0; [km]
+        radius_wind_0 *= (1000. * 100); // km -> cm
+        double vel_wind0 = radius_wind_0 / m_tb_arr[0]; // initial wind velocity
+        double eps_e = getDoublePar("eps_e",pars,AT,p_log,-1,true); // electron acceleration efficiency
+        double eps_mag = getDoublePar("eps_mag",pars,AT,p_log,-1,true); // magnetic field efficiency
+        double epsth0 = getDoublePar("eps_th",pars,AT,p_log,-1,true); // initial absorption fraction
+        // **************************************
+        p_pars->radius_w0 = radius_wind_0;
+        p_pars->vel_w0 = vel_wind0;
+        p_pars->eps_e = eps_e;
+        p_pars->eps_mag = eps_mag;
+        p_pars->eps_th = epsth0; //0=all thermal escape, 1.0=all radiation absorbed
+        p_pars->iieq = iieq;
+        //
+    }
+
+    std::unique_ptr<Pars> & getPars(){ return p_pars; }
+
+    void setInitConditions( double * arr, size_t i ) {
+        arr[i + Q_SOL::iRw] = p_pars->radius_w0;
+        arr[i + Q_SOL::iEnb] = p_pars->eps_e * p_pars->curr_ldip
+                             + p_pars->eps_th * p_pars->curr_lacc;
+    }
+
+    void insertSolution( const double * sol, size_t it, size_t i ){
+
+        m_data[Q::iRwind][it] = sol[i+Q_SOL::iRw];
+        m_data[Q::iEnebula][it] = sol[i+Q_SOL::iEnb];
+    }
+
+    void evaluateRhs( double * out_Y, size_t i, double x, double const * Y ){
+        double r_w = Y[i + Q_SOL::iRw];
+        double e_nb = Y[i + Q_SOL::iEnb];
+        // ******************************************
+        double rho_ej = p_pars->rho_ej_curr; // current ejecta density (shell?)
+        double tau_ej = p_pars->tau_ej_curr; // current ejecta density (shell?)
+        double r_ej = p_pars->r_ej_curr; // current ejecta density (shell?)
+        double v_ej = p_pars->v_ej_curr; // current ejecta density (shell?)
+        double ldip = p_pars->curr_ldip;
+        double lacc = p_pars->curr_lacc;
+        // ******************************************
+        // (see Eq. 28 in Kashiyama+16)
+        double v_w = std::sqrt( (7./6.) * e_nb / (4. * CGS::pi * r_w*r_w*r_w * rho_ej) );
+        // if (v_w > pow((2 * l_disk(t) * r_w / (3 - delta) / m_ej),1./3.)) # TODO finish this
+        if (v_w > v_ej){
+//            std::cerr << AT << "\t" << "v_w > v_ej\n";
+            v_w = v_ej;
+        }
+
+        // compute nebula energy \int(Lem * min(1, tau_T^ej * V_ej / c))dt Eq.[28] in Eq. 28 in Kashiyama+16
+        double dEnbdt = 0;
+        if (tau_ej * (r_w / r_ej) > CGS::c / v_w){
+            dEnbdt = (p_pars->eps_e * p_pars->curr_ldip
+                   + p_pars->eps_th * p_pars->curr_lacc);
+        }
+        else{
+            dEnbdt = (tau_ej * (r_w / r_ej) * (v_w/CGS::c)
+                      * p_pars->eps_e * p_pars->curr_ldip
+                      + p_pars->eps_th * p_pars->curr_lacc);
+        }
+
+
+        /// Using pressure equilibrium, Pmag = Prad; Following approach (see Eq. 28 in Kashiyama+16)
+        out_Y[i + Q_SOL::iRw] = (v_w + r_w / x);
+        out_Y[i + Q_SOL::iEnb] = dEnbdt;
+    }
+
+    void addOtherVariables( size_t it ){
+
+    }
+
+    bool isSolutionOk( double * sol, size_t i ){
+        bool is_ok = true;
+        if (sol[i+Q_SOL::iEnb] < 0){
+            (*p_log)(LOG_ERR,AT)<<"Wrong Enb="<<sol[i+Q_SOL::iEnb]<<"\n";
+            is_ok = false;
+        }
+        return is_ok;
+    }
+
+    void applyUnits( double * sol, size_t i ){
+
+    }
+
+};
+
+
+class PWNset{
+    std::vector<std::unique_ptr<PWNmodel>> p_pwns{};
+    std::unique_ptr<logger> p_log;
+    int loglevel;
+public:
+    bool run_pwn = false;
+    std::vector<std::unique_ptr<PWNmodel>> & getPWNs(){return p_pwns;}
+    std::unique_ptr<PWNmodel> & getPWN(size_t i){return p_pwns[i];}
+    size_t m_nlayers = 0;
+    size_t getNeq(){
+        if (!run_pwn){
+            return 0;
+        }
+        if (p_pwns.empty()){
+            (*p_log)(LOG_ERR,AT) << "PWN is not initialized\n";
+            exit(1);
+        }
+        size_t neq = m_nlayers * p_pwns[0]->getNeq();
+        return neq;
+    };
+    void setPWNpars(Array & tarr, StrDbMap pars, StrStrMap opts, size_t ii_eq, size_t n_layers){
+        run_pwn = getBoolOpt("run_pwn", opts, AT,p_log, false, true);
+        if (!run_pwn)
+            return;
+        m_nlayers = n_layers;
+        for(size_t il = 0; il < n_layers; il++) {
+            p_pwns.push_back( std::make_unique<PWNmodel>( tarr, loglevel ) );
+            p_pwns[il]->setPars(pars, opts, ii_eq);
+            ii_eq += p_pwns[il]->getNeq();
+        }
+    }
+    PWNset(int loglevel) : loglevel(loglevel){
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "PWNset");
+
+    }
+};
 
 #endif //SRC_MAGNETAR_H

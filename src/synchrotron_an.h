@@ -1823,7 +1823,7 @@ public:
 //        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "SynchrotronNumeric");
 //        p_pars = std::make_unique<Pars>();
 //    }
-//    void setPars(StrDbMap pars, StrStrMap sets){
+//    void setMagPars(StrDbMap pars, StrStrMap sets){
 ////        p_pars->f1_ssc =
 //    }
 //};
@@ -1868,7 +1868,7 @@ public:
 //        }
 //    }
 //
-//    void setPars(std::unordered_map<std::string,double> & pars, std::unordered_map<std::string,std::string> & opts){
+//    void setMagPars(std::unordered_map<std::string,double> & pars, std::unordered_map<std::string,std::string> & opts){
 //        // set parameters
 //
 //    }

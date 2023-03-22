@@ -40,33 +40,6 @@ integrator = DOP853E
 
 # --------------------------- END ---------------------------
 #
-# ------------------------ Magnetar -------------------------
-
-* Parameters
-
-* Settings
-
-run_magnetar = no
-load_magnetar = no
-save_magnetar = no
-
-# --------------------------- END ---------------------------
-#
-# ---------------------- GRB afterglow ----------------------
-
-* Parameters
-
-* Settings
-
-run_jet_bws = no
-save_j_dynamics = no
-do_j_ele = no
-do_j_spec = no
-do_j_lc = no
-do_j_skymap = no
-
-# --------------------------- END ---------------------------
-#
 # ----------------------- kN afterglow ----------------------
 
 * Parameters

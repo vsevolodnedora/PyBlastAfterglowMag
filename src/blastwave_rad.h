@@ -1022,7 +1022,7 @@ public:
                     (*p_log)(LOG_ERR,AT) << " R <= 0. Extend R grid (increasing R0, R1). "
                               << " Current R grid us ["
                               << m_data[BlastWaveBase::Q::iR][0] << ", "
-                              << m_data[BlastWaveBase::Q::iR][m_tb_arr.size() - 1] << "] "
+                              << m_data[BlastWaveBase::Q::iR][m_mag_time.size() - 1] << "] "
                               << "and tobs arr ["
                               << ttobs[0] << ", " << ttobs[p_pars->nr - 1]
                               << "] while the requried obs_time=" << p_pars->t_obs
@@ -1279,7 +1279,7 @@ public:
 //                std::cerr << " R <= 0. Extend R grid (increasing R0, R1). "
 //                          << " Current R grid us ["
 //                          << m_data[BlastWaveBase::Q::iR][0] << ", "
-//                          << m_data[BlastWaveBase::Q::iR][m_tb_arr.size()-1] << "] "
+//                          << m_data[BlastWaveBase::Q::iR][m_mag_time.size()-1] << "] "
 //                          << "and tobs arr ["
 //                          << ttobs[0] << ", "<< ttobs[p_pars->nr-1]
 //                          << "] while the requried obs_time=" << p_eats->t_obs
@@ -1311,7 +1311,7 @@ public:
                         (*p_log)(LOG_ERR,AT) << " R <= 0. Extend R grid (increasing R0, R1). "
                                   << " Current R grid us ["
                                   << m_data[BlastWaveBase::Q::iR][0] << ", "
-                                  << m_data[BlastWaveBase::Q::iR][m_tb_arr.size() - 1] << "] "
+                                  << m_data[BlastWaveBase::Q::iR][m_mag_time.size() - 1] << "] "
                                   << "and tobs arr ["
                                   << ttobs[0] << ", " << ttobs[p_pars->nr - 1]
                                   << "] while the requried obs_time=" << p_pars->t_obs
@@ -1966,8 +1966,8 @@ public:
         }
         else if (every_it == 1){
 //            t_arr = getTbGrid();
-//            out_em.resize(m_tb_arr.size());
-//            out_abs.resize(m_tb_arr.size());
+//            out_em.resize(m_mag_time.size());
+//            out_abs.resize(m_mag_time.size());
             t_arr = m_tb_arr;
             for(auto & arr : p_syn->m_names_)
                 arr.resize( m_tb_arr.size() );

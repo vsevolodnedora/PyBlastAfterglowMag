@@ -12,9 +12,9 @@
 
 * Parameters
 
-tb0 = 1.e1
-tb1 = 1e11
-ntb = 10000
+tb0 = 1.e-5
+tb1 = 5.e8
+ntb = 5000
 rtol = 1.e-11
 nmax = 1000
 
@@ -36,7 +36,7 @@ lc_use_freq_to_time = no
 skymap_freqs = array 1e9 1e18
 skymap_times = array logspace 8.e5 2e9 50
 
-integrator = DOP853
+integrator = DOP853E
 method_eats = piece-wise # piece-wise
 
 # --------------------------- END ---------------------------
@@ -45,7 +45,36 @@ method_eats = piece-wise # piece-wise
 
 * Parameters
 
+NS_mass0 = 1.4          # NS mass in [Msun]
+NS_radius0 = 11.        # NS radius in [kM]
+NS_I0 = -1.             # NS moment of inertia [cgs]
+NS_eps0 = 0.1           # NS ellipticity (for GWs only)
+NS_crit_beta = 0.27     # bar-mode instability criterion
+NS_B0 = 5.e15           # NS magnetic field [Gauss]
+NS_alpha0 = 0.2         # NS inclination angle in [rad].
+NS_sigma_cond = 1.e24   # NS Dominant conductivity [1/s]
+NS_char_length = 1.e5   # NS char. length scale of the MF [cm]
+NS_char_edens = 1.e35   # NS char. electron density [g/cm^3].
+
+Disk_circ_R0 = 1000.    # Disk circularization radius [km]
+Disk_cent_T0 = 1.e6     # Disk initial central temperature in [K]
+Disk_R0 = 5000.         # Disk radius (for gompertz/rrayand)
+Disk_alpha = 0.1        # Disk viscosity (for gompertz/rrayand)
+Disk_cs = -1            # Disk sound speed (for gompertz)
+Disk_H/R0 = 0.3         # Disk aspect ratio (H/R) (for rrayand)
+Disk_mdot0 = -1         # Disk accretion rate [g/s] (for given)
+Disk_mass0 = 1.e-2      # Disk mass [Msun] (for disk0)
+Disk_acc_pl = 1.2       # Disk power-law index for accretion rate (pl)
+Disk_acc_exp = 0.44     # Disk exponent index for accretion rate (exp)
+
+save_mag_every_it = 10
+
 * Settings
+
+method_tvis = menou     # menou gompertz rrayand
+method_mdot0 = given    # given disk0
+method_disk_acc = pl    # pl exp
+method_intep = linear   #
 
 run_magnetar = no
 load_magnetar = yes
@@ -56,21 +85,18 @@ fname_mag = magnetar.h5
 
 # --------------------------- END ---------------------------
 #
-# --------------------------- PWN ---------------------------
+# ---------------------- GRB afterglow ----------------------
 
 * Parameters
 
-eps_e = 0.1
-eps_mag = 0.1
-eps_th = 0.1
-Rw0 = 120000000. # 100*12*1000*100
-save_pwn_every_it = 1
-
 * Settings
 
-run_pwn = yes
-save_pwn = yes
-fname_pwn = pwn.h5
+run_jet_bws = no
+save_j_dynamics = no
+do_j_ele = no
+do_j_spec = no
+do_j_lc = no
+do_j_skymap = no
 
 # --------------------------- END ---------------------------
 #

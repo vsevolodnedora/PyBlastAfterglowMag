@@ -40,17 +40,6 @@ integrator = DOP853E
 
 # --------------------------- END ---------------------------
 #
-# ------------------------ Magnetar -------------------------
-
-* Parameters
-
-* Settings
-
-run_magnetar = no
-save_magnetar = no
-
-# --------------------------- END ---------------------------
-#
 # ---------------------- GRB afterglow ----------------------
 
 * Parameters
@@ -119,25 +108,5 @@ emissivity = em
 absorption = abs
 method_comp_mode = observFlux   # "comovSpec"
 method_quad = CADRE
-
-# --------------------------- END ---------------------------
-#
-# ----------------------- kN afterglow ----------------------
-
-* Parameters
-
-* Settings
-
-method_eats = piece-wise
-
-run_ejecta_bws = no
-save_ej_dynamics = no
-do_ej_ele = no
-do_ej_spec = no
-do_ej_lc = no
-do_ej_skymap = no
-
-type = numeric
-fpath_ejecta_id = corr_vel_inf_theta.h5
 
 # --------------------------- END ---------------------------

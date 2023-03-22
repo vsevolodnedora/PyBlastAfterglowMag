@@ -30,25 +30,13 @@ theta_obs = 0.3752
 * Settings
 
 lc_freqs = array 3.e9
-lc_times = array logspace 1.e4 1.e10 50
+lc_times = array logspace 1.e4 1.e10 150
 lc_use_freq_to_time = no      # one-to-one for freq and times
 
 skymap_freqs = array 9.9e8 1.e9 1.1e9 3.e9 4.5e9
 skymap_times = array logspace 8.e5 2e9 50
 
 integrator = DOP853E
-
-# --------------------------- END ---------------------------
-#
-# ------------------------ Magnetar -------------------------
-
-* Parameters
-
-* Settings
-
-run_magnetar = no
-load_magnetar = no
-save_magnetar = no
 
 # --------------------------- END ---------------------------
 #
@@ -96,8 +84,8 @@ type = gaussian
 gflat = no
 
 fname_dyn = dyn_grb_gauss.h5
-fname_light_curve = lc_grb_gauss.h5
-fname_light_curve_layers = none
+fname_light_curve = lc_grb_gauss_total.h5
+fname_light_curve_layers = lc_grb_gauss.h5
 fname_sky_map = skymap_grb_gauss.h5
 
 method_spread = AA
@@ -120,23 +108,5 @@ emissivity = em
 absorption = abs
 method_comp_mode = observFlux # observFlux   # "comovSpec"
 method_quad = CADRE
-
-# --------------------------- END ---------------------------
-#
-# ----------------------- kN afterglow ----------------------
-
-* Parameters
-
-* Settings
-
-run_ej_bws = no
-save_ej_dynamics = no
-do_ej_ele = no
-do_ej_spec = no
-do_ej_lc = no
-do_ej_skymap = no
-
-type = numeric
-fpath_ejecta_id = corr_vel_inf_theta.h5
 
 # --------------------------- END ---------------------------

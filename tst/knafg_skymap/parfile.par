@@ -40,32 +40,6 @@ integrator = DOP853
 
 # --------------------------- END ---------------------------
 #
-# ------------------------ Magnetar -------------------------
-
-* Parameters
-
-* Settings
-
-run_magnetar = no
-save_magnetar = no
-
-# --------------------------- END ---------------------------
-#
-# ---------------------- GRB afterglow ----------------------
-
-* Parameters
-
-* Settings
-
-run_jet_bws = no
-save_j_dynamics = no
-do_j_ele = no
-do_j_spec = no
-do_j_lc = no
-do_j_skymap = no
-
-# --------------------------- END ---------------------------
-#
 # ----------------------- kN afterglow ----------------------
 
 * Parameters
@@ -92,7 +66,7 @@ rtol_adapt = 1e-5
 
 * Settings
 
-run_ejecta_bws = yes
+run_ej_bws = yes
 save_ej_dynamics = no
 do_ej_ele = yes
 do_ej_spec = no
@@ -100,6 +74,7 @@ do_ej_lc = no
 do_ej_skymap = yes
 
 method_eats = piece-wise # piece-wise
+method_collision = none
 
 fname_dyn = dyn_kn.h5
 fname_light_curve = lc_kn.h5

@@ -40,6 +40,9 @@ def main():
     ax.plot(tts, fluxes*1e26, ls='--', color='gray', label='Joelib')
 
     ax.plot(pba.get_jet_lc_times(), pba.get_jet_lc_totalflux(freq=3.e9), ls='-', color="black", label="PBA")
+    print(pba.get_jet_lc_obj().keys())
+    for il in range(int(pba.get_jet_lc_obj().attrs["nlayers"])):
+        ax.plot(pba.get_jet_lc_times(), pba.get_jet_lc(freq=3.e9, ilayer=il), ls='-', color="gray")
 
     ax.grid()
     ax.legend()

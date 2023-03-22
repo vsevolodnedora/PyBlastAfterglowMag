@@ -40,33 +40,6 @@ integrator = DOP853E
 
 # --------------------------- END ---------------------------
 #
-# ------------------------ Magnetar -------------------------
-
-* Parameters
-
-* Settings
-
-run_magnetar = no
-load_magnetar = no
-save_magnetar = no
-
-# --------------------------- END ---------------------------
-#
-# ---------------------- GRB afterglow ----------------------
-
-* Parameters
-
-* Settings
-
-run_jet_bws = no
-save_j_dynamics = no
-do_j_ele = no
-do_j_spec = no
-do_j_lc = no
-do_j_skymap = no
-
-# --------------------------- END ---------------------------
-#
 # ----------------------- kN afterglow ----------------------
 
 * Parameters
@@ -115,19 +88,19 @@ enforce_angular_grid = yes
 method_spread = None
 method_eos = Nava13
 method_GammaSh = useJKwithGammaRel # small effect
-method_Up = useGamma # !
+method_Up = useEint2 # !
 method_Delta = useJoh06
 use_adiabLoss = yes
 method_Rsh = useGammaSh # "useGammaSh",#"useGammaSh",
 method_dmdr = usingdthdr
-method_dgdr = peer # !
-method_shock_vel = sameAsBW # !
-method_nonreldist = none # !
-method_synchrotron = WSPN99 # !
+method_dgdr = our # !
+method_shock_vel = shockVel # !
+method_nonreldist = useGm # !
+method_synchrotron = Joh06 # !
 method_tau = smooth
 use_ssa = yes
 method_lf_min = useU_e # !
-method_ne = useNe # ! useNe is better here! (that is what was used before)
+method_ne = usenprime # ! useNe is better here! (that is what was used before)
 use_dens_prof_behind_jet_for_ejecta = no
 use_exp_rho_decay_as_floor = yes
 use_flat_dens_floor = no

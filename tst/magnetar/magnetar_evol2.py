@@ -1,45 +1,24 @@
-#!/usr/bin/env python3
+"""
+    This script is written using open-source software an literature.
+    Authors: Vsevolod Nedora, ...
+    Goal: Model spin-down evolution of the newly born, millisecond magnetar
+
+    TODO: 1. Add (i) Bext/Bint for ellipticity; (ii) NS_mass/Radius evolution; (iii) Collapse criterion (iv) does Ldip = f(alpha)?
+    TODO: 2. Compare different formuale for dipol and fall-back losses
+    TODO: 3. Add ODE for Mdot including accretion and fall-back of the ejecta following https://arxiv.org/abs/1706.04802
+    TODO: 4. Add angle dependecy of the spin-down and fall-back accretion luminocities following Lander & Jones 2020. https://academic.oup.com/mnras/article/494/4/4838/5818772
+    TODO: 5. Add evolution of the NS mass as it accretes from the disk (affects moment of inertia...)
+    TODO: 6. Add collapse criterion from e.g., Gompertz et al 2014
+"""
 
 import h5py
-
-#
-# __author__ = "Michele Ronchi, Vsevolod Nedora"
-# __copyright__ = "Copyright 2022"
-# __credits__ = ["Michele Ronchi"]
-# __license__ = "MIT"
-# __maintainer__ = "Michele Ronchi"
-# __email__ = "ronchi@ice.csic.es"
-
-'''
-This notebook contains the code to perform a parameter study of the spin-period evolution of pulsars 
-interacting with supernova fallback disk as in [Ronchi et al. 2022](https://arxiv.org/abs/2201.11704). By using general 
-assumptions for the pulsar spin period and magnetic field at birth, initial fallback accretion rates and including 
-magnetic field decay, we find that very long spin periods ($100 \, {\rm s}$) can be reached in the presence of strong, 
-magnetar-like magnetic fields ($\gtrsim 10^{14} \, {\rm G}$) and moderate initial fallback accretion rates 
-($10^{22-27} \, {\rm g \, s^{-1}}$). 
-In addition, we study the cases of two recently discovered periodic radio sources, the pulsar 
-PSR J0901-4046 [Caleb et al. 2022](https://ui.adsabs.harvard.edu/abs/2022NatAs.tmp..123C/abstract)
-($P = 75.9 \, {\rm s}$) and the radio transient GLEAM-X J162759.5-523504.3 
-([Hurley-Walker et al. 2022](https://www.nature.com/articles/s41586-021-04272-x)) ($P = 1091 \, {\rm s}$), 
-in light of our model. 
-
-'''
-
-import matplotlib as mpl
 import matplotlib.pyplot as plt
+from matplotlib import rcParams
+rcParams["mathtext.fontset"] = "stix"
+rcParams["font.family"] = "Liberation serif"
 import numpy as np
-import pandas as pd
-import random
-
-from scipy import interpolate
-from scipy.integrate import odeint
 from scipy.integrate import ode
 from tqdm import tqdm
-from scipy.integrate import trapz
-from scipy.optimize import curve_fit
-from typing import Tuple
-
-# import numpy as np
 
 # Unit conversions.
 class const:
@@ -69,43 +48,13 @@ class const:
 
     grav = 6.67259e-8
 
-from matplotlib import rcParams
-rcParams["mathtext.fontset"] = "stix"
-rcParams["font.family"] = "Liberation serif"
-# rcParams["font.size"] = "30"
-# rcParams['font.weight']='bold'
-# rcParams["figure.figsize"] = "8.0, 7.0"
-# rcParams["figure.autolayout"] = True
-#
-# rcParams["axes.linewidth"] = "1.7"
-# rcParams["axes.labelpad"] = "15.0"
-# rcParams["axes.titlepad"] = "15.0"
-#
-# rcParams["xtick.direction"] = "in"
-# rcParams["xtick.top"] = True
-# rcParams["xtick.major.pad"] = "10.0"
-# rcParams["xtick.minor.pad"] = "10.0"
-# rcParams["xtick.major.size"] = "10.0"
-# rcParams["xtick.major.width"] = "1.7"
-# rcParams["xtick.minor.size"] = "5.0"
-# rcParams["xtick.minor.width"] = "1.7"
-# rcParams["xtick.labelsize"] = "30"
-#
-# rcParams["ytick.direction"] = "in"
-# rcParams["ytick.right"] = True
-# rcParams["ytick.major.pad"] = "10.0"
-# rcParams["ytick.minor.pad"] = "10.0"
-# rcParams["ytick.major.size"] = "10.0"
-# rcParams["ytick.major.width"] = "1.7"
-# rcParams["ytick.minor.size"] = "5.0"
-# rcParams["ytick.minor.width"] = "1.7"
-# rcParams["ytick.labelsize"] = "30"
-
-
-''' ---------------------------------------------------------------------------------------------------------------- '''
-# TODO Add (i) Bext/Bint for ellipticity; (ii) NS_mass/Radius evolution; (iii) Collapse criterion (iv) does Ldip = f(alpha)?
 class MagnetarRonchi22:
-
+    '''
+    This class contains the code to perform a spin-period evolution of a magnetar
+    interacting with fallback disk as in [Ronchi et al. 2022](https://arxiv.org/abs/2201.11704). By using general
+    assumptions for the magnetar spin period and magnetic field at birth, initial fallback accretion rates and including
+    magnetic field decay.
+    '''
     def __init__(self):
         pass
 
@@ -205,7 +154,7 @@ class MagnetarRonchi22:
 
         # luminocities
         ldip = - n_dip * omega
-        lprop = - n_acc*omega - const.grav*pars["NS_mass"]*Mdot/r_m # From Gompertz et al. (2014)
+        lprop = - n_acc * omega - const.grav*pars["NS_mass"]*Mdot/r_m # From Gompertz et al. (2014)
         if lprop < 0: lprop = 0.
 
         # spin-down
@@ -252,6 +201,12 @@ class MagnetarRonchi22:
         return out
     @staticmethod
     def Ledd(NS_mass:float,opacity)->float:
+        '''
+        Eddington luminocity from definition in vikipedia
+        :param NS_mass:
+        :param opacity:
+        :return:
+        '''
         # Eddington luminosity assuming Thompson scattering in [erg / s].
         # eddigton_lum = 4.0 * np.pi * const.G * NS_mass * const.M_P * const.C / const.SIGMA_T
         eddigton_lum = 4.0 * np.pi * const.G * NS_mass * const.M_P * const.C / const.SIGMA_T
@@ -259,6 +214,14 @@ class MagnetarRonchi22:
         return eddigton_lum
     @staticmethod
     def t_vis(pars:dict) -> float:
+        '''
+        Disk viscous timescale. Several methods are implemented.
+        1. menou : is from Ronchi et al. 2022 paper, using the disk `characteristic_disk_temp` and `circularization_disk_radius`
+        2. gompertz : is from Gompertz et al. 2014 paper, using disk sound speed, `disk_cs`, viscosity parameter `disk_alpha` and radius `disk_radius`
+        3. rrayand : is based on https://wwwmpa.mpa-garching.mpg.de/~henk/pub/disksn.pdf, https://arxiv.org/pdf/2206.10645.pdf
+        :param pars:
+        :return:
+        '''
         NS_mass=pars["NS_mass"]
         NS_radius=pars["NS_radius"]
         method_t_vis=pars["method_t_vis"]
@@ -927,17 +890,13 @@ def run_ronchi_magnetar(time_grid : np.ndarray, pars : dict, v_ns : list) -> np.
         Evolving the neutron stars' spin period in case of interaction with a fallback disk.
 
         Args:
-            B0 (float): initial value of the magnetic field magnitude, measured in [G].
-            P_initial (float): pulsars' initial rotation periods, measured in [s].
-            Mdot_d0 (float): initial accretion rate at the beginning of fall-back in [g s^-1].
-            alpha (float): index of the power law for the time evolution of the accretion rate.
-            t_max (float): maximum time for the evolution in [yr].
+            time_grid (np.ndarray): time grid in seconds for the simulation
+            pars (dict): model parameters
+            v_ns (list): list of variable names that are to be computed and saved
 
         Returns:
-            (np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray,
-            np.ndarray, np.ndarray, bool, bool, float): time array in [yr], spin period as a
-            function of time in [s], derivative of the spin period in [s/s], magnetic field as
-            a function of time in [G],
+            (np.ndarray): 2D solution array with 0th axis being time 1st axis being a variable name from
+            v_ns list
     """
 
     def ikey(key:str) -> int:
@@ -948,12 +907,11 @@ def run_ronchi_magnetar(time_grid : np.ndarray, pars : dict, v_ns : list) -> np.
     o = MagnetarRonchi22()
     omega_initial = 2.0 * np.pi / pars["P_in"]
     initial_conditions = np.array([pars["B0"], omega_initial, pars["alpha0"]])
-    other_variables = np.zeros(11)
     solution = np.zeros((len(time_grid), len(v_ns)))
     # ---- add initial data and insert it into container
     solution[0, :len(initial_conditions)] = initial_conditions
-    _ = o(time_grid[0], initial_conditions, pars)
-    for ik in range(len(initial_conditions), len(v_ns)):
+    _ = o(time_grid[0], initial_conditions, pars) # evaluate RHS at the initial point
+    for ik in range(len(initial_conditions), len(v_ns)): # append initial values to the solution array
         solution[0, ik] = pars[v_ns[ik]]
     # ---- set integrator
     odeinstance = ode(MagnetarRonchi22())
@@ -963,22 +921,20 @@ def run_ronchi_magnetar(time_grid : np.ndarray, pars : dict, v_ns : list) -> np.
     # ---- integrate
     for i in tqdm(range(1,len(time_grid))):
         t = time_grid[i]
+        # udate the ODE parameter dict() in case there were changes after the RHS evaluation
         odeinstance.set_f_params(pars)
-        # --------------------------------------------
-        # check if disk is disrupted and update the pars;
-        # solution = np.vstack((solution, np.zeros(len(initial_conditions))))
+        # integrate till the next timestep
         i_res = np.copy(odeinstance.integrate(time_grid[i]))
         if (t > time_grid[0]):
             assert np.isfinite(odeinstance.t)
             assert odeinstance.t > time_grid[0]
+        # append the solution to the 2D array
         solution[i, :len(initial_conditions)] = i_res
-        # iB = i_res[0]
-        # iOmega = i_res[1]
-        # ialpha = i_res[2]
-        # compute and store RHS values again for plotting
+        # compute and store other RHS values
         _ = o(t, i_res, pars)
         for ik in range(len(initial_conditions), len(v_ns)):
             solution[i, ik] = pars[v_ns[ik]]
+        # compute also the Pdot (unused)
         P_t = 2.0 * np.pi / solution[i, ikey("omega")]
         Pdot_t = -(P_t ** 2) / (2.0 * np.pi) * solution[i, ikey("omegadot")]
 
@@ -1052,7 +1008,7 @@ def main():
     t_max = 1.0e8 # Maximum time reached by the evolution in [yr].
     t_max = t_max * const.YR_TO_S
     time_grid = np.logspace(np.log10(10.0), np.log10(t_max), 2000)
-    # --------------------------------------------------------------------------------------------------------------
+    # =================== Magnetar parameters
     pars = dict()
     pars["NS_radius"] = 1.2e6 # Characteristic neutron star radius in [cm].
     pars["NS_mass"] = 1.9 * const.M_SUN # Characteristic neutron star mass in solar masses.
@@ -1064,7 +1020,7 @@ def main():
     pars["sigma_conductivity"] = 1e24 # Dominant conductivity based on phonon or impurity scattering, in [1/s]. For details see Cumming et al. (2004) or Gourgouliatos and Cumming (2014).
     pars["characteristic_length"] = 1e5 # Characteristic length scale of the magnetic field in [cm].
     pars["characteristic_electron_dens"] = 1e35 # Characteristic electron density in [g/cm^3].
-    # --------------------------------------------------------------------------------------------------------------
+    # ====================== Disk parameters
     pars["circularization_disk_radius"] = 1.0e9 # Circularization radius of the disk in [cm].
     pars["characteristic_disk_temp"] = 1.0e9 # Initial disk central temperature in [K].
     pars["disk_acc_rate_pl"] = 1.2  # Power-law index for the disk accretion rate decay.
@@ -1075,12 +1031,12 @@ def main():
     pars["disk_alpha"]=0.1
     pars["disk_askpect_ratio"]=0.3
     pars["disk_opacity"]=1.
-    # --------------------------------------------------------------------------------------------------------------
+    # ======================= Settings for the calculation
     pars["method_ndip"] = "original" # "original", "gompertz", "rryand"
     pars["method_nacc"] = "original" #
     pars["method_disk_acc"] = "pl" # "exp" "pl"
     pars["method_t_vis"] = "rrayand"# "menou" # "exp" "pl"
-    # -------------------------------------------------------------------------------------------------------------
+    # ======================= Parameters to be saved during evolution when RHS() is called
     pars["t_vis"] = 0.
     pars["omegadot"] = 0.
     pars["Bdot"] = 0.
@@ -1099,7 +1055,8 @@ def main():
     pars["ldip"] = 0.
     pars["lacc"] = 0.
     pars["t_disrupt"] = -1.
-    # accretion rate0
+
+    # ============ Compute Mdot0 from disk mass or just use the value
     method_mdot0 = "disk0" # "given" "disk0"
     if method_mdot0 == "given" :
         pass
@@ -1110,7 +1067,7 @@ def main():
     else: raise KeyError()
     pars["Mdot_d0"] = pars["Mdot0"]
 
-    # Initial spin period of the neutron star in [s].
+    # =========== Initial spin period of the neutron star in [s].
     method_P0 = "given" # "given" "crit"
     if method_P0 == "given":
         pars["P_in"] = 0.001#0.01

@@ -272,7 +272,6 @@ Vector makeVecFromString(std::string line, std::unique_ptr<logger> & p_log){
 }
 
 
-
 // driver function
 int main(int argc, char** argv) {
 
@@ -290,7 +289,7 @@ int main(int argc, char** argv) {
 //        working_dir = "../../tst/grbafg_gauss_offaxis/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/knafg_nrinformed/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-        working_dir = "../../tst/magnetar/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../tst/magnetar/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_tophat_wind/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/knafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
@@ -356,109 +355,156 @@ int main(int argc, char** argv) {
     Vector skymap_freqs = makeVecFromString(getStrOpt("skymap_freqs",main_opts,AT,p_log,"",true), p_log);
     Vector skymap_times = makeVecFromString(getStrOpt("skymap_times",main_opts,AT,p_log,"",true), p_log);
 
-    /// read magnetar parameters of the magnetar # TODO
+    /// read magnetar parameters of the magnetar
     StrDbMap mag_pars; StrStrMap mag_opts;
+    bool run_magnetar = false, load_magnetar = false, save_magnetar = false;
     readParFile2(mag_pars, mag_opts, p_log, working_dir + parfilename,
                  "# ------------------------ Magnetar -------------------------",
                  "# --------------------------- END ---------------------------");
-    bool run_magnetar = getBoolOpt("run_magnetar", mag_opts, AT, p_log, false, true);
-    bool load_magnetar = getBoolOpt("load_magnetar", mag_opts, AT, p_log, false, true);
-    bool save_magnetar = getBoolOpt("save_magnetar", mag_opts, AT, p_log, false, true);
-    if (load_magnetar && run_magnetar){
-        (*p_log)(LOG_ERR,AT)<<"Cannot run and load magnetar evolution at the same time. Chose one.\n";
-        exit(1);
-    }
-    if (load_magnetar){
-        std::string fname_magnetar_ev = getStrOpt("fname_magnetar_evol", mag_opts, AT, p_log, "", true);
-        if (!std::experimental::filesystem::exists(working_dir+fname_magnetar_ev)){
-            (*p_log)(LOG_ERR, AT) << " File not found. " + working_dir+fname_magnetar_ev << "\n";
+    if ((!mag_pars.empty()) || (!mag_opts.empty())) {
+        run_magnetar = getBoolOpt("run_magnetar", mag_opts, AT, p_log, false, true);
+        load_magnetar = getBoolOpt("load_magnetar", mag_opts, AT, p_log, false, true);
+        save_magnetar = getBoolOpt("save_magnetar", mag_opts, AT, p_log, false, true);
+        if (load_magnetar && run_magnetar) {
+            (*p_log)(LOG_ERR, AT) << "Cannot run and load magnetar evolution at the same time. Chose one.\n";
             exit(1);
         }
-        /// load the magnetar evolution h5 file and parse the key quantity to magnetar class
-        ReadMagnetarEvolutionFile dfile(working_dir+fname_magnetar_ev, loglevel);
-        pba.getMag()->loadEvolution(Magnetar::Q::itb, dfile.get("tburst"));
-        pba.getMag()->loadEvolution(Magnetar::Q::iLtot, dfile.get("ltot"));
+        if (load_magnetar) {
+            std::string fname_magnetar_ev = getStrOpt("fname_magnetar_evol", mag_opts, AT, p_log, "", true);
+            if (!std::experimental::filesystem::exists(working_dir + fname_magnetar_ev)) {
+                (*p_log)(LOG_ERR, AT) << " File not found. " + working_dir + fname_magnetar_ev << "\n";
+                exit(1);
+            }
+            /// load the magnetar evolution h5 file and parse the key quantity to magnetar class
+            ReadMagnetarEvolutionFile dfile(working_dir + fname_magnetar_ev, loglevel);
+            pba.getMag()->loadMagnetarEvolution(Magnetar::Q::itb, dfile.get("time"));
+            pba.getMag()->loadMagnetarEvolution(Magnetar::Q::ildip, dfile.get("ldip"));
+            pba.getMag()->loadMagnetarEvolution(Magnetar::Q::ilacc, dfile.get("lacc"));
+            /// check if time grids mismatch
+            if (pba.getMag()->getTbGrid()[0] > pba.getTburst()[0]) {
+                (*p_log)(LOG_ERR, AT)
+                        << "Magnetar timegrid is starts too late. Loaded magnetar times[0] > the one set in parfile "
+                        << "(" << pba.getMag()->getTbGrid()[0] << " > " << pba.getTburst()[0] << ")\n";
+                exit(1);
+            }
+        }
+        if (run_magnetar) {
+            /// pass the t_array manually as when loaded, the time grid may be different
+            pba.getMag()->setPars(mag_pars, mag_opts);
+
+        }
     }
-    if (run_magnetar) {
-        /// pass the t_array manually as when loaded, the time grid may be different
-        pba.getMag()->setPars(pba.getTburst(),mag_pars, mag_opts);
+    else {
+        (*p_log)(LOG_INFO, AT) << "Magnetar is not initialized and will not be considered.\n";
     }
 
+
+
+    /// read pwn parameters of the pwn
+    StrDbMap pwn_pars; StrStrMap pwn_opts;
+    bool run_pwn = false, save_pwn = false;
+    readParFile2(pwn_pars, pwn_opts, p_log, working_dir + parfilename,
+                 "# --------------------------- PWN ---------------------------",
+                 "# --------------------------- END ---------------------------");
+    if ((!pwn_pars.empty()) || (!pwn_pars.empty())) {
+        run_pwn = getBoolOpt("run_pwn", pwn_opts, AT, p_log, false, true);
+        save_pwn = getBoolOpt("save_pwn", pwn_opts, AT, p_log, false, true);
+    }
+    else {
+        (*p_log)(LOG_INFO, AT) << "PWN is not initialized and will not be considered.\n";
+    }
 
     /// read grb afterglow parameters
     StrDbMap grb_pars; StrStrMap grb_opts;
+    bool run_jet_bws=false, save_j_dynamics=false, do_j_ele=false, do_j_spec=false, do_j_lc=false, do_j_skymap=false;
     readParFile2(grb_pars, grb_opts, p_log, working_dir+parfilename,
                  "# ---------------------- GRB afterglow ----------------------",
                  "# --------------------------- END ---------------------------");
-    const bool run_jet_bws = getBoolOpt("run_jet_bws", grb_opts, AT, p_log, false, true);
-    const bool save_j_dynamics = getBoolOpt("save_j_dynamics", grb_opts, AT, p_log, false, true);
-    const bool do_j_ele = getBoolOpt("do_j_ele", grb_opts, AT, p_log, false, true);
-    const bool do_j_spec = getBoolOpt("do_j_spec", grb_opts, AT, p_log, false, true);
-    const bool do_j_lc = getBoolOpt("do_j_lc", grb_opts, AT, p_log, false, true);
-    const bool do_j_skymap = getBoolOpt("do_j_skymap", grb_opts, AT, p_log, false, true);
-    for (auto & key : {"n_ism","d_l","z","theta_obs","A0","s","r_ej","r_ism"}){
-        if (main_pars.find(key) == main_pars.end()){
-            (*p_log)(LOG_ERR,AT) << " keyword '"<<key<<"' is not found in main parameters. \n";
-            exit(1);
+    if ((!grb_pars.empty()) || (!grb_opts.empty())) {
+        run_jet_bws = getBoolOpt("run_jet_bws", grb_opts, AT, p_log, false, true);
+        save_j_dynamics = getBoolOpt("save_j_dynamics", grb_opts, AT, p_log, false, true);
+        do_j_ele = getBoolOpt("do_j_ele", grb_opts, AT, p_log, false, true);
+        do_j_spec = getBoolOpt("do_j_spec", grb_opts, AT, p_log, false, true);
+        do_j_lc = getBoolOpt("do_j_lc", grb_opts, AT, p_log, false, true);
+        do_j_skymap = getBoolOpt("do_j_skymap", grb_opts, AT, p_log, false, true);
+        for (auto &key: {"n_ism", "d_l", "z", "theta_obs", "A0", "s", "r_ej", "r_ism"}) {
+            if (main_pars.find(key) == main_pars.end()) {
+                (*p_log)(LOG_ERR, AT) << " keyword '" << key << "' is not found in main parameters. \n";
+                exit(1);
+            }
+            grb_pars[key] = main_pars.at(key);
         }
-        grb_pars[key] = main_pars.at(key);
-    }
-    if (run_jet_bws) {
-        pba.getGRB()->setJetStructAnalytic(grb_pars, grb_opts);
+        if (run_jet_bws) {
+            pba.getGRB()->setJetStructAnalytic(grb_pars, grb_opts);
 //        pba.setJetStructAnalytic(grb_pars, grb_opts);
-        pba.getGRB()->setJetBwPars(grb_pars, grb_opts, pba.getMag()->getNeq());
+            pba.getGRB()->setJetBwPars(grb_pars, grb_opts, pba.getMag()->getNeq());
+        }
     }
-
+    else {
+        (*p_log)(LOG_INFO, AT) << "GRB is not initialized and will not be considered.\n";
+    }
 
     /// read kn afterglow parameters
     StrDbMap kn_pars; StrStrMap kn_opts;
+    bool run_ejecta_bws=false,save_ej_dynamics=false, do_ej_ele=false, do_ej_spec=false, do_ej_lc=false, do_ej_skymap=false;
     readParFile2(kn_pars, kn_opts, p_log, working_dir + parfilename,
                  "# ----------------------- kN afterglow ----------------------",
                  "# --------------------------- END ---------------------------");
-    const bool run_ejecta_bws = getBoolOpt("run_ej_bws", kn_opts, AT, p_log, false, true);
-//    if (run_ejecta_bws) {
-//        for (const auto& i : kn_opts)
-//            std::cout << i.first << "=" << i.second << "|" << std::endl;
-//        std::cerr << AT << "\n"; exit(1);
-//    }
-    const bool save_ej_dynamics = getBoolOpt("save_ej_dynamics", kn_opts, AT, p_log, false, true);
-    const bool do_ej_ele = getBoolOpt("do_ej_ele", kn_opts, AT, p_log, false, true);
-    const bool do_ej_spec = getBoolOpt("do_ej_spec", kn_opts, AT, p_log, false, true);
-    const bool do_ej_lc = getBoolOpt("do_ej_lc", kn_opts, AT, p_log, false, true);
-    const bool do_ej_skymap = getBoolOpt("do_ej_skymap", kn_opts, AT, p_log, false, true);
-    for (auto & key : {"n_ism","d_l","z","theta_obs","A0","s","r_ej","r_ism"}){
-        if (main_pars.find(key) == main_pars.end()){
-            (*p_log)(LOG_ERR,AT) << " keyword '"<<key<<"' is not found in main parameters. \n";
-            exit(1);
+    if ((!kn_pars.empty()) || (!kn_opts.empty())) {
+        run_ejecta_bws = getBoolOpt("run_ej_bws", kn_opts, AT, p_log, false, true);
+        save_ej_dynamics = getBoolOpt("save_ej_dynamics", kn_opts, AT, p_log, false, true);
+        do_ej_ele = getBoolOpt("do_ej_ele", kn_opts, AT, p_log, false, true);
+        do_ej_spec = getBoolOpt("do_ej_spec", kn_opts, AT, p_log, false, true);
+        do_ej_lc = getBoolOpt("do_ej_lc", kn_opts, AT, p_log, false, true);
+        do_ej_skymap = getBoolOpt("do_ej_skymap", kn_opts, AT, p_log, false, true);
+        for (auto &key: {"n_ism", "d_l", "z", "theta_obs", "A0", "s", "r_ej", "r_ism"}) {
+            if (main_pars.find(key) == main_pars.end()) {
+                (*p_log)(LOG_ERR, AT) << " keyword '" << key << "' is not found in main parameters. \n";
+                exit(1);
+            }
+            kn_pars[key] = main_pars.at(key);
         }
-        kn_pars[key] = main_pars.at(key);
-    }
-    if (run_ejecta_bws) {
+        if (run_ejecta_bws) {
 
-        std::string fname_ejecta_id = getStrOpt("fname_ejecta_id", kn_opts, AT, p_log, "", true);
-        if (!std::experimental::filesystem::exists(working_dir+fname_ejecta_id)){
-            (*p_log)(LOG_ERR, AT) << " File not found. " + working_dir+fname_ejecta_id << "\n";
-            exit(1);
-        }
-        ReadH5ThetaVinfCorrelationFile dfile(working_dir+fname_ejecta_id, loglevel);
+            std::string fname_ejecta_id = getStrOpt("fname_ejecta_id", kn_opts, AT, p_log, "", true);
+            if (!std::experimental::filesystem::exists(working_dir + fname_ejecta_id)) {
+                (*p_log)(LOG_ERR, AT) << " File not found. " + working_dir + fname_ejecta_id << "\n";
+                exit(1);
+            }
+            ReadH5ThetaVinfCorrelationFile dfile(working_dir + fname_ejecta_id, loglevel);
 //        dfile.loadTable(working_dir+fname_ejecta_id, loglevel);
-        if (dfile.idtype==ReadH5ThetaVinfCorrelationFile::IDTYPE::i_id_corr)
-            pba.getEj()->setEjectaStructNumeric(dfile.getTheta(), dfile.getVelInf(), dfile.getEkCorr(),
-                                                getBoolOpt("enforce_angular_grid", kn_opts, AT, p_log, false, true),
-                                                kn_opts);
-        else if (dfile.idtype==ReadH5ThetaVinfCorrelationFile::IDTYPE::i_id_hist)
-            pba.getEj()->setEjectaStructNumericUniformInTheta(dfile.getTheta(),dfile.getVelInf(),dfile.getEkHist(),
-                                                              (size_t)getDoublePar("nlayers", kn_pars, AT, p_log, 30, true),
-                                                              getDoublePar("mfac", kn_pars, AT, p_log, 1.0, true),
-                                                              kn_opts);
-        else {
-            (*p_log)(LOG_ERR, AT) << " no valid ejecta structure given\n";
-            exit(1);
+            if (dfile.idtype == ReadH5ThetaVinfCorrelationFile::IDTYPE::i_id_corr)
+                pba.getEj()->setEjectaStructNumeric(dfile.getTheta(), dfile.getVelInf(), dfile.getEkCorr(),
+                                                    getBoolOpt("enforce_angular_grid", kn_opts, AT, p_log, false, true),
+                                                    kn_opts);
+            else if (dfile.idtype == ReadH5ThetaVinfCorrelationFile::IDTYPE::i_id_hist)
+                pba.getEj()->setEjectaStructNumericUniformInTheta(dfile.getTheta(), dfile.getVelInf(),
+                                                                  dfile.getEkHist(),
+                                                                  (size_t) getDoublePar("nlayers", kn_pars, AT, p_log,
+                                                                                        30, true),
+                                                                  getDoublePar("mfac", kn_pars, AT, p_log, 1.0, true),
+                                                                  kn_opts);
+            else {
+                (*p_log)(LOG_ERR, AT) << " no valid ejecta structure given\n";
+                exit(1);
+            }
+            size_t ii_eq = pba.getMag()->getNeq() + pba.getGRB()->getNeq();
+            size_t nlayers_jet = pba.getGRB()->getBWs().size();
+            pba.getEj()->setEjectaBwPars(kn_pars, kn_opts, ii_eq, nlayers_jet);
+
+            /// initialize Ejecta Bound PWN
+            if (run_pwn) {
+                size_t ii_eq_ = pba.getMag()->getNeq() + pba.getGRB()->getNeq() + pba.getEj()->getNeq();
+                /// init ejecta-bound PWN
+                pba.getEjPWN()->setPWNpars(pba.getTburst(), pwn_pars, pwn_opts, ii_eq_,
+                                           pba.getEj()->getShells().size());
+            }
         }
-        size_t ii_eq = pba.getMag()->getNeq() + pba.getGRB()->getNeq();
-        size_t nlayers_jet = pba.getGRB()->getBWs().size();
-        pba.getEj()->setEjectaBwPars(kn_pars, kn_opts, ii_eq, nlayers_jet);
     }
+    else{
+        (*p_log)(LOG_INFO, AT) << "kN is not initialized and will not be considered.\n";
+    }
+
 
     (*p_log)(LOG_INFO, AT) << "Initialization finished [" << timer.checkPoint() << " s]" << "\n";
 
@@ -473,6 +519,15 @@ int main(int argc, char** argv) {
                 working_dir,
                 getStrOpt("fname_mag", mag_opts, AT, p_log, "", true),
                 (int)getDoublePar("save_mag_every_it", mag_pars, AT, p_log, 1, true) );
+    }
+
+    /// save PWN
+    if (run_pwn and save_pwn){
+        pba.savePWNEvolution(
+                working_dir,
+                getStrOpt("fname_pwn", pwn_opts, AT, p_log, "", true),
+                (int)getDoublePar("save_pwn_every_it", pwn_pars, AT, p_log, 1, true),
+                main_pars, pwn_pars );
     }
 
     /// work on GRB afterglow
@@ -504,6 +559,8 @@ int main(int argc, char** argv) {
                 (*p_log)(LOG_INFO, AT) << "jet analytic synch. sky map finished [" << timer.checkPoint() << " s]" << "\n";
             }
         }
+        ///
+
     }
 
     /// work on kN afterglow
@@ -538,7 +595,6 @@ int main(int argc, char** argv) {
             }
         }
     }
-
 }
 
 

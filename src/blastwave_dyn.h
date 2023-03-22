@@ -61,8 +61,8 @@ public:
 
 //        double _R0 = 1e8;
 //        double _tb0 = _R0 / (beta0 * CGS::c);
-//        m_tb_arr = m_tb_arr - m_tb_arr[0] + _tb0;
-//        p_pars->tb0 = m_tb_arr[0];
+//        m_mag_time = m_mag_time - m_mag_time[0] + _tb0;
+//        p_pars->tb0 = m_mag_time[0];
 //        p_pars->x = p_pars->tb0;
 //        p_pars->R0    = p_pars->tb0 * beta0 * CGS::c;
 
@@ -589,17 +589,17 @@ public:
             beta = EQS::BetFromMom(Y[i+Q_SOL::imom]);
         }
         // ****************************************
-        if (!std::isfinite(R) || !std::isfinite(Gamma) || M2 < 0.
-            || !std::isfinite(M2) || !std::isfinite(Eint2) || Eint2<0) {
-            (*p_log)(LOG_ERR,AT)  << " nan in derivatives (may lead to crash) " << "\n"
-                                  << " R="<<R<<"\n"
-                                  << " M2="<<M2<<"\n"
-                                  << " Gamma=" << Gamma << "\n"
-                                  << " Mom=" << mom << "\n"
-                                  << " Eint2=" << Eint2
-                                  << " \n";
-            exit(1);
-        }
+//        if (!std::isfinite(R) || !std::isfinite(Gamma) || M2 < 0.
+//            || !std::isfinite(M2) || !std::isfinite(Eint2) || Eint2<0) {
+//            (*p_log)(LOG_ERR,AT)  << " nan in derivatives (may lead to crash) " << "\n"
+//                                  << " R="<<R<<"\n"
+//                                  << " M2="<<M2<<"\n"
+//                                  << " Gamma=" << Gamma << "\n"
+//                                  << " Mom=" << mom << "\n"
+//                                  << " Eint2=" << Eint2
+//                                  << " \n";
+//            exit(1);
+//        }
 //        if (Gamma <= 1.) { // TODO to be removed
 //            Gamma = 1.0001;
 //            (*p_log)(LOG_ERR, AT) << " Gamma < 1 in RHS for kN Ejecta\n";
@@ -689,7 +689,7 @@ public:
 
         // --- Energy injection --- ||
         double xi_inj = 1.;
-        double dEindt = p_pars->dEinjdt*100;
+        double dEindt = 0.;//p_pars->dEinjdt;
         double dEinjdt = dEindt / (p_pars->M0 * CGS::c * CGS::c) / p_pars->ncells;
         double dEinjdR = dEinjdt / dRdt;
         double theta_ej = 0.; // assume that ejecta is alinged with magnetar emission?..
@@ -804,28 +804,28 @@ public:
         }
         if (!std::isfinite(dRdt) || !std::isfinite(dGammadR) || dM2dR < 0.
             || !std::isfinite(dlnV2dR) || !std::isfinite(dthetadr)) {
-            (*p_log)(LOG_ERR,AT)  << " nan in derivatives (may lead to crash) " << "\n"
-                       << " dRdt="<<dRdt<<"\n"
-                       << " dM2dR="<<dM2dR<<"\n"
-                       << " dthetadr=" << dthetadr << "\n"
-                       << " dGammadR=" << dGammadR << "\n"
-                       << " dthetadr=" << dRdt << "\n"
-                       << " dEsh2dR=" << dEsh2dR << "\n"
-                       << " dlnV2dR=" << dlnV2dR << "\n"
-                       << " dEad2dR=" << dEad2dR << "\n"
-                       << " dErad2dR=" << dErad2dR << "\n"
-                       << " dEint2dR=" << dEint2dR << "\n"
-                       << " dttdr=" << dttdr << "\n"
-                       << " dGammaRelDGamma=" << dGammaRelDGamma << "\n"
-                       << " dGammaRhodR=" << dGammaRhodR << "\n"
-                       << " drhodr=" << drhodr << "\n"
-                       << " Gamma="<<Gamma<< "\n"
-                       << " beta="<<beta<< "\n"
-                       << " theta"<<theta<< "\n"
-                       << " M2="<<M2<< "\n"
-                       << " Eint2="<<Eint2<< "\n"
-                       << " GammaRel"<<GammaRel<< "\n"
-                       << " GammaRho"<<GammaRho<< "\n"
+            (*p_log)(LOG_ERR,AT)  << " nan in derivatives (may lead to crash) " //<< "\n"
+                       << " dRdt="<<dRdt//<<"\n"
+                       << " dM2dR="<<dM2dR//<<"\n"
+                       << " dthetadr=" << dthetadr// << "\n"
+                       << " dGammadR=" << dGammadR //<< "\n"
+                       << " dthetadr=" << dRdt //<< "\n"
+                       << " dEsh2dR=" << dEsh2dR //<< "\n"
+                       << " dlnV2dR=" << dlnV2dR //<< "\n"
+                       << " dEad2dR=" << dEad2dR //<< "\n"
+                       << " dErad2dR=" << dErad2dR //<< "\n"
+                       << " dEint2dR=" << dEint2dR //<< "\n"
+                       << " dttdr=" << dttdr// << "\n"
+                       << " dGammaRelDGamma=" << dGammaRelDGamma //<< "\n"
+                       << " dGammaRhodR=" << dGammaRhodR //<< "\n"
+                       << " drhodr=" << drhodr //<< "\n"
+                       << " Gamma="<<Gamma//<< "\n"
+                       << " beta="<<beta//<< "\n"
+                       << " theta"<<theta//<< "\n"
+                       << " M2="<<M2//<< "\n"
+                       << " Eint2="<<Eint2//<< "\n"
+                       << " GammaRel"<<GammaRel//<< "\n"
+                       << " GammaRho"<<GammaRho//<< "\n"
                        << " \n";
 //            exit(1);
         }
