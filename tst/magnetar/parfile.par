@@ -14,7 +14,7 @@
 
 tb0 = 1.e1
 tb1 = 1e11
-ntb = 10000
+ntb = 1000
 rtol = 1.e-11
 nmax = 1000
 
@@ -63,7 +63,11 @@ fname_mag = magnetar.h5
 eps_e = 0.1
 eps_mag = 0.1
 eps_th = 0.1
+gamma_b = 1.0e5
+albd_fac = 0.5
 Rw0 = 120000000. # 100*12*1000*100
+iters = 1000
+
 save_pwn_every_it = 1
 
 * Settings

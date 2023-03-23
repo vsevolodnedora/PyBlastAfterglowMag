@@ -644,7 +644,7 @@ public:
 
 };
 
-
+/// PWN model from Murase+2015
 class PWNmodel{
     struct Pars{
         // --------------
@@ -660,9 +660,16 @@ class PWNmodel{
         double tau_ej_curr{};
         double r_ej_curr{};
         double v_ej_curr{};
+        double temp_ej_curr{};
         // -------------
         double curr_ldip{};
         double curr_lacc{};
+        // -------------
+        double albd_fac{};
+        double gamma_b{};
+        int iterations{};
+        // --------------
+        double b_pwn=-1;
     };
     Array m_tb_arr;
     VecArray m_data{}; // container for the solution of the evolution
@@ -671,7 +678,7 @@ class PWNmodel{
 public:
     bool run_pwn = false;
     /// RHS pars
-    const static int neq = 2;
+    const static int neq = 3;
     std::vector<std::string> vars {  };
     size_t getNeq() const {
         if (!run_pwn)
@@ -680,18 +687,19 @@ public:
             return neq;
     }
     enum Q_SOL {
-        iRw, // Wind radius (PWN radius)
-        iEnb // PWN total energy
+        i_Rw, // Wind radius (PWN radius)
+        i_Enb, // PWN total energy
+        i_Epwn
     };
 
     /// All variables
     enum Q {
         // -- dynamics ---
-        itb, iRwind, iEnebula,
+        itb, iRw, iEnb, iEpwn,
 
     };
     std::vector<std::string> m_vnames{
-            "tburst", "Rwing", "Enebula"
+            "tburst", "Rwing", "Enebula", "Epwn"
     };
 //    static constexpr size_t NVALS = 1; // number of variables to save
     inline Array & operator[](unsigned ll){ return m_data[ll]; }
@@ -718,8 +726,8 @@ public:
         return std::move(tmp2);
     }
 
-    void updateOuterBoundary(Vector & r, Vector & beta, Vector & rho, Vector & tau){
-        if (r[0] < 0 || beta[0] < 0 || rho[0] < 0 || tau[0] < 0){
+    void updateOuterBoundary(Vector & r, Vector & beta, Vector & rho, Vector & tau, Vector & temp){
+        if ((r[0] < 0) || (beta[0] < 0) || (rho[0] < 0) || (tau[0] < 0) || (temp[0] < 0)){
             (*p_log)(LOG_ERR,AT) << " wrong value\n";
             exit(1);
         }
@@ -727,6 +735,7 @@ public:
         p_pars->tau_ej_curr = tau[0];
         p_pars->r_ej_curr = r[0];
         p_pars->v_ej_curr = beta[0] * CGS::c;
+        p_pars->temp_ej_curr = temp[0];
 //        std::cout << rho[0] << " "
 //                  << tau[0] << " "
 //                  << r[0] << " "
@@ -750,38 +759,50 @@ public:
     /// ------- PWN -------------
     void setPars(StrDbMap & pars, StrStrMap & opts, size_t iieq){
         double radius_wind_0 = getDoublePar("Rw0",pars,AT,p_log,-1,true); // PWN radius at t=0; [km]
-        radius_wind_0 *= (1000. * 100); // km -> cm
+//        radius_wind_0 *= (1000. * 100); // km -> cm
         double vel_wind0 = radius_wind_0 / m_tb_arr[0]; // initial wind velocity
         double eps_e = getDoublePar("eps_e",pars,AT,p_log,-1,true); // electron acceleration efficiency
         double eps_mag = getDoublePar("eps_mag",pars,AT,p_log,-1,true); // magnetic field efficiency
         double epsth0 = getDoublePar("eps_th",pars,AT,p_log,-1,true); // initial absorption fraction
+        double albd_fac = getDoublePar("albd_fac",pars,AT,p_log,-1,true); // initial albedo fraction
+        double gamma_b = getDoublePar("gamma_b",pars,AT,p_log,-1,true); //break Lorentz factor of electron injection spectrum
+        int iterations = (int)getDoublePar("iters",pars,AT,p_log,-1,true); //iterations for absorption spectrum calcs
         // **************************************
         p_pars->radius_w0 = radius_wind_0;
         p_pars->vel_w0 = vel_wind0;
         p_pars->eps_e = eps_e;
         p_pars->eps_mag = eps_mag;
-        p_pars->eps_th = epsth0; //0=all thermal escape, 1.0=all radiation absorbed
+        p_pars->eps_th = epsth0;
+        p_pars->albd_fac = albd_fac;
+        p_pars->gamma_b = gamma_b;
         p_pars->iieq = iieq;
-        //
+        p_pars->iterations = iterations;
+        // *************************************
     }
 
     std::unique_ptr<Pars> & getPars(){ return p_pars; }
 
     void setInitConditions( double * arr, size_t i ) {
-        arr[i + Q_SOL::iRw] = p_pars->radius_w0;
-        arr[i + Q_SOL::iEnb] = p_pars->eps_e * p_pars->curr_ldip
+        arr[i + Q_SOL::i_Rw] = p_pars->radius_w0;
+        arr[i + Q_SOL::i_Enb] = p_pars->eps_e * p_pars->curr_ldip
                              + p_pars->eps_th * p_pars->curr_lacc;
+        arr[i + Q_SOL::i_Epwn] = p_pars->eps_mag * p_pars->curr_ldip;
+        p_pars->b_pwn = evalCurrBpwn(arr);
     }
 
     void insertSolution( const double * sol, size_t it, size_t i ){
-
-        m_data[Q::iRwind][it] = sol[i+Q_SOL::iRw];
-        m_data[Q::iEnebula][it] = sol[i+Q_SOL::iEnb];
+        m_data[Q::itb][it] = m_tb_arr[it];
+        m_data[Q::iRw][it] = sol[i+Q_SOL::i_Rw];
+        m_data[Q::iEnb][it] = sol[i+Q_SOL::i_Enb];
+        m_data[Q::iEpwn][it] = sol[i+Q_SOL::i_Epwn];
     }
 
     void evaluateRhs( double * out_Y, size_t i, double x, double const * Y ){
-        double r_w = Y[i + Q_SOL::iRw];
-        double e_nb = Y[i + Q_SOL::iEnb];
+        double r_w = Y[i + Q_SOL::i_Rw];
+        double e_nb = Y[i + Q_SOL::i_Enb];
+        double e_pwn = Y[i + Q_SOL::i_Epwn];
+        // ******************************************
+
         // ******************************************
         double rho_ej = p_pars->rho_ej_curr; // current ejecta density (shell?)
         double tau_ej = p_pars->tau_ej_curr; // current ejecta density (shell?)
@@ -790,6 +811,9 @@ public:
         double ldip = p_pars->curr_ldip;
         double lacc = p_pars->curr_lacc;
         // ******************************************
+        if (r_w > r_ej){
+            r_w = r_ej;
+        }
         // (see Eq. 28 in Kashiyama+16)
         double v_w = std::sqrt( (7./6.) * e_nb / (4. * CGS::pi * r_w*r_w*r_w * rho_ej) );
         // if (v_w > pow((2 * l_disk(t) * r_w / (3 - delta) / m_ej),1./3.)) # TODO finish this
@@ -810,20 +834,50 @@ public:
                       + p_pars->eps_th * p_pars->curr_lacc);
         }
 
+        double tdyn = r_ej / v_ej;
+        double dEpwndt = p_pars->eps_mag * p_pars->curr_ldip - e_pwn / tdyn;
 
         /// Using pressure equilibrium, Pmag = Prad; Following approach (see Eq. 28 in Kashiyama+16)
-        out_Y[i + Q_SOL::iRw] = (v_w + r_w / x);
-        out_Y[i + Q_SOL::iEnb] = dEnbdt;
+        out_Y[i + Q_SOL::i_Rw] = v_w + r_w / x;
+        out_Y[i + Q_SOL::i_Enb] = dEnbdt;
+        out_Y[i + Q_SOL::i_Epwn] = dEpwndt;
     }
 
     void addOtherVariables( size_t it ){
+        double r_w = m_data[Q::iRw][it];
+        double u_b_pwn = 3.0*m_data[Q::iEpwn][it]/4.0/M_PI/r_w/r_w/r_w; // Eq.17 in Murase+15; Eq.34 in Kashiyama+16
+        double b_pwn = pow(u_b_pwn*8.0*M_PI,0.5); //be careful: epsilon_B=epsilon_B^pre/8/PI for epsilon_B^pre used in Murase et al. 2018
+    }
 
+    /// Get current PWN magnetic field
+    double evalCurrBpwn(const double * Y){
+        double r_w = Y[p_pars->iieq + Q_SOL::i_Rw];
+        double u_b_pwn = 3.0*Y[p_pars->iieq + Q_SOL::i_Epwn]/4.0/M_PI/r_w/r_w/r_w; // Eq.17 in Murase+15; Eq.34 in Kashiyama+16
+        double b_pwn = pow(u_b_pwn*8.0*M_PI,0.5); //be careful: epsilon_B=epsilon_B^pre/8/PI for epsilon_B^pre used in Murase et al. 2018
+        p_pars->b_pwn = b_pwn;
+    }
+
+    double getFacPWNdep(double rho_ej, double delta_ej, double T_ej, double Ye){
+        int opacitymode=0; //0=iron, 1=Y_e~0.3-0.5, 2=Y_e~0.1-0.2, 3=CO
+        if (Ye <= 0.2)
+            opacitymode = 2;
+        else if (Ye > 0.2 or Ye < 0.3)
+            opacitymode = 1;
+        else if (Ye >= 0.3)
+            opacitymode = 0;
+        else if (Ye > 0.5)
+            opacitymode = 3;
+        else{
+            (*p_log)(LOG_ERR,AT) << " error \n";
+            exit(1);
+        }
+        return facPSRdep(rho_ej, delta_ej, T_ej, opacitymode);
     }
 
     bool isSolutionOk( double * sol, size_t i ){
         bool is_ok = true;
-        if (sol[i+Q_SOL::iEnb] < 0){
-            (*p_log)(LOG_ERR,AT)<<"Wrong Enb="<<sol[i+Q_SOL::iEnb]<<"\n";
+        if (sol[i+Q_SOL::i_Enb] < 0){
+            (*p_log)(LOG_ERR,AT)<<"Wrong Enb="<<sol[i+Q_SOL::i_Enb]<<"\n";
             is_ok = false;
         }
         return is_ok;
@@ -832,10 +886,380 @@ public:
     void applyUnits( double * sol, size_t i ){
 
     }
+private:
+    /// maximum energy of electrons; Eq. (21) of Murase+15, but neglecting Y
+    static double gamma_e_max(double b_pwn) {
+        double eta = 1;
+        return sqrt(6.0*M_PI*CGS::ELEC/eta/CGS::SIGMA_T/b_pwn);
+    }
+    /// possible maxium energy of photons; Eq. (22) of Murase+15 in unit of [erg]
+    static double e_gamma_max(double b_pwn) {
+        return gamma_e_max(b_pwn)*CGS::M_ELEC*CGS::c*CGS::c;
+    }
+    /// maximum energy of photons limited by gamma-gamma
+    static double e_gamma_gamma_ani(double T_ej) {
+        return pow(CGS::M_ELEC*CGS::c*CGS::c,2.0)/2.0/CGS::K_B/T_ej;
+    }
+    ///  Eq. (24) of Murase+15 in unit of [erg]
+    static double e_gamma_syn_b(double b_pwn, double gamma_b) {
+        return 3.0/2.0*CGS::H/(2.0*M_PI)*gamma_b*gamma_b*CGS::ELEC*b_pwn/CGS::M_ELEC/CGS::c;
+    }
 
+    /// The total KN cross section in unit of cm^2 (Eq.46 in Murase+15)
+    static double sigma_kn(double e_gamma) {
+        double x = e_gamma/CGS::M_ELEC/CGS::c/CGS::c;
+        if (x > 1.0e-3)
+            return 3.0/4.0*CGS::SIGMA_T*((1.0+x)/x/x/x*(2.0*x*(1.0+x)/(1.0+2.0*x)
+                -log(1.0+2.0*x))+1.0/2.0/x*log(1.0+2.0*x)-(1.0+3.0*x)/pow(1.0+2.0*x,2.0));
+        else
+            return SIGMA_T;
+    }
+
+    /// The total BH cross section in unit of cm^2 Eq.49 in Murase+15
+    static double sigma_BH_p(double e_gamma) {
+        /// Eq. (A1) and (A2) of Chodorowski+92
+        double x = e_gamma/CGS::M_ELEC/CGS::c/CGS::c;
+        double log2x = log(2.0*x);
+        double eta = (x-2.0)/(x+2.0);
+        double alpha = 1.0/137.0;
+        double zeta3 = 1.2020569;
+
+        if (x > 4.0)
+            return 3.0*alpha/8.0/M_PI*SIGMA_T
+                   * (28.0/9.0*log2x-218.0/27.0+pow(2.0/x,2.0)*(6.0*log2x-7.0/2.0+2.0/3.0*pow(log2x,3.0)
+                     -pow(log2x,2.0)-1.0/3.0*M_PI*M_PI*log2x+2.0*zeta3+M_PI*M_PI/6.0)
+                     -pow(2.0/x,4.0)*(3.0/16.0*log2x+1.0/8.0)
+                     -pow(2.0/x,6.0)*(29.0/9.0/256.0*log2x-77.0/27.0/512.0));
+        else if (x > 2.0)
+            return 1.0/4.0*alpha*SIGMA_T*pow((x-2.0)/x,3.0)
+                   *(1.0+eta/2.0+23.0/40.0*eta*eta+37.0/120.0*pow(eta,3.0)+61.0/192*pow(eta,4.0));
+        else
+            return 0.0;
+    }
+
+    /// opacity of boud-free emission
+    static double kappa_bf(double e_gamma, double Z_eff, int opacitymode) {
+        double zeta = 1.0;//0.5 for OMK18, 1.0 for Murase+18; /* neutral fraction */
+
+        /* See http://physics.nist.gov/PhysRefData/XrayMassCoef/tab3.html */
+        //return 5.0*zeta*pow(e_gamma/EV_TO_ERG/1.0e4,-3.0)*pow(Z_eff/7.0,3.0);
+
+        double ironopacity,seleopacity,xenonopacity,goldopacity;
+
+        double A0,A1,A2,A3,A4;
+
+        //iron
+        if(log10(e_gamma/EV_TO_ERG/1.0e6)<-2.14801){
+            A0 = -3.95919414261072;
+            A1 = -2.64892215754265;
+        }
+        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-0.695){
+            A0 = -3.37291030805215;
+            A1 = -2.75161208271434;
+        }
+        else{
+            A0 = -1.59069232728045;
+            A1 = -0.206813265289848;
+        }
+        ironopacity=zeta*pow(10.,A0+A1*log10(e_gamma/EV_TO_ERG/1.0e6));
+
+        //selenium
+        if(log10(e_gamma/EV_TO_ERG/1.0e6)<-2.84291){
+            A0 = -3.78835348616654;
+            A1 = -2.38423803432305;
+        }
+        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-1.89764){
+            A0 = -3.68604734441612;
+            A1 = -2.66063041649055;
+        }
+        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-0.55){
+            A0 = -2.93083141712927;
+            A1 = -2.60630263958148;
+        }
+        else{
+            A0 = -1.58243193342158;
+            A1 = -0.102384218895718;
+        }
+        seleopacity=zeta*pow(10.,A0+A1*log10(e_gamma/EV_TO_ERG/1.0e6));
+
+        //xenon
+        if(log10(e_gamma/EV_TO_ERG/1.0e6)<-2.32037){
+            A0 = -3.07458863553159;
+            A1 = -2.35739410975398;
+        }
+        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-1.46141){
+            A0 = -3.17731357386225;
+            A1 = -2.68342346938979;
+        }
+        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-0.282){
+            A0 = -2.17345283895274;
+            A1 = -2.26742402391864;
+        }
+        else{
+            A0 = -1.55866825608716;
+            A1 = -0.0467127630289143;
+        }
+        xenonopacity=zeta*pow(10.,A0+A1*log10(e_gamma/EV_TO_ERG/1.0e6));
+
+        //gold
+        if(log10(e_gamma/EV_TO_ERG/1.0e6)<-2.65645){
+            A0 = -2.5113444206149;
+            A1 = -2.06076550942316;
+        }
+        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-1.92377){
+            A0 = -2.45512766933321;
+            A1 = -2.27191147638504;
+        }
+        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-1.09299){
+            A0 = -2.32582461907071;
+            A1 = -2.39063081204358;
+        }
+        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<0.02){
+            A0 = -1.55199838865465;
+            A1 = -1.82076527957878;
+        }
+        else{
+            A0 = -1.58507209319691;
+            A1 = 0.0628004018301846;
+        }
+        goldopacity=zeta*pow(10.,A0+A1*log10(e_gamma/EV_TO_ERG/1.0e6));
+
+        if(opacitymode==0){
+            return ironopacity;
+        }
+        else if(opacitymode==1){
+            return 0.5*ironopacity+0.5*seleopacity;
+        }
+        else if(opacitymode==2){
+            return 0.5*xenonopacity+0.5*goldopacity;
+        }
+        else if(opacitymode==3){
+            //approximate formula used in Murase et al. 2015
+            return 5.0*zeta*pow(e_gamma/EV_TO_ERG/1.0e4,-3.0)*pow(Z_eff/7.0,3.0);
+        }
+
+    }
+
+
+    /// kappa_comp * sigma_comp; energy transfer coefficient from gamma rays to the thermal bath by Compton (Eq. 46 of Murase+15)
+    static double gamma_ene_depo_frac_Compton(double e_gamma) {
+        double x = e_gamma/CGS::M_ELEC/CGS::c/CGS::c;
+
+        if (x > 1.0e-3)
+            return 3.0/4.0*CGS::SIGMA_T*(2.0*pow(1.0+x,2.0)/x/x/(1.0+2.0*x)
+                                    -(1.0+3.0*x)/pow(1.0+2.0*x,2.0)
+                                    -(1.0+x)*(2.0*x*x-2.0*x-1.0)/x/x/pow(1.0+2.0*x,2.0)
+                                    -4*x*x/3.0/pow(1.0+2.0*x,3.0)
+                                    -((1.0+x)/x/x/x-1.0/2.0/x+1.0/2.0/x/x/x)*log(1.0+2.0*x));
+        else
+            return CGS::SIGMA_T * x;
+
+    }
+    /// inelastisity of gamma rays in Compton; kappa_comp * sigma_comp / sigma_klein_nishina
+    static double gamma_inelas_Compton(double e_gamma) {
+        double x = e_gamma/CGS::M_ELEC/CGS::c/CGS::c;
+        return gamma_ene_depo_frac_Compton(e_gamma) / sigma_kn(e_gamma);
+    }
+
+    /// escape fraction of gamma rays interms of energy
+    static double f_gamma_dep(double e_gamma, double rho_ej, double delta_ej, double albd_fac, int opacitymode) {
+        double mu_e; /* electron mean molecular weight */
+        //double Z_eff = 7.0; /* effective nuclear weight */
+        /* this corresponds to C:O = 1:1 */
+        double Z_eff;
+        if(opacitymode==0){
+            Z_eff = 24.21; /* effective nuclear weight */
+            mu_e = 2.148;
+        }
+        else if(opacitymode==1){
+            Z_eff = 26.74;
+            mu_e = 2.2353;
+        }
+        else if(opacitymode==2){
+            Z_eff = 53.90;
+            mu_e= 2.4622;
+        }
+        else if(opacitymode==3){
+            Z_eff = 2.0;
+            mu_e= 7.0;
+        }
+
+        /// The Compton optical depth Kcomp * \rho_ej * Rej
+//        double tau_Compton = (3.0-delta)/4.0/M_PI*m_ej*sigma_kn(e_gamma)/mu_e/CGS::M_PRO/r_ej/r_ej;
+        double Kcomp = sigma_kn(e_gamma)/mu_e/CGS::M_PRO;
+        double tau_Compton = rho_ej*delta_ej*Kcomp;
+        /// optical depth of BH pair production
+//        double tau_BH = (3.0-delta)/4.0/mu_e/M_PI*m_ej*(1.0+Z_eff)*sigma_BH_p(e_gamma)/CGS::M_PRO/r_ej/r_ej;
+        double KBH = (1.0+Z_eff)*sigma_BH_p(e_gamma)/mu_e/CGS::M_PRO;
+        double tau_BH = rho_ej*delta_ej*KBH;
+        /// The photoelectric absorption at high energies is taken into account, using the bound–free opacity
+//        double tau_bf = (1.0-albd_fac)*(3.0-delta)/4.0/M_PI*m_ej*kappa_bf(e_gamma, Z_eff, opacitymode)/r_ej/r_ej;
+        double Kbf = (1.0-albd_fac)*kappa_bf(e_gamma, Z_eff, opacitymode);
+        double tau_bf = rho_ej*delta_ej*Kbf;
+
+        /// In the small inelasticity limit, a particle loses kg per
+        /// interaction, so the survival fraction is (1 - kappa_gamma)^max[tau,tau^2] where
+        /// max[tau,tau^2] represents the number of scatterings. In the large
+        /// inelasticity limit, as in the attenuation case, the survival fraction
+        /// is given by -t e .
+        double power_Compton=0.0;
+        if (tau_Compton > 1.0)
+            power_Compton = tau_Compton*tau_Compton;
+        else
+            power_Compton = tau_Compton;
+
+        /// inelasticity of Compton scattering K_comp = sigma_comp/(mu_e * mu); sigma_comp is the gamma-ray inelasticity.
+        double k_comp = gamma_inelas_Compton(e_gamma);
+
+        /// The contribution from the Compton scattering; Eq.38 in Kashiyama+2016
+        double fdep_sc = (1.0 - pow(1.0 - k_comp,power_Compton));
+        /// Eq.39 & 40 in Kashiyama+2016
+        double fdep_ab = (1.0 - exp(-(tau_BH + tau_bf)));
+
+        /// fdep = fdep,sc + fdep,ab
+        double f_gamma_dep_tmp = fdep_sc + fdep_ab; // Eq. 39 & 40 in Kashiyama+2016
+
+        if (f_gamma_dep_tmp > 1.0)
+            return 1.0;
+        else
+            return f_gamma_dep_tmp;
+    }
+
+    static double spec_non_thermal(double e_gamma, double b_pwn, double gamma_b, double T_ej) {
+        /* psr non-thermal emission injection spectrum "E*dF/dE/(eps_e*L_d) [erg^-1]" */
+        /* We assume a broken power law with the low and high energy spectral indices are -p_1 and -2 */
+        /* This is motivated by more detailed calculation by Murase+15 */
+
+        double p_1 = 1.5; //photon index -- modified
+        double e_gamma_min;
+//        if(diskwindmode==0){
+//            e_gamma_min= 1.0*EV_TO_ERG; //0=no disk for pulsar
+//        }else if(diskwindmode==2){
+//            e_gamma_min = 1.0*1e-6*EV_TO_ERG; //2=disk wind
+//        }
+
+        e_gamma_min = 1.0*1e-6*EV_TO_ERG; //2=disk wind
+
+        double e_gamma_max_tmp = e_gamma_max(b_pwn);
+        double e_gamma_gamma_ani_tmp = e_gamma_gamma_ani(T_ej);
+        double e_gamma_syn_b_tmp = e_gamma_syn_b(b_pwn,gamma_b);
+        double norm_fac = 0.0;
+
+        if (e_gamma_gamma_ani_tmp < e_gamma_max_tmp)
+            e_gamma_max_tmp = e_gamma_gamma_ani_tmp;
+
+        if(e_gamma_max_tmp > e_gamma_syn_b_tmp && e_gamma_min < e_gamma_syn_b_tmp){
+            norm_fac = 1.0/((1.0/(2.0-p_1))*(1.0-pow(e_gamma_min/e_gamma_syn_b_tmp,2.0-p_1))
+                            +log(e_gamma_max_tmp/e_gamma_syn_b_tmp))/e_gamma_syn_b_tmp;
+            if((e_gamma < e_gamma_syn_b_tmp) && (e_gamma >= e_gamma_min))
+                return norm_fac*pow(e_gamma/e_gamma_syn_b_tmp,-p_1+1.0);
+            else if((e_gamma > e_gamma_syn_b_tmp) && (e_gamma <= e_gamma_max_tmp))
+                return norm_fac*pow(e_gamma/e_gamma_syn_b_tmp,-1);
+            else
+                return 0.0;
+        }
+        else if(e_gamma_min > e_gamma_syn_b_tmp){
+            norm_fac = 1.0/log(e_gamma_max_tmp/e_gamma_min)/e_gamma_min;
+            if ((e_gamma < e_gamma_max_tmp) && (e_gamma > e_gamma_min))
+                return norm_fac*pow(e_gamma/e_gamma_min,-1);
+            else
+                return 0.0;
+        }
+        else{
+            norm_fac = 1.0/((1.0/(2.0-p_1))*(1.0-pow(e_gamma_min/e_gamma_max_tmp,2.0-p_1)))/e_gamma_max_tmp;
+            if ((e_gamma < e_gamma_max_tmp) && (e_gamma >= e_gamma_min))
+                return norm_fac*pow(e_gamma/e_gamma_max_tmp,-p_1+1.0);
+            else
+                return 0.0;
+        }
+    }
+
+    double facPSRdep(double rho_ej, double delta_ej, double T_ej, int opacitymode){
+        if (p_pars->b_pwn < 0){
+            (*p_log)(LOG_ERR,AT)<<" b_pwn is not set\n";
+            exit(1);
+        }
+        double e_gamma_min;
+        double e_gamma_max_tmp;
+        double e_gamma_gamma_ani_tmp;
+        double e_gamma_syn_b_tmp;
+
+        e_gamma_min = 1.0*EV_TO_ERG; // eV
+        e_gamma_max_tmp = e_gamma_max(p_pars->b_pwn);
+        e_gamma_gamma_ani_tmp = e_gamma_gamma_ani(T_ej);
+        e_gamma_syn_b_tmp = e_gamma_syn_b(p_pars->b_pwn,p_pars->gamma_b);
+
+        if (e_gamma_gamma_ani_tmp < e_gamma_max_tmp)
+            e_gamma_max_tmp = e_gamma_gamma_ani_tmp;
+
+        int i; int i_max = p_pars->iterations;
+        double e_tmp = e_gamma_min;
+        double del_ln_e = 0.0;
+        double frac_psr_dep_tmp = 0.0;
+
+        double albd_fac = p_pars->albd_fac;
+//        int opacitymode = 0;
+
+        ///
+        if (e_gamma_max_tmp > e_gamma_syn_b_tmp){
+            del_ln_e = (log(e_gamma_max_tmp)-log(e_gamma_min))/(double)(i_max+1);
+            for (i=0;i<=i_max;i++) {
+                e_tmp = e_gamma_min*exp(del_ln_e*(double)i);
+                if (i == 0 || i==i_max){
+                    frac_psr_dep_tmp += (1.0/2.0)
+                                        *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
+                                        *spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej)
+                                        *e_tmp*del_ln_e;
+                }
+                else if (i % 2 == 0) {
+                    frac_psr_dep_tmp += (2.0/3.0)
+                                        *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
+                                        *spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej)
+                                        *e_tmp*del_ln_e;
+                }
+                else {
+                    frac_psr_dep_tmp += (4.0/3.0)
+                                        *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
+                                        *spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej)
+                                        *e_tmp*del_ln_e;
+                }
+            }
+        }
+        else {
+            e_gamma_max_tmp = e_gamma_syn_b_tmp;
+            del_ln_e = (log(e_gamma_max_tmp)-log(e_gamma_min))/(double)(i_max+1);
+            for (i=0;i<=i_max;i++) {
+                e_tmp = e_gamma_min*exp(del_ln_e*(double)i);
+                if (i == 0 || i==i_max){
+                    frac_psr_dep_tmp += (1.0/3.0)
+                                        *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
+                                        *spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej)
+                                        *e_tmp*del_ln_e;
+                }
+                else if (i % 2 == 0) {
+                    frac_psr_dep_tmp += (2.0/3.0)
+                                        *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
+                                        *spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej)
+                                        *e_tmp*del_ln_e;
+                }
+                else {
+                    frac_psr_dep_tmp += (4.0/3.0)
+                                        *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
+                                        *spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej)
+                                        *e_tmp*del_ln_e;
+                }
+            }
+        }
+
+        if (frac_psr_dep_tmp > 1.)
+            frac_psr_dep_tmp = 1.;
+
+        return frac_psr_dep_tmp;
+    }
+    
 };
 
-
+/// Container for independent layers of PWN model
 class PWNset{
     std::vector<std::unique_ptr<PWNmodel>> p_pwns{};
     std::unique_ptr<logger> p_log;

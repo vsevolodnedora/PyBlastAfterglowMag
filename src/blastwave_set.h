@@ -382,9 +382,12 @@ class CumulativeShell{
     std::vector<size_t> idx_tau_eq1;
     Vector m_rho;
     Vector m_beta;
+    Vector m_temp;
     Vector m_radii_init;
+    Vector m_delta;
 //    Vector m_radii_sorted;
     Vector m_dtau;
+    Vector m_frac;
     Vector m_dtau_cum;
     VecVector m_shell_data;
     size_t m_tarr_size;
@@ -411,6 +414,9 @@ public:
             arr.resize( t_grid.size() );
 
         m_rho.resize(nshells, 0.0);
+        m_frac.resize(nshells, 0.0);
+        m_temp.resize(nshells, 0.0);
+        m_delta.resize(nshells, 0.0);
         m_radii_init.resize(nshells, std::numeric_limits<double>::max());
 //        m_radii_sorted.resize(nshells, std::numeric_limits<double>::max());
         m_dtau.resize(nshells, 0.0);
@@ -439,9 +445,12 @@ public:
 //    std::vector<size_t> & getIdx(){return m_idxs;}
     inline double getR(size_t i){return m_radii_init[m_idxs[i]];}
     inline Vector & getRvec(){return m_radii_init; }
+    inline std::vector<size_t> & getIdx(){return m_idxs; }
     inline Vector & getBetaVec(){return m_beta; }
     inline Vector & getRhoVec(){return m_rho; }
     inline Vector & getTauVec(){return m_dtau; }
+    inline Vector & getTempVec(){return m_temp; }
+    inline Vector & getDeltaVec(){return m_delta; }
     std::unique_ptr<RadBlastWave> & getBW(size_t ish){
         if (p_bws_ej.empty()){
             (*p_log)(LOG_ERR, AT) << " shell does not contain blast waves\n";
@@ -1512,7 +1521,7 @@ public:
                 /// --------------------------- |
                 bw->getPars()->thickness = dr_i;
                 bw->getPars()->volume = vol_i;
-
+                m_delta[ii] = dr_i;
             }
         }
     }
@@ -1520,10 +1529,40 @@ public:
     /// Evaluate the radial extend of a velocity shell. Assume ordered shells. Assumes sorted shells
     void evalShellOptDepth(  const double * Y ){
 
-        double kappa_i = 5.; // bw->getPars()->kappa0; // TODO!
-
         double r_i=0., r_ip1=0., dr_i = 0., m_i=0., m2_i=0., m_ip1=0.,
                 m2_ip1=0., vol_i=0., rho_i=0., dtau_i=0., tau_tot=0.;
+
+
+        /// Compute temperature of each of the active shells
+        if (n_active_shells == 1){
+            auto & bw = p_bws_ej[0];
+            dr_i = bw->getPars()->thickness;//frac * r_i; // TODO add other methods 1/Gamma...
+            vol_i = bw->getPars()->volume;// = frac * (4./3.) * CGS::pi * (r_i*r_i*r_i) / bw->getPars()->ncells;
+            ///store also velocity
+            m_beta[0] = EQS::BetFromMom( Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+            double eint2 = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+            eint2 *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
+            double ene_th = eint2; // TODO is this shock??
+            m_temp[0] = std::pow(ene_th/A_RAD/vol_i,0.25); // Stephan-Boltzman law
+            int x = 1;
+        }
+        else {
+            for (size_t i = 0; i < n_active_shells; i++) {
+                size_t idx = m_idxs[i];
+                auto &bw = p_bws_ej[idx];
+                dr_i = bw->getPars()->thickness;//frac * r_i; // TODO add other methods 1/Gamma...
+                vol_i = bw->getPars()->volume;// = frac * (4./3.) * CGS::pi * (r_i*r_i*r_i) / bw->getPars()->ncells;
+                ///store also velocity
+                m_beta[i] = EQS::BetFromMom(Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom]);
+                double eint2 = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+                eint2 *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
+                double ene_th = eint2; // TODO is this shock??
+                m_temp[i] = std::pow(ene_th / A_RAD / vol_i, 0.25); // Stephan-Boltzman law
+                int x = 1;
+            }
+        }
+
+        double kappa_i = 5.; // bw->getPars()->kappa0; // TODO!
 
 
         /// if there is one shell we cannot have the shell width that comes from shell separation.
@@ -1573,15 +1612,13 @@ public:
                 exit(1);
             }
             m_dtau[ii] = dtau_i;
-
-            ///store also velocity
-            m_beta[ii] = EQS::BetFromMom( Y[nextbw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-
         }
+
+
 //        (*p_log)(LOG_INFO,AT)<<" optical depth is evaluated. Total tau="<<tau_tot<<"\n";
 //        print_xy_as_numpy<Vector>(m_radii_init,m_rho,m_rho.size(),1);
-//        std::cout << " rho_ave="<<getRho(Y)<<"\n";
-//        std::cout << " m_tot="<<getMass(Y)<<"\n";
+//        std::cout << " rho_ave="<<getShellRho(Y)<<"\n";
+//        std::cout << " m_tot="<<getShellMass(Y)<<"\n";
 
         /// based on where tau = 1 get the photosphere radius, i.e., in which shell is the photosphere
         double tmp_tau = 0;
@@ -1672,10 +1709,9 @@ public:
 
 
     }
-
     /// Evaluate shell total mass, volume, density
     /// next three functions compute mass, volume and average density of the entire shell
-    double getMass(const double * Y_){
+    double getShellMass(const double * Y_){
         double mtot = 0.;
         for (size_t ii=0; ii<n_active_shells; ++ii){
             size_t i_idx = m_idxs[ii];
@@ -1690,7 +1726,7 @@ public:
         }
         return mtot;
     }
-    double getVolume(const double * Y){
+    double getShellVolume(const double * Y){
         double r0 = Y[p_bws_ej[ m_idxs[0] ]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
         double r1 = Y[p_bws_ej[ m_idxs[n_active_shells-1] ]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
         if ((r0 >= r1)||(r0==0)||(r1==0)){
@@ -1700,11 +1736,12 @@ public:
         double delta = r1-r0;
         double volume = (4./3.) * CGS::pi * (r1*r1*r1 - r0*r0*r0) / p_bws_ej[ m_idxs[0] ]->getPars()->ncells;
     }
-    double getRho(const double * Y){
-        double mtot = getMass(Y);
-        double volume = getVolume(Y);
+    double getShellRho(const double * Y){
+        double mtot = getShellMass(Y);
+        double volume = getShellVolume(Y);
         return mtot / volume;
     }
+    /// evaluate how much each shell in the cumShell gets based on cumulative optical depth
 
 #if 0
     inline std::vector<size_t> & getCurrentIndexes( ) { return m_idxs; }
@@ -1924,42 +1961,42 @@ public:
     }
 };
 
-class RadGRB : protected GRB{
-    std::unique_ptr<logger> p_log;
-    Image tmp_im_pj;
-    Image tmp_im_cj;
-    Image tmp_im;
-    RadGRB(Array & t_arr, int loglevel) : GRB(t_arr, loglevel){
-        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "RadGRB");
-        auto ncells = p_bws_jet[0]->getPars()->ncells;
-        (*p_log)(LOG_INFO, AT) << " allocating memory for images with ncells="<<ncells<<"\n";
-        tmp_im_pj.resize((int)ncells); tmp_im_cj.resize((int)ncells); tmp_im.resize((int)ncells);
-    }
-
-
-private:
-
-public:
-    void getJetLightCurve( VecVector & lc, Vector & obs_times, Vector & obs_freqs ){
-        (*p_log)(LOG_INFO,AT)<<" starting grb light curve calculation\n";
-        size_t nlayers = p_bws_jet.size();
-        auto ncells = p_bws_jet[0]->getPars()->ncells;
-        VecVector light_curves(nlayers); // [i_layer][i_time]
-        light_curves.resize(nlayers);
-        for (auto & arr : light_curves)
-            arr.resize(obs_times.size(), 0.);
-        double flux;
-        double rtol = jet_rtol;
-        for (size_t ilayer = 0; ilayer < nlayers; ilayer++){
-            auto & model = p_bws_jet[ilayer];
-            (*p_log)(LOG_INFO,AT)<<" GRB LC ntimes="<<obs_times.size()<<" theta_layer="<<ilayer<<"/"<<nlayers<<
-                                 " phi_cells="<<LatStruct::CellsInLayer(model->getPars()->ilayer)<<"\n";
-            model->evalForwardShockLightCurve(tmp_im, tmp_im_pj, tmp_im_cj, light_curves[ilayer], obs_times, obs_freqs);
-        }
-        (*p_log)(LOG_INFO,AT)<<" grb light curve is computed\n";
-    }
-
-};
+//class RadGRB : protected GRB{
+//    std::unique_ptr<logger> p_log;
+//    Image tmp_im_pj;
+//    Image tmp_im_cj;
+//    Image tmp_im;
+//    RadGRB(Array & t_arr, int loglevel) : GRB(t_arr, loglevel){
+//        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "RadGRB");
+//        auto ncells = p_bws_jet[0]->getPars()->ncells;
+//        (*p_log)(LOG_INFO, AT) << " allocating memory for images with ncells="<<ncells<<"\n";
+//        tmp_im_pj.resize((int)ncells); tmp_im_cj.resize((int)ncells); tmp_im.resize((int)ncells);
+//    }
+//
+//
+//private:
+//
+//public:
+//    void getJetLightCurve( VecVector & lc, Vector & obs_times, Vector & obs_freqs ){
+//        (*p_log)(LOG_INFO,AT)<<" starting grb light curve calculation\n";
+//        size_t nlayers = p_bws_jet.size();
+//        auto ncells = p_bws_jet[0]->getPars()->ncells;
+//        VecVector light_curves(nlayers); // [i_layer][i_time]
+//        light_curves.resize(nlayers);
+//        for (auto & arr : light_curves)
+//            arr.resize(obs_times.size(), 0.);
+//        double flux;
+//        double rtol = jet_rtol;
+//        for (size_t ilayer = 0; ilayer < nlayers; ilayer++){
+//            auto & model = p_bws_jet[ilayer];
+//            (*p_log)(LOG_INFO,AT)<<" GRB LC ntimes="<<obs_times.size()<<" theta_layer="<<ilayer<<"/"<<nlayers<<
+//                                 " phi_cells="<<LatStruct::CellsInLayer(model->getPars()->ilayer)<<"\n";
+//            model->evalForwardShockLightCurve(tmp_im, tmp_im_pj, tmp_im_cj, light_curves[ilayer], obs_times, obs_freqs);
+//        }
+//        (*p_log)(LOG_INFO,AT)<<" grb light curve is computed\n";
+//    }
+//
+//};
 
 class Ejecta{
     VelocityAngularStruct ejectaStructs{};
@@ -2560,7 +2597,8 @@ public:
                             cumShells[il]->getRvec(),
                             cumShells[il]->getBetaVec(),
                             cumShells[il]->getRhoVec(),
-                            cumShells[il]->getTauVec()
+                            cumShells[il]->getTauVec(),
+                            cumShells[il]->getTempVec()
                             );
                     /// Set PWN ODE ICs
                     double ldip = -1;
@@ -2578,6 +2616,7 @@ public:
                     }
                     ej_pwns[il]->updateMagnetar(ldip, lacc);
                     ej_pwns[il]->setInitConditions(m_InitData, ii);
+                    ej_pwns[il]->evalCurrBpwn(m_InitData);
                     ii += ej_pwns[il]->getNeq();
                 }
             }
@@ -2643,7 +2682,9 @@ public:
                 pwn->updateOuterBoundary(cumShell->getRvec(),
                                          cumShell->getBetaVec(),
                                          cumShell->getRhoVec(),
-                                         cumShell->getTauVec());
+                                         cumShell->getTauVec(),
+                                         cumShell->getTempVec()
+                                         );
             }
         }
         // solve the ODE system for x_i = x_{i-1} + dx
@@ -2889,7 +2930,8 @@ public:
                             pwn->updateOuterBoundary(cumShell->getRvec(),
                                                      cumShell->getBetaVec(),
                                                      cumShell->getRhoVec(),
-                                                     cumShell->getTauVec());
+                                                     cumShell->getTauVec(),
+                                                     cumShell->getTempVec());
                         }
                     }
                     (*p_log)(LOG_INFO,AT)
@@ -3356,9 +3398,18 @@ private:
             for (size_t il=0; il < ej_layers.size(); il++){
 //                ej_layers[il]->setShellOrder(x, Y);
 //                ej_layers[il]->evalShellOptDepth(x, Y); // dEinjdt
+                auto & pwn = p_pars->p_ej_pwn->getPWN(il);
+                auto & cumShell = p_pars->p_ej->getShells()[il];
+                pwn->evalCurrBpwn(Y);
                 for(size_t ish=0; ish < ej_layers[il]->nBWs(); ish++) {
                     auto & ej_bw = ej_layers[il]->getBW(ish);
 //                    if (ej_bw->getPars()->end_evolution)
+                    double fac_psr_dep_tmp = pwn->getFacPWNdep( // double rho_ej, double delta_ej, double T_ej, double Ye
+                            cumShell->getRhoVec()[cumShell->getIdx()[ish]],
+                            cumShell->getDeltaVec()[cumShell->getIdx()[ish]],
+                            cumShell->getTempVec()[cumShell->getIdx()[ish]],
+                            0.2
+                            );
                     ej_bw->getPars()->dEinjdt = lacc + ldip;
                     if (ej_bw->getPars()->dEinjdt < 0){
                         ej_bw->getPars()->dEinjdt = 0.;

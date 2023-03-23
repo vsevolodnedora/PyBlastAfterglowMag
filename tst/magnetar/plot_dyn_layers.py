@@ -176,7 +176,90 @@ def plot_ejecta_layers(ishells=(1,), ilayers=(0,10,22), v_n_x = "R", v_n_ys = ("
     plt.show()
 # plot_ejecta_layers(ishells=(90,91,92,93,94,95,95,96,97), ilayers=(0,), v_n_x = "tburst", v_n_ys = ("Eint2", "mom", "R", "M2"), colors_by="shell")
 # plot_ejecta_layers(ishells=([i for i in range(98)]), ilayers=(0,), v_n_x = "tburst", v_n_ys = ("Eint2", "mom"), colors_by="shell")
-plot_ejecta_layers(ishells=([i for i in range(98)]), ilayers=(0,), v_n_x = "tburst", v_n_ys = (["R"]), colors_by="shell")
+# plot_ejecta_layers(ishells=([i for i in range(98)]), ilayers=(0,), v_n_x = "tburst", v_n_ys = (["R"]), colors_by="shell")
+
+def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
+                                v_n_x = "R", v_n_ys = ("rho", "mom"),
+                                pwn_v_n_ys = ("Epwn"),
+                                colors_by="layers",legend=False):
+
+    layers = []
+    for i in ishells:
+        for j in ilayers:
+            layers.append("shell={} layer={}".format(i,j))
+
+    dfile = h5py.File(curdir+"magnetar_driven_ej.h5", "r")
+    print(dfile[list(dfile.keys())[0]].keys())
+    dfile_pwn = h5py.File(curdir+"pwn.h5","r")
+    print(dfile_pwn[list(dfile_pwn.keys())[0]].keys())
+    print(dfile.keys())
+    # print(dfile["layer=0"]["M2"])
+
+    fid, axes = plt.subplots(ncols=1, nrows=len(v_n_ys)+len(pwn_v_n_ys), figsize=(6,6),sharex="all")
+    # norm = Normalize(vmin=0, vmax=dfile.attrs["nlayers"])
+    cmap = cm.viridis
+    mynorm = Normalize(vmin=0,vmax=len(ishells)*len(ilayers))#norm(len(ishells)*len(ilayers))
+
+    for iv_n, v_n in enumerate(v_n_ys):
+        i = 0
+        ax = axes[iv_n] if len(v_n_ys)+len(pwn_v_n_ys) > 1 else axes
+        for il, layer in enumerate(layers):
+            x_arr = np.array(dfile[layer][v_n_x])
+            y_arr = np.array(dfile[layer][v_n])
+            y_arr = y_arr[x_arr > 0]
+            x_arr = x_arr[x_arr > 0]
+            # if (v_n == "R"):
+            # y_arr = y_arr/y_arr.max()
+            if (colors_by=="layers"): color=cmap(mynorm(int(i)))#color=cmap(norm(int(layer.split("layer=")[-1])))
+            else: color=cmap(mynorm(int(i)))#color=cmap(norm(int(layer.split("shell=")[-1].split("layer=")[0])))
+            if (v_n_x == "tburst"): x_arr /=cgs.day;
+            ax.plot(x_arr, y_arr, ls='-', color=color, label=layer)
+            # ------------
+            i=i+1
+
+        ax.set_xlabel(v_n_x)
+        if (v_n_x == "tburst"): ax.set_xlabel(v_n_x + " [day]")
+        ax.set_ylabel(v_n)
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        # axes[iv_n].legend()
+        ax.grid()
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        # ax.set_xlim(5e-1,4e3)
+
+
+
+    for iv_n, v_n in enumerate(pwn_v_n_ys):
+        i = 0
+        ax = axes[len(v_n_ys) + iv_n] if len(v_n_ys) + len(pwn_v_n_ys) > 1 else axes
+        for il, layer in enumerate(dfile_pwn.keys()):
+            x_arr = np.array(dfile_pwn[layer][v_n_x])
+            y_arr = np.array(dfile_pwn[layer][v_n])
+            y_arr = y_arr[x_arr > 0]
+            x_arr = x_arr[x_arr > 0]
+            if (colors_by=="layers"): color=cmap(mynorm(int(i)))#color=cmap(norm(int(layer.split("layer=")[-1])))
+            else: color=cmap(mynorm(int(i)))#color=cmap(norm(int(layer.split("shell=")[-1].split("layer=")[0])))
+            if (v_n_x == "tburst"): x_arr /=cgs.day;
+            ax.plot(x_arr, y_arr, ls='-', color=color, label=layer)
+            # ------------
+            i=i+1
+        ax.set_xlabel(v_n_x)
+        if (v_n_x == "tburst"): ax.set_xlabel(v_n_x + " [day]")
+        ax.set_ylabel(v_n)
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        # axes[iv_n].legend()
+        ax.grid()
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+
+
+    if legend: plt.legend()
+    plt.savefig("./many_bw_dynamics.png", dpi=256)
+    plt.show()
+plot_ej_and_magnetar_layers(ishells=([i for i in range(98)]), ilayers=(0,), v_n_x = "tburst", v_n_ys = (["R"]), pwn_v_n_ys=(["Rwing","Enebula","Epwn"]), colors_by="shell")
+
 
 def plot_dynamics_layers(jet_layers=(0,20,40,60,69), v_n_x = "R", v_n_ys = ("rho", "mom", "tburst"),
                          ej_shell=(1), ej_layers=(0,2,4,6,8,10,12,14,16,18,20,22)):
