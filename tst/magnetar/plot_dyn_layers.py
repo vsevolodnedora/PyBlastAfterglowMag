@@ -258,7 +258,7 @@ def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
     if legend: plt.legend()
     plt.savefig("./many_bw_dynamics.png", dpi=256)
     plt.show()
-plot_ej_and_magnetar_layers(ishells=([i for i in range(98)]), ilayers=(0,), v_n_x = "tburst", v_n_ys = (["R"]), pwn_v_n_ys=(["Rwing","Enebula","Epwn"]), colors_by="shell")
+plot_ej_and_magnetar_layers(ishells=([i for i in range(98)]), ilayers=(0,), v_n_x = "tburst", v_n_ys = (["R","mom"]), pwn_v_n_ys=(["Rwing","Enebula","Epwn"]), colors_by="shell")
 
 
 def plot_dynamics_layers(jet_layers=(0,20,40,60,69), v_n_x = "R", v_n_ys = ("rho", "mom", "tburst"),

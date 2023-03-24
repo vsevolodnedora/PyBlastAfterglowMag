@@ -24,7 +24,7 @@
 class DynRadBlastWave : public RadBlastWave{
     std::unique_ptr<logger> p_log;
 public:
-    explicit DynRadBlastWave(Array & tb_arr, size_t ishell, size_t ilayer, int loglevel )
+    explicit DynRadBlastWave(Vector & tb_arr, size_t ishell, size_t ilayer, int loglevel )
             : RadBlastWave(tb_arr, ishell, ilayer, loglevel) {
 //        p_log = std::make_unique<logger>(std::cout, loglevel, "RadBlastWave");
 //        pfsolvePars = new FsolvePars;
@@ -682,6 +682,7 @@ public:
                 dM2dR = EQS::dmdr(Gamma, R, dthetadr, theta, rho) / p_pars->ncells;
                 break;
         }
+//        dM2dR*=0;
         if (dM2dR < 0.){
             (*p_log)(LOG_ERR,AT) << " dMdR < 0 in RHS dyn for kN ejecta\n";
             exit(1);
@@ -689,13 +690,14 @@ public:
 
         // --- Energy injection --- ||
         double xi_inj = 1.;
-        double dEindt = 0.;//p_pars->dEinjdt;
+        double dEindt = p_pars->dEinjdt;
+
         double dEinjdt = dEindt / (p_pars->M0 * CGS::c * CGS::c) / p_pars->ncells;
         double dEinjdR = dEinjdt / dRdt;
         double theta_ej = 0.; // assume that ejecta is alinged with magnetar emission?..
         double Doppler = Gamma / (1. - beta * std::cos(theta_ej));
         double dEinjdR_dop = dEinjdR * Doppler;
-        double dEingdR_abs = dEinjdR * ( 1. - std::exp(-1.*p_pars->dtau) ) * std::exp(-1.*p_pars->tau_to0);
+        double dEingdR_abs = dEinjdR;// * ( 1. - std::exp(-1.*p_pars->dtau) ) * std::exp(-1.*p_pars->tau_to0);
         double dEingdR_abs_dop = dEingdR_abs / Doppler / Doppler;
 
 

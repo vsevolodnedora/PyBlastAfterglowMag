@@ -213,7 +213,7 @@ struct Pars{
 class BlastWaveBase{
     std::unique_ptr<logger> p_log;
 protected:
-    Array m_tb_arr;
+    Vector m_tb_arr;
     VecArray m_data{}; // container for the solution of the evolution
     LatSpread * p_spread = nullptr;
     EOSadi * p_eos = nullptr;
@@ -225,7 +225,7 @@ protected:
     int m_loglevel;
     Pars * p_pars;
 public:
-    explicit BlastWaveBase(Array & tb_arr, size_t ishell, size_t ilayer, int loglevel )
+    explicit BlastWaveBase(Vector & tb_arr, size_t ishell, size_t ilayer, int loglevel )
             : m_tb_arr(tb_arr), m_loglevel(loglevel) {
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BlastWaveBase");
         // allocate the space for the the entire solution of a given blast wave
@@ -307,15 +307,15 @@ public:
     };
     static constexpr size_t NVALS = 47; // number of variables to save
     // ---------------------------------------------------------
-    Array & getTbGrid() {return m_tb_arr;}
-    Array getTbGrid(size_t every_it) {
+    Vector & getTbGrid() {return m_tb_arr;}
+    Vector getTbGrid(size_t every_it) {
         if ((every_it == 1)||(every_it==0)) return m_tb_arr;
         Vector tmp{};
         for (size_t it = 0; it < m_tb_arr.size(); it = it + every_it){
             tmp.push_back(m_tb_arr[it]);
         }
-        Array tmp2 (tmp.data(), tmp.size());
-        return std::move(tmp2);
+//        Vector tmp2 (tmp.data(), tmp.size());
+        return std::move(tmp);
     }
     inline Array & operator[](unsigned ll){ return this->m_data[ll]; }
     inline double & operator()(size_t ivn, size_t ir){ return this->m_data[ivn][ir]; }

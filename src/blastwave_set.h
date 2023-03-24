@@ -391,7 +391,7 @@ class CumulativeShell{
     Vector m_dtau_cum;
     VecVector m_shell_data;
     size_t m_tarr_size;
-    const Array m_t_grid;
+    const Vector m_t_grid;
     bool do_collision;
     double total_mass;
     double mass_averaged_beta;
@@ -399,8 +399,7 @@ public:
     size_t m_nshells;
     size_t n_active_shells;
     size_t mylayer{};
-    CumulativeShell( Array t_grid, size_t nshells, int ilayer, int loglevel )
-        : m_t_grid(t_grid) {
+    CumulativeShell( Vector t_grid, size_t nshells, int ilayer, int loglevel ) : m_t_grid(t_grid) {
         m_nshells = nshells;
         n_active_shells = nshells; // as shells collide this number will decrease
 
@@ -1882,7 +1881,7 @@ class GRB{
     int n_ode_eq;
     LatStruct::METHOD_eats jet_eats_method{};
     int m_loglevel{};
-    Array & t_arr;
+    Vector & t_arr;
     double jet_layer_fnu_stop_frac;
 protected:
     LatStruct jetStruct{};
@@ -1892,7 +1891,7 @@ public:
     bool run_jet_bws = false;
     bool is_jet_obs_pars_set = false;
     bool is_jet_anal_synch_computed = false;
-    GRB(Array & t_arr, int loglevel) : t_arr(t_arr), m_loglevel(loglevel){
+    GRB(Vector & t_arr, int loglevel) : t_arr(t_arr), m_loglevel(loglevel){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "GRB");
     }
     size_t getNeq() const {
@@ -2009,13 +2008,13 @@ class Ejecta{
     int n_ode_eq;
     int m_loglevel;
     LatStruct::METHOD_eats ejecta_eats_method{};
-    Array & t_arr;
+    Vector & t_arr;
 public:
     bool run_ej_bws = false;
     bool do_collision = false;
     bool is_ejecta_obs_pars_set = false;
     bool is_ejecta_anal_synch_computed = false;
-    Ejecta(Array & t_arr, int loglevel) : t_arr(t_arr), m_loglevel(loglevel){
+    Ejecta(Vector & t_arr, int loglevel) : t_arr(t_arr), m_loglevel(loglevel){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "Ejecta");
     }
     size_t getNeq() const {
@@ -2330,7 +2329,7 @@ class EvolveODEsystem{
 //                std::vector<std::unique_ptr<RadBlastWave>> & p_bws_jet,
 //                std::vector<std::unique_ptr<CumulativeShell>> & p_ej,
 //                bool run_magnetar, bool run_jet_bws, bool run_ej_bws,
-                Array & t_grid
+                Vector & t_grid
         ) :
         p_magnetar(p_magnetar), p_grb(p_grb), p_ej(p_ej), p_ej_pwn(p_ej_pwn),
 //            run_magnetar(run_magnetar), run_jet_bws(run_jet_bws), run_ej_bws(run_ej_bws),
@@ -2369,7 +2368,7 @@ class EvolveODEsystem{
 //                exit(1);
 //            }
         }
-        Array & t_grid;
+        Vector & t_grid;
         std::unique_ptr<Magnetar> & p_magnetar;
         std::unique_ptr<PWNset> & p_ej_pwn;
 //        std::vector<std::unique_ptr<RadBlastWave>> & p_bws_jet;
@@ -2432,7 +2431,7 @@ public:
                     std::unique_ptr<Ejecta> & p_ej,//std::vector<std::unique_ptr<CumulativeShell>> & p_ej,
                     std::unique_ptr<PWNset> & p_ej_pwn,
 //                    bool run_magnetar,
-                    Array & t_grid,
+                    Vector & t_grid,
 //                  size_t n_shells_j, size_t n_shells_ej, size_t n_layers_j, size_t n_layers_ej,
                     const Integrators::METHODS integrator,
                     int loglevel
@@ -2610,7 +2609,8 @@ public:
                     else if (p_pars->p_magnetar->load_magnetar){
                         ldip = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ildip, tb0);
                         lacc = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ilacc, tb0);
-                    } else{
+                    }
+                    else{
                         (*p_log)(LOG_ERR,AT) << " magnetar is neither loaded nor computed.\n";
                         exit(1);
                     }
@@ -2618,6 +2618,28 @@ public:
                     ej_pwns[il]->setInitConditions(m_InitData, ii);
                     ej_pwns[il]->evalCurrBpwn(m_InitData);
                     ii += ej_pwns[il]->getNeq();
+                    double total_sd = ej_pwns[il]->getAbsobedMagnetarLum(ldip, lacc, 1.);
+                    for (size_t ish = 0; ish < cumShells[il]->m_nshells; ++ish) {
+//                        double fac_psr_dep_tmp = ej_pwns[il]->getFacPWNdep( // double rho_ej, double delta_ej, double T_ej, double Ye
+//                                cumShells[il]->getRhoVec()[cumShells[il]->getIdx()[ish]],
+//                                cumShells[il]->getDeltaVec()[cumShells[il]->getIdx()[ish]],
+//                                cumShells[il]->getTempVec()[cumShells[il]->getIdx()[ish]],
+//                                0.2
+//                        );
+//                        double dEpwn = ej_pwns[il]->getAbsobedMagnetarLum(ldip, lacc, fac_psr_dep_tmp);
+//                        cumShells[il]->getBW(ish)->getPars()->dEinjdt = dEpwn;
+                        cumShells[il]->getBW(ish)->getPars()->dEinjdt = 0.;
+                        if ((total_sd > 1e-20)){//and(ish<10)
+                            double fac_psr_dep_tmp = ej_pwns[il]->getFacPWNdep( // double rho_ej, double delta_ej, double T_ej, double Ye
+                                    cumShells[il]->getRhoVec()[cumShells[il]->getIdx()[ish]],
+                                    cumShells[il]->getDeltaVec()[cumShells[il]->getIdx()[ish]],
+                                    cumShells[il]->getTempVec()[cumShells[il]->getIdx()[ish]],
+                                    0.2
+                            );
+                            cumShells[il]->getBW(ish)->getPars()->dEinjdt = fac_psr_dep_tmp * total_sd;
+                            total_sd = total_sd - fac_psr_dep_tmp * total_sd;
+                        }
+                    }
                 }
             }
         }
@@ -2668,7 +2690,7 @@ public:
             exit(1);
         }
         Timer timer;
-        Array & t_grid = p_pars->t_grid;
+        Vector & t_grid = p_pars->t_grid;
         // eval relative geometry (which BW is behind what BW)
 //        check_layer_relative_position( ix );
 /// also, update the shell thickness and optical depth after the substap
@@ -3117,20 +3139,6 @@ private:
                     ii += bw->getNeq();//p_pars->n_eq_ej_bws;
                 }
             }
-
-
-//            for (size_t i = 0; i < p_pars->n_ej_bws; i++) {
-//                if (ej_bws[i]->isToTerminate(m_CurSol, ii)) {
-//                    is_ok = false;
-//                    std::cerr  << " Terminating ejecta BW layer=" << i << " (of all) failed "
-//                               << " [ishell=" << ej_bws[i]->getPars()->ishell
-//                               << " ilayer=" << ej_bws[i]->getPars()->ilayer
-//                               << " ii_eq=" << ej_bws[i]->getPars()->ii_eq
-//                               << " ] \n";
-//                    ej_bws[i]->getPars()->end_evolution = true; // SET TO END
-//                }
-//                ii += p_pars->n_eq_ej_bws;
-//            }
         }
         return is_ok;
     }
@@ -3401,20 +3409,40 @@ private:
                 auto & pwn = p_pars->p_ej_pwn->getPWN(il);
                 auto & cumShell = p_pars->p_ej->getShells()[il];
                 pwn->evalCurrBpwn(Y);
+                double total_sd = pwn->getAbsobedMagnetarLum(ldip, lacc, 1.);
                 for(size_t ish=0; ish < ej_layers[il]->nBWs(); ish++) {
                     auto & ej_bw = ej_layers[il]->getBW(ish);
-//                    if (ej_bw->getPars()->end_evolution)
-                    double fac_psr_dep_tmp = pwn->getFacPWNdep( // double rho_ej, double delta_ej, double T_ej, double Ye
-                            cumShell->getRhoVec()[cumShell->getIdx()[ish]],
-                            cumShell->getDeltaVec()[cumShell->getIdx()[ish]],
-                            cumShell->getTempVec()[cumShell->getIdx()[ish]],
-                            0.2
-                            );
-                    ej_bw->getPars()->dEinjdt = lacc + ldip;
-                    if (ej_bw->getPars()->dEinjdt < 0){
-                        ej_bw->getPars()->dEinjdt = 0.;
-                        (*ej_bw->getPars()->p_log)(LOG_ERR,AT) << " wrong value of dEinjdt="<<ej_bw->getPars()->dEinjdt<<"\n";
+                    cumShell->getBW(ish)->getPars()->dEinjdt = 0.;
+//                    if (ish==0){
+//                        double fac_psr_dep_tmp = pwn->getFacPWNdep( // double rho_ej, double delta_ej, double T_ej, double Ye
+//                                cumShell->getRhoVec()[cumShell->getIdx()[ish]],
+//                                cumShell->getDeltaVec()[cumShell->getIdx()[ish]],
+//                                cumShell->getTempVec()[cumShell->getIdx()[ish]],
+//                                0.2
+//                        );
+//                        cumShell->getBW(ish)->getPars()->dEinjdt = fac_psr_dep_tmp * total_sd;
+//                    }
+
+                    if ((total_sd > 1e-20)){ // and(ish<10)
+                        double fac_psr_dep_tmp = pwn->getFacPWNdep( // double rho_ej, double delta_ej, double T_ej, double Ye
+                                cumShell->getRhoVec()[cumShell->getIdx()[ish]],
+                                cumShell->getDeltaVec()[cumShell->getIdx()[ish]],
+                                cumShell->getTempVec()[cumShell->getIdx()[ish]],
+                                0.2
+                        );
+                        ej_bw->getPars()->dEinjdt = fac_psr_dep_tmp * total_sd;
+                        total_sd = total_sd - fac_psr_dep_tmp * total_sd;
                     }
+
+
+//                    if (total_sd <=0)
+//                        break;
+
+//                    ej_bw->getPars()->dEinjdt = lacc + ldip;
+//                    if (ej_bw->getPars()->dEinjdt < 0){
+//                        ej_bw->getPars()->dEinjdt = 0.;
+//                        (*ej_bw->getPars()->p_log)(LOG_ERR,AT) << " wrong value of dEinjdt="<<ej_bw->getPars()->dEinjdt<<"\n";
+//                    }
                     if (p_pars->p_grb->run_jet_bws) {
                         auto & jet_bws = p_pars->p_grb->getBWs();
                         ej_bw->evaluateRhsDensModel2(out_Y, ii, x, Y,

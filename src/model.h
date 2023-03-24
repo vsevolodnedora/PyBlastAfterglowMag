@@ -89,14 +89,14 @@ class PyBlastAfterglow{
     std::unique_ptr<GRB> p_grb;
     std::unique_ptr<Ejecta> p_ej;
     std::unique_ptr<PWNset> p_ej_pwn;
-    Array t_grid;
+    Vector t_grid;
     int m_loglevel;
 public:
     std::unique_ptr<Magnetar> & getMag(){return p_mag;}
     std::unique_ptr<PWNset> & getEjPWN(){return p_ej_pwn;}
     std::unique_ptr<GRB> & getGRB(){return p_grb;}
     std::unique_ptr<Ejecta> & getEj(){return p_ej;}
-    Array & getTburst(){return t_grid;}
+    Vector & getTburst(){return t_grid;}
     PyBlastAfterglow(int loglevel){
         m_loglevel = loglevel;
         p_pars = new Pars;
@@ -159,7 +159,7 @@ public:
 
         // ---------------------------------------------------------------
         // place all blast wave into the "evolver"
-        t_grid = TOOLS::MakeLogspace(std::log10(p_pars->tb0),
+        t_grid = TOOLS::MakeLogspaceVec(std::log10(p_pars->tb0),
                                      std::log10(p_pars->tb1),p_pars->ntb);
 
         // -------------------------------------------------------------
@@ -468,7 +468,7 @@ public:
             out.emplace_back(models[il]->evalForwardShockComovingSynchrotron(freq_array, every_it) );
         }
         VecVector other_data{
-                arrToVec( t_arr ),
+                t_arr,
                 freq_array
         };
         std::vector<std::string> other_names { "times", "freqs" };
@@ -517,7 +517,7 @@ public:
             }
         }
         VecVector other_data{
-                arrToVec( t_arr ),
+                t_arr,
                 freq_array
         };
         std::vector<std::string> other_names { "times", "freqs" };

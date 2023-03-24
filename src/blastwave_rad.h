@@ -103,7 +103,7 @@ private:
     }
 
 public:
-    RadBlastWave(Array & tb_arr, size_t ishell, size_t ilayer, int loglevel )
+    RadBlastWave(Vector & tb_arr, size_t ishell, size_t ilayer, int loglevel )
             : BlastWaveBase(tb_arr, ishell, ilayer, loglevel )
     {
 //        p_log = std::make_unique<logger>(std::cout, loglevel, "RadBlastWave");
@@ -1958,7 +1958,7 @@ public:
     auto evalForwardShockComovingSynchrotron(Vector & freq_arr, size_t every_it ){
 //        auto & p_eats = p_pars; // removing EATS_pars for simplicity
         auto & p_syn = p_pars->p_fs->getAnSynch();
-        Array t_arr{};
+        Vector t_arr{};
         if (every_it == 0){
             (*p_log)(LOG_ERR,AT) << " comov spectrum at every_it="<<every_it<<" cannot be evaluated.\n Exiting...\n";
 //            std::cerr << AT << " \n";

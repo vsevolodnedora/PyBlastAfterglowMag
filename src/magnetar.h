@@ -671,7 +671,7 @@ class PWNmodel{
         // --------------
         double b_pwn=-1;
     };
-    Array m_tb_arr;
+    Vector m_tb_arr;
     VecArray m_data{}; // container for the solution of the evolution
     std::unique_ptr<logger> p_log;
     std::unique_ptr<Pars> p_pars;
@@ -705,7 +705,7 @@ public:
     inline Array & operator[](unsigned ll){ return m_data[ll]; }
     inline double & operator()(size_t ivn, size_t ir){ return m_data[ivn][ir]; }
 
-    PWNmodel( Array & tarr, int loglevel ) : m_tb_arr(tarr) {// : m_mag_time(t_grid) {
+    PWNmodel( Vector & tarr, int loglevel ) : m_tb_arr(tarr) {// : m_mag_time(t_grid) {
         run_pwn = true;
         p_pars = std::make_unique<Pars>();
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "PWN");
@@ -715,15 +715,15 @@ public:
             arr.resize(tarr.size(), 0.0);
     }
 
-    Array & getTbGrid() { return m_tb_arr; }
-    Array getTbGrid(size_t every_it) {
+    Vector & getTbGrid() { return m_tb_arr; }
+    Vector getTbGrid(size_t every_it) {
         if ((every_it == 1)||(every_it==0)) return m_tb_arr;
         Vector tmp{};
         for (size_t it = 0; it < m_tb_arr.size(); it = it + every_it){
             tmp.push_back(m_tb_arr[it]);
         }
-        Array tmp2 (tmp.data(), tmp.size());
-        return std::move(tmp2);
+//        Array tmp2 (tmp.data(), tmp.size());
+        return std::move(tmp);
     }
 
     void updateOuterBoundary(Vector & r, Vector & beta, Vector & rho, Vector & tau, Vector & temp){
@@ -855,6 +855,7 @@ public:
         double u_b_pwn = 3.0*Y[p_pars->iieq + Q_SOL::i_Epwn]/4.0/M_PI/r_w/r_w/r_w; // Eq.17 in Murase+15; Eq.34 in Kashiyama+16
         double b_pwn = pow(u_b_pwn*8.0*M_PI,0.5); //be careful: epsilon_B=epsilon_B^pre/8/PI for epsilon_B^pre used in Murase et al. 2018
         p_pars->b_pwn = b_pwn;
+        return b_pwn;
     }
 
     double getFacPWNdep(double rho_ej, double delta_ej, double T_ej, double Ye){
@@ -872,6 +873,10 @@ public:
             exit(1);
         }
         return facPSRdep(rho_ej, delta_ej, T_ej, opacitymode);
+    }
+
+    double getAbsobedMagnetarLum(double lsd, double lacc, double fac_pwn_dep){
+        return fac_pwn_dep * (p_pars->eps_e * lsd + p_pars->eps_e * lacc);
     }
 
     bool isSolutionOk( double * sol, size_t i ){
@@ -1036,6 +1041,10 @@ private:
         else if(opacitymode==3){
             //approximate formula used in Murase et al. 2015
             return 5.0*zeta*pow(e_gamma/EV_TO_ERG/1.0e4,-3.0)*pow(Z_eff/7.0,3.0);
+        }
+        else{
+            std::cerr << AT << " should not be entered\n";
+            exit(1);
         }
 
     }
@@ -1256,7 +1265,7 @@ private:
 
         return frac_psr_dep_tmp;
     }
-    
+
 };
 
 /// Container for independent layers of PWN model
@@ -1280,7 +1289,7 @@ public:
         size_t neq = m_nlayers * p_pwns[0]->getNeq();
         return neq;
     };
-    void setPWNpars(Array & tarr, StrDbMap pars, StrStrMap opts, size_t ii_eq, size_t n_layers){
+    void setPWNpars(Vector & tarr, StrDbMap pars, StrStrMap opts, size_t ii_eq, size_t n_layers){
         run_pwn = getBoolOpt("run_pwn", opts, AT,p_log, false, true);
         if (!run_pwn)
             return;
