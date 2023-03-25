@@ -675,6 +675,7 @@ class PWNmodel{
     VecArray m_data{}; // container for the solution of the evolution
     std::unique_ptr<logger> p_log;
     std::unique_ptr<Pars> p_pars;
+    Vector frac_psr_dep{};
 public:
     bool run_pwn = false;
     /// RHS pars
@@ -778,6 +779,8 @@ public:
         p_pars->iieq = iieq;
         p_pars->iterations = iterations;
         // *************************************
+        frac_psr_dep.resize(p_pars->iterations+1, 0.0);
+
     }
 
     std::unique_ptr<Pars> & getPars(){ return p_pars; }
@@ -851,6 +854,8 @@ public:
 
     /// Get current PWN magnetic field
     double evalCurrBpwn(const double * Y){
+        if (!run_pwn)
+            return 0.;
         double r_w = Y[p_pars->iieq + Q_SOL::i_Rw];
         double u_b_pwn = 3.0*Y[p_pars->iieq + Q_SOL::i_Epwn]/4.0/M_PI/r_w/r_w/r_w; // Eq.17 in Murase+15; Eq.34 in Kashiyama+16
         double b_pwn = pow(u_b_pwn*8.0*M_PI,0.5); //be careful: epsilon_B=epsilon_B^pre/8/PI for epsilon_B^pre used in Murase et al. 2018
@@ -893,25 +898,25 @@ public:
     }
 private:
     /// maximum energy of electrons; Eq. (21) of Murase+15, but neglecting Y
-    static double gamma_e_max(double b_pwn) {
+    static double gamma_e_max(const double b_pwn) {
         double eta = 1;
         return sqrt(6.0*M_PI*CGS::ELEC/eta/CGS::SIGMA_T/b_pwn);
     }
     /// possible maxium energy of photons; Eq. (22) of Murase+15 in unit of [erg]
-    static double e_gamma_max(double b_pwn) {
+    static double e_gamma_max(const double b_pwn) {
         return gamma_e_max(b_pwn)*CGS::M_ELEC*CGS::c*CGS::c;
     }
     /// maximum energy of photons limited by gamma-gamma
-    static double e_gamma_gamma_ani(double T_ej) {
+    static double e_gamma_gamma_ani(const double T_ej) {
         return pow(CGS::M_ELEC*CGS::c*CGS::c,2.0)/2.0/CGS::K_B/T_ej;
     }
     ///  Eq. (24) of Murase+15 in unit of [erg]
-    static double e_gamma_syn_b(double b_pwn, double gamma_b) {
+    static double e_gamma_syn_b(const double b_pwn, const double gamma_b) {
         return 3.0/2.0*CGS::H/(2.0*M_PI)*gamma_b*gamma_b*CGS::ELEC*b_pwn/CGS::M_ELEC/CGS::c;
     }
 
     /// The total KN cross section in unit of cm^2 (Eq.46 in Murase+15)
-    static double sigma_kn(double e_gamma) {
+    static double sigma_kn(const double e_gamma) {
         double x = e_gamma/CGS::M_ELEC/CGS::c/CGS::c;
         if (x > 1.0e-3)
             return 3.0/4.0*CGS::SIGMA_T*((1.0+x)/x/x/x*(2.0*x*(1.0+x)/(1.0+2.0*x)
@@ -921,7 +926,7 @@ private:
     }
 
     /// The total BH cross section in unit of cm^2 Eq.49 in Murase+15
-    static double sigma_BH_p(double e_gamma) {
+    static double sigma_BH_p(const double e_gamma) {
         /// Eq. (A1) and (A2) of Chodorowski+92
         double x = e_gamma/CGS::M_ELEC/CGS::c/CGS::c;
         double log2x = log(2.0*x);
@@ -943,7 +948,7 @@ private:
     }
 
     /// opacity of boud-free emission
-    static double kappa_bf(double e_gamma, double Z_eff, int opacitymode) {
+    static double kappa_bf(const double e_gamma, const double Z_eff, const int opacitymode) {
         double zeta = 1.0;//0.5 for OMK18, 1.0 for Murase+18; /* neutral fraction */
 
         /* See http://physics.nist.gov/PhysRefData/XrayMassCoef/tab3.html */
@@ -1043,7 +1048,7 @@ private:
             return 5.0*zeta*pow(e_gamma/EV_TO_ERG/1.0e4,-3.0)*pow(Z_eff/7.0,3.0);
         }
         else{
-            std::cerr << AT << " should not be entered\n";
+            std::cerr << AT << " should not be entered: opacitymode="<<opacitymode<<"\n";
             exit(1);
         }
 
@@ -1051,7 +1056,7 @@ private:
 
 
     /// kappa_comp * sigma_comp; energy transfer coefficient from gamma rays to the thermal bath by Compton (Eq. 46 of Murase+15)
-    static double gamma_ene_depo_frac_Compton(double e_gamma) {
+    static double gamma_ene_depo_frac_Compton(const double e_gamma) {
         double x = e_gamma/CGS::M_ELEC/CGS::c/CGS::c;
 
         if (x > 1.0e-3)
@@ -1065,13 +1070,13 @@ private:
 
     }
     /// inelastisity of gamma rays in Compton; kappa_comp * sigma_comp / sigma_klein_nishina
-    static double gamma_inelas_Compton(double e_gamma) {
+    static double gamma_inelas_Compton(const double e_gamma) {
         double x = e_gamma/CGS::M_ELEC/CGS::c/CGS::c;
         return gamma_ene_depo_frac_Compton(e_gamma) / sigma_kn(e_gamma);
     }
 
     /// escape fraction of gamma rays interms of energy
-    static double f_gamma_dep(double e_gamma, double rho_ej, double delta_ej, double albd_fac, int opacitymode) {
+    static double f_gamma_dep(const double e_gamma, const double rho_ej, const double delta_ej, const double albd_fac, const int opacitymode) {
         double mu_e; /* electron mean molecular weight */
         //double Z_eff = 7.0; /* effective nuclear weight */
         /* this corresponds to C:O = 1:1 */
@@ -1134,7 +1139,7 @@ private:
             return f_gamma_dep_tmp;
     }
 
-    static double spec_non_thermal(double e_gamma, double b_pwn, double gamma_b, double T_ej) {
+    static double spec_non_thermal(const double e_gamma, const double b_pwn, const double gamma_b, const double T_ej) {
         /* psr non-thermal emission injection spectrum "E*dF/dE/(eps_e*L_d) [erg^-1]" */
         /* We assume a broken power law with the low and high energy spectral indices are -p_1 and -2 */
         /* This is motivated by more detailed calculation by Murase+15 */
@@ -1183,7 +1188,83 @@ private:
         }
     }
 
-    double facPSRdep(double rho_ej, double delta_ej, double T_ej, int opacitymode){
+    double tmp(const double rho_ej, const double delta_ej, const double T_ej, const double albd_fac,
+               const int opacitymode,
+               const double e_gamma_max, const double e_gamma_syn_b_tmp, const double e_gamma_min){
+        const int i_max = p_pars->iterations;
+        const double b_pwn = p_pars->b_pwn;
+        const double gamma_b = p_pars->gamma_b;
+        if (e_gamma_max > e_gamma_syn_b_tmp){
+            const double e_gamma_max_tmp = e_gamma_max;
+//            del_ln_e = (log(e_gamma_max_tmp)-log(e_gamma_min))/(double)(i_max+1);
+//#pragma omp parallel for reduction(+:frac_psr_dep_tmp)
+
+//#pragma omp parallel for //shared(frac_psr_dep,e_gamma_max_tmp,e_gamma_min,i_max,rho_ej,delta_ej,albd_fac,opacitymode,b_pwn,gamma_b,T_ej)
+            for (int i=0;i<=i_max;i++) {
+                const double del_ln_e = (log(e_gamma_max_tmp)-log(e_gamma_min))/(double)(i_max+1);
+                const double e_tmp = e_gamma_min * exp(del_ln_e*(double)i);
+                if ((i == 0) || (i==i_max)){
+                    frac_psr_dep[i] = (1.0/2.0)
+                                      *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
+                                      *spec_non_thermal(e_tmp,b_pwn,gamma_b,T_ej)
+                                      *e_tmp*del_ln_e;
+//                    std::cout << "1"<<"\n";
+                }
+                else if (i % 2 == 0) {
+                    frac_psr_dep[i] = (2.0/3.0)
+                                      *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
+                                      *spec_non_thermal(e_tmp,b_pwn,gamma_b,T_ej)
+                                      *e_tmp*del_ln_e;
+//                    std::cout << "2"<<"\n";
+                }
+                else {
+                    frac_psr_dep[i] = (4.0/3.0)
+                                      *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
+                                      *spec_non_thermal(e_tmp,b_pwn,gamma_b,T_ej)
+                                      *e_tmp*del_ln_e;
+//                    std::cout << "3"<<"\n";
+                }
+//#pragma omp atomic
+            }
+        }
+        else {
+            const double e_gamma_max_tmp = e_gamma_syn_b_tmp;
+//#pragma omp parallel for num_threads( 14 )
+//#pragma omp parallel for reduction(+:frac_psr_dep_tmp)
+//#pragma omp parallel for //shared(frac_psr_dep,e_gamma_max_tmp,e_gamma_min,i_max,rho_ej,delta_ej,albd_fac,opacitymode,b_pwn,gamma_b,T_ej)
+            for (int i=0;i<=i_max;i++) {
+                const double del_ln_e = (log(e_gamma_max_tmp)-log(e_gamma_min))/(double)(i_max+1);
+                const double e_tmp = e_gamma_min*exp(del_ln_e*(double)i);
+                if ((i == 0) || (i==i_max)){
+                    frac_psr_dep[i] = (1.0/3.0)
+                                      *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
+                                      *spec_non_thermal(e_tmp,b_pwn,gamma_b,T_ej)
+                                      *e_tmp*del_ln_e;
+//                    std::cout << "2 1"<<"\n";
+                }
+                else if (i % 2 == 0) {
+                    frac_psr_dep[i] = (2.0/3.0)
+                                      *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
+                                      *spec_non_thermal(e_tmp,b_pwn,gamma_b,T_ej)
+                                      *e_tmp*del_ln_e;
+//                    std::cout << "2 2"<<"\n";
+                }
+                else {
+                    frac_psr_dep[i] = (4.0/3.0)
+                                      *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
+                                      *spec_non_thermal(e_tmp,b_pwn,gamma_b,T_ej)
+                                      *e_tmp*del_ln_e;
+//                    std::cout << "2 3"<<"\n";
+                }
+//#pragma omp atomic
+//                frac_psr_dep_tmp += frac_psr_dep;
+            }
+        }
+//        std::cout << frac_psr_dep << "\n";
+//        exit(1);
+    }
+
+    double facPSRdep(const double rho_ej, const double delta_ej, const double T_ej, const int opacitymode){
         if (p_pars->b_pwn < 0){
             (*p_log)(LOG_ERR,AT)<<" b_pwn is not set\n";
             exit(1);
@@ -1201,14 +1282,20 @@ private:
         if (e_gamma_gamma_ani_tmp < e_gamma_max_tmp)
             e_gamma_max_tmp = e_gamma_gamma_ani_tmp;
 
-        int i; int i_max = p_pars->iterations;
+        int i_max = p_pars->iterations;
         double e_tmp = e_gamma_min;
         double del_ln_e = 0.0;
-        double frac_psr_dep_tmp = 0.0;
 
         double albd_fac = p_pars->albd_fac;
 //        int opacitymode = 0;
 
+//        tmp(rho_ej,delta_ej,T_ej,p_pars->albd_fac,opacitymode,e_gamma_max_tmp,e_gamma_syn_b_tmp,
+//            e_gamma_min);
+//        std::cout << " 11 \n";
+        double frac_psr_dep_tmp = 0.0; int i = 0;
+//        std::cout << " frac_psr_dep.size(0" << frac_psr_dep.size()<<"\n";
+//        for (size_t i = 0; i <= p_pars->iterations; i++)
+//            frac_psr_dep_tmp += frac_psr_dep[i];
         ///
         if (e_gamma_max_tmp > e_gamma_syn_b_tmp){
             del_ln_e = (log(e_gamma_max_tmp)-log(e_gamma_min))/(double)(i_max+1);

@@ -2329,11 +2329,12 @@ class EvolveODEsystem{
 //                std::vector<std::unique_ptr<RadBlastWave>> & p_bws_jet,
 //                std::vector<std::unique_ptr<CumulativeShell>> & p_ej,
 //                bool run_magnetar, bool run_jet_bws, bool run_ej_bws,
-                Vector & t_grid
+                Vector & t_grid,
+                Vector & _t_grid
         ) :
         p_magnetar(p_magnetar), p_grb(p_grb), p_ej(p_ej), p_ej_pwn(p_ej_pwn),
 //            run_magnetar(run_magnetar), run_jet_bws(run_jet_bws), run_ej_bws(run_ej_bws),
-            t_grid(t_grid){
+            t_grid(t_grid), _t_grid(_t_grid){
 //            if (!p_bws_jet.empty()) {
 //                n_j_bws = p_bws_jet.size();
 //                n_eq_j_bws = p_bws_jet[0]->getNeq();
@@ -2369,6 +2370,7 @@ class EvolveODEsystem{
 //            }
         }
         Vector & t_grid;
+        Vector & _t_grid;
         std::unique_ptr<Magnetar> & p_magnetar;
         std::unique_ptr<PWNset> & p_ej_pwn;
 //        std::vector<std::unique_ptr<RadBlastWave>> & p_bws_jet;
@@ -2432,11 +2434,12 @@ public:
                     std::unique_ptr<PWNset> & p_ej_pwn,
 //                    bool run_magnetar,
                     Vector & t_grid,
+                    Vector & _t_grid,
 //                  size_t n_shells_j, size_t n_shells_ej, size_t n_layers_j, size_t n_layers_ej,
                     const Integrators::METHODS integrator,
                     int loglevel
     ){
-        p_pars = new Pars(p_mag, p_grb, p_ej, p_ej_pwn, t_grid);
+        p_pars = new Pars(p_mag, p_grb, p_ej, p_ej_pwn, t_grid, _t_grid);
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "EvolveODEsystem");
 //        p_pars->n_layers_j  = run_jet_bws ? n_layers_j : 0;
 //        p_pars->n_layers_ej = run_ej_bws ? n_layers_ej : 0;
@@ -2684,13 +2687,13 @@ public:
 
     }
     // evolve all blast waves
-    void evolve( const double dx, const size_t ix ){
+    void evolve( const double dx, const size_t ix){
         if (!is_initialized){
             (*p_log)(LOG_ERR,AT)<<" bw set is not initialized. Cannot evolve\n";
             exit(1);
         }
         Timer timer;
-        Vector & t_grid = p_pars->t_grid;
+        Vector & t_grid = p_pars->_t_grid;
         // eval relative geometry (which BW is behind what BW)
 //        check_layer_relative_position( ix );
 /// also, update the shell thickness and optical depth after the substap
@@ -3004,6 +3007,8 @@ public:
         }
         /// --- Log main results of the integration
         double time_took = timer.checkPoint();
+
+
         if ( ix % 10 == 0 ) {
             if ((*p_log).getLogLevel()>LOG_WARN){
                 auto & sstream = (*p_log)(LOG_INFO,AT);
@@ -3040,6 +3045,7 @@ public:
 //        (*p_log)(LOG_INFO,AT) << "it=" << ix << "/"
 //                                            << t_grid.size() << " t=" << t_grid[ix] << ", " << t_grid[ix]/CGS::day << "\n";
         }
+
         /// save previous step in a temporary solution for restarts
         for (size_t i = 0; i < p_pars->n_tot_eqs; ++i)
             m_TmpSol[i] = m_CurSol[i];
@@ -3059,19 +3065,17 @@ public:
         p_pars->ix = ix;// latest solution
         p_pars->dx = dx;// latest solution
         p_pars->x = t_grid[ix];
+    }
+    void storeSolution(int ix){
         // plug the solution vector to the solution container of a given blast wave
         insertSolution(ix);
         // add other variables (that are not part of ODE but still needed)
         addOtherVariables(ix);
         // add electron properties (needed for synchron calculation)
-//        addComputeForwardShockMicrophysics(ix);
+        //        addComputeForwardShockMicrophysics(ix);
         ///
-
-
-//        (*p_log)(LOG_INFO, AT) << "Initialization finished [" << timer.checkPoint() << " s]" << "\n";
-
-
     }
+
     inline auto * pIntegrator() { return p_Integrator; }
 
 private:
@@ -3408,8 +3412,11 @@ private:
 //                ej_layers[il]->evalShellOptDepth(x, Y); // dEinjdt
                 auto & pwn = p_pars->p_ej_pwn->getPWN(il);
                 auto & cumShell = p_pars->p_ej->getShells()[il];
-                pwn->evalCurrBpwn(Y);
-                double total_sd = pwn->getAbsobedMagnetarLum(ldip, lacc, 1.);
+                double total_sd = 0.;
+                if (p_pars->p_ej_pwn->run_pwn) {
+                    pwn->evalCurrBpwn(Y);
+                    total_sd = pwn->getAbsobedMagnetarLum(ldip, lacc, 1.);
+                }
                 for(size_t ish=0; ish < ej_layers[il]->nBWs(); ish++) {
                     auto & ej_bw = ej_layers[il]->getBW(ish);
                     cumShell->getBW(ish)->getPars()->dEinjdt = 0.;

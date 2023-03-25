@@ -286,7 +286,7 @@ int main(int argc, char** argv) {
 //    }
     int loglevel;
     if (argc<4){
-//        working_dir = "../../tst/grbafg_gauss_offaxis/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/grbafg_gauss_offaxis/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/knafg_nrinformed/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
         working_dir = "../tst/magnetar/"; parfilename = "parfile.par"; loglevel=LOG_INFO;

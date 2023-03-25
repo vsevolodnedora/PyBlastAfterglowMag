@@ -45,7 +45,7 @@ void cast_times_freqs(Vector& lc_times, Vector& lc_freqs,
 
 class PyBlastAfterglow{
     struct Pars{
-        double tb0{}; double tb1{}; int ntb{};
+        double tb0{}; double tb1{}; int ntb{}; int iout{};
         Integrators::METHODS integrator = Integrators::METHODS::RK4;
         double rtol = 1e-5;
 //        double jet_rtol = 1e-5;
@@ -89,6 +89,7 @@ class PyBlastAfterglow{
     std::unique_ptr<GRB> p_grb;
     std::unique_ptr<Ejecta> p_ej;
     std::unique_ptr<PWNset> p_ej_pwn;
+    Vector _t_grid;
     Vector t_grid;
     int m_loglevel;
 public:
@@ -122,6 +123,9 @@ public:
         p_pars->tb0 = getDoublePar("tb0",pars,AT,p_log,-1,true);//pars.at("tb0");
         p_pars->tb1 = getDoublePar("tb1",pars,AT,p_log,-1,true);//(double) pars.at("tb1");
         p_pars->ntb = (int) getDoublePar("ntb",pars,AT,p_log,-1,true);//pars.at("ntb");
+        p_pars->iout = (int) getDoublePar("iout",pars,AT,p_log,-1,true);//pars.at("ntb");
+//        p_pars->ntb -= 1;
+
 //        p_pars->loglevel = (int) getDoublePar("loglevel",pars,0,false);//pars.at("loglevel");
         p_pars->rtol = getDoublePar("rtol",pars,AT,p_log,1e-13,true);//(double) pars.at("rtol");
         p_pars->nmax = (int)getDoublePar("nmax",pars,AT,p_log,100000,false);//(double) pars.at("rtol");
@@ -158,9 +162,28 @@ public:
 //        p_pars->run_ejecta_bws = getBoolOpt("run_ejecta_bws", opts, AT,p_log,true);
 
         // ---------------------------------------------------------------
-        // place all blast wave into the "evolver"
-        t_grid = TOOLS::MakeLogspaceVec(std::log10(p_pars->tb0),
-                                     std::log10(p_pars->tb1),p_pars->ntb);
+        /// Make a grid for ODE solver to follow
+        _t_grid = TOOLS::MakeLogspaceVec(std::log10(p_pars->tb0),
+                                        std::log10(p_pars->tb1),
+                                        p_pars->ntb);
+        /// Make a grid for solutions to be sotred
+        if (p_pars->iout == 1)
+            t_grid = _t_grid;
+        else {
+            t_grid.resize((int) p_pars->ntb / p_pars->iout);
+            int k = 0;
+            for (size_t i = 0; i < p_pars->ntb; i++)
+                if (i % p_pars->iout == 0) {
+                    t_grid[k] = _t_grid[i];
+                    k++;
+                }
+        }
+        p_pars->ntb = (int)t_grid.size();
+//        std::cout << "_t_grd="<<_t_grid<<"\n";
+//        std::cout << "t_grid="<<t_grid<<"\n";
+
+        (*p_log)(LOG_INFO,AT) << "Computation tgrid = ["<<_t_grid[0]<<", "<<_t_grid[_t_grid.size()-1]<<"] n="<<_t_grid.size()<<"\n";
+        (*p_log)(LOG_INFO,AT) << "Output      tgrid = ["<<t_grid[0]<<", "<<t_grid[t_grid.size()-1]<<"] n="<<t_grid.size()<<"\n";
 
         // -------------------------------------------------------------
         p_pars->is_main_pars_set = true;
@@ -173,7 +196,7 @@ public:
     /// run the time-evolution
     void run(){
         p_model = std::make_unique<EvolveODEsystem>( p_mag, p_grb, p_ej, p_ej_pwn,
-                                                     t_grid, p_pars->integrator, m_loglevel );
+                                                     t_grid, _t_grid, p_pars->integrator, m_loglevel );
         p_model->pIntegrator()->pPars()->rtol = p_pars->rtol;
         p_model->pIntegrator()->pPars()->atol = p_pars->rtol;
         p_model->pIntegrator()->pPars()->nmax = p_pars->nmax;
@@ -181,10 +204,16 @@ public:
         (*p_log)(LOG_INFO, AT) << "all initial conditions set. Starting evolution\n";
         // evolve
         double dt;
-        for (size_t it = 1; it < t_grid.size(); it++){
+        int ixx = 1;
+        for (size_t it = 1; it < _t_grid.size(); it++){
             p_model->getPars()->i_restarts = 0;
-            dt = t_grid[it] - t_grid[it - 1];
+            dt = _t_grid[it] - _t_grid[it - 1];
             p_model->evolve(dt, it);
+            if ((it % p_pars->iout == 0)) {
+                p_model->storeSolution(ixx);
+//                (*p_log)(LOG_INFO,AT)<<"Storing solution at i="<<ixx<<" t="<<t_grid[ixx]<<"\n";
+                ixx++;
+            }
         }
         (*p_log)(LOG_INFO, AT) << "evolution is completed\n";
     }

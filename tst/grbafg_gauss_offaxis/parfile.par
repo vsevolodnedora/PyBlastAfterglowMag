@@ -15,6 +15,7 @@
 tb0 = 1.e3
 tb1 = 1.e11
 ntb = 1000
+iout = 1
 rtol = 1e-12
 nmax = 1000
 
@@ -36,7 +37,7 @@ lc_use_freq_to_time = no      # one-to-one for freq and times
 skymap_freqs = array 9.9e8 1.e9 1.1e9 3.e9 4.5e9
 skymap_times = array logspace 8.e5 2e9 50
 
-integrator = DOP853E
+integrator = DOP853
 
 # --------------------------- END ---------------------------
 #
@@ -78,7 +79,7 @@ do_j_spec = no
 do_j_lc = yes
 do_j_skymap = no
 
-method_eats = piece-wise # adaptive # piece-wise
+method_eats = adaptive # adaptive # piece-wise
 
 type = gaussian
 gflat = no

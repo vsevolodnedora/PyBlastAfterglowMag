@@ -54,13 +54,15 @@ private:
         p_eats->current_theta_cone_low = theta_cone_low;
         p_eats->cos_theta_obs = std::cos(p_eats->theta_obs);
         p_eats->sin_theta_obs = std::sin(p_eats->theta_obs);
-         p_eats->obsangle = obs_angle;
+        p_eats->obsangle = obs_angle;
         // ---
 //        p_eats->nr = p_pars->nr; // removing EATS_pars for simplicity
         for (size_t i = 0; i < p_pars->nr; i++)
             m_data[Q::imu][i] = ( m_data[Q::itburst][i] - t_obs / (1.0 + p_eats->z) ) / m_data[Q::iR][i] * CGS::c;
 
         if(m_data[Q::imu][p_pars->nr-1] < 1. ){
+            std::cout << m_data[Q::itburst] << "\n";
+            std::cout << m_data[Q::iR] << "\n";
             (*p_log)(LOG_WARN,AT) << " mu[-1]=" << m_data[Q::imu][p_pars->nr-1] << " < 1 (expected >1) "
                 << " tobs="<<t_obs
                 << " tbutst[-1]="<< m_data[Q::itburst][p_pars->nr-1]

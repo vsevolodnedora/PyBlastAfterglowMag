@@ -15,6 +15,7 @@
 tb0 = 1.e3
 tb1 = 1.e11
 ntb = 1000
+iout = 1
 rtol = 1e-8
 nmax = 1000
 
