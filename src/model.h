@@ -164,8 +164,8 @@ public:
         // ---------------------------------------------------------------
         /// Make a grid for ODE solver to follow
         _t_grid = TOOLS::MakeLogspaceVec(std::log10(p_pars->tb0),
-                                        std::log10(p_pars->tb1),
-                                        p_pars->ntb);
+                                         std::log10(p_pars->tb1),
+                                         p_pars->ntb);
         /// Make a grid for solutions to be sotred
         if (p_pars->iout == 1)
             t_grid = _t_grid;

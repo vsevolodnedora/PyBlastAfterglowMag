@@ -40,7 +40,15 @@ except ImportError:
     except ImportError:
         raise ImportError("Cannot import PyBlastAfterglowMag")
 
-
+# import matplotlib.pyplot as plt
+# N = 1000
+# y = np.zeros(N)
+# plt.semilogx(np.geomspace(1, 1000, N, endpoint=True), y + 1, 'o')
+# plt.semilogx(np.geomspace(1, 1000, N, endpoint=False), y + 2, 'o')
+# plt.semilogx(np.logspace(1, 1000, N, endpoint=False), y + 3, 'o')
+# plt.axis([0.5, 2000, 0, 4])
+# plt.grid(True, color='0.7', linestyle='-', which='both', axis='both')
+# plt.show()
 
 def plot2(vals : dict, figpath = None):
     fig, axes = plt.subplots(ncols=1, nrows=2, figsize=(4.6,2+2.8), sharex="all")
@@ -516,7 +524,7 @@ def main():
     #                     outfpaths=[workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5"],
     #                     req_times=np.array([text]),
     #                     new_theta_len=3,
-    #                     new_vinf_len=None,
+    #                     new_vinf_len=30,
     #                     verbose=True,
     #                     dist="pw")
     #

@@ -668,6 +668,7 @@ class PWNmodel{
         double albd_fac{};
         double gamma_b{};
         int iterations{};
+        int nthreads_for_frac{};
         // --------------
         double b_pwn=-1;
     };
@@ -675,7 +676,7 @@ class PWNmodel{
     VecArray m_data{}; // container for the solution of the evolution
     std::unique_ptr<logger> p_log;
     std::unique_ptr<Pars> p_pars;
-    Vector frac_psr_dep{};
+    Vector frac_psr_dep_{};
 public:
     bool run_pwn = false;
     /// RHS pars
@@ -768,6 +769,7 @@ public:
         double albd_fac = getDoublePar("albd_fac",pars,AT,p_log,-1,true); // initial albedo fraction
         double gamma_b = getDoublePar("gamma_b",pars,AT,p_log,-1,true); //break Lorentz factor of electron injection spectrum
         int iterations = (int)getDoublePar("iters",pars,AT,p_log,-1,true); //iterations for absorption spectrum calcs
+//        int nthreads_frac = (int)getDoublePar("nthreads_frac",pars,AT,p_log,-1,true); //iterations for absorption spectrum calcs
         // **************************************
         p_pars->radius_w0 = radius_wind_0;
         p_pars->vel_w0 = vel_wind0;
@@ -778,8 +780,9 @@ public:
         p_pars->gamma_b = gamma_b;
         p_pars->iieq = iieq;
         p_pars->iterations = iterations;
+//        p_pars->nthreads_for_frac = nthreads_frac;
         // *************************************
-        frac_psr_dep.resize(p_pars->iterations+1, 0.0);
+        frac_psr_dep_.resize(p_pars->iterations + 1, 0.0);
 
     }
 
@@ -1188,79 +1191,53 @@ private:
         }
     }
 
-    double tmp(const double rho_ej, const double delta_ej, const double T_ej, const double albd_fac,
-               const int opacitymode,
-               const double e_gamma_max, const double e_gamma_syn_b_tmp, const double e_gamma_min){
-        const int i_max = p_pars->iterations;
-        const double b_pwn = p_pars->b_pwn;
-        const double gamma_b = p_pars->gamma_b;
+    double tmp(double rho_ej, double delta_ej, double T_ej, double albd_fac, int opacitymode,
+               double e_gamma_max, double e_gamma_syn_b_tmp, double e_gamma_min){
+        int i_max = p_pars->iterations;
+        double b_pwn = p_pars->b_pwn;
+        double gamma_b = p_pars->gamma_b;
+        Vector frac_psr_dep(i_max+1,0.0);
         if (e_gamma_max > e_gamma_syn_b_tmp){
-            const double e_gamma_max_tmp = e_gamma_max;
+            double e_gamma_max_tmp = e_gamma_max;
 //            del_ln_e = (log(e_gamma_max_tmp)-log(e_gamma_min))/(double)(i_max+1);
 //#pragma omp parallel for reduction(+:frac_psr_dep_tmp)
 
-//#pragma omp parallel for //shared(frac_psr_dep,e_gamma_max_tmp,e_gamma_min,i_max,rho_ej,delta_ej,albd_fac,opacitymode,b_pwn,gamma_b,T_ej)
+//#pragma omp parallel for //shared(frac_psr_dep_,e_gamma_max_tmp,e_gamma_min,i_max,rho_ej,delta_ej,albd_fac,opacitymode,b_pwn,gamma_b,T_ej)
             for (int i=0;i<=i_max;i++) {
-                const double del_ln_e = (log(e_gamma_max_tmp)-log(e_gamma_min))/(double)(i_max+1);
-                const double e_tmp = e_gamma_min * exp(del_ln_e*(double)i);
-                if ((i == 0) || (i==i_max)){
-                    frac_psr_dep[i] = (1.0/2.0)
-                                      *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
-                                      *spec_non_thermal(e_tmp,b_pwn,gamma_b,T_ej)
-                                      *e_tmp*del_ln_e;
-//                    std::cout << "1"<<"\n";
-                }
-                else if (i % 2 == 0) {
-                    frac_psr_dep[i] = (2.0/3.0)
-                                      *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
-                                      *spec_non_thermal(e_tmp,b_pwn,gamma_b,T_ej)
-                                      *e_tmp*del_ln_e;
-//                    std::cout << "2"<<"\n";
-                }
-                else {
-                    frac_psr_dep[i] = (4.0/3.0)
-                                      *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
-                                      *spec_non_thermal(e_tmp,b_pwn,gamma_b,T_ej)
-                                      *e_tmp*del_ln_e;
-//                    std::cout << "3"<<"\n";
-                }
-//#pragma omp atomic
+                double del_ln_e = (log(e_gamma_max_tmp)-log(e_gamma_min))/(double)(i_max+1);
+                double e_tmp = e_gamma_min * exp(del_ln_e*(double)i);
+                double fac_gamma_dep_tmp = f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode);
+                double spec_non_thermal_tmp = spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej);
+                double total_fac = fac_gamma_dep_tmp * spec_non_thermal_tmp * e_tmp * del_ln_e;
+
+                if ((i == 0) || (i==i_max))
+                    frac_psr_dep[i] = (1.0/2.0) * total_fac;
+                else if (i % 2 == 0)
+                    frac_psr_dep[i] = (2.0/3.0) * total_fac;
+                else
+                    frac_psr_dep[i] = (4.0/3.0) * total_fac;
             }
         }
         else {
-            const double e_gamma_max_tmp = e_gamma_syn_b_tmp;
+            double e_gamma_max_tmp = e_gamma_syn_b_tmp;
 //#pragma omp parallel for num_threads( 14 )
 //#pragma omp parallel for reduction(+:frac_psr_dep_tmp)
-//#pragma omp parallel for //shared(frac_psr_dep,e_gamma_max_tmp,e_gamma_min,i_max,rho_ej,delta_ej,albd_fac,opacitymode,b_pwn,gamma_b,T_ej)
+//#pragma omp parallel for //shared(frac_psr_dep_,e_gamma_max_tmp,e_gamma_min,i_max,rho_ej,delta_ej,albd_fac,opacitymode,b_pwn,gamma_b,T_ej)
             for (int i=0;i<=i_max;i++) {
-                const double del_ln_e = (log(e_gamma_max_tmp)-log(e_gamma_min))/(double)(i_max+1);
-                const double e_tmp = e_gamma_min*exp(del_ln_e*(double)i);
-                if ((i == 0) || (i==i_max)){
-                    frac_psr_dep[i] = (1.0/3.0)
-                                      *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
-                                      *spec_non_thermal(e_tmp,b_pwn,gamma_b,T_ej)
-                                      *e_tmp*del_ln_e;
-//                    std::cout << "2 1"<<"\n";
-                }
-                else if (i % 2 == 0) {
-                    frac_psr_dep[i] = (2.0/3.0)
-                                      *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
-                                      *spec_non_thermal(e_tmp,b_pwn,gamma_b,T_ej)
-                                      *e_tmp*del_ln_e;
-//                    std::cout << "2 2"<<"\n";
-                }
-                else {
-                    frac_psr_dep[i] = (4.0/3.0)
-                                      *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
-                                      *spec_non_thermal(e_tmp,b_pwn,gamma_b,T_ej)
-                                      *e_tmp*del_ln_e;
-//                    std::cout << "2 3"<<"\n";
-                }
-//#pragma omp atomic
-//                frac_psr_dep_tmp += frac_psr_dep;
+                double del_ln_e = (log(e_gamma_max_tmp)-log(e_gamma_min))/(double)(i_max+1);
+                double e_tmp = e_gamma_min*exp(del_ln_e*(double)i);
+                double fac_gamma_dep_tmp = f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode);
+                double spec_non_thermal_tmp = spec_non_thermal(e_tmp,b_pwn,gamma_b,T_ej);
+                double total_fac = fac_gamma_dep_tmp * spec_non_thermal_tmp * e_tmp * del_ln_e;
+                if ((i == 0) || (i==i_max))
+                    frac_psr_dep[i] = (1.0/3.0) * total_fac;
+                else if (i % 2 == 0)
+                    frac_psr_dep[i] = (2.0/3.0) * total_fac;
+                else
+                    frac_psr_dep[i] = (4.0/3.0) * total_fac;
             }
         }
-//        std::cout << frac_psr_dep << "\n";
+        std::cout << frac_psr_dep << "\n";
 //        exit(1);
     }
 
@@ -1283,69 +1260,109 @@ private:
             e_gamma_max_tmp = e_gamma_gamma_ani_tmp;
 
         int i_max = p_pars->iterations;
-        double e_tmp = e_gamma_min;
-        double del_ln_e = 0.0;
+//        double e_tmp = e_gamma_min;
+//        double del_ln_e = 0.0;
 
         double albd_fac = p_pars->albd_fac;
 //        int opacitymode = 0;
 
-//        tmp(rho_ej,delta_ej,T_ej,p_pars->albd_fac,opacitymode,e_gamma_max_tmp,e_gamma_syn_b_tmp,
-//            e_gamma_min);
+//        tmp(rho_ej,delta_ej,T_ej,p_pars->albd_fac,opacitymode,e_gamma_max_tmp,e_gamma_syn_b_tmp, e_gamma_min);
 //        std::cout << " 11 \n";
         double frac_psr_dep_tmp = 0.0; int i = 0;
-//        std::cout << " frac_psr_dep.size(0" << frac_psr_dep.size()<<"\n";
+//        std::cout << " frac_psr_dep_.size(0" << frac_psr_dep_.size()<<"\n";
 //        for (size_t i = 0; i <= p_pars->iterations; i++)
-//            frac_psr_dep_tmp += frac_psr_dep[i];
+//            frac_psr_dep_tmp += frac_psr_dep_[i];
+        int nthreads = 6;
         ///
         if (e_gamma_max_tmp > e_gamma_syn_b_tmp){
-            del_ln_e = (log(e_gamma_max_tmp)-log(e_gamma_min))/(double)(i_max+1);
+            double del_ln_e = (log(e_gamma_max_tmp)-log(e_gamma_min))/(double)(i_max+1);
+#pragma omp parallel for num_threads( nthreads )
             for (i=0;i<=i_max;i++) {
-                e_tmp = e_gamma_min*exp(del_ln_e*(double)i);
-                if (i == 0 || i==i_max){
-                    frac_psr_dep_tmp += (1.0/2.0)
-                                        *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
-                                        *spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej)
-                                        *e_tmp*del_ln_e;
-                }
-                else if (i % 2 == 0) {
-                    frac_psr_dep_tmp += (2.0/3.0)
-                                        *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
-                                        *spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej)
-                                        *e_tmp*del_ln_e;
-                }
-                else {
-                    frac_psr_dep_tmp += (4.0/3.0)
-                                        *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
-                                        *spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej)
-                                        *e_tmp*del_ln_e;
-                }
+                double e_tmp = e_gamma_min * exp(del_ln_e*(double)i);
+                double f_gamma_dep_ = f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode);
+                double spec_non_thermal_ = spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej);
+                double frac_psr_dep_tmp_ = f_gamma_dep_ * spec_non_thermal_ * e_tmp * del_ln_e;
+                double frac_psr_dep_tmp_tmp = 0;
+                if (i == 0 || i==i_max)
+                    frac_psr_dep_tmp_tmp = (1.0/2.0) * frac_psr_dep_tmp_;
+                else if (i % 2 == 0)
+                    frac_psr_dep_tmp_tmp = (2.0/3.0) * frac_psr_dep_tmp_;
+                else
+                    frac_psr_dep_tmp_tmp = (4.0/3.0) * frac_psr_dep_tmp_;
+                frac_psr_dep_[i] = frac_psr_dep_tmp_tmp;
             }
         }
         else {
             e_gamma_max_tmp = e_gamma_syn_b_tmp;
-            del_ln_e = (log(e_gamma_max_tmp)-log(e_gamma_min))/(double)(i_max+1);
+            double del_ln_e = (log(e_gamma_max_tmp)-log(e_gamma_min))/(double)(i_max+1);
+#pragma omp parallel for num_threads( nthreads )
             for (i=0;i<=i_max;i++) {
-                e_tmp = e_gamma_min*exp(del_ln_e*(double)i);
-                if (i == 0 || i==i_max){
-                    frac_psr_dep_tmp += (1.0/3.0)
-                                        *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
-                                        *spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej)
-                                        *e_tmp*del_ln_e;
-                }
-                else if (i % 2 == 0) {
-                    frac_psr_dep_tmp += (2.0/3.0)
-                                        *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
-                                        *spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej)
-                                        *e_tmp*del_ln_e;
-                }
-                else {
-                    frac_psr_dep_tmp += (4.0/3.0)
-                                        *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
-                                        *spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej)
-                                        *e_tmp*del_ln_e;
-                }
+                double e_tmp = e_gamma_min * exp(del_ln_e*(double)i);
+                double f_gamma_dep_ = f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode);
+                double spec_non_thermal_ = spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej);
+                double frac_psr_dep_tmp_ = f_gamma_dep_ * spec_non_thermal_ * e_tmp * del_ln_e;
+                double frac_psr_dep_tmp_tmp = 0;
+                if (i == 0 || i==i_max)
+                    frac_psr_dep_tmp_tmp = (1.0/3.0) * frac_psr_dep_tmp_;
+                else if (i % 2 == 0)
+                    frac_psr_dep_tmp_tmp = (2.0/3.0) * frac_psr_dep_tmp_;
+                else
+                    frac_psr_dep_tmp_tmp = (4.0/3.0) * frac_psr_dep_tmp_;
+                frac_psr_dep_[i]= frac_psr_dep_tmp_tmp;
             }
         }
+        for (size_t i = 0; i <= i_max; ++i)
+            frac_psr_dep_tmp += frac_psr_dep_[i];
+
+//        if (e_gamma_max_tmp > e_gamma_syn_b_tmp){
+//            del_ln_e = (log(e_gamma_max_tmp)-log(e_gamma_min))/(double)(i_max+1);
+//            for (i=0;i<=i_max;i++) {
+//                e_tmp = e_gamma_min*exp(del_ln_e*(double)i);
+//                if (i == 0 || i==i_max){
+//                    frac_psr_dep_tmp += (1.0/2.0)
+//                                        *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
+//                                        *spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej)
+//                                        *e_tmp*del_ln_e;
+//                }
+//                else if (i % 2 == 0) {
+//                    frac_psr_dep_tmp += (2.0/3.0)
+//                                        *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
+//                                        *spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej)
+//                                        *e_tmp*del_ln_e;
+//                }
+//                else {
+//                    frac_psr_dep_tmp += (4.0/3.0)
+//                                        *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
+//                                        *spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej)
+//                                        *e_tmp*del_ln_e;
+//                }
+//            }
+//        }
+//        else {
+//            e_gamma_max_tmp = e_gamma_syn_b_tmp;
+//            del_ln_e = (log(e_gamma_max_tmp)-log(e_gamma_min))/(double)(i_max+1);
+//            for (i=0;i<=i_max;i++) {
+//                e_tmp = e_gamma_min*exp(del_ln_e*(double)i);
+//                if (i == 0 || i==i_max){
+//                    frac_psr_dep_tmp += (1.0/3.0)
+//                                        *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
+//                                        *spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej)
+//                                        *e_tmp*del_ln_e;
+//                }
+//                else if (i % 2 == 0) {
+//                    frac_psr_dep_tmp += (2.0/3.0)
+//                                        *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
+//                                        *spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej)
+//                                        *e_tmp*del_ln_e;
+//                }
+//                else {
+//                    frac_psr_dep_tmp += (4.0/3.0)
+//                                        *f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode)
+//                                        *spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej)
+//                                        *e_tmp*del_ln_e;
+//                }
+//            }
+//        }
 
         if (frac_psr_dep_tmp > 1.)
             frac_psr_dep_tmp = 1.;

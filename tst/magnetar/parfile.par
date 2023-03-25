@@ -13,10 +13,10 @@
 * Parameters
 
 tb0 = 1.e1
-tb1 = 1e11
-ntb = 500000
-iout = 100
-rtol = 5.e-11
+tb1 = 1.e2 #1e11
+ntb = 1000
+iout = 1
+rtol = 1.e-11
 nmax = 1000
 
 A0 = -1
@@ -37,7 +37,7 @@ lc_use_freq_to_time = no
 skymap_freqs = array 1e9 1e18
 skymap_times = array logspace 8.e5 2e9 50
 
-integrator = DOP853
+integrator = DOP853E
 method_eats = piece-wise # piece-wise
 
 # --------------------------- END ---------------------------
@@ -68,6 +68,7 @@ gamma_b = 1.0e5
 albd_fac = 0.5
 Rw0 = 120000000. # 100*12*1000*100
 iters = 1000
+nthreads_frac = 14
 
 save_pwn_every_it = 1
 
