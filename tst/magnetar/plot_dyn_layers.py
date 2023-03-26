@@ -181,7 +181,8 @@ def plot_ejecta_layers(ishells=(1,), ilayers=(0,10,22), v_n_x = "R", v_n_ys = ("
 def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
                                 v_n_x = "R", v_n_ys = ("rho", "mom"),
                                 pwn_v_n_ys = ("Epwn"),
-                                colors_by="layers",legend=False):
+                                colors_by="layers",legend=False,
+                                figname="./pwn.png"):
 
     layers = []
     for i in ishells:
@@ -206,13 +207,16 @@ def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
         for il, layer in enumerate(layers):
             x_arr = np.array(dfile[layer][v_n_x])
             y_arr = np.array(dfile[layer][v_n])
-            y_arr = y_arr[x_arr > 0]
-            x_arr = x_arr[x_arr > 0]
             # if (v_n == "R"):
             # y_arr = y_arr/y_arr.max()
             if (colors_by=="layers"): color=cmap(mynorm(int(i)))#color=cmap(norm(int(layer.split("layer=")[-1])))
             else: color=cmap(mynorm(int(i)))#color=cmap(norm(int(layer.split("shell=")[-1].split("layer=")[0])))
             if (v_n_x == "tburst"): x_arr /=cgs.day;
+            if (v_n_x == "tburst" and v_n == "R"):
+                y_arr_ = np.array(dfile[layers[-1]][v_n])
+                y_arr = y_arr/y_arr_
+            y_arr = y_arr[x_arr > 0]
+            x_arr = x_arr[x_arr > 0]
             ax.plot(x_arr, y_arr, ls='-', color=color, label=layer)
             # ------------
             i=i+1
@@ -227,8 +231,6 @@ def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
         ax.set_xscale("log")
         ax.set_yscale("log")
         # ax.set_xlim(5e-1,4e3)
-
-
 
     for iv_n, v_n in enumerate(pwn_v_n_ys):
         i = 0
@@ -254,11 +256,13 @@ def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
         ax.set_xscale("log")
         ax.set_yscale("log")
 
-
     if legend: plt.legend()
-    plt.savefig("./many_bw_dynamics.png", dpi=256)
+    plt.savefig(figname, dpi=256)
     plt.show()
-plot_ej_and_magnetar_layers(ishells=([i for i in range(98)]), ilayers=(0,), v_n_x = "tburst", v_n_ys = (["R","mom"]), pwn_v_n_ys=(["Rwing","Enebula","Epwn"]), colors_by="shell")
+# plot_ej_and_magnetar_layers(ishells=([i for i in range(3)]), ilayers=(0,), v_n_x = "tburst",
+#                             v_n_ys = ([]), pwn_v_n_ys=(["Rwing","Enebula","Epwn"]), colors_by="shell",figname="./pwn.png")
+plot_ej_and_magnetar_layers(ishells=([i for i in range(98)]), ilayers=(0,), v_n_x = "tburst",
+                            v_n_ys = (["R"]), pwn_v_n_ys=([]), colors_by="shell",figname="./pwn_driv_ejecta.png")
 
 
 def plot_dynamics_layers(jet_layers=(0,20,40,60,69), v_n_x = "R", v_n_ys = ("rho", "mom", "tburst"),

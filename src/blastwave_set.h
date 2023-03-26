@@ -2010,6 +2010,7 @@ class Ejecta{
     LatStruct::METHOD_eats ejecta_eats_method{};
     Vector & t_arr;
 public:
+    bool do_eninj_inside_rhs = false;
     bool run_ej_bws = false;
     bool do_collision = false;
     bool is_ejecta_obs_pars_set = false;
@@ -2212,7 +2213,7 @@ public:
             do_collision = true;
             (*p_log)(LOG_INFO,AT)<<"Including shell collision into kN ejecta dynamics\n";
         }
-
+        do_eninj_inside_rhs = getBoolOpt("do_eninj_inside_rhs", opts, AT, p_log, "no", false);
         (*p_log)(LOG_INFO,AT) << "finished initializing ejecta...\n";
     }
     double ej_rtol = 1e-5;
@@ -2686,6 +2687,7 @@ public:
         is_initialized = true;
 
     }
+
     // evolve all blast waves
     void evolve( const double dx, const size_t ix){
         if (!is_initialized){
@@ -2694,30 +2696,38 @@ public:
         }
         Timer timer;
         Vector & t_grid = p_pars->_t_grid;
-        // eval relative geometry (which BW is behind what BW)
-//        check_layer_relative_position( ix );
+
 /// also, update the shell thickness and optical depth after the substap
-        for (size_t il = 0; il < p_pars->p_ej->nlayers(); il++) {
-            auto &cumShell = p_pars->p_ej->getShells()[il];
-            cumShell->evalShellThickness(m_TmpSol);
-            cumShell->evalShellOptDepth(m_TmpSol);
-            /// update the shell properties for the PWN if needed
-            if (p_pars->p_ej_pwn->run_pwn){
-                auto & pwn = p_pars->p_ej_pwn->getPWN(il);
-                pwn->updateOuterBoundary(cumShell->getRvec(),
-                                         cumShell->getBetaVec(),
-                                         cumShell->getRhoVec(),
-                                         cumShell->getTauVec(),
-                                         cumShell->getTempVec()
-                                         );
-            }
+//        for (size_t il = 0; il < p_pars->p_ej->nlayers(); il++) {
+//            auto &cumShell = p_pars->p_ej->getShells()[il];
+//            cumShell->evalShellThickness(m_TmpSol);
+//            cumShell->evalShellOptDepth(m_TmpSol);
+//            /// update the shell properties for the PWN if needed
+//            if (p_pars->p_ej_pwn->run_pwn){
+//                /// update outer boundary for the PWN evolution
+//                auto & pwn = p_pars->p_ej_pwn->getPWN(il);
+//                pwn->updateOuterBoundary(cumShell->getRvec(),
+//                                         cumShell->getBetaVec(),
+//                                         cumShell->getRhoVec(),
+//                                         cumShell->getTauVec(),
+//                                         cumShell->getTempVec()
+//                                         );
+//            }
+//        }
+
+        /// update Magnetar energy injecton into kN blast waves
+        if (!p_pars->p_ej->do_eninj_inside_rhs) {
+            double tinj = t_grid[ix];
+            double ldip = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ildip, tinj);
+            double lacc = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ilacc, tinj);
+            updateEnergyInjectionToEjectaBWs(ldip, lacc, m_CurSol, p_pars);
         }
-        // solve the ODE system for x_i = x_{i-1} + dx
+        /// solve the ODE system for x_i = x_{i-1} + dx
         p_Integrator->Integrate( dx );
-        // extract the solution vector from the ODE solver
+        /// extract the solution vector from the ODE solver
         p_Integrator->GetY( m_CurSol );
 
-        /// check if there one of the layers is terminated
+        /// check if there one of the layers is terminated #TODO change this to not to use recursive call
         if ( !isThereATermination() ){
             if(p_pars->i_restarts > 1){
                 (*p_log)(LOG_ERR,AT)  << " second restart. Should not occure. Exiting...";
@@ -2727,6 +2737,8 @@ public:
             evolve( dx, ix );
             p_pars->i_restarts += 1;
         }
+
+
         /// check if any of the kilonova blastwaves have collided
 //        std::cout << m_CurSol[p_pars->p_ej->getShells()[0]->getBW(0)->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2]<<"\n";
         /// TODO DEBUG: this helps when collisions are extremenly close to ofset the trunning back a bit
@@ -2870,6 +2882,13 @@ public:
                     (*p_log)(LOG_INFO,AT)
                             <<"Trying to integrate to collision from "
                             <<"trunning="<<trunning<<" to tcoll="<<tcoll_min<<" Precision is set="<<col_prec_fac<<"\n";
+                    if (!p_pars->p_ej->do_eninj_inside_rhs)
+                        updateEnergyInjectionToEjectaBWs(
+                                p_pars->p_magnetar->getMagValInt(Magnetar::Q::ildip, tcoll_min*(1.-col_prec_fac)),
+                                p_pars->p_magnetar->getMagValInt(Magnetar::Q::ilacc, tcoll_min*(1.-col_prec_fac)),
+                                m_CurSol,p_pars);
+
+
                     /// advance the ODE to time of the collision. Use previous solution [ix-1] as a starting point
                     p_Integrator->Integrate(trunning, tcoll_min*(1.-col_prec_fac), m_TmpSol);
                     /// extract the solution vector from the ODE solver into 'm_CurSol'
@@ -2934,6 +2953,8 @@ public:
                             exit(1);
                         }
                     }
+//                    updateEnergyInjection(m_CurSol, tcoll_min*(1.-col_prec_fac));
+
                     /// advance the target timestep:
                     trunning = tcoll_min*(1.-col_prec_fac);
                     if (trunning == t_grid[ix]){
@@ -2961,6 +2982,14 @@ public:
                     }
                     (*p_log)(LOG_INFO,AT)
                         <<"Trying to integrate after collision from trunning="<<trunning<<" to t[ix]="<<t_grid[ix]<<"\n";
+
+                    if (!p_pars->p_ej->do_eninj_inside_rhs)
+                        updateEnergyInjectionToEjectaBWs(
+                                p_pars->p_magnetar->getMagValInt(Magnetar::Q::ildip, t_grid[ix]),
+                                p_pars->p_magnetar->getMagValInt(Magnetar::Q::ilacc, t_grid[ix]),
+                                m_CurSol,p_pars);
+
+
                     /// try to complete the timestep, itegrating from trunning to t_grid[ix]
                     p_Integrator->Integrate(trunning, t_grid[ix], m_CurSol);
                     /// extract the solution vector from the ODE solver into 'm_CurSol'
@@ -3066,6 +3095,7 @@ public:
         p_pars->dx = dx;// latest solution
         p_pars->x = t_grid[ix];
     }
+
     void storeSolution(int ix){
         // plug the solution vector to the solution container of a given blast wave
         insertSolution(ix);
@@ -3079,9 +3109,6 @@ public:
     inline auto * pIntegrator() { return p_Integrator; }
 
 private:
-    void collisions(){
-
-    }
     void applyUnits(){
         size_t ii = 0;
         if (p_pars->p_magnetar->run_magnetar) {
@@ -3162,58 +3189,6 @@ private:
         }
         return is_ok;
     }
-#if 0
-    int isThereACollisionBetweenKnBlastWaves(double x, size_t ix){
-        if (p_pars->p_ej->run_ej_bws){
-            /// for one shell there is no collision possible
-            if (p_pars->p_ej->nshells() == 1)
-                return true;
-//            std::cout << "nshells="<<p_pars->p_ej->nshells()<<"\n"; exit(1);
-            auto &ej_bws = p_pars->p_ej->getShells();
-            for (size_t il=0; il<ej_bws.size(); il++){
-                int order_info = ej_bws[il]->areShellsOrderedRadially( m_CurSol );
-                (*p_log)(LOG_INFO,AT)<< " Shell Order Infor " << order_info << "\n";
-            }
-        }
-        return true;
-        //        size_t ii = 0; bool is_ok = true;
-//        /// move the ii beyong GRB
-//        if (p_pars->p_grb->run_jet_bws) {
-//            auto & jet_bws = p_pars->p_grb->getBWs();
-//            for (size_t i = 0; i < jet_bws.size(); i++) {
-//                ii += jet_bws[i]->getNeq();
-//            }
-//        }
-
-//        if (p_pars->p_ej->run_ej_bws) {
-//            auto & ej_bws = p_pars->p_ej->getShells();
-//            for (size_t il=0; il<ej_bws.size(); il++){
-//                ej_bws[il]->setShellOrder(ix, m_InitData);
-//            }
-//        }
-
-
-//        if (p_pars->p_ej->run_ej_bws) {
-//            auto & ej_bws = p_pars->p_ej->getShells();
-//            for (size_t il=0; il<ej_bws.size(); il++){
-//                Vector rs (ej_bws[il]->nBWs(), 0.0);
-//                for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
-//                    auto & bw = ej_bws[il]->getBW(ish);
-//
-//
-//                    if (bw->isToTerminate(m_CurSol, ii)) {
-//                        is_ok = false;
-//                        bw->getPars()->end_evolution = true; // SET TO END
-//                        (*p_log)(LOG_ERR,AT) << " Terminating ejecta BW [ish=" << ish << " il=" << il << " "
-//                                             << " ii_eq=" << bw->getPars()->ii_eq
-//                                             << " ] \n";
-//                    }
-//                    ii += bw->getNeq();//p_pars->n_eq_ej_bws;
-//                }
-//            }
-//        }
-    }
-#endif
     bool isSolutionOk(){
 //        auto & magnetar = p_pars->p_magnetar;
 //        auto & jet_bws = p_pars->p_bws_jet;
@@ -3358,7 +3333,41 @@ private:
 //            p_pars->p_bws_ej[i]->addOtherVars( it );
 //        }
     }
-    /// get offset of the equations in the combined solution vector for a given blast wave from its ilayer and ishell
+
+    static void updateEnergyInjectionToEjectaBWs(double ldip, double lacc, const double * Y, void * pars){
+        auto * p_pars = (struct Pars *) pars;
+        if (!p_pars->p_ej->run_ej_bws) {
+            return;
+        }
+        /// ********************| Ejecta Energy Injection |****************
+        auto &ej_layers = p_pars->p_ej->getShells();
+        for (size_t il = 0; il < ej_layers.size(); il++) {
+            auto & pwn = p_pars->p_ej_pwn->getPWN(il);
+            auto & cumShell = p_pars->p_ej->getShells()[il];
+            double total_sd = 0.;
+            if (p_pars->p_ej_pwn->run_pwn) {
+                pwn->evalCurrBpwn(Y);
+                total_sd = pwn->getAbsobedMagnetarLum(ldip, lacc, 1.);
+            }
+            /// update energy injection into blast waves
+            for (size_t ish = 0; ish < ej_layers[il]->nBWs(); ish++) {
+                auto & ej_bw = ej_layers[il]->getBW(ish);
+                cumShell->getBW(ish)->getPars()->dEinjdt = 0.;
+                if ((total_sd > 1e-10)) { // and(ish<10)
+                    double fac_psr_dep_tmp = pwn->getFacPWNdep( // double rho_ej, double delta_ej, double T_ej, double Ye
+                            cumShell->getRhoVec()[cumShell->getIdx()[ish]],
+                            cumShell->getDeltaVec()[cumShell->getIdx()[ish]],
+                            cumShell->getTempVec()[cumShell->getIdx()[ish]],
+                            0.2
+                    );
+                    ej_bw->getPars()->dEinjdt = fac_psr_dep_tmp * total_sd;
+                    total_sd = total_sd - fac_psr_dep_tmp * total_sd;
+                }
+            }
+        }
+    }
+
+    /// evaluate RHS
     static void RHS_comb(double * out_Y,
                          size_t n_eq,
                          double x,
@@ -3366,21 +3375,18 @@ private:
                          void *pars){
 
         auto * p_pars = (struct Pars *) pars;
-//        auto & magnetar = p_pars->p_magnetar;
-//        auto & jet_bws = p_pars->p_bws_jet;
-//        auto & ej_bws = p_pars->p_ej;
 
-        /// advance magnetar to the next timestep
+        /// *********************| M A G N E T A R |**********************
         size_t ii = 0;
         double ldip = 0;
         double lacc = 0;
         if (p_pars->p_magnetar->run_magnetar) {
             auto & magnetar = p_pars->p_magnetar;
             magnetar->evaluateRhsMag(out_Y, ii, x, Y);
-//            dEsddt = p_pars->p_magnetar->getLdip(x, Y, ii);
-//            dEpropdt = p_pars->p_magnetar->getLprop(x, Y, ii);
-            ldip = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ildip, x);
-            lacc = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ilacc, x);
+//            ldip = p_pars->p_magnetar->(x, Y, ii);
+//            lacc = p_pars->p_magnetar->getLprop(x, Y, ii);
+//            ldip = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ildip, x);
+//            lacc = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ilacc, x);
             ii += magnetar->getNeq();
         }
         else if (p_pars->p_magnetar->load_magnetar){
@@ -3388,68 +3394,26 @@ private:
             lacc = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ilacc, x);
         }
 
-
-
-        /// evaluate RHS for the jet (advance it to the next sub-step)
+        /// ***************************| G R B |**************************
         if (p_pars->p_grb->run_jet_bws) {
             auto & jet_bws = p_pars->p_grb->getBWs();
             for (size_t i = 0; i < jet_bws.size(); ++i) {
                 jet_bws[i]->evaluateRhs(out_Y, ii, x, Y);
-//                ii += p_pars->n_eq_j_bws;
                 ii += jet_bws[i]->getNeq();//n_eq_j_bws;
             }
         }
-//        else
-//            std::vector<std::unique_ptr<BlastWaveBase>> jet_bws ;
 
+        /// ********************| Ejecta Energy Injection |****************
+        if (p_pars->p_ej->do_eninj_inside_rhs)
+            updateEnergyInjectionToEjectaBWs(ldip,lacc,Y,pars);
 
-
-        /// evaluate RHS for the ejecta (advance it to the next sub-step)
+        /// *************************| E J E C T A |***********************
         if (p_pars->p_ej->run_ej_bws) {
             auto &ej_layers = p_pars->p_ej->getShells();
             for (size_t il=0; il < ej_layers.size(); il++){
-//                ej_layers[il]->setShellOrder(x, Y);
-//                ej_layers[il]->evalShellOptDepth(x, Y); // dEinjdt
-                auto & pwn = p_pars->p_ej_pwn->getPWN(il);
-                auto & cumShell = p_pars->p_ej->getShells()[il];
-                double total_sd = 0.;
-                if (p_pars->p_ej_pwn->run_pwn) {
-                    pwn->evalCurrBpwn(Y);
-                    total_sd = pwn->getAbsobedMagnetarLum(ldip, lacc, 1.);
-                }
+                /// evaluate ejecta blast waves rhs
                 for(size_t ish=0; ish < ej_layers[il]->nBWs(); ish++) {
                     auto & ej_bw = ej_layers[il]->getBW(ish);
-                    cumShell->getBW(ish)->getPars()->dEinjdt = 0.;
-//                    if (ish==0){
-//                        double fac_psr_dep_tmp = pwn->getFacPWNdep( // double rho_ej, double delta_ej, double T_ej, double Ye
-//                                cumShell->getRhoVec()[cumShell->getIdx()[ish]],
-//                                cumShell->getDeltaVec()[cumShell->getIdx()[ish]],
-//                                cumShell->getTempVec()[cumShell->getIdx()[ish]],
-//                                0.2
-//                        );
-//                        cumShell->getBW(ish)->getPars()->dEinjdt = fac_psr_dep_tmp * total_sd;
-//                    }
-
-                    if ((total_sd > 1e-20)){ // and(ish<10)
-                        double fac_psr_dep_tmp = pwn->getFacPWNdep( // double rho_ej, double delta_ej, double T_ej, double Ye
-                                cumShell->getRhoVec()[cumShell->getIdx()[ish]],
-                                cumShell->getDeltaVec()[cumShell->getIdx()[ish]],
-                                cumShell->getTempVec()[cumShell->getIdx()[ish]],
-                                0.2
-                        );
-                        ej_bw->getPars()->dEinjdt = fac_psr_dep_tmp * total_sd;
-                        total_sd = total_sd - fac_psr_dep_tmp * total_sd;
-                    }
-
-
-//                    if (total_sd <=0)
-//                        break;
-
-//                    ej_bw->getPars()->dEinjdt = lacc + ldip;
-//                    if (ej_bw->getPars()->dEinjdt < 0){
-//                        ej_bw->getPars()->dEinjdt = 0.;
-//                        (*ej_bw->getPars()->p_log)(LOG_ERR,AT) << " wrong value of dEinjdt="<<ej_bw->getPars()->dEinjdt<<"\n";
-//                    }
                     if (p_pars->p_grb->run_jet_bws) {
                         auto & jet_bws = p_pars->p_grb->getBWs();
                         ej_bw->evaluateRhsDensModel2(out_Y, ii, x, Y,
@@ -3463,7 +3427,8 @@ private:
                     ii += ej_bw->getNeq();
                 }
             }
-            // PWN bound by ejecta
+
+            /// ****************************| P W N |***************************
             if (p_pars->p_ej_pwn->run_pwn){
                 auto & pwn = p_pars->p_ej_pwn;
                 auto & ej_pwns = p_pars->p_ej_pwn->getPWNs();
@@ -3475,24 +3440,7 @@ private:
                     ii += ej_pwns[il]->getNeq();
                 }
             }
-
-
-//            for(size_t iej = 0; iej < p_pars->n_ej_bws; iej++) {
-////            if (ii!=ej_layers[iej]->getPars()->ii_eq){ // -------------- TO BE REMOVED
-////                std::cerr<<AT << ii << " != "<< ej_layers[iej]->getPars()->ii_eq << "\n";
-////                exit(1);
-////            }
-////            if (ej_layers[iej]->getPars()->end_evolution)
-////                continue;
-//                ej_layers[iej]->evaluateRhsDensModel2(out_Y, ii, x, Y,
-//                     reinterpret_cast<std::vector<std::unique_ptr<BlastWaveBase>> &>(jet_bws), p_pars->ix);
-////                ii += p_pars->n_eq_ej_bws;
-//                ii += ej_layers[iej]->getNeq();
-//            }
         }
-
-
-
 
         // ****************************************
         // Place to add interaction between blast waves
