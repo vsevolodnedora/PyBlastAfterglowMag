@@ -33,7 +33,6 @@ static double check_emission_time( double t_e, double mu, double t_obs, Array & 
     return t_e;
 }
 
-
 /// Blast wave emission from shock
 class RadBlastWave : public BlastWaveBase{
     std::unique_ptr<logger> p_log;

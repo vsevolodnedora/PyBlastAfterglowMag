@@ -14,6 +14,7 @@
 #include "rootfinders.h"
 #include "observer.h"
 #include "synchrotron_an.h"
+#include "composition.h"
 
 
 enum METHODS_Up { iuseEint2, iuseGamma }; // energy density behind the shock
@@ -79,6 +80,7 @@ struct Pars{
     double Gamma0 = -1.;
     double mom0 = -1.;
     double E0 = -1.;
+    double Ye0 = -1.;
     double theta_a = -1.;
     double theta_b0 = -1.;
     double ncells = -1.;
@@ -220,6 +222,7 @@ protected:
     RhoISM * p_dens = nullptr;
     SedovTaylor * p_sedov = nullptr;
     BlandfordMcKee2 * p_bm = nullptr;
+    Composition * p_comp = nullptr;
     std::unique_ptr<ShockMicrophysics> p_fs{};
     std::unique_ptr<ShockMicrophysics> p_rs{};
     int m_loglevel;
@@ -254,6 +257,7 @@ public:
         p_dens = new RhoISM(loglevel);
         p_sedov = new SedovTaylor();
         p_bm = new BlandfordMcKee2();
+        p_comp = new Composition(loglevel);
         // ----------------------
         p_pars->nr = m_tb_arr.size();
         p_pars->ilayer = ilayer;
@@ -816,13 +820,14 @@ public:
         switch (latStruct.m_method_eats) {
 
             case LatStruct::i_pw:
-                if ( latStruct.dist_E0_pw.empty() || latStruct.dist_M0_pw.empty() || latStruct.dist_G0_pw.empty() ||
-                     latStruct.theta_pw.empty()){
+                if ( latStruct.dist_E0_pw.empty() || latStruct.dist_M0_pw.empty() || latStruct.dist_G0_pw.empty()
+                    || latStruct.dist_Ye_pw.empty() || latStruct.theta_pw.empty()){
                     (*p_log)(LOG_ERR, AT) << "one of the blast-wave initial data arrays is empty. \n";
                     exit(1);
                 }
                 (*p_log)(LOG_INFO,AT) << " Init. [pw] "
                                      << " E0="<<latStruct.dist_E0_pw[ilayer]
+                                     << " Ye="<<latStruct.dist_Ye_pw[ilayer]
                                      << " M0="<<latStruct.dist_M0_pw[ilayer]
                                      << " G0="<<latStruct.dist_G0_pw[ilayer]
                                      << " beta0="<<EQS::Beta(latStruct.dist_G0_pw[ilayer])
@@ -858,6 +863,7 @@ public:
                 }
 //
                 p_pars->E0        = latStruct.dist_E0_pw[ilayer];
+                p_pars->Ye0       = latStruct.dist_Ye_pw[ilayer];
                 p_pars->M0        = latStruct.dist_M0_pw[ilayer];
                 p_pars->Gamma0    = latStruct.dist_G0_pw[ilayer];
                 p_pars->mom0      = latStruct.dist_G0_pw[ilayer]*EQS::Beta(latStruct.dist_G0_pw[ilayer]); // TODO replace Gamma with momentum
@@ -881,13 +887,14 @@ public:
 
                 break;
             case LatStruct::i_adap:
-                if ( latStruct.dist_E0_a.empty() || latStruct.dist_M0_a.empty() || latStruct.dist_G0_a.empty() ||
-                     latStruct.thetas_c_h.empty()){
+                if ( latStruct.dist_E0_a.empty() || latStruct.dist_M0_a.empty() || latStruct.dist_G0_a.empty()
+                    || latStruct.dist_Ye_a.empty() || latStruct.thetas_c_h.empty()){
                     (*p_log)(LOG_ERR, AT) << "one of the blast-wave initial data arrays is empty. \n";
                     exit(1);
                 }
                 (*p_log)(LOG_INFO,AT)<<"Init. [a] "
                                      << " E0="<<latStruct.dist_E0_a[ilayer]
+                                     << " Ye="<<latStruct.dist_Ye_a[ilayer]
                                      << " M0="<<latStruct.dist_M0_a[ilayer]
                                      << " G0="<<latStruct.dist_G0_a[ilayer]
                                      << " beta0="<<EQS::Beta(latStruct.dist_G0_a[ilayer])
@@ -907,6 +914,7 @@ public:
                 }
 
                 p_pars->E0      = latStruct.dist_E0_a[ilayer];
+                p_pars->Ye0     = latStruct.dist_Ye_a[ilayer];
                 p_pars->M0      = latStruct.dist_M0_a[ilayer];
                 p_pars->Gamma0  = latStruct.dist_G0_a[ilayer];
                 p_pars->tb0     = m_tb_arr[0];
@@ -954,7 +962,9 @@ public:
 //                  <<"\n";
     }
     // ---------------------------------------------------------
+    void evalNucleoEnergy(){
 
+    }
 };
 
 //    void setMagPars(double E0, double M0, double Gamma0, double tb0, double theta_a, double theta_b0,

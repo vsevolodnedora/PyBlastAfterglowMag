@@ -901,6 +901,7 @@ public:
     }
 private:
     /// maximum energy of electrons; Eq. (21) of Murase+15, but neglecting Y
+    /// THe pair-limited lorentz -factor
     static double gamma_e_max(const double b_pwn) {
         double eta = 1;
         return sqrt(6.0*M_PI*CGS::ELEC/eta/CGS::SIGMA_T/b_pwn);
@@ -913,7 +914,7 @@ private:
     static double e_gamma_gamma_ani(const double T_ej) {
         return pow(CGS::M_ELEC*CGS::c*CGS::c,2.0)/2.0/CGS::K_B/T_ej;
     }
-    ///  Eq. (24) of Murase+15 in unit of [erg]
+    /// The characterisitc synchrotron energy; Eq. (24) of Murase+15 in unit of [erg]
     static double e_gamma_syn_b(const double b_pwn, const double gamma_b) {
         return 3.0/2.0*CGS::H/(2.0*M_PI)*gamma_b*gamma_b*CGS::ELEC*b_pwn/CGS::M_ELEC/CGS::c;
     }
@@ -1079,7 +1080,8 @@ private:
     }
 
     /// escape fraction of gamma rays interms of energy
-    static double f_gamma_dep(const double e_gamma, const double rho_ej, const double delta_ej, const double albd_fac, const int opacitymode) {
+    static double f_gamma_dep(const double e_gamma, const double rho_ej,
+                              const double delta_ej, const double albd_fac, const int opacitymode) {
         double mu_e; /* electron mean molecular weight */
         //double Z_eff = 7.0; /* effective nuclear weight */
         /* this corresponds to C:O = 1:1 */
@@ -1142,10 +1144,13 @@ private:
             return f_gamma_dep_tmp;
     }
 
-    static double spec_non_thermal(const double e_gamma, const double b_pwn, const double gamma_b, const double T_ej) {
+    static double spec_non_thermal(const double e_gamma, const double b_pwn,
+                                   const double gamma_b, const double T_ej) {
         /* psr non-thermal emission injection spectrum "E*dF/dE/(eps_e*L_d) [erg^-1]" */
-        /* We assume a broken power law with the low and high energy spectral indices are -p_1 and -2 */
+        /* We assume a broken power law with the low and high energy spectral
+         * indices are -p_1 and -2 */
         /* This is motivated by more detailed calculation by Murase+15 */
+        /// The source of this equations is unclear.
 
         double p_1 = 1.5; //photon index -- modified
         double e_gamma_min;
@@ -1165,9 +1170,11 @@ private:
         if (e_gamma_gamma_ani_tmp < e_gamma_max_tmp)
             e_gamma_max_tmp = e_gamma_gamma_ani_tmp;
 
-        if(e_gamma_max_tmp > e_gamma_syn_b_tmp && e_gamma_min < e_gamma_syn_b_tmp){
-            norm_fac = 1.0/((1.0/(2.0-p_1))*(1.0-pow(e_gamma_min/e_gamma_syn_b_tmp,2.0-p_1))
-                            +log(e_gamma_max_tmp/e_gamma_syn_b_tmp))/e_gamma_syn_b_tmp;
+        if((e_gamma_max_tmp > e_gamma_syn_b_tmp)
+            && (e_gamma_min < e_gamma_syn_b_tmp)){
+            norm_fac = 1.0 / ((1.0/(2.0 - p_1))
+                               * (1.0 - pow(e_gamma_min/e_gamma_syn_b_tmp,2.0 - p_1))
+                               + log(e_gamma_max_tmp/e_gamma_syn_b_tmp)) / e_gamma_syn_b_tmp;
             if((e_gamma < e_gamma_syn_b_tmp) && (e_gamma >= e_gamma_min))
                 return norm_fac*pow(e_gamma/e_gamma_syn_b_tmp,-p_1+1.0);
             else if((e_gamma > e_gamma_syn_b_tmp) && (e_gamma <= e_gamma_max_tmp))
@@ -1176,72 +1183,26 @@ private:
                 return 0.0;
         }
         else if(e_gamma_min > e_gamma_syn_b_tmp){
-            norm_fac = 1.0/log(e_gamma_max_tmp/e_gamma_min)/e_gamma_min;
+            norm_fac = 1.0 / log(e_gamma_max_tmp/e_gamma_min)
+                           / e_gamma_min;
             if ((e_gamma < e_gamma_max_tmp) && (e_gamma > e_gamma_min))
-                return norm_fac*pow(e_gamma/e_gamma_min,-1);
+                return norm_fac * pow(e_gamma/e_gamma_min,-1);
             else
                 return 0.0;
         }
         else{
-            norm_fac = 1.0/((1.0/(2.0-p_1))*(1.0-pow(e_gamma_min/e_gamma_max_tmp,2.0-p_1)))/e_gamma_max_tmp;
+            norm_fac = 1.0 / ((1.0/(2.0 - p_1))
+                               * (1.0 - pow(e_gamma_min/e_gamma_max_tmp,2.0 - p_1)))
+                           / e_gamma_max_tmp;
             if ((e_gamma < e_gamma_max_tmp) && (e_gamma >= e_gamma_min))
-                return norm_fac*pow(e_gamma/e_gamma_max_tmp,-p_1+1.0);
+                return norm_fac * pow(e_gamma/e_gamma_max_tmp,-p_1+1.0);
             else
                 return 0.0;
         }
     }
 
-    double tmp(double rho_ej, double delta_ej, double T_ej, double albd_fac, int opacitymode,
-               double e_gamma_max, double e_gamma_syn_b_tmp, double e_gamma_min){
-        int i_max = p_pars->iterations;
-        double b_pwn = p_pars->b_pwn;
-        double gamma_b = p_pars->gamma_b;
-        Vector frac_psr_dep(i_max+1,0.0);
-        if (e_gamma_max > e_gamma_syn_b_tmp){
-            double e_gamma_max_tmp = e_gamma_max;
-//            del_ln_e = (log(e_gamma_max_tmp)-log(e_gamma_min))/(double)(i_max+1);
-//#pragma omp parallel for reduction(+:frac_psr_dep_tmp)
-
-//#pragma omp parallel for //shared(frac_psr_dep_,e_gamma_max_tmp,e_gamma_min,i_max,rho_ej,delta_ej,albd_fac,opacitymode,b_pwn,gamma_b,T_ej)
-            for (int i=0;i<=i_max;i++) {
-                double del_ln_e = (log(e_gamma_max_tmp)-log(e_gamma_min))/(double)(i_max+1);
-                double e_tmp = e_gamma_min * exp(del_ln_e*(double)i);
-                double fac_gamma_dep_tmp = f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode);
-                double spec_non_thermal_tmp = spec_non_thermal(e_tmp,p_pars->b_pwn,p_pars->gamma_b,T_ej);
-                double total_fac = fac_gamma_dep_tmp * spec_non_thermal_tmp * e_tmp * del_ln_e;
-
-                if ((i == 0) || (i==i_max))
-                    frac_psr_dep[i] = (1.0/2.0) * total_fac;
-                else if (i % 2 == 0)
-                    frac_psr_dep[i] = (2.0/3.0) * total_fac;
-                else
-                    frac_psr_dep[i] = (4.0/3.0) * total_fac;
-            }
-        }
-        else {
-            double e_gamma_max_tmp = e_gamma_syn_b_tmp;
-//#pragma omp parallel for num_threads( 14 )
-//#pragma omp parallel for reduction(+:frac_psr_dep_tmp)
-//#pragma omp parallel for //shared(frac_psr_dep_,e_gamma_max_tmp,e_gamma_min,i_max,rho_ej,delta_ej,albd_fac,opacitymode,b_pwn,gamma_b,T_ej)
-            for (int i=0;i<=i_max;i++) {
-                double del_ln_e = (log(e_gamma_max_tmp)-log(e_gamma_min))/(double)(i_max+1);
-                double e_tmp = e_gamma_min*exp(del_ln_e*(double)i);
-                double fac_gamma_dep_tmp = f_gamma_dep(e_tmp,rho_ej,delta_ej,albd_fac,opacitymode);
-                double spec_non_thermal_tmp = spec_non_thermal(e_tmp,b_pwn,gamma_b,T_ej);
-                double total_fac = fac_gamma_dep_tmp * spec_non_thermal_tmp * e_tmp * del_ln_e;
-                if ((i == 0) || (i==i_max))
-                    frac_psr_dep[i] = (1.0/3.0) * total_fac;
-                else if (i % 2 == 0)
-                    frac_psr_dep[i] = (2.0/3.0) * total_fac;
-                else
-                    frac_psr_dep[i] = (4.0/3.0) * total_fac;
-            }
-        }
-        std::cout << frac_psr_dep << "\n";
-//        exit(1);
-    }
-
-    double facPSRdep(const double rho_ej, const double delta_ej, const double T_ej, const int opacitymode){
+    double facPSRdep(const double rho_ej, const double delta_ej,
+                     const double T_ej, const int opacitymode){
         if (p_pars->b_pwn < 0){
             (*p_log)(LOG_ERR,AT)<<" b_pwn is not set\n";
             exit(1);
@@ -1311,6 +1272,7 @@ private:
                 frac_psr_dep_[i]= frac_psr_dep_tmp_tmp;
             }
         }
+
         for (size_t i = 0; i <= i_max; ++i)
             frac_psr_dep_tmp += frac_psr_dep_[i];
 

@@ -120,12 +120,16 @@ public:
         if (m2_c==1)
             m2_c = m2_1 + m2_2;
         double mom_c = i_gM * EQS::Beta(i_gM);
+        /// update the shell composition (mass averaged)
+        double ye_c = (bw1->getPars()->Ye0 * bw1->getPars()->M0 + bw2->getPars()->Ye0 * bw2->getPars()->M0)
+                    / (bw1->getPars()->M0 + bw2->getPars()->M0);
         /// chose which shell to update/delete
         int ish = p_colsolve->choseShell();
         double eint_before,eint_after,m2_before,m2_after,m0_before,m0_after;
         if (ish == 1){
             bw2->getPars()->end_evolution = true;
             bw1->getPars()->M0 = m0_c;
+            bw1->getPars()->Ye0 = ye_c;
             Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] = mom_c;
             Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2] = eint2_c;
             Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2] = m2_c;
@@ -133,6 +137,7 @@ public:
         else {
             bw1->getPars()->end_evolution = true;
             bw2->getPars()->M0 = m0_c;
+            bw2->getPars()->Ye0 = ye_c;
             Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] = mom_c;
             Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2] = eint2_c;
             Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2] = m2_c;
@@ -1911,11 +1916,11 @@ public:
     }
     std::vector<std::unique_ptr<RadBlastWave>> & getBWs(){return p_bws_jet;}
 //    static auto listParsNumericJetStruct(){ return LatStruct::listParsCustomStruct(); }
-    void setJetStructNumeric( Vector & dist_thetas, Vector & dist_EEs, Vector & dist_Gam0s, Vector & dist_MM0s,
+    void setJetStructNumeric( Vector & dist_thetas, Vector & dist_EEs, Vector & dist_Yes, Vector & dist_Gam0s, Vector & dist_MM0s,
                               bool force_grid, std::string eats_method ){
         (*p_log)(LOG_ERR,AT) << " not finished...\n"; exit(1);
-        jetStruct.initCustom( dist_thetas, dist_EEs, dist_Gam0s, dist_MM0s, force_grid, eats_method,
-                              m_loglevel);
+        jetStruct.initCustom( dist_thetas, dist_EEs, dist_Yes, dist_Gam0s, dist_MM0s,
+                              force_grid, eats_method, m_loglevel);
         is_jet_struct_set = true;
     }
     void setJetBwPars(StrDbMap pars, StrStrMap opts, size_t ii_eq){
@@ -2035,23 +2040,25 @@ public:
         exit(1);
     }
 //    static std::vector<std::string> listParsNumericEjectaStruct(){ return VelocityAngularStruct::list_pars_v_ns(); }
-    void setEjectaStructNumericUniformInTheta(Vector & dist_thetas0, Vector & dist_betas, Vector & dist_ek, size_t nlayers, double mfac, StrStrMap & opts){
+    void setEjectaStructNumericUniformInTheta(Vector & dist_thetas0, Vector & dist_betas, Vector & dist_ek, Vector & dist_ye,
+                                              size_t nlayers, double mfac, StrStrMap & opts){
         run_ej_bws = getBoolOpt("run_ej_bws", opts, AT,p_log, false, true);
         if (!run_ej_bws)
             return;
         std::string ej_eats_method = getStrOpt("method_eats",opts,AT,p_log,"", true);
         ejecta_eats_method = LatStruct::setEatsMethod(ej_eats_method);
-        ejectaStructs.initUniform(dist_thetas0,dist_betas,dist_ek, nlayers,mfac,
+        ejectaStructs.initUniform(dist_thetas0,dist_betas,dist_ek, dist_ye, nlayers,mfac,
                                   ej_eats_method, m_loglevel);
         is_ejecta_struct_set = true;
     }
-    void setEjectaStructNumeric(Vector dist_thetas, Vector dist_betas, VecVector dist_ek, bool force_grid, StrStrMap & opts){
+    void setEjectaStructNumeric(Vector dist_thetas, Vector dist_betas, VecVector dist_ek, VecVector dist_ye,
+                                bool force_grid, StrStrMap & opts){
         run_ej_bws = getBoolOpt("run_ej_bws", opts, AT,p_log,false, true);
         if (!run_ej_bws)
             return;
         std::string ej_eats_method = getStrOpt("method_eats",opts,AT,p_log,"", true);
         ejecta_eats_method = LatStruct::setEatsMethod(ej_eats_method);
-        ejectaStructs.initCustom(dist_thetas, dist_betas, dist_ek, force_grid,
+        ejectaStructs.initCustom(dist_thetas, dist_betas, dist_ek, dist_ye, force_grid,
                                  ej_eats_method, m_loglevel);
         is_ejecta_struct_set = true;
     }
