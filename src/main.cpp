@@ -62,7 +62,9 @@ class ReadH5ThetaVinfCorrelationFile{
     Vector m_vel_inf;
     Vector m_theta;
     VecVector m_ek_corr;
+    VecVector m_ye_corr;
     Vector m_ek_hist;
+    Vector m_ye_hist;
     std::unique_ptr<logger> p_log;
 public:
     enum IDTYPE { i_id_hist, i_id_corr };
@@ -85,8 +87,6 @@ public:
 
         ldata.setVarName("ek");
         int ek_size = ldata.getSize();
-
-
         if (ek_size!=beta_size) {
             m_ek_corr = ldata.getData2Ddouble();
             m_ek_hist = {};
@@ -104,13 +104,34 @@ public:
             idtype = i_id_hist;
         }
 
+        ldata.setVarName("ye");
+        int ye_size = ldata.getSize();
+        if (ye_size!=beta_size) {
+            m_ye_corr = ldata.getData2Ddouble();
+            m_ye_hist = {};
+            (*p_log)(LOG_INFO, AT)
+                    << "h5table 2D loaded [vinf="<<m_vel_inf.size()<<", theta="
+                    << m_theta.size()<<", ye="<<m_ye_corr.size()<< "x" << m_ye_corr[0].size()<<"] \n";
+            idtype = i_id_corr;
+        }
+        else{
+            m_ye_hist = ldata.getDataVDouble();
+            m_ye_corr = {};
+            (*p_log)(LOG_INFO, AT)
+                    << "h5table 1D loaded [vinf="<<m_vel_inf.size()<<", theta="
+                    << m_theta.size()<<", ye="<<m_ye_hist.size()<<"] \n";
+            idtype = i_id_hist;
+        }
+
         (*p_log)(LOG_INFO, AT) << "Ejecta ID loaded\n";
 
     }
     Vector & getVelInf(){ return m_vel_inf; }
     Vector & getTheta(){ return m_theta; }
     VecVector & getEkCorr(){ return m_ek_corr; }
+    VecVector & getYeCorr(){ return m_ye_corr; }
     Vector & getEkHist(){ return m_ek_hist; }
+    Vector & getYeHist(){ return m_ye_hist; }
 };
 
 /// ----------- Read H5 file with magnetar table -------
@@ -474,14 +495,14 @@ int main(int argc, char** argv) {
             ReadH5ThetaVinfCorrelationFile dfile(working_dir + fname_ejecta_id, loglevel);
 //        dfile.loadTable(working_dir+fname_ejecta_id, loglevel);
             if (dfile.idtype == ReadH5ThetaVinfCorrelationFile::IDTYPE::i_id_corr)
-                pba.getEj()->setEjectaStructNumeric(dfile.getTheta(), dfile.getVelInf(), dfile.getEkCorr(),
+                pba.getEj()->setEjectaStructNumeric(dfile.getTheta(), dfile.getVelInf(),
+                                                    dfile.getEkCorr(), dfile.getYeCorr(),
                                                     getBoolOpt("enforce_angular_grid", kn_opts, AT, p_log, false, true),
                                                     kn_opts);
             else if (dfile.idtype == ReadH5ThetaVinfCorrelationFile::IDTYPE::i_id_hist)
                 pba.getEj()->setEjectaStructNumericUniformInTheta(dfile.getTheta(), dfile.getVelInf(),
-                                                                  dfile.getEkHist(),
-                                                                  (size_t) getDoublePar("nlayers", kn_pars, AT, p_log,
-                                                                                        30, true),
+                                                                  dfile.getEkHist(), dfile.getYeHist(),
+                                                                  (size_t) getDoublePar("nlayers", kn_pars, AT, p_log, 30, true),
                                                                   getDoublePar("mfac", kn_pars, AT, p_log, 1.0, true),
                                                                   kn_opts);
             else {

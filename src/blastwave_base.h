@@ -222,7 +222,7 @@ protected:
     RhoISM * p_dens = nullptr;
     SedovTaylor * p_sedov = nullptr;
     BlandfordMcKee2 * p_bm = nullptr;
-    Composition * p_comp = nullptr;
+    NuclearAtomic * p_comp = nullptr;
     std::unique_ptr<ShockMicrophysics> p_fs{};
     std::unique_ptr<ShockMicrophysics> p_rs{};
     int m_loglevel;
@@ -257,7 +257,7 @@ public:
         p_dens = new RhoISM(loglevel);
         p_sedov = new SedovTaylor();
         p_bm = new BlandfordMcKee2();
-        p_comp = new Composition(loglevel);
+        p_comp = new NuclearAtomic(loglevel);
         // ----------------------
         p_pars->nr = m_tb_arr.size();
         p_pars->ilayer = ilayer;

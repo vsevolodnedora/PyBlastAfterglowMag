@@ -9,6 +9,72 @@
 #include "pch.h"
 #include "utils.h"
 
+static size_t findIndex( const double & x, const Array & arr, size_t N ) {
+    if(x <= arr[0])
+        return 0;
+    else if(x >= arr[N-1])
+        return N-2;
+
+    unsigned int i = ((unsigned int) N) >> 1;
+    unsigned int a = 0;
+    unsigned int b = N-1;
+
+    // https://stackoverflow.com/questions/4192440/is-there-any-difference-between-1u-and-1-in-c/4192469
+    // untill the m_size of b-a > 1 continue shrinking the array, approaching the 'x'
+    while (b-a > 1u) // 1U is an unsigned value with the single bit 0 set
+    {
+        i = (b+a) >> 1; // ???
+        if (arr[i] > x)
+            b = i;
+        else
+            a = i;
+    }
+
+    return (int)a;
+}
+static size_t findIndex( const double & x, const Vector & arr, size_t N ) {
+    if(x <= arr[0])
+        return 0;
+    else if(x >= arr[N-1])
+        return N-2;
+
+    unsigned int i = ((unsigned int) N) >> 1;
+    unsigned int a = 0;
+    unsigned int b = N-1;
+
+    // https://stackoverflow.com/questions/4192440/is-there-any-difference-between-1u-and-1-in-c/4192469
+    // untill the m_size of b-a > 1 continue shrinking the array, approaching the 'x'
+    while (b-a > 1u) // 1U is an unsigned value with the single bit 0 set
+    {
+        i = (b+a) >> 1; // ???
+        if (arr[i] > x)
+            b = i;
+        else
+            a = i;
+    }
+
+    return (int)a;
+}
+static inline double interpSegLin( size_t & a, size_t & b, const double & x, Array & X, Array & Y) {
+    // take two indexis, 'a' 'b' and two arrays 'X' and 'Y' and interpolate
+    // between them 'Y' for at 'x" of "X'
+    double xa = X[a];
+    double xb = X[b];
+    double ya = Y[a];
+    double yb = Y[b];
+    return ya + (yb-ya) * (x-xa)/(xb-xa);
+}
+static inline double interpSegLog( size_t & a, size_t & b, double x, Array & X, Array & Y) {
+//        std::cout << a << ' ' << b << ' '<< x << ' '<< X << ' '<< Y << ' '<< N << "\n";
+    double xa = X[a];
+    double xb = X[b];
+    double ya = Y[a];
+    double yb = Y[b];
+
+    return ya * std::pow(yb/ya, log(x/xa)/log(xb/xa));
+}
+
+
 class InterpBase{
 public:
     enum METHODS {
@@ -402,7 +468,6 @@ class Interp2d : public InterpBase{
 
 public:
 
-
     /**
      *
      * Note: 'z' is a 1-D array filled via
@@ -618,6 +683,87 @@ private:
 
 };
 
+class TriliniarInterpolation{
+    Vector & x_arr;
+    Vector & y_arr;
+    Vector & z_arr;
+    Vector & f_arr;
+public:
+    TriliniarInterpolation(Vector & x_arr, Vector & y_arr, Vector & z_arr, Vector & f_arr)
+        : x_arr(x_arr), y_arr(y_arr), z_arr(z_arr), f_arr(f_arr){
+        ///
+    }
+    double interp(double x_val, double y_val, double z_val){
+        if (x_val < x_arr[0])
+            x_val = x_arr[0];
+        if (x_val > x_arr[x_arr.size()-1])
+            x_val = x_arr[x_arr.size()-1];
+
+        if (y_val < y_arr[0])
+            y_val = y_arr[0];
+        if (y_val > y_arr[y_arr.size()-1])
+            y_val = y_arr[y_arr.size()-1];
+
+        if (z_val < z_arr[0])
+            z_val = z_arr[0];
+        if (z_val > z_arr[z_arr.size()-1])
+            z_val = z_arr[z_arr.size()-1];
+
+        size_t _i_ye = findIndex(x_val, x_arr, x_arr.size());
+        size_t _i_s = findIndex(y_val, y_arr, y_arr.size());
+        size_t _i_tau = findIndex(z_val, z_arr, z_arr.size());
+
+        size_t _ip1_ye = _i_ye + 1;
+        if (_i_ye == x_arr.size()-1)
+            _ip1_ye = _i_ye;
+
+        size_t _ip1_s = _i_s + 1;
+        if (_i_s == y_arr.size()-1)
+            _ip1_s = _i_s;
+
+        size_t _ip1_tau = _i_tau + 1;
+        if (_i_tau == z_arr.size()-1)
+            _ip1_tau = _i_tau;
+
+        // _idx = k + len(new_s) * (j + len(new_ye) * i)
+        double _i_val = f_arr[ _i_tau + y_arr.size() * (_i_s + x_arr.size() * _i_ye) ];
+        double _ip1_val = f_arr[ _ip1_tau + y_arr.size() * (_ip1_s + z_arr.size() * _ip1_ye) ];
+
+        double val = trilinear_interpolation( x_arr[_i_ye], y_arr[_i_s], z_arr[_i_tau], _i_val,
+                                              x_arr[_ip1_ye], y_arr[_ip1_s], z_arr[_ip1_tau], _ip1_val,
+                                              x_val, y_val, z_val);
+        // print("my={:.4e} scipy={:.4e}".format(val,val1))
+        // if (val < min(_i_val,_ip1_val) or val > max(_i_val, _ip1_val)):
+        //     raise ValueError(f"val={val} < min(_i_val,_ip1_val)={min(_i_val,_ip1_val)} "
+        //                 f"or val > max(_i_val, _ip1_val)={max(_i_val, _ip1_val)}")
+        // return _ip1_val
+        return val;
+
+    }
+private:
+    static double trilinear_interpolation(double x1, double y1, double z1, double f1,
+                                          double x2, double y2, double z2, double f2,
+                                          double x3, double y3, double z3) {
+        // Calculate interpolation factors
+        double d = (x3 - x1) / (x2 - x1);
+        double e = (y3 - y1) / (y2 - y1);
+        double f = (z3 - z1) / (z2 - z1);
+
+        // Get the values of f at the eight corners of the cube
+        double f3 = f1 + d * (f2 - f1);
+        double f4 = f1 + d * (f2 - f1) + e * (f2 - f1 - (f3 - f1));
+        double f5 = f1 + d * (f2 - f1) + (1 - e) * (f3 - f1);
+        double f6 = f1 + d * (f2 - f1) + e * (f2 - f1 - (f3 - f1)) + (1 - f) * (f3 - f1);
+        double f7 = f1 + (1 - d) * (f2 - f1) + e * (f2 - f1 - (f3 - f1));
+        double f8 = f1 + (1 - d) * (f2 - f1) + e * (f2 - f1 - (f3 - f1)) + (1 - f) * (f3 - f1);
+
+        // Interpolate along the fourth dimension
+        double res = (1 - d) * ((1 - e) * ((1 - f) * f1 + f * f2) + e * ((1 - f) * f3 + f * f4))
+                     + d * ((1 - e) * ((1 - f) * f5 + f * f6) + e * ((1 - f) * f7 + f * f8));
+
+        return res;
+    }
+};
 
 inline double lagrangeInterpolation(Array & x, Array & y, size_t n, double xp){
     double intp = 0;

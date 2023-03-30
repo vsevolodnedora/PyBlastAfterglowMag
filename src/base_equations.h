@@ -12,47 +12,6 @@
 
 /* ------------- EQUATIONS ----------------- */
 
-static size_t findIndex( const double & x, const Array & arr, size_t N ) {
-    if(x <= arr[0])
-        return 0;
-    else if(x >= arr[N-1])
-        return N-2;
-
-    unsigned int i = ((unsigned int) N) >> 1;
-    unsigned int a = 0;
-    unsigned int b = N-1;
-
-    // https://stackoverflow.com/questions/4192440/is-there-any-difference-between-1u-and-1-in-c/4192469
-    // untill the m_size of b-a > 1 continue shrinking the array, approaching the 'x'
-    while (b-a > 1u) // 1U is an unsigned value with the single bit 0 set
-    {
-        i = (b+a) >> 1; // ???
-        if (arr[i] > x)
-            b = i;
-        else
-            a = i;
-    }
-
-    return (int)a;
-}
-static inline double interpSegLin( size_t & a, size_t & b, const double & x, Array & X, Array & Y) {
-    // take two indexis, 'a' 'b' and two arrays 'X' and 'Y' and interpolate
-    // between them 'Y' for at 'x" of "X'
-    double xa = X[a];
-    double xb = X[b];
-    double ya = Y[a];
-    double yb = Y[b];
-    return ya + (yb-ya) * (x-xa)/(xb-xa);
-}
-static inline double interpSegLog( size_t & a, size_t & b, double x, Array & X, Array & Y) {
-//        std::cout << a << ' ' << b << ' '<< x << ' '<< X << ' '<< Y << ' '<< N << "\n";
-    double xa = X[a];
-    double xb = X[b];
-    double ya = Y[a];
-    double yb = Y[b];
-
-    return ya * std::pow(yb/ya, log(x/xa)/log(xb/xa));
-}
 
 inline namespace EQS{
     inline double GamFromMom(const double mom){
