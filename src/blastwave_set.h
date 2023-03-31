@@ -377,29 +377,29 @@ private:
 class CumulativeShell{
 
 //    enum Q { ikapp};
-    std::unique_ptr<logger> p_log;
-    std::unique_ptr<BlastWaveCollision> p_coll;
-    std::vector<std::unique_ptr<RadBlastWave>> p_bws_ej;
-    std::vector<std::unique_ptr<RadBlastWave>> p_sorted_bws_ej;
-    std::vector<std::vector<size_t>> relative_position;
-    std::vector<size_t> m_idxs;
-    std::vector<size_t> m_idxs0;
-    std::vector<size_t> idx_tau_eq1;
-    Vector m_rho;
-    Vector m_beta;
-    Vector m_temp;
-    Vector m_radii_init;
-    Vector m_delta;
+    std::unique_ptr<logger> p_log = nullptr;
+    std::unique_ptr<BlastWaveCollision> p_coll = nullptr;
+    std::vector<std::unique_ptr<RadBlastWave>> p_bws_ej{};
+    std::vector<std::unique_ptr<RadBlastWave>> p_sorted_bws_ej{};
+    std::vector<std::vector<size_t>> relative_position{};
+    std::vector<size_t> m_idxs{};
+    std::vector<size_t> m_idxs0{};
+    std::vector<size_t> idx_tau_eq1{};
+    Vector m_rho{};
+    Vector m_beta{};
+    Vector m_temp{};
+    Vector m_radii_init{};
+    Vector m_delta{};
 //    Vector m_radii_sorted;
-    Vector m_dtau;
-    Vector m_frac;
-    Vector m_dtau_cum;
-    VecVector m_shell_data;
-    size_t m_tarr_size;
-    const Vector m_t_grid;
-    bool do_collision;
-    double total_mass;
-    double mass_averaged_beta;
+    Vector m_dtau{};
+    Vector m_frac{};
+    Vector m_dtau_cum{};
+    VecVector m_shell_data{};
+    size_t m_tarr_size{};
+    const Vector m_t_grid{};
+    bool do_collision{};
+    double total_mass{};
+    double mass_averaged_beta{};
 public:
     size_t m_nshells;
     size_t n_active_shells;
@@ -443,10 +443,8 @@ public:
 
     }
 
-
-//    ~CumulativeShell(){ delete p_colsolve; }
     Vector & getSortedRadii(){return m_radii_init;}
-//    std::vector<size_t> & getIdx(){return m_idxs;}
+
     inline double getR(size_t i){return m_radii_init[m_idxs[i]];}
     inline Vector & getRvec(){return m_radii_init; }
     inline std::vector<size_t> & getIdx(){return m_idxs; }
@@ -1916,10 +1914,10 @@ public:
     }
     std::vector<std::unique_ptr<RadBlastWave>> & getBWs(){return p_bws_jet;}
 //    static auto listParsNumericJetStruct(){ return LatStruct::listParsCustomStruct(); }
-    void setJetStructNumeric( Vector & dist_thetas, Vector & dist_EEs, Vector & dist_Yes, Vector & dist_Gam0s, Vector & dist_MM0s,
+    void setJetStructNumeric( Vector & dist_thetas, Vector & dist_EEs, Vector & dist_Yes, Vector & dist_s, Vector & dist_Gam0s, Vector & dist_MM0s,
                               bool force_grid, std::string eats_method ){
         (*p_log)(LOG_ERR,AT) << " not finished...\n"; exit(1);
-        jetStruct.initCustom( dist_thetas, dist_EEs, dist_Yes, dist_Gam0s, dist_MM0s,
+        jetStruct.initCustom( dist_thetas, dist_EEs, dist_Yes, dist_s, dist_Gam0s, dist_MM0s,
                               force_grid, eats_method, m_loglevel);
         is_jet_struct_set = true;
     }
@@ -2040,25 +2038,25 @@ public:
         exit(1);
     }
 //    static std::vector<std::string> listParsNumericEjectaStruct(){ return VelocityAngularStruct::list_pars_v_ns(); }
-    void setEjectaStructNumericUniformInTheta(Vector & dist_thetas0, Vector & dist_betas, Vector & dist_ek, Vector & dist_ye,
+    void setEjectaStructNumericUniformInTheta(Vector & dist_thetas0, Vector & dist_betas, Vector & dist_ek, Vector & dist_ye, Vector & dist_s,
                                               size_t nlayers, double mfac, StrStrMap & opts){
         run_ej_bws = getBoolOpt("run_ej_bws", opts, AT,p_log, false, true);
         if (!run_ej_bws)
             return;
         std::string ej_eats_method = getStrOpt("method_eats",opts,AT,p_log,"", true);
         ejecta_eats_method = LatStruct::setEatsMethod(ej_eats_method);
-        ejectaStructs.initUniform(dist_thetas0,dist_betas,dist_ek, dist_ye, nlayers,mfac,
+        ejectaStructs.initUniform(dist_thetas0,dist_betas,dist_ek, dist_ye, dist_s, nlayers,mfac,
                                   ej_eats_method, m_loglevel);
         is_ejecta_struct_set = true;
     }
-    void setEjectaStructNumeric(Vector dist_thetas, Vector dist_betas, VecVector dist_ek, VecVector dist_ye,
+    void setEjectaStructNumeric(Vector dist_thetas, Vector dist_betas, VecVector dist_ek, VecVector dist_ye, VecVector dist_s,
                                 bool force_grid, StrStrMap & opts){
         run_ej_bws = getBoolOpt("run_ej_bws", opts, AT,p_log,false, true);
         if (!run_ej_bws)
             return;
         std::string ej_eats_method = getStrOpt("method_eats",opts,AT,p_log,"", true);
         ejecta_eats_method = LatStruct::setEatsMethod(ej_eats_method);
-        ejectaStructs.initCustom(dist_thetas, dist_betas, dist_ek, dist_ye, force_grid,
+        ejectaStructs.initCustom(dist_thetas, dist_betas, dist_ek, dist_ye, dist_s, force_grid,
                                  ej_eats_method, m_loglevel);
         is_ejecta_struct_set = true;
     }
@@ -2580,9 +2578,11 @@ public:
             for (size_t il = 0; il < ej_bws.size(); il++) {
                 for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
                     ej_bws[il]->getBW(ish)->setInitConditions(m_InitData, ii);
+                    ej_bws[il]->getBW(ish)->updateNucAtomic( m_InitData, tb0 );
                     ii += ej_bws[il]->getBW(ish)->getNeq();
                 }
             }
+
             /// optical depth of the shell system
             for (auto &cumShell: p_pars->p_ej->getShells()) {
                 size_t _i, _j;
@@ -2704,24 +2704,6 @@ public:
         Timer timer;
         Vector & t_grid = p_pars->_t_grid;
 
-/// also, update the shell thickness and optical depth after the substap
-//        for (size_t il = 0; il < p_pars->p_ej->nlayers(); il++) {
-//            auto &cumShell = p_pars->p_ej->getShells()[il];
-//            cumShell->evalShellThickness(m_TmpSol);
-//            cumShell->evalShellOptDepth(m_TmpSol);
-//            /// update the shell properties for the PWN if needed
-//            if (p_pars->p_ej_pwn->run_pwn){
-//                /// update outer boundary for the PWN evolution
-//                auto & pwn = p_pars->p_ej_pwn->getPWN(il);
-//                pwn->updateOuterBoundary(cumShell->getRvec(),
-//                                         cumShell->getBetaVec(),
-//                                         cumShell->getRhoVec(),
-//                                         cumShell->getTauVec(),
-//                                         cumShell->getTempVec()
-//                                         );
-//            }
-//        }
-
         /// update Magnetar energy injecton into kN blast waves
         if (!p_pars->p_ej->do_eninj_inside_rhs) {
             double tinj = t_grid[ix];
@@ -2729,8 +2711,20 @@ public:
             double lacc = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ilacc, tinj);
             updateEnergyInjectionToEjectaBWs(ldip, lacc, m_CurSol, p_pars);
         }
+
+        /// update ejecta opacity and nuclear heating
+        if (p_pars->p_ej->run_ej_bws) {
+            auto &ej_bws = p_pars->p_ej->getShells();
+            for (size_t il = 0; il < ej_bws.size(); il++) {
+                for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
+                    ej_bws[il]->getBW(ish)->updateNucAtomic( m_CurSol, t_grid[ix] );
+                }
+            }
+        }
+
         /// solve the ODE system for x_i = x_{i-1} + dx
         p_Integrator->Integrate( dx );
+
         /// extract the solution vector from the ODE solver
         p_Integrator->GetY( m_CurSol );
 
@@ -2889,12 +2883,21 @@ public:
                     (*p_log)(LOG_INFO,AT)
                             <<"Trying to integrate to collision from "
                             <<"trunning="<<trunning<<" to tcoll="<<tcoll_min<<" Precision is set="<<col_prec_fac<<"\n";
+
+                    /// update Magnetar energy injection
                     if (!p_pars->p_ej->do_eninj_inside_rhs)
                         updateEnergyInjectionToEjectaBWs(
                                 p_pars->p_magnetar->getMagValInt(Magnetar::Q::ildip, tcoll_min*(1.-col_prec_fac)),
                                 p_pars->p_magnetar->getMagValInt(Magnetar::Q::ilacc, tcoll_min*(1.-col_prec_fac)),
                                 m_CurSol,p_pars);
 
+                    /// update opacity and nuclear heating
+                    auto &ej_bws = p_pars->p_ej->getShells();
+                    for (size_t il = 0; il < ej_bws.size(); il++) {
+                        for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
+                            ej_bws[il]->getBW(ish)->updateNucAtomic( m_CurSol, tcoll_min*(1.-col_prec_fac) );
+                        }
+                    }
 
                     /// advance the ODE to time of the collision. Use previous solution [ix-1] as a starting point
                     p_Integrator->Integrate(trunning, tcoll_min*(1.-col_prec_fac), m_TmpSol);
@@ -2996,6 +2999,12 @@ public:
                                 p_pars->p_magnetar->getMagValInt(Magnetar::Q::ilacc, t_grid[ix]),
                                 m_CurSol,p_pars);
 
+                    /// update opacity and nuclear heating
+                    for (size_t il = 0; il < ej_bws.size(); il++) {
+                        for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
+                            ej_bws[il]->getBW(ish)->updateNucAtomic( m_CurSol, t_grid[ix] );
+                        }
+                    }
 
                     /// try to complete the timestep, itegrating from trunning to t_grid[ix]
                     p_Integrator->Integrate(trunning, t_grid[ix], m_CurSol);

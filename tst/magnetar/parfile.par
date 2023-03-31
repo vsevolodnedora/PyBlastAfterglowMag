@@ -13,8 +13,8 @@
 * Parameters
 
 tb0 = 1.e1
-tb1 = 1.e2 #1e11
-ntb = 1000
+tb1 = 1.e11 #1e11
+ntb = 10000
 iout = 1
 rtol = 1.e-11
 nmax = 1000
@@ -93,6 +93,15 @@ ksi_n = 1.
 nlayers = 30
 mfac = 2.0
 
+eps_thermalization = 0.0    # used if method_thermalization = const
+eps_nuc0 = 1.2e19           # In (eps_nuc0 / 2.e18) * eps_nuc * eps_th; (Both method)
+alpha = 1.3
+sigma0 = 0.11
+a_eps_nuc = 0.5
+b_eps_nuc = 2.5
+t_eps_nuc = 1.0
+t0eps = 1.3
+
 which_jet_layer_to_use = 1e5
 steepnes_of_exp_decay = 1.0
 Gamma_when_st_starts = 2.0
@@ -116,7 +125,13 @@ do_ej_lc = no
 do_ej_skymap = no
 
 method_collision = an # none
+do_eninj_inside_rhs = no # yes
 method_eats = piece-wise # piece-wise
+
+do_nucinj = yes
+fname_nuc = neatingLippuner.h5
+method_heating = PBR    # PBR LR none
+method_thermalization = const # const BKWM BKWM_1d
 
 fname_dyn = magnetar_driven_ej.h5
 fname_light_curve = corr_id_SFHo_13_14_150m_11_text25.lc

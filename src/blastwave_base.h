@@ -99,6 +99,7 @@ struct Pars{
 //        double drhodr = 0;
     double eps_rad = 0.;
     double dEinjdt = 0.;
+    double dEnuc = 0.;
     // ---
     bool adiabLoss = true;
     // ---
@@ -222,7 +223,7 @@ protected:
     RhoISM * p_dens = nullptr;
     SedovTaylor * p_sedov = nullptr;
     BlandfordMcKee2 * p_bm = nullptr;
-    NuclearAtomic * p_comp = nullptr;
+    NuclearAtomic * p_nuc = nullptr;
     std::unique_ptr<ShockMicrophysics> p_fs{};
     std::unique_ptr<ShockMicrophysics> p_rs{};
     int m_loglevel;
@@ -257,7 +258,7 @@ public:
         p_dens = new RhoISM(loglevel);
         p_sedov = new SedovTaylor();
         p_bm = new BlandfordMcKee2();
-        p_comp = new NuclearAtomic(loglevel);
+        p_nuc = new NuclearAtomic(loglevel);
         // ----------------------
         p_pars->nr = m_tb_arr.size();
         p_pars->ilayer = ilayer;
@@ -265,12 +266,15 @@ public:
         // ----------------------
     }
     ~BlastWaveBase(){ delete p_pars; delete p_spread; delete p_eos; delete p_dens; delete p_sedov; delete p_bm; }
+    // ------------------------------------------------------
     Pars *& getPars(){ return p_pars; }
     EOSadi *& getEos(){ return p_eos; }
     LatSpread *& getSpread(){ return p_spread; }
     RhoISM *& getDensIsm(){ return p_dens; }
     SedovTaylor *& getSedov(){ return p_sedov; }
     BlandfordMcKee2 *& getBM(){ return p_bm; }
+    // --------------------------------------------------------
+    virtual void updateNucAtomic( double * sol, double t) = 0;
     virtual void setInitConditions( double * arr, size_t i ) = 0;
     virtual bool isSolutionOk( double * sol, size_t i ) = 0;
     virtual bool isToTerminate( double * sol, size_t i ) = 0;
@@ -679,6 +683,9 @@ public:
         }
         p_eos->setPars(method_eos);
 
+        // set Nuclear Atomic pars
+        p_nuc->setPars(pars, opts);
+
         /// method for shock radius
         opt = "method_Rsh";
         METHOD_RSh m_method_r_sh;
@@ -828,6 +835,7 @@ public:
                 (*p_log)(LOG_INFO,AT) << " Init. [pw] "
                                      << " E0="<<latStruct.dist_E0_pw[ilayer]
                                      << " Ye="<<latStruct.dist_Ye_pw[ilayer]
+                                     << " s="<<latStruct.dist_s_pw[ilayer]
                                      << " M0="<<latStruct.dist_M0_pw[ilayer]
                                      << " G0="<<latStruct.dist_G0_pw[ilayer]
                                      << " beta0="<<EQS::Beta(latStruct.dist_G0_pw[ilayer])
@@ -864,6 +872,7 @@ public:
 //
                 p_pars->E0        = latStruct.dist_E0_pw[ilayer];
                 p_pars->Ye0       = latStruct.dist_Ye_pw[ilayer];
+                p_pars->s0       = latStruct.dist_s_pw[ilayer];
                 p_pars->M0        = latStruct.dist_M0_pw[ilayer];
                 p_pars->Gamma0    = latStruct.dist_G0_pw[ilayer];
                 p_pars->mom0      = latStruct.dist_G0_pw[ilayer]*EQS::Beta(latStruct.dist_G0_pw[ilayer]); // TODO replace Gamma with momentum
@@ -895,6 +904,7 @@ public:
                 (*p_log)(LOG_INFO,AT)<<"Init. [a] "
                                      << " E0="<<latStruct.dist_E0_a[ilayer]
                                      << " Ye="<<latStruct.dist_Ye_a[ilayer]
+                                     << " s="<<latStruct.dist_s_a[ilayer]
                                      << " M0="<<latStruct.dist_M0_a[ilayer]
                                      << " G0="<<latStruct.dist_G0_a[ilayer]
                                      << " beta0="<<EQS::Beta(latStruct.dist_G0_a[ilayer])
@@ -915,6 +925,7 @@ public:
 
                 p_pars->E0      = latStruct.dist_E0_a[ilayer];
                 p_pars->Ye0     = latStruct.dist_Ye_a[ilayer];
+                p_pars->s0     = latStruct.dist_s_a[ilayer];
                 p_pars->M0      = latStruct.dist_M0_a[ilayer];
                 p_pars->Gamma0  = latStruct.dist_G0_a[ilayer];
                 p_pars->tb0     = m_tb_arr[0];

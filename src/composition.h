@@ -11,24 +11,11 @@
 #include "interpolators.h"
 #include "H5Easy.h"
 
-double smoothclamp(double x, double x1, double x2, double y1, double y2) {
-    /// y1 + (y2-y1)*(lambda t: np.where(t < 0 , 0, np.where( t <= 1 , 3.*t**2-2.*t**3, 1 ) ) )( np.log10(x/x1)/np.log10(x2/x1) )
-    double t = std::log10(x / x1) / std::log10(x2 / x1);
-    double value = 0;
-    if (t < 0) {
-        value = 0;
-    } else if (t <= 1) {
-        value = 3 * std::pow(t, 2.0) - 2 * std::pow(t, 3.0);
-    } else {
-        value = 1;
-    }
-    return y1 + (y2 - y1) * value;
-}
-
 struct LippunerHeating{
     std::unique_ptr<logger> & p_log;
     explicit LippunerHeating(std::unique_ptr<logger> & p_log) : p_log(p_log){}
     std::string fpath{};
+    double eps0{};
     /// ------------------------------
     Vector ye{};// = np.array(dfile["Ye"])
     Vector s{};// = np.array(dfile["s"])
@@ -46,7 +33,10 @@ struct LippunerHeating{
     bool is_loaded = false;
     /// -------------------------------
     void setPars(StrDbMap pars, StrStrMap opts){
-        fpath = getStrOpt("");
+        std::string workdir = getStrOpt("workingdir",opts,AT,p_log,"",true);
+        std::string fname = getStrOpt("fname_nuc",opts,AT,p_log,"",true);
+        eps0 = getDoublePar("eps_nuc0",pars,AT,p_log,0,true);
+        fpath = workdir + fname;
     }
     /// Load Lippuner+15 table in h5 form
     void load(){
@@ -100,7 +90,8 @@ struct LippunerHeating{
                       + B1_ * std::exp(-time / beta1_) \
                       + B2_ * std::exp(-time / beta2_) \
                       + B3_ * std::exp(-time / beta3_);
-        return Q;
+        double res = (eps0 / 2.e18)*Q; /// convention
+        return res;
     }
 };
 
@@ -169,7 +160,7 @@ struct BarnsThermalization{
         double coeff2 = fd.Interpolate(xnew, ynew, Interp2d::METHODS::iLagrangeLinear);
 
         double time_days = time * CGS::day;
-        double tmp = 2.*coeff1 * std::pow(time_days, coeff2);
+        double tmp = 2. * coeff1 * std::pow(time_days, coeff2);
         double val = 0.36 * (std::exp(-coeff0 * time_days) + std::log( 1. + tmp) / tmp );
         if (val < 0 || val > 1){
             (*p_log)(LOG_ERR, AT) << " check the thermalization efficiency = "<<val << "\n";
@@ -202,26 +193,44 @@ struct BarnsThermalization{
 
 };
 
+double smoothclamp(double x, double x1, double x2, double y1, double y2) {
+    /// y1 + (y2-y1)*(lambda t: np.where(t < 0 , 0, np.where( t <= 1 , 3.*t**2-2.*t**3, 1 ) ) )( np.log10(x/x1)/np.log10(x2/x1) )
+    double t = std::log10(x / x1) / std::log10(x2 / x1);
+    double value = 0;
+    if (t < 0) {
+        value = 0;
+    } else if (t <= 1) {
+        value = 3 * std::pow(t, 2.0) - 2 * std::pow(t, 3.0);
+    } else {
+        value = 1;
+    }
+    return y1 + (y2 - y1) * value;
+}
+
+/// Model suggested by Korobkin + 2012
 struct KorobkinHeating{
-    double alpha{}; double t0{}; double eps0{}; double sigma0{};
+    double alpha{}; double t0eps{}; double eps0{}; double sigma0;
     double cnst_a_eps_nuc{}; double cnst_b_eps_nuc{}; double cnst_t_eps_nuc{};
     double kappa{};
+    std::unique_ptr<logger> & p_log;
+    KorobkinHeating(std::unique_ptr<logger> & p_log) : p_log(p_log){}
 
     void setPars(StrDbMap pars, StrStrMap opts){
-        alpha = 0.1;
-//        p_pars->t0 = 0.;
-        sigma0 = 1.0;
-        eps0 = 1e19;
-        cnst_a_eps_nuc = 1.0;
-        cnst_b_eps_nuc = 1.0;
-        cnst_t_eps_nuc = 1.0;
+        /// para
+        alpha = getDoublePar("alpha", pars, AT, p_log, 0.0, true);
+        eps0 = getDoublePar("eps_nuc0", pars, AT, p_log, 0.0, true);
+        t0eps = getDoublePar("t0eps", pars, AT, p_log, 0.0, true);
+        sigma0 = getDoublePar("sigma", pars, AT, p_log, 0.0, true);
+        cnst_a_eps_nuc = getDoublePar("cnst_a_eps_nuc", pars, AT, p_log, 0.0, true);
+        cnst_b_eps_nuc = getDoublePar("cnst_b_eps_nuc", pars, AT, p_log, 0.0, true);
+        cnst_t_eps_nuc = getDoublePar("cnst_t_eps_nuc", pars, AT, p_log, 0.0, true);
     }
 
     /// Nuclear Heating due to r-process
     double yevar_eps_nuc(double a_eps_nuc, double b_eps_nuc, double t_eps_nuc, double time){
         double time_ = time * CGS::day;
-        double tmp = std::min(std::max(4.*time_ - 4., -20.), 20.);   /// t_eps_nuc seem,s missing!
-        double val = a_eps_nuc + b_eps_nuc/(1.+std::exp(tmp));
+        double tmp = std::min(std::max(4. * time_ - 4., -20.), 20.);   /// t_eps_nuc seem,s missing!
+        double val = a_eps_nuc + b_eps_nuc/(1. + std::exp(tmp));
         return val;
     }
 
@@ -234,15 +243,11 @@ struct KorobkinHeating{
 
     double evalHeatingRate(double mass, double beta, double time, double kappa){
         /// Perego et al 2017 ApJL
-        double oneoverpi = 0.31830988618;
-        double eps_nuc = calc_eps_nuc(kappa, time, eps0,
-                                      cnst_a_eps_nuc,
-                                      cnst_b_eps_nuc,
+        double eps_nuc = calc_eps_nuc(kappa, time, eps0, cnst_a_eps_nuc, cnst_b_eps_nuc,
                                       cnst_t_eps_nuc);
-//        double val = eps_nuc
-//                     * std::pow(0.5 - oneoverpi * std::atan((time-t0)/sigma0),alpha)
-//                     * (2.*eps_th);
-        return eps_nuc;
+        double oneoverpi = 0.31830988618;
+        double res = eps_nuc * std::pow(0.5 - oneoverpi * std::atan((time-t0eps)/sigma0), alpha);
+        return res;
     }
 };
 
@@ -269,10 +274,8 @@ class NuclearAtomic{
     enum METHOD_THERMALIZATION { iBKWM, iBKWM_1d, iConstTherm };
     METHOD_HEATING methodHeating{};
     METHOD_THERMALIZATION methodThermalization{};
-    struct Pars{
-        double eps_nuc0; double eps0{}; double eps_nuc{};
-        double eps_th{}; double kappa{};
-    };
+    struct Pars{ double eps_th0{}; double kappa{}; double eps_nuc_thermalized{}; double eps_th{}; };
+    bool do_nucinj{};
     /// -----------------------------------------
     std::unique_ptr<logger> p_log;
     std::unique_ptr<Pars> p_pars;
@@ -287,11 +290,60 @@ public:
     }
 
     void setPars(StrDbMap pars, StrStrMap opts){
+        do_nucinj = getBoolOpt("do_nucinj", opts, AT, p_log, false, true);
 
-        methodHeating = METHOD_HEATING::iPBR;
-        methodThermalization = METHOD_THERMALIZATION::iBKWM;
-        p_pars->eps_nuc0 = 0.;
-        p_pars->eps0 = 1.5e+19;
+        std::string opt = "method_heating";
+        METHOD_HEATING m_methodHeating;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            m_methodHeating = METHOD_HEATING::iNone;
+        }
+        else{
+            if(opts.at(opt) == "none")
+                m_methodHeating = METHOD_HEATING::iNone;
+            else if(opts.at(opt) == "PBR")
+                m_methodHeating = METHOD_HEATING::iPBR;
+            else if(opts.at(opt) == "LR")
+                m_methodHeating = METHOD_HEATING::iLR;
+            else{
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                                      <<" given: " << opts.at(opt)
+                                      << " is not recognized. "
+                                      << " Possible options: "
+                                      << " none " << " PBR " << " LR "
+                                      << " \n";
+                exit(1);
+            }
+        }
+        methodHeating = m_methodHeating;
+
+        opt = "method_thermalization";
+        METHOD_THERMALIZATION m_methodThermalization;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            m_methodThermalization = METHOD_THERMALIZATION::iConstTherm;
+        }
+        else{
+            if(opts.at(opt) == "const")
+                m_methodThermalization = METHOD_THERMALIZATION::iConstTherm;
+            else if(opts.at(opt) == "BKWM")
+                m_methodThermalization = METHOD_THERMALIZATION::iBKWM;
+            else if(opts.at(opt) == "BKWM_1d")
+                m_methodThermalization = METHOD_THERMALIZATION::iBKWM_1d;
+            else{
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                                      <<" given: " << opts.at(opt)
+                                      << " is not recognized. "
+                                      << " Possible options: "
+                                      << " const " << " BKWM " << " BKWM_1d "
+                                      << " \n";
+                exit(1);
+            }
+        }
+        methodThermalization = m_methodThermalization;
+
+
+//        p_pars->eps0 = getDoublePar("eps_nuc0", pars, AT, p_log, 0.0, true);
         /// set method for thermalization calculations
         switch (methodThermalization) {
             case iBKWM:
@@ -303,12 +355,13 @@ public:
                 p_barns->setPars(pars, opts);
                 break;
             case iConstTherm:
+                p_pars->eps_th0 = getDoublePar("eps_thermalization", pars, AT, p_log, 0.0, true);
                 break;
         }
         /// set method for heating rate calculations
         switch (methodHeating) {
             case iPBR:
-                p_korob = std::make_unique<KorobkinHeating>();
+                p_korob = std::make_unique<KorobkinHeating>(p_log);
                 p_korob->setPars(pars, opts);
                 break;
             case iLR:
@@ -322,9 +375,13 @@ public:
         p_tanaka = std::make_unique<TanakaOpacity>();
     }
 
-    void update(double ye, double mass, double beta, double time, double tau, double s){
+    void update(double ye, double mass, double beta, double time, double radius, double s){
         /// update opacity
         double kappa = p_tanaka->evaluateOpacity(ye);
+        p_pars->kappa = kappa;
+        if (!do_nucinj)
+            return;
+
         /// update thermalization efficiency
         double eps_th = 0.;
         switch (methodThermalization) {
@@ -335,28 +392,28 @@ public:
                 eps_th = p_barns->evalThermalization1D(mass, beta, time);
                 break;
             case iConstTherm:
-                eps_th = p_pars->eps_nuc0;
+                eps_th = p_pars->eps_th0;
                 break;
         }
         /// update the nuclear heating rate
-        double eps_nuc = 0.;
+        double eps_nuc = 0.; double tau{};
         switch (methodHeating) {
             case iPBR:
                 eps_nuc = p_korob->evalHeatingRate(mass, beta, time, kappa);
                 break;
             case iLR:
+                tau = 0.5 * 2.718 * (radius / beta / CGS::c); // expansion timescale
                 eps_nuc = p_lip->evalHeatingRate(ye, s, tau, time);
                 break;
             case iNone:
                 break;
         }
         /// evaluate the actual heating reate
-        double eps_nuc_ = (p_pars->eps0 / 2.e18)*eps_nuc*eps_th;
+        double eps_nuc_thermalized = eps_nuc * eps_th;
 
         /// ---------------------------------------
-        p_pars->eps_nuc = eps_nuc_;
+        p_pars->eps_nuc_thermalized = eps_nuc_thermalized;
         p_pars->eps_th = eps_th;
-        p_pars->kappa = kappa;
     }
 
     std::unique_ptr<Pars> & getPars(){return p_pars; };

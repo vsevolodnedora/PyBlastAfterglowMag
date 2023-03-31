@@ -31,6 +31,7 @@ public:
 //        pfsolvePars->p_eos = p_eos;
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "DynRadBlastWave");
     }
+    NuclearAtomic *& getNuc(){ return p_nuc; }
     ~DynRadBlastWave(){ }
 //    FsolvePars *& getCombPars(){ return pfsolvePars; }
     // RHS settings
@@ -39,9 +40,19 @@ public:
     enum Q_SOL { iR, iRsh, itt, itcomov, imom, iEint2, itheta, iErad2, iEsh2, iEad2, iM2 };
     size_t getNeq() override { return neq; }
     enum CASES { i_INSIDE_BEHIND, i_OUTSIDE_BEHIND, i_INSIDE_ABOVE, i_OUTSIDE_ABOVE, i_AT_ZERO_INSIDE };
+    ///
+    void updateNucAtomic( double * sol, double t){
+        p_nuc->update(
+                p_pars->Ye0,
+                p_pars->M0,
+                EQS::BetFromMom( sol[ p_pars->ii_eq + DynRadBlastWave::Q_SOL::imom ] ),
+                t,
+                EQS::BetFromMom( sol[ p_pars->ii_eq + DynRadBlastWave::Q_SOL::iR ] ),
+                -1
+                );
+    }
     /// set initial condition 'ic_arr' for this blast wave using data from Pars{} struct
     void setInitConditions( double * ic_arr, size_t i ) override {
-
 
         /// if layer does not have energy / mass -- do not evolve it
         if ((p_pars->M0 == 0.) && (p_pars->E0 == 0.)){
@@ -58,17 +69,6 @@ public:
         // ****************************************
         double beta0 = EQS::Beta(p_pars->Gamma0);
         p_pars->R0    = p_pars->tb0 * beta0 * CGS::c;
-
-//        double _R0 = 1e8;
-//        double _tb0 = _R0 / (beta0 * CGS::c);
-//        m_mag_time = m_mag_time - m_mag_time[0] + _tb0;
-//        p_pars->tb0 = m_mag_time[0];
-//        p_pars->x = p_pars->tb0;
-//        p_pars->R0    = p_pars->tb0 * beta0 * CGS::c;
-
-
-//        double j_theta  = Y[other_i + DynRadBlastWave::Q_SOL::itheta];
-//        double j_ctheta = other->ctheta(j_theta);
 
         p_dens->evaluateRhoDrhoDrDefault(p_pars->R0, p_pars->ctheta0);
         if (p_pars->is_within0){ //p_pars->j_i0!=123456789
@@ -164,10 +164,7 @@ public:
         bool use_spread = p_spread->m_method != LatSpread::METHODS::iNULL;
         p_pars->Rd = std::pow(3./(4.*CGS::pi) * 1./(CGS::c*CGS::c*CGS::mp) *
                               p_pars->E0/( p_dens->m_rho_ / CGS::mp * p_pars->Gamma0*p_pars->Gamma0), 1./3.);
-//        if (p_pars->Rd < p_pars->R0){
-//            std::cerr << AT << " error with Rd\n";
-//            exit(1);
-//        }
+
         double x = p_pars->Rd / p_pars->R0;
         // ***************************************
         ic_arr[i + Q_SOL::iR]      = m_tb_arr[0] * beta0 * CGS::c;
@@ -690,7 +687,7 @@ public:
 
         // --- Energy injection --- ||
         double xi_inj = 1.;
-        double dEindt = p_pars->dEinjdt;
+        double dEindt = p_nuc->getPars()->eps_nuc_thermalized;
 
         double dEinjdt = dEindt / (p_pars->M0 * CGS::c * CGS::c) / p_pars->ncells;
         double dEinjdR = dEinjdt / dRdt;
@@ -699,6 +696,8 @@ public:
         double dEinjdR_dop = dEinjdR * Doppler;
         double dEingdR_abs = dEinjdR;// * ( 1. - std::exp(-1.*p_pars->dtau) ) * std::exp(-1.*p_pars->tau_to0);
         double dEingdR_abs_dop = dEingdR_abs / Doppler / Doppler;
+
+        double dEnuc = p_pars->dEnuc;
 
 
         // --- dGammadR ---
