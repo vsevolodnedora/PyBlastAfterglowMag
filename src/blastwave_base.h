@@ -81,6 +81,7 @@ struct Pars{
     double mom0 = -1.;
     double E0 = -1.;
     double Ye0 = -1.;
+    double s0 = -1.;
     double theta_a = -1.;
     double theta_b0 = -1.;
     double ncells = -1.;
@@ -100,6 +101,7 @@ struct Pars{
     double eps_rad = 0.;
     double dEinjdt = 0.;
     double dEnuc = 0.;
+    double kappa = 0.;
     // ---
     bool adiabLoss = true;
     // ---
@@ -223,7 +225,7 @@ protected:
     RhoISM * p_dens = nullptr;
     SedovTaylor * p_sedov = nullptr;
     BlandfordMcKee2 * p_bm = nullptr;
-    NuclearAtomic * p_nuc = nullptr;
+    std::unique_ptr<NuclearAtomic> p_nuc = nullptr;
     std::unique_ptr<ShockMicrophysics> p_fs{};
     std::unique_ptr<ShockMicrophysics> p_rs{};
     int m_loglevel;
@@ -258,7 +260,7 @@ public:
         p_dens = new RhoISM(loglevel);
         p_sedov = new SedovTaylor();
         p_bm = new BlandfordMcKee2();
-        p_nuc = new NuclearAtomic(loglevel);
+        p_nuc = std::make_unique<NuclearAtomic>(loglevel);
         // ----------------------
         p_pars->nr = m_tb_arr.size();
         p_pars->ilayer = ilayer;
@@ -925,7 +927,7 @@ public:
 
                 p_pars->E0      = latStruct.dist_E0_a[ilayer];
                 p_pars->Ye0     = latStruct.dist_Ye_a[ilayer];
-                p_pars->s0     = latStruct.dist_s_a[ilayer];
+                p_pars->s0      = latStruct.dist_s_a[ilayer];
                 p_pars->M0      = latStruct.dist_M0_a[ilayer];
                 p_pars->Gamma0  = latStruct.dist_G0_a[ilayer];
                 p_pars->tb0     = m_tb_arr[0];

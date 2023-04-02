@@ -31,7 +31,7 @@ public:
 //        pfsolvePars->p_eos = p_eos;
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "DynRadBlastWave");
     }
-    NuclearAtomic *& getNuc(){ return p_nuc; }
+
     ~DynRadBlastWave(){ }
 //    FsolvePars *& getCombPars(){ return pfsolvePars; }
     // RHS settings
@@ -41,15 +41,17 @@ public:
     size_t getNeq() override { return neq; }
     enum CASES { i_INSIDE_BEHIND, i_OUTSIDE_BEHIND, i_INSIDE_ABOVE, i_OUTSIDE_ABOVE, i_AT_ZERO_INSIDE };
     ///
-    void updateNucAtomic( double * sol, double t){
+    void updateNucAtomic( double * sol, const double t ){
         p_nuc->update(
                 p_pars->Ye0,
-                p_pars->M0,
+                p_pars->M0 * (double)LatStruct::CellsInLayer(p_pars->ilayer), // m_iso ( for eps_th )
                 EQS::BetFromMom( sol[ p_pars->ii_eq + DynRadBlastWave::Q_SOL::imom ] ),
                 t,
-                EQS::BetFromMom( sol[ p_pars->ii_eq + DynRadBlastWave::Q_SOL::iR ] ),
-                -1
+                sol[ p_pars->ii_eq + DynRadBlastWave::Q_SOL::iR ],
+                p_pars->s0
                 );
+        p_pars->kappa = p_nuc->getPars()->kappa;
+        p_pars->dEnuc = p_pars->M0 * p_nuc->getPars()->eps_nuc_thermalized;
     }
     /// set initial condition 'ic_arr' for this blast wave using data from Pars{} struct
     void setInitConditions( double * ic_arr, size_t i ) override {
@@ -687,7 +689,7 @@ public:
 
         // --- Energy injection --- ||
         double xi_inj = 1.;
-        double dEindt = p_nuc->getPars()->eps_nuc_thermalized;
+        double dEindt = p_pars->dEinjdt;
 
         double dEinjdt = dEindt / (p_pars->M0 * CGS::c * CGS::c) / p_pars->ncells;
         double dEinjdR = dEinjdt / dRdt;
@@ -697,8 +699,9 @@ public:
         double dEingdR_abs = dEinjdR;// * ( 1. - std::exp(-1.*p_pars->dtau) ) * std::exp(-1.*p_pars->tau_to0);
         double dEingdR_abs_dop = dEingdR_abs / Doppler / Doppler;
 
-        double dEnuc = p_pars->dEnuc;
-
+        double dEnuc = p_pars->dEnuc;//->getPars()->eps_nuc_thermalized;
+        double dEnuc_norm = dEnuc / (p_pars->M0 * CGS::c * CGS::c);
+        double dEnucdR = dEnuc_norm / dRdt;
 
         // --- dGammadR ---
         double dGammadR = 0., GammaEff=0.,dGammaEffdGamma=0.,num1=0.,num2=0.,num3=0.,denum1=0.,denum2=0.,denom3=0.;
@@ -767,7 +770,7 @@ public:
         // -- Radiative losses
         double dErad2dR = p_pars->eps_rad * dEsh2dR;
         // -- Energy equation
-        double dEint2dR = dEsh2dR + dEad2dR - dErad2dR + dEingdR_abs_dop;// dEingdR_abs_dop; // / (m_pars.M0 * c ** 2)
+        double dEint2dR = dEsh2dR + dEad2dR - dErad2dR + dEnucdR + dEingdR_abs_dop;// dEingdR_abs_dop; // / (m_pars.M0 * c ** 2)
         double _x = dEint2dR/Eint2;
 
         double dtcomov_dR = 1.0 / beta / Gamma / CGS::c;

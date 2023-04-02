@@ -353,10 +353,13 @@ public:
         m_method_eats = setEatsMethod(eats_method);
 //        nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
 
-        if (dist_thetas.empty() || dist_EEs.empty() || dist_Gam0s.empty() || dist_MM0s.empty() || dist_Ye.empty()){
+        if (dist_thetas.empty() || dist_EEs.empty() || dist_Gam0s.empty()
+            || dist_MM0s.empty() || dist_Ye.empty() || dist_s.empty()){
             std::cerr << " One of the input arrays is empty: "
                       << "dist_cthetas(" << dist_thetas.size()
                       << ") dist_EEs(" << dist_EEs.size()
+                      << ") dist_Yes(" << dist_Ye.size()
+                      << ") dist_Ss(" << dist_s.size()
                       << ") dist_Gam0s(" << dist_Gam0s.size()
                       //                                  << ") dist_Beta0s(" << dist_Beta0s.size()
                       << ") dist_MM0s(" << dist_MM0s.size() << ")\n"
@@ -425,6 +428,7 @@ public:
             Array arr_cthetas ( dist_thetas.data(), dist_thetas.size() );
             Array arr_EEs     ( dist_EEs.data(),    dist_EEs.size() );
             Array arr_Yes     ( dist_EEs.data(),    dist_EEs.size() );
+            Array arr_Ss      ( dist_EEs.data(),    dist_EEs.size() );
             Array arr_Gam0s   ( dist_Gam0s.data(),  dist_Gam0s.size() );
             Array arr_MM0s    ( dist_MM0s.data(),   dist_MM0s.size() );
             Array arr_cthetas0( cthetas0.data(),   cthetas0.size() );
@@ -432,11 +436,13 @@ public:
             Interp1d::METHODS mth = Interp1d::iLagrangeLinear;
             Array int_E = Interp1d(arr_cthetas,arr_EEs).Interpolate(arr_cthetas0, mth);
             Array int_Ye = Interp1d(arr_cthetas,arr_Yes).Interpolate(arr_cthetas0, mth);
+            Array int_s = Interp1d(arr_cthetas,arr_Ss).Interpolate(arr_cthetas0, mth);
             Array int_G = Interp1d(arr_cthetas,arr_Gam0s).Interpolate(arr_cthetas0, mth);
             Array int_M = Interp1d(arr_cthetas,arr_MM0s).Interpolate(arr_cthetas0, mth);
 
             dist_E0_pw = arrToVec(int_E);
             dist_Ye_pw = arrToVec(int_Ye);
+            dist_s_pw = arrToVec(int_s);
             dist_G0_pw = arrToVec(int_G);
             dist_M0_pw = arrToVec(int_M);
         }
@@ -445,6 +451,7 @@ public:
             dist_G0_pw = dist_Gam0s;
             dist_M0_pw = dist_MM0s;
             dist_Ye_pw = dist_Ye;
+            dist_s_pw  = dist_s;
         }
 
         for (size_t i = 0; i < nlayers; ++i){
@@ -473,6 +480,7 @@ public:
         }
         dist_E0_a = dist_EEs;
         dist_Ye_a = dist_Ye;
+        dist_s_a  = dist_s;
         dist_G0_a = dist_Gam0s;
         dist_M0_a = dist_MM0s;
 
@@ -652,7 +660,7 @@ public:
 //    static std::vector<std::string> list_arr_v_ns() { return {"dist_thetas", "dist_EEs", "dist_Gam0s", "dist_MM0s"}; }
 //    static std::vector<std::string> list_pars_v_ns() { return {"nlayers", "mfac"}; };
 //    static std::vector<std::string> list_opts_v_ns() { return {"force_grid"}; }
-    void initUniform( Vector & dist_thetas0, Vector & dist_betas, Vector & dist_ek, Vector dist_ye, Vector dist_s,
+    void initUniform( Vector & dist_thetas0, Vector & dist_betas, Vector & dist_ek, Vector & dist_ye, Vector & dist_s,
                       size_t nlayers, double mfac, std::string eats_method, unsigned loglevel){
 
 //        p_log = new logger(std::cout, CurrLogLevel, "LatStruct");
@@ -746,6 +754,11 @@ public:
         if (dist_ye.size() != dist_ek.size()){
             (*p_log)(LOG_ERR, AT) << "Size mismatch in ejecta distrib. arrs dist_ye="
                                   <<dist_ye.size() << " dist_ek="<<dist_ek.size() << "\n";
+            exit(1);//throw std::runtime_error("");
+        }
+        if (dist_s[0].size() != dist_ek[0].size()){
+            (*p_log)(LOG_ERR, AT) << "Size mismatch in ejecta distrib. arrs dist_s[0]="
+                                  <<dist_s[0].size() << " dist_ek[0]="<<dist_ek[0].size() << "\n";
             exit(1);//throw std::runtime_error("");
         }
         if (dist_s.size() != dist_ek.size()){

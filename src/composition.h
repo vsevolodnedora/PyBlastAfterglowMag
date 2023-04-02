@@ -12,8 +12,10 @@
 #include "H5Easy.h"
 
 struct LippunerHeating{
-    std::unique_ptr<logger> & p_log;
-    explicit LippunerHeating(std::unique_ptr<logger> & p_log) : p_log(p_log){}
+    std::unique_ptr<logger> p_log;
+    explicit LippunerHeating(int loglevel){
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "LippunerHeating");
+    }
     std::string fpath{};
     double eps0{};
     /// ------------------------------
@@ -97,7 +99,7 @@ struct LippunerHeating{
 
 struct BarnsThermalization{
 
-    std::unique_ptr<logger> & p_log;
+    std::unique_ptr<logger> p_log;
     /// From Barns et al (Values for mej and vej)
     Array a; Array b; Array d;
     Array x = {std::log10(1.e-3),std::log10(5e-3),std::log10(1e-2),std::log10(5e-2)};
@@ -111,7 +113,9 @@ struct BarnsThermalization{
 //    METHOD_THERMALIZATION methodThermalization{};
     double thef{};
 
-    explicit BarnsThermalization(std::unique_ptr<logger> & p_log) : p_log(p_log){
+    explicit BarnsThermalization(int loglevel){
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BarnsThermalization");
+
         VecVector a_ = {{2.01, 0.81, 0.56, 0.27},
                         {4.52, 1.90, 1.31, 0.55},
                         {8.16, 3.20, 2.19, 0.95}};
@@ -148,20 +152,53 @@ struct BarnsThermalization{
     void setPars(StrDbMap pars, StrStrMap opts){ }
 
     /// Thermalization efficiency from Barns et al
-    double evalThermalization(double mass, double beta, double time){
+    double evalThermalization(double m_iso, double beta, double time){
         Interp2d fa(x, y, a);
         Interp2d fb(x, y, b);
         Interp2d fd(x, y, d);
 
-        double xnew = std::log10(mass) / CGS::solar_m; // mass [Msun] 4*CGS::pi/ncells
+        double xnew = std::log10(m_iso); // mass [Msun] 4*CGS::pi/ncells
         double ynew = beta; //velocity [c]
-        double coeff0 = fa.Interpolate(xnew, ynew, Interp2d::METHODS::iLagrangeLinear);
-        double coeff1 = fb.Interpolate(xnew, ynew, Interp2d::METHODS::iLagrangeLinear);
-        double coeff2 = fd.Interpolate(xnew, ynew, Interp2d::METHODS::iLagrangeLinear);
 
-        double time_days = time * CGS::day;
+
+        size_t ia = findIndex(xnew, x, x.size());
+        if (xnew < x[0])
+            xnew = x[0];
+        if (xnew > x[x.size()-1])
+            xnew = x[x.size()-1];
+        if (ynew < y[0])
+            ynew = y[0];
+        if (ynew > y[y.size()-1])
+            ynew = y[y.size()-1];
+        if (ia >= x.size() - 1){
+            std::cerr << " failed 2d interpolation\n"; exit(1);
+        }
+        size_t ib = ia + 1;
+        size_t ia_ = findIndex(xnew, y, y.size());
+        if (ia_ >= y.size() - 1){
+            std::cerr << " failed 2d interpolation\n"; exit(1);
+        }
+        size_t ib_ = ia_ + 1;
+        double coeff0 = fa.InterpolateBilinear(xnew, ynew, ia_, ib_, ia, ib);
+        double coeff1 = fb.InterpolateBilinear(xnew, ynew, ia_, ib_, ia, ib);
+        double coeff2 = fd.InterpolateBilinear(xnew, ynew, ia_, ib_, ia, ib);
+
+//        double coeff0 = fa.InterpolateBilinear(xnew, ynew);
+//        double coeff1 = fb.InterpolateBilinear(xnew, ynew);
+//        double coeff2 = fd.InterpolateBilinear(xnew, ynew);
+
+
+//        double coeff0 = fa.Interpolate(xnew, ynew, Interp2d::METHODS::iLagrangeLinear);
+//        double coeff1 = fb.Interpolate(xnew, ynew, Interp2d::METHODS::iLagrangeLinear);
+//        double coeff2 = fd.Interpolate(xnew, ynew, Interp2d::METHODS::iLagrangeLinear);
+
+        double time_days = time / CGS::day;
         double tmp = 2. * coeff1 * std::pow(time_days, coeff2);
         double val = 0.36 * (std::exp(-coeff0 * time_days) + std::log( 1. + tmp) / tmp );
+        if (!std::isfinite(val)){
+            (*p_log)(LOG_ERR,AT)<<" nan in thermalization\n";
+            exit(1);
+        }
         if (val < 0 || val > 1){
             (*p_log)(LOG_ERR, AT) << " check the thermalization efficiency = "<<val << "\n";
             exit(1);
@@ -209,21 +246,23 @@ double smoothclamp(double x, double x1, double x2, double y1, double y2) {
 
 /// Model suggested by Korobkin + 2012
 struct KorobkinHeating{
+
     double alpha{}; double t0eps{}; double eps0{}; double sigma0;
     double cnst_a_eps_nuc{}; double cnst_b_eps_nuc{}; double cnst_t_eps_nuc{};
     double kappa{};
-    std::unique_ptr<logger> & p_log;
-    KorobkinHeating(std::unique_ptr<logger> & p_log) : p_log(p_log){}
-
+    std::unique_ptr<logger> p_log;
+    KorobkinHeating(int loglevel){
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "KorobkinHeating");
+    }
     void setPars(StrDbMap pars, StrStrMap opts){
         /// para
         alpha = getDoublePar("alpha", pars, AT, p_log, 0.0, true);
         eps0 = getDoublePar("eps_nuc0", pars, AT, p_log, 0.0, true);
         t0eps = getDoublePar("t0eps", pars, AT, p_log, 0.0, true);
         sigma0 = getDoublePar("sigma", pars, AT, p_log, 0.0, true);
-        cnst_a_eps_nuc = getDoublePar("cnst_a_eps_nuc", pars, AT, p_log, 0.0, true);
-        cnst_b_eps_nuc = getDoublePar("cnst_b_eps_nuc", pars, AT, p_log, 0.0, true);
-        cnst_t_eps_nuc = getDoublePar("cnst_t_eps_nuc", pars, AT, p_log, 0.0, true);
+        cnst_a_eps_nuc = getDoublePar("a_eps_nuc", pars, AT, p_log, 0.0, true);
+        cnst_b_eps_nuc = getDoublePar("b_eps_nuc", pars, AT, p_log, 0.0, true);
+        cnst_t_eps_nuc = getDoublePar("t_eps_nuc", pars, AT, p_log, 0.0, true);
     }
 
     /// Nuclear Heating due to r-process
@@ -267,15 +306,13 @@ struct TanakaOpacity{
     }
 };
 
-
-
 class NuclearAtomic{
     enum METHOD_HEATING { iPBR, iLR, iNone };
     enum METHOD_THERMALIZATION { iBKWM, iBKWM_1d, iConstTherm };
     METHOD_HEATING methodHeating{};
     METHOD_THERMALIZATION methodThermalization{};
-    struct Pars{ double eps_th0{}; double kappa{}; double eps_nuc_thermalized{}; double eps_th{}; };
-    bool do_nucinj{};
+    struct Pars{ double eps_th0=0.; double kappa=0.; double eps_nuc_thermalized=0.; double eps_th=0.; };
+    bool do_nucinj= false;
     /// -----------------------------------------
     std::unique_ptr<logger> p_log;
     std::unique_ptr<Pars> p_pars;
@@ -283,10 +320,12 @@ class NuclearAtomic{
     std::unique_ptr<BarnsThermalization> p_barns;
     std::unique_ptr<KorobkinHeating> p_korob;
     std::unique_ptr<TanakaOpacity> p_tanaka;
+    int m_loglevel{};
 public:
     NuclearAtomic(int loglevel){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel,"NuclearAtomic");
         p_pars = std::make_unique<Pars>();
+        m_loglevel=loglevel;
     }
 
     void setPars(StrDbMap pars, StrStrMap opts){
@@ -347,11 +386,11 @@ public:
         /// set method for thermalization calculations
         switch (methodThermalization) {
             case iBKWM:
-                p_barns = std::make_unique<BarnsThermalization>(p_log);
+                p_barns = std::make_unique<BarnsThermalization>(m_loglevel);
                 p_barns->setPars(pars, opts);
                 break;
             case iBKWM_1d:
-                p_barns = std::make_unique<BarnsThermalization>(p_log);
+                p_barns = std::make_unique<BarnsThermalization>(m_loglevel);
                 p_barns->setPars(pars, opts);
                 break;
             case iConstTherm:
@@ -361,11 +400,11 @@ public:
         /// set method for heating rate calculations
         switch (methodHeating) {
             case iPBR:
-                p_korob = std::make_unique<KorobkinHeating>(p_log);
+                p_korob = std::make_unique<KorobkinHeating>(m_loglevel);
                 p_korob->setPars(pars, opts);
                 break;
             case iLR:
-                p_lip = std::make_unique<LippunerHeating>(p_log);
+                p_lip = std::make_unique<LippunerHeating>(m_loglevel);
                 p_lip->setPars(pars, opts);
                 break;
             case iNone:
@@ -375,7 +414,8 @@ public:
         p_tanaka = std::make_unique<TanakaOpacity>();
     }
 
-    void update(double ye, double mass, double beta, double time, double radius, double s){
+    void update(const double ye, const double m_iso, const double beta,
+                const double time, const double radius, const double s){
         /// update opacity
         double kappa = p_tanaka->evaluateOpacity(ye);
         p_pars->kappa = kappa;
@@ -386,20 +426,20 @@ public:
         double eps_th = 0.;
         switch (methodThermalization) {
             case iBKWM:
-                eps_th = p_barns->evalThermalization(mass, beta, time);
+                eps_th = p_barns->evalThermalization(m_iso/CGS::solar_m, beta, time);
                 break;
             case iBKWM_1d:
-                eps_th = p_barns->evalThermalization1D(mass, beta, time);
+                eps_th = p_barns->evalThermalization1D(m_iso/CGS::solar_m, beta, time);
                 break;
             case iConstTherm:
                 eps_th = p_pars->eps_th0;
                 break;
         }
         /// update the nuclear heating rate
-        double eps_nuc = 0.; double tau{};
+        double eps_nuc = 0.; double tau = 0.;
         switch (methodHeating) {
             case iPBR:
-                eps_nuc = p_korob->evalHeatingRate(mass, beta, time, kappa);
+                eps_nuc = p_korob->evalHeatingRate(m_iso, beta, time, kappa);
                 break;
             case iLR:
                 tau = 0.5 * 2.718 * (radius / beta / CGS::c); // expansion timescale
@@ -410,8 +450,12 @@ public:
         }
         /// evaluate the actual heating reate
         double eps_nuc_thermalized = eps_nuc * eps_th;
-
+        if (!std::isfinite(eps_nuc_thermalized)){
+            (*p_log)(LOG_ERR,AT)<<" nan in eps_nuc_thermalized\n";
+            exit(1);
+        }
         /// ---------------------------------------
+//        std::cout << "eps_nuc="<<eps_nuc<<"\n";
         p_pars->eps_nuc_thermalized = eps_nuc_thermalized;
         p_pars->eps_th = eps_th;
     }

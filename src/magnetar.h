@@ -423,6 +423,10 @@ public:
         return std::move(tmp2);
     }
     double getMagValInt(Q vname, double tb){
+        if (!std::isfinite(tb)){
+            (*p_log)(LOG_ERR,AT)<<" nan in tb!"<<"\n";
+            exit(1);
+        }
 //        std::cerr << m_data[0][0] << " " << m_data[1][0] << " " << m_data[2][0] << " " << m_data[3][0] << "\n";
         if (!is_mag_pars_set || !load_magnetar){
             (*p_log)(LOG_ERR,AT) << " magnetar is not set/loaded\n";
@@ -443,7 +447,11 @@ public:
             return 0.;
         double val = interpSegLog(ia, ib, tb, m_mag_time, m_data[vname]);
         if (!std::isfinite(val)){
-            (*p_log)(LOG_ERR,AT) << " nan in interpolated value\n";
+            (*p_log)(LOG_ERR,AT)
+                << " nan in interpolated value; vname="<<vname<<" tb="<<tb
+                << " ia="<<ia<<" ib="<<ib<<" m_data["<<m_vnames[vname]<<"]["<<ia<<"]="<<m_data[vname][ia]
+                << " m_data["<<m_vnames[vname]<<"]["<<ib<<"]="<<m_data[vname][ib]
+                << "\n";
             std::cout << m_mag_time << "\n";
             std::cout << m_data[vname] << "\n";
             exit(1);

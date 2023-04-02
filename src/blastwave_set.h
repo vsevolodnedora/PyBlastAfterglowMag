@@ -390,12 +390,19 @@ class CumulativeShell{
     Vector m_temp{};
     Vector m_radii_init{};
     Vector m_delta{};
+    Vector m_lum{};
+    Vector m_tdiff{};
+    Vector m_tdiff_out{};
+    Vector m_tlc{};
 //    Vector m_radii_sorted;
     Vector m_dtau{};
     Vector m_frac{};
     Vector m_dtau_cum{};
     VecVector m_shell_data{};
     size_t m_tarr_size{};
+    double m_tot_lum = 0.;
+    double m_photo_r = 0.;
+    double m_photo_teff = 0.;
     const Vector m_t_grid{};
     bool do_collision{};
     double total_mass{};
@@ -426,6 +433,10 @@ public:
         m_dtau.resize(nshells, 0.0);
         m_dtau_cum.resize(nshells, 0.0);
         m_beta.resize(nshells, 0.0);
+        m_lum.resize(nshells, 0.0);
+        m_tdiff.resize(nshells, 0.0);
+        m_tdiff_out.resize(nshells, 0.0);
+        m_tlc.resize(nshells, 0.0);
 //        m_shell_data.resize(m_nshells);
 //        for (auto arr:)
         m_idxs.resize(nshells, nshells-1); // fill with last value (if not active)
@@ -1485,7 +1496,7 @@ public:
     void evalShellThicknessIsolated(size_t idx, const double * Y){
 
         double r_i=0., r_ip1=0., dr_i = 0., vol_i=0.;
-        double frac = 0.1; // fraction of the shell volume to be used as its width. Inaccurate as we need adjacent shells to get the volume...
+        double frac = 0.1; // TODO fraction of the shell volume to be used as its width. !!! Inaccurate as we need adjacent shells to get the volume...
         auto & bw = p_bws_ej[idx];
         r_i =  Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
         dr_i = frac * r_i;
@@ -1497,7 +1508,9 @@ public:
     void evalShellThickness( const double * Y ){
         double r_i=0., r_ip1=0., dr_i = 0., vol_i=0.;
         /// if there is one shell we cannot have the shell width that comes from shell separation.
-        if (n_active_shells == 1){ evalShellThicknessIsolated(0, Y); }
+        if (n_active_shells == 1){
+            evalShellThicknessIsolated(0, Y);
+        }
         else{
             for (size_t ii=0; ii<n_active_shells-1; ii++) {
                 r_i = 0., r_ip1 = 0., dr_i = 0., vol_i = 0.;
@@ -1532,19 +1545,23 @@ public:
     void evalShellOptDepth(  const double * Y ){
 
         double r_i=0., r_ip1=0., dr_i = 0., m_i=0., m2_i=0., m_ip1=0.,
-                m2_ip1=0., vol_i=0., rho_i=0., dtau_i=0., tau_tot=0.;
-
+                m2_ip1=0., vol_i=0., rho_i=0., dtau_i=0., tau_tot=0., eint2_i=0., ene_th=0.;
+        double tdiff=0., lum=0.;
+        double kappa_i = 0.;/// = bw->; // bw->getPars()->kappa0; // TODO!
 
         /// Compute temperature of each of the active shells
         if (n_active_shells == 1){
             auto & bw = p_bws_ej[0];
             dr_i = bw->getPars()->thickness;//frac * r_i; // TODO add other methods 1/Gamma...
+//            m_i = bw->getPars()->M0;//frac * r_i; // TODO add other methods 1/Gamma...
             vol_i = bw->getPars()->volume;// = frac * (4./3.) * CGS::pi * (r_i*r_i*r_i) / bw->getPars()->ncells;
+//            kappa_i = bw->getPars()->kappa;
             ///store also velocity
             m_beta[0] = EQS::BetFromMom( Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-            double eint2 = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
-            eint2 *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
-            double ene_th = eint2; // TODO is this shock??
+//            r_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+            eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+            eint2_i *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
+            ene_th = eint2_i; // TODO is this shock??
             m_temp[0] = std::pow(ene_th/A_RAD/vol_i,0.25); // Stephan-Boltzman law
             int x = 1;
         }
@@ -1556,21 +1573,21 @@ public:
                 vol_i = bw->getPars()->volume;// = frac * (4./3.) * CGS::pi * (r_i*r_i*r_i) / bw->getPars()->ncells;
                 ///store also velocity
                 m_beta[i] = EQS::BetFromMom(Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom]);
-                double eint2 = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
-                eint2 *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
-                double ene_th = eint2; // TODO is this shock??
+                eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+                eint2_i *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
+                ene_th = eint2_i; // TODO is this shock??
                 m_temp[i] = std::pow(ene_th / A_RAD / vol_i, 0.25); // Stephan-Boltzman law
                 int x = 1;
             }
         }
 
-        double kappa_i = 5.; // bw->getPars()->kappa0; // TODO!
 
 
         /// if there is one shell we cannot have the shell width that comes from shell separation.
         if (n_active_shells == 1){
             double frac = 0.1; // fraction of the shell volume to be used as its width. Inaccurate as we need adjacent shells to get the volume...
             auto & bw = p_bws_ej[0];
+            kappa_i = bw->getPars()->kappa;
 //            r_i =  Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
             dr_i = bw->getPars()->thickness;//frac * r_i; // TODO add other methods 1/Gamma...
             vol_i = bw->getPars()->volume;// = frac * (4./3.) * CGS::pi * (r_i*r_i*r_i) / bw->getPars()->ncells;
@@ -1578,13 +1595,22 @@ public:
             m2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2] * m_i;
             m_i += m2_i;
             rho_i = m_i / vol_i;
+            //
+            r_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+//            eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+//            eint2_i *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
+//            ene_th = eint2_i; // TODO is this shock??
+            //
             m_dtau[0] = kappa_i * rho_i * dr_i;
             m_dtau_cum[0] = 0.; // opt. depth to this shell
+            m_tdiff[0] = kappa_i * m_i / m_beta[0] / r_i / CGS::c; // TODO M0 or M0+M2 )
+            m_tlc[0] = r_i / CGS::c;
+
         }
 
         /// compute shell width from the shell separation
         for (size_t ii=0; ii<n_active_shells-1; ii++){
-            r_i=0., r_ip1=0., dr_i = 0., m_i=0., m2_ip1=0., m_ip1=0., vol_i=0., rho_i=0., dtau_i=0.;
+            r_i=0., r_ip1=0., dr_i = 0., m_i=0., m2_ip1=0., m_ip1=0., vol_i=0., rho_i=0., dtau_i=0., eint2_i=0;
             ///
             size_t idx = m_idxs[ii];
             size_t nextidx = m_idxs[ii+1];
@@ -1592,6 +1618,7 @@ public:
             auto & nextbw = p_bws_ej[nextidx];
 
             dr_i = bw->getPars()->thickness;//r_ip1 - r_i;
+            kappa_i = bw->getPars()->kappa;
 
             /// evaluate mass within the shell
             m_i = bw->getPars()->M0;
@@ -1600,11 +1627,15 @@ public:
             m_ip1 = nextbw->getPars()->M0;
             m2_ip1 = Y[nextbw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2] * m_ip1;
             m_ip1 += m2_ip1;
+            r_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
             /// evaluate the volume of the shell (fraction of the 4pi)
             vol_i = bw->getPars()->volume;//(4./3.) * CGS::pi * (r_ip1*r_ip1*r_ip1 - r_i*r_i*r_i) / bw->getPars()->ncells;
             /// evaluate density within a shell (neglecting the accreted by the shock!)
             rho_i = m_i / vol_i;
             m_rho[ii] = rho_i;
+
+//            eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+//            eint2_i *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
 
             /// evaluate optical depth
             dtau_i = kappa_i * rho_i * dr_i;
@@ -1614,7 +1645,17 @@ public:
                 exit(1);
             }
             m_dtau[ii] = dtau_i;
+
+            m_tlc[ii] = r_i / CGS::c;
+            m_tdiff[ii] = kappa_i * bw->getPars()->M0 / m_beta[ii] / r_i / CGS::c; // TODO M0 or M0+M2 )
+//            tdiff = m_dtau[ii] * Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR] / CGS::c;
+
         }
+
+        /// compute diffusion out
+//        for (size_t ii = 0 ; ii < n_active_shells; ii++){
+//            m_tdiff_out[i]
+//        }
 
 
 //        (*p_log)(LOG_INFO,AT)<<" optical depth is evaluated. Total tau="<<tau_tot<<"\n";
@@ -1622,44 +1663,90 @@ public:
 //        std::cout << " rho_ave="<<getShellRho(Y)<<"\n";
 //        std::cout << " m_tot="<<getShellMass(Y)<<"\n";
 
+
+//        (*p_log)(LOG_INFO,AT)<<"\tLayer [il="<<mylayer
+//                                        <<"] Photosphere located at idx="<<idx_photo<<"\n";
+
+
+        /// Compute the optical depth from 0 to a given shell
+        for (size_t ii = 0 ; ii < n_active_shells; ii++){
+            size_t cur_idx = m_idxs[ii];
+            double tau_cum = 0.;
+            for (size_t jj = 0 ; jj < n_active_shells; jj++){
+                size_t other_idx = m_idxs[jj];
+                if (other_idx < cur_idx) {
+                    tau_cum += m_dtau[other_idx];
+                }
+            }
+            m_dtau_cum[cur_idx] = tau_cum;
+        }
+
+        /// Compute cumulative diffusive timescale for all shells
+        for (size_t ii = 0 ; ii < n_active_shells; ii++){
+            double tdiff_cum = 0.;
+            for (size_t jj = ii ; jj < n_active_shells; jj++){
+                tdiff_cum += m_tdiff[jj];
+            }
+            m_tdiff_out[ii] = std::max( tdiff_cum, m_tlc[ii] ); // Eq. 19 in Ren+19
+        }
+
+        /// Compute luminocity from each shell
+        double ltot = 0.;
+        for (size_t ii=0; ii<n_active_shells-1; ii++){
+            size_t idx = m_idxs[ii];
+            auto & bw = p_bws_ej[idx];
+            eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+            eint2_i *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
+            ene_th = eint2_i; // TODO is this shock??
+            m_lum[ii] = ene_th / m_tdiff_out[ii]; // m_dtau[ii] * ene_th * bw->getPars()->M0 * CGS::c * CGS::c / tdiff;
+            ltot += m_lum[ii];
+        }
+        m_tot_lum = ltot;
+
+
         /// based on where tau = 1 get the photosphere radius, i.e., in which shell is the photosphere
-        double tmp_tau = 0;
+        double tmp_tau = 0; double r_ph;
         size_t idx_photo = n_active_shells;
-        for (size_t i = n_active_shells-1; i > 0; i--){
+        for (size_t i = n_active_shells-1; i >= 0; --i){
             size_t idx = m_idxs[i];
             auto & bw = p_bws_ej[idx];
-//            if (bw->getPars()->M0 == 0)
-//                continue;
             tmp_tau+=m_dtau[idx];
             if (tmp_tau > 1.){
                 idx_photo = (int)idx+1;
                 break;
             }
         }
-//        (*p_log)(LOG_INFO,AT)<<"\tLayer [il="<<mylayer
-//                                        <<"] Photosphere located at idx="<<idx_photo<<"\n";
-
-
-        /// Compute the optical depth from 0 to a given shell
-//        for (auto & cur_idx : m_idxs){
-        for (size_t ii = 0 ; ii < n_active_shells; ii++){
-            size_t cur_idx = m_idxs[ii];
-            double tau_cum = 0.;
-//            for (auto & other_idx : m_idxs){
-            for (size_t jj = 0 ; jj < n_active_shells; jj++){
-                size_t other_idx = m_idxs[jj];
-                if (other_idx < cur_idx)
-                    tau_cum += m_dtau[other_idx];
-            }
-            m_dtau_cum[cur_idx] = tau_cum;
+        if (idx_photo == 0) {
+            /// Ejecta totally transparent
+            int y = 1;
         }
+        else if ((idx_photo == n_active_shells-1) && (m_dtau[idx_photo-1] > 1)) {
+            /// Ejecta totally opaque
+            int x = 1;
+        }
+        else{
+            m_photo_r = Y[p_bws_ej[idx_photo-1]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+            m_photo_teff = 0.;
+        }
+
+
+
+
+        std::cout << "m_rho      ="<< m_rho << "\n";
+        std::cout << "m_lum      ="<< m_lum << "\n";
+        std::cout << "m_temp     ="<< m_temp << "\n";
+        std::cout << "m_dtau     ="<< m_dtau << "\n";
+        std::cout << "m_tdiff    ="<< m_tdiff << "\n";
+        std::cout << "m_tdiff_out="<< m_tdiff_out << "\n";
+        std::cout << "m_dtau_cum ="<< m_dtau_cum << "\n";
+
+
 //        (*p_log)(LOG_INFO,AT)<<"\tLayer [il="<<mylayer
 //                                        <<"] Cumulative optical depth to idx0"
 //                                        <<" tau0="<<m_dtau_cum[0]
 //                                        <<" tau[-1]="<<m_dtau_cum[n_active_shells-1]<<"\n";
 
         /// save results for the use in ODE when solving Energy equation
-//        for (auto & cur_idx : m_idxs){
         for (size_t ii = 0 ; ii < n_active_shells; ii++){
             size_t cur_idx = m_idxs[ii];
             auto & bw = p_bws_ej[cur_idx];
@@ -3386,12 +3473,15 @@ private:
     /// evaluate RHS
     static void RHS_comb(double * out_Y,
                          size_t n_eq,
-                         double x,
+                         const double x,
                          double const * Y,
                          void *pars){
 
         auto * p_pars = (struct Pars *) pars;
-
+        if (!std::isfinite(x)){
+            std::cerr << AT <<" nan in tb!"<<"\n";
+            exit(1);
+        }
         /// *********************| M A G N E T A R |**********************
         size_t ii = 0;
         double ldip = 0;

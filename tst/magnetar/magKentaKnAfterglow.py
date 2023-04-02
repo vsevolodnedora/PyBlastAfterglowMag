@@ -546,6 +546,12 @@ def main():
                                     "fname_ejecta_id":f"{label}.h5"},
                            parfile="parfile.par",newparfile="parfile.par",keep_old=False
                            )
+
+    # dfile = h5py.File(label+".h5",'a')
+    # dfile.create_dataset(name="ye", data=np.full_like(np.array(dfile["ek"]),fill_value=.2))
+    # dfile.create_dataset(name="s", data=np.full_like(np.array(dfile["ek"]),fill_value=10.))
+
+
     pba = BPA_METHODS(workingdir=os.getcwd()+'/',readparfileforpaths=True)
     pba.reload_parfile()
     pba.run(loglevel="info")

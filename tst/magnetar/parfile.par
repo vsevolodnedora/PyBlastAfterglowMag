@@ -93,10 +93,10 @@ ksi_n = 1.
 nlayers = 30
 mfac = 2.0
 
-eps_thermalization = 0.0    # used if method_thermalization = const
+eps_thermalization = 0.5    # used if method_thermalization = const
 eps_nuc0 = 1.2e19           # In (eps_nuc0 / 2.e18) * eps_nuc * eps_th; (Both method)
 alpha = 1.3
-sigma0 = 0.11
+sigma = 0.11
 a_eps_nuc = 0.5
 b_eps_nuc = 2.5
 t_eps_nuc = 1.0
@@ -129,8 +129,8 @@ do_eninj_inside_rhs = no # yes
 method_eats = piece-wise # piece-wise
 
 do_nucinj = yes
-fname_nuc = neatingLippuner.h5
-method_heating = PBR    # PBR LR none
+fname_nuc = heatingLippuner.h5
+method_heating = LR    # PBR LR none
 method_thermalization = const # const BKWM BKWM_1d
 
 fname_dyn = magnetar_driven_ej.h5
