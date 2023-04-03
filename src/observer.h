@@ -131,6 +131,7 @@ public:
         dist_G0_pw.resize( nlayers_pw );
         dist_M0_pw.resize( nlayers_pw );
         dist_Ye_pw.resize( nlayers_pw );
+        dist_s_pw.resize( nlayers_pw );
         setThetaGridPW();
         if (nlayers_pw  < 1){
             std::cerr << " grid not initialized.\n Exiting...";
@@ -157,6 +158,7 @@ public:
         dist_G0_a.resize( nlayers_a );
         dist_M0_a.resize( nlayers_a );
         dist_Ye_a.resize( nlayers_a );
+        dist_s_a.resize( nlayers_a );
         double frac_of_solid_ang = 2 * sin(0.5 * theta_h) * sin(0.5 * theta_h); // for pi/2 -> 1.
         dist_E0_a[0] = E_iso * frac_of_solid_ang / 2.;
         dist_G0_a[0] = Gamma0;
@@ -184,6 +186,8 @@ public:
         dist_E0_pw.resize( nlayers_pw );
         dist_G0_pw.resize( nlayers_pw );
         dist_M0_pw.resize( nlayers_pw );
+        dist_Ye_pw.resize( nlayers_pw, 0. );
+        dist_s_pw.resize( nlayers_pw, 0. );
         setThetaGridPW();
         double ang_size_layer = 2.0 * CGS::pi * ( 2.0 * std::sin(0.5 * theta_w) * std::sin(0.5 * theta_w) );
         for (size_t i = 0; i < cthetas0.size(); i++){
@@ -203,6 +207,8 @@ public:
         dist_E0_a.resize( nlayers_a );
         dist_G0_a.resize( nlayers_a );
         dist_M0_a.resize( nlayers_a );
+        dist_Ye_a.resize( nlayers_a, 0. );
+        dist_s_a.resize( nlayers_a, 0. );
         for (size_t i = 0; i < nlayers_a; i++) {
             double frac_of_solid_ang = 2 * std::sin(0.5 * thetas_c_h[i]) * std::sin(0.5 * thetas_c_h[i]);
             dist_E0_a[i] = E_iso_c * std::exp(-0.5 * ( thetas_c[i] * thetas_c[i] / theta_c / theta_c ) );

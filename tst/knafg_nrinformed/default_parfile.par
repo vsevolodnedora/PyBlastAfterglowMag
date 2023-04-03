@@ -86,6 +86,9 @@ type = numeric
 fname_ejecta_id = abs.h5
 enforce_angular_grid = yes
 
+do_thermrad_loss = no
+do_nucinj = no
+
 method_spread = None
 method_eos = Nava13
 method_GammaSh = useJKwithGammaRel # small effect

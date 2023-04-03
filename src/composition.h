@@ -308,7 +308,7 @@ struct TanakaOpacity{
 
 class NuclearAtomic{
     enum METHOD_HEATING { iPBR, iLR, iNone };
-    enum METHOD_THERMALIZATION { iBKWM, iBKWM_1d, iConstTherm };
+    enum METHOD_THERMALIZATION { iBKWM, iBKWM_1d, iConstTherm, iNoneTh };
     METHOD_HEATING methodHeating{};
     METHOD_THERMALIZATION methodThermalization{};
     struct Pars{ double eps_th0=0.; double kappa=0.; double eps_nuc_thermalized=0.; double eps_th=0.; };
@@ -330,6 +330,8 @@ public:
 
     void setPars(StrDbMap pars, StrStrMap opts){
         do_nucinj = getBoolOpt("do_nucinj", opts, AT, p_log, false, true);
+        if (!do_nucinj)
+            return;
 
         std::string opt = "method_heating";
         METHOD_HEATING m_methodHeating;
@@ -363,7 +365,9 @@ public:
             m_methodThermalization = METHOD_THERMALIZATION::iConstTherm;
         }
         else{
-            if(opts.at(opt) == "const")
+            if(opts.at(opt) == "none")
+                m_methodThermalization = METHOD_THERMALIZATION::iNoneTh;
+            else if(opts.at(opt) == "const")
                 m_methodThermalization = METHOD_THERMALIZATION::iConstTherm;
             else if(opts.at(opt) == "BKWM")
                 m_methodThermalization = METHOD_THERMALIZATION::iBKWM;
@@ -396,6 +400,9 @@ public:
             case iConstTherm:
                 p_pars->eps_th0 = getDoublePar("eps_thermalization", pars, AT, p_log, 0.0, true);
                 break;
+            case iNoneTh:
+                p_pars->eps_th0 = 0.;
+                break;
         }
         /// set method for heating rate calculations
         switch (methodHeating) {
@@ -417,10 +424,10 @@ public:
     void update(const double ye, const double m_iso, const double beta,
                 const double time, const double radius, const double s){
         /// update opacity
-        double kappa = p_tanaka->evaluateOpacity(ye);
-        p_pars->kappa = kappa;
         if (!do_nucinj)
             return;
+        double kappa = p_tanaka->evaluateOpacity(ye);
+        p_pars->kappa = kappa;
 
         /// update thermalization efficiency
         double eps_th = 0.;

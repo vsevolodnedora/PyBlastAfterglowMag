@@ -7,7 +7,7 @@
 
 #include "pch.h"
 #include "utils.h"
-#include "blastwave_set.h"
+#include "ejecta_combined.h"
 #include "observer.h"
 #include "synchrotron_an.h"
 

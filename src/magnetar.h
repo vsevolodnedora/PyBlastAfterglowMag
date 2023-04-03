@@ -679,6 +679,7 @@ class PWNmodel{
         int nthreads_for_frac{};
         // --------------
         double b_pwn=-1;
+        bool is_init = false;
     };
     Vector m_tb_arr;
     VecArray m_data{}; // container for the solution of the evolution
@@ -802,6 +803,7 @@ public:
                              + p_pars->eps_th * p_pars->curr_lacc;
         arr[i + Q_SOL::i_Epwn] = p_pars->eps_mag * p_pars->curr_ldip;
         p_pars->b_pwn = evalCurrBpwn(arr);
+        p_pars->is_init = true;
     }
 
     void insertSolution( const double * sol, size_t it, size_t i ){
@@ -875,6 +877,19 @@ public:
     }
 
     double getFacPWNdep(double rho_ej, double delta_ej, double T_ej, double Ye){
+        if(!std::isfinite(rho_ej) || rho_ej < 0){
+            (*p_log)(LOG_ERR,AT)<<"bad value in PWN frac calc: rho_ej="<<rho_ej<<"\n"; exit(1);
+        }
+        if(!std::isfinite(delta_ej) || delta_ej < 0){
+            (*p_log)(LOG_ERR,AT)<<"bad value in PWN frac calc: delta_ej="<<delta_ej<<"\n"; exit(1);
+        }
+        if(!std::isfinite(T_ej) || T_ej < 0){
+            (*p_log)(LOG_ERR,AT)<<"bad value in PWN frac calc: T_ej="<<T_ej<<"\n"; exit(1);
+        }
+        if(!std::isfinite(Ye) || Ye < 0){
+            (*p_log)(LOG_ERR,AT)<<"bad value in PWN frac calc: Ye="<<Ye<<"\n"; exit(1);
+        }
+
         int opacitymode=0; //0=iron, 1=Y_e~0.3-0.5, 2=Y_e~0.1-0.2, 3=CO
         if (Ye <= 0.2)
             opacitymode = 2;
@@ -1211,7 +1226,7 @@ private:
 
     double facPSRdep(const double rho_ej, const double delta_ej,
                      const double T_ej, const int opacitymode){
-        if (p_pars->b_pwn < 0){
+        if (p_pars->b_pwn < 0 || !std::isfinite(p_pars->b_pwn)){
             (*p_log)(LOG_ERR,AT)<<" b_pwn is not set\n";
             exit(1);
         }
@@ -1377,6 +1392,12 @@ public:
     PWNset(int loglevel) : loglevel(loglevel){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "PWNset");
 
+    }
+    void setInitConditions(double * m_InitData){
+        for (size_t il=0; il<m_nlayers; il++) {
+            auto &ej_pwn = getPWNs()[il];
+            ej_pwn->setInitConditions(m_InitData, ej_pwn->getPars()->iieq);
+        }
     }
 };
 

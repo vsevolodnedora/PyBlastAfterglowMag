@@ -133,6 +133,9 @@ fname_nuc = heatingLippuner.h5
 method_heating = LR    # PBR LR none
 method_thermalization = const # const BKWM BKWM_1d
 
+do_thermrad_loss = yes
+thermradloss_at_photo = yes
+
 fname_dyn = magnetar_driven_ej.h5
 fname_light_curve = corr_id_SFHo_13_14_150m_11_text25.lc
 fname_light_curve_layers = none

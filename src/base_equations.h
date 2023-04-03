@@ -14,6 +14,9 @@
 
 
 inline namespace EQS{
+    inline double MomFromGam(const double gam){
+        return std::sqrt(gam*gam - 1.);
+    }
     inline double GamFromMom(const double mom){
         return std::sqrt(1.0+mom*mom);
     }

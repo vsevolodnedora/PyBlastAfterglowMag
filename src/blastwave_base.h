@@ -66,13 +66,13 @@ struct Pars{
     METHOD_dgdr m_method_dgdr{};
     LatStruct::METHOD_eats m_method_eats{};
     /// For Magnetar
-    double thickness = -1;
-    double volume = -1;
-    double Rho0 = -1;
-    double kappa0 = -1;
-    double dtau = -1;
-    double tau_to0 = -1;
-    bool is_above_tau1 = false;
+//    double thickness = -1;
+//    double volume = -1;
+//    double Rho0 = -1;
+//    double kappa0 = -1;
+//    double dtau = -1;
+//    double tau_to0 = -1;
+//    bool is_above_tau1 = false;
     /// blast wave initial conditions
     double M0 = -1.;
     double R0 = -1.;
@@ -101,6 +101,7 @@ struct Pars{
     double eps_rad = 0.;
     double dEinjdt = 0.;
     double dEnuc = 0.;
+    double dElum = 0.;
     double kappa = 0.;
     // ---
     bool adiabLoss = true;
@@ -368,6 +369,7 @@ public:
 //        double etot = (dyn2t2.get(f"Gamma_ej_{ii}") - 1)* cgs.c ** 2 * \
 //               (dyn2t2.get(f"M2_ej_{ii}") + 1e48 / (cgs.c ** 2 * dyn2t2.get(f"Gamma_ej_{ii}")[0])) + GammaEff * dyn2t2.get(f"Eint2_ej_{ii}")
 //    }
+    inline VecArray & getData(){ return m_data; }
     inline Array & getData(Q var){ return m_data[var]; }
     inline double & getVal(Q var, int ix){
         auto ixx = (size_t)ix;

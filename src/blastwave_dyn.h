@@ -703,6 +703,10 @@ public:
         double dEnuc_norm = dEnuc / (p_pars->M0 * CGS::c * CGS::c);
         double dEnucdR = dEnuc_norm / dRdt;
 
+        double dElum = p_pars->dElum;
+        double dElum_norm = dElum / (p_pars->M0 * CGS::c * CGS::c);
+        double dElumdR = dElum_norm / dRdt;
+
         // --- dGammadR ---
         double dGammadR = 0., GammaEff=0.,dGammaEffdGamma=0.,num1=0.,num2=0.,num3=0.,denum1=0.,denum2=0.,denom3=0.;
         double _tmp = (1. - GammaEff / Gamma * xi_inj) * dEingdR_abs;
@@ -770,7 +774,7 @@ public:
         // -- Radiative losses
         double dErad2dR = p_pars->eps_rad * dEsh2dR;
         // -- Energy equation
-        double dEint2dR = dEsh2dR + dEad2dR - dErad2dR + dEnucdR + dEingdR_abs_dop;// dEingdR_abs_dop; // / (m_pars.M0 * c ** 2)
+        double dEint2dR = dEsh2dR + dEad2dR - dErad2dR + dEnucdR - dElumdR + dEingdR_abs_dop;// dEingdR_abs_dop; // / (m_pars.M0 * c ** 2)
         double _x = dEint2dR/Eint2;
 
         double dtcomov_dR = 1.0 / beta / Gamma / CGS::c;
