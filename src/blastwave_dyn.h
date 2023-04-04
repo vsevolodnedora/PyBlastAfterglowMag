@@ -67,9 +67,9 @@ public:
             }
             return;
         }
-
+        p_pars->Gamma0 = EQS::GamFromMom(p_pars->mom0);
         // ****************************************
-        double beta0 = EQS::Beta(p_pars->Gamma0);
+        double beta0 = EQS::BetFromMom(p_pars->mom0);
         p_pars->R0    = p_pars->tb0 * beta0 * CGS::c;
 
         p_dens->evaluateRhoDrhoDrDefault(p_pars->R0, p_pars->ctheta0);
@@ -93,6 +93,15 @@ public:
         double adi0 = p_eos->getGammaAdi(p_pars->Gamma0,EQS::Beta(p_pars->Gamma0));
         double GammaSh0 = EQS::GammaSh(p_pars->Gamma0,adi0);
         // ****************************************
+        if ((p_pars->mom0 <= 0.) || (!std::isfinite(p_pars->mom0))){
+            // REMOVING LOGGER
+            (*p_log)(LOG_ERR, AT)  << " Mom0 < 0 (Mom0=" <<p_pars->Gamma0 << ") "
+                                   << "Mom0="<<p_pars->mom0 << " E0="<<p_pars->E0 << " tb0="<<p_pars->tb0 << " (offset i="<<i<<")\n"
+                                   << " \n";
+            //std::cout << "[ Error ] " << "Gamma0 < 0 (Gamma0=" <<Gamma0 << ")\n";
+//            std::cerr << AT  << "\n";
+            exit(1);
+        }
         if ((p_pars->M0 <= 0.) || (!std::isfinite(p_pars->M0))){
 //            std::cout << "[ WARNING ] " << "M0 < 0 Setting M0=E0/(Gamma0 c^2)\n";
             // REMOVING LOGGER
@@ -1433,7 +1442,8 @@ public:
         }
 
         /// evaluate actual RHS
-        evaluateRhsDens(out_Y, i, x, Y);
+//        evaluateRhsDens(out_Y, i, x, Y);
+        evaluateRhs(out_Y, i, x, Y);
 
     }
 

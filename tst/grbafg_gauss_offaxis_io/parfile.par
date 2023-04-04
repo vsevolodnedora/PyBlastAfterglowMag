@@ -41,17 +41,9 @@ integrator = DOP853
 
 # --------------------------- END ---------------------------
 #
-# ---------------------- GRB afterglow ----------------------
+# ----------------------- kN afterglow ----------------------
 
 * Parameters
-
-Eiso_c = 1.e52
-Gamma0c = 300.
-M0c = -1.
-theta_c = 0.085
-theta_w = 0.2618
-nlayers_pw = 50
-nlayers_a = 10
 
 a = 1.0
 fraction_of_Gamma0_when_spread = 0.1
@@ -72,24 +64,28 @@ fnu_min_frac = 1e-4
 
 * Settings
 
-run_jet_bws = yes
-save_j_dynamics = no
-do_j_ele = yes
-do_j_spec = no
-do_j_lc = yes
-do_j_skymap = no
+run_ej_bws = yes
+save_ej_dynamics = no
+do_ej_ele = yes
+do_ej_spec = no
+do_ej_lc = yes
+do_ej_skymap = no
 
-method_eats = piece-wise # adaptive # piece-wise
+method_collision = none # none
+method_eats = adaptive # adaptive # piece-wise
 
-type = gaussian
-gflat = no
+do_thermrad_loss = no
 
+use_1d_id = yes
 fname_dyn = dyn_grb_gauss.h5
 fname_light_curve = lc_grb_gauss_total.h5
 fname_light_curve_layers = lc_grb_gauss.h5
 fname_sky_map = skymap_grb_gauss.h5
 
 do_nucinj = no
+type = numeric
+fname_ejecta_id = gauss_grb_id.h5
+enforce_angular_grid = yes
 
 method_spread = AA
 method_dgdr = our

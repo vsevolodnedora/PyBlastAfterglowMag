@@ -41,17 +41,9 @@ integrator = DOP853E
 
 # --------------------------- END ---------------------------
 #
-# ---------------------- GRB afterglow ----------------------
+# ----------------------- kN afterglow ----------------------
 
 * Parameters
-
-Eiso_c = 1.e52
-Gamma0c = 150.
-M0c = -1.
-theta_c = 0.1
-theta_w = 0.1
-nlayers_pw = 150
-nlayers_a = 1
 
 a = 0.0
 fraction_of_Gamma0_when_spread = 0.1
@@ -72,7 +64,7 @@ fnu_min_frac = 1e-5
 
 * Settings
 
-method_eats = piece-wise # adaptive # piece-wise
+method_eats = adaptive # adaptive # piece-wise
 
 run_jet_bws = yes
 save_j_dynamics = no
@@ -81,15 +73,21 @@ do_j_spec = no
 do_j_lc = yes
 do_j_skymap = no
 
-type = uniform
-gflat = no
+method_collision = none # none
+method_eats = adaptive # adaptive # piece-wise
 
-fname_dyn = dyn_grb_gauss.h5
+do_thermrad_loss = no
+
+use_1d_id = yes
+fname_dyn = dyn_grb_tophad.h5
 fname_light_curve = tophat_0_WSPN99.h5
 fname_light_curve_layers = none
 fname_sky_map = skymap_grb_gauss.h5
 
 do_nucinj = no
+type = numeric
+fname_ejecta_id = tophat_grb_id.h5
+enforce_angular_grid = yes
 
 method_spread = None
 method_dgdr = our

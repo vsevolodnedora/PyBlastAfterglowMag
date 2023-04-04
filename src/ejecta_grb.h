@@ -60,10 +60,10 @@ public:
     }
     std::vector<std::unique_ptr<RadBlastWave>> & getBWs(){return p_bws_jet;}
 //    static auto listParsNumericJetStruct(){ return LatStruct::listParsCustomStruct(); }
-    void setJetStructNumeric( Vector & dist_thetas, Vector & dist_EEs, Vector & dist_Yes, Vector & dist_s, Vector & dist_Gam0s, Vector & dist_MM0s,
+    void setJetStructNumeric( Vector & dist_thetas, Vector & dist_cthetas, Vector & dist_EEs, Vector & dist_Yes, Vector & dist_s, Vector & dist_Gam0s, Vector & dist_MM0s,
                               bool force_grid, std::string eats_method ){
         (*p_log)(LOG_ERR,AT) << " not finished...\n"; exit(1);
-        jetStruct.initCustom( dist_thetas, dist_EEs, dist_Yes, dist_s, dist_Gam0s, dist_MM0s,
+        jetStruct.initCustom( dist_thetas, dist_cthetas, dist_EEs, dist_Yes, dist_s, dist_Gam0s, dist_MM0s,
                               force_grid, eats_method, m_loglevel);
         is_jet_struct_set = true;
     }

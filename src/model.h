@@ -998,6 +998,7 @@ public:
         for (size_t ishell = 0; ishell < nshells; ++ishell) {
             for (size_t ilayer = 0; ilayer < nlayers; ++ilayer) {
                 group_names.emplace_back("shell=" + std::to_string(ishell) + " layer=" + std::to_string(ilayer));
+                total_fluxes_shell_layer[ii].resize(n,0.);
                 for (size_t ifnu = 0; ifnu < n; ifnu++){
                     total_fluxes_shell_layer[ii][ifnu] = light_curve[ishell][ilayer][ifnu];
                 }

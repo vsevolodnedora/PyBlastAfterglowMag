@@ -2557,16 +2557,18 @@ public:
 };
 
 
+
+
 class Ejecta{
     VelocityAngularStruct ejectaStructs{};
-    std::vector<std::unique_ptr<CumulativeShell>> p_ej;
-    std::unique_ptr<logger> p_log;
+    std::vector<std::unique_ptr<CumulativeShell>> p_ej {};
+    std::unique_ptr<logger> p_log = nullptr;
     bool is_ejBW_init = false;
     bool is_ejecta_obsrad_pars_set = false;
     bool is_ejecta_struct_set = false;
     double jet_layer_fnu_stop_frac=1e-5;
-    int n_ode_eq;
-    int m_loglevel;
+    int n_ode_eq{};
+    int m_loglevel{};
     LatStruct::METHOD_eats ejecta_eats_method{};
     Vector & t_arr;
 public:
@@ -2581,8 +2583,13 @@ public:
     size_t getNeq() const {
         if (!run_ej_bws)
             return 0;
-        else
+        else {
+            if (p_ej.empty()){
+                (*p_log)(LOG_ERR,AT)<<" error\n";
+                exit(1);
+            }
             return (p_ej.size() * p_ej[0]->nBWs() * p_ej[0]->getBW(0)->getNeq());
+        }
     }
     VecArray & getData(size_t il, size_t ish){ return getShells()[il]->getBW(ish)->getData(); }
     Vector & getTbGrid(){ return t_arr; }
@@ -2614,25 +2621,37 @@ public:
         exit(1);
     }
 //    static std::vector<std::string> listParsNumericEjectaStruct(){ return VelocityAngularStruct::list_pars_v_ns(); }
-    void setEjectaStructNumericUniformInTheta(Vector & dist_thetas0, Vector & dist_betas, Vector & dist_ek, Vector & dist_ye, Vector & dist_s,
+    void setEjectaStructNumericUniformInTheta(Vector & dist_thetas0, Vector & dist_cthetas0, Vector & dist_moms,
+                                              Vector & dist_ek, Vector & dist_mass, Vector & dist_ye, Vector & dist_s,
                                               size_t nlayers, double mfac, StrStrMap & opts){
         run_ej_bws = getBoolOpt("run_ej_bws", opts, AT,p_log, false, true);
         if (!run_ej_bws)
             return;
         std::string ej_eats_method = getStrOpt("method_eats",opts,AT,p_log,"", true);
         ejecta_eats_method = LatStruct::setEatsMethod(ej_eats_method);
-        ejectaStructs.initUniform(dist_thetas0,dist_betas,dist_ek, dist_ye, dist_s, nlayers,mfac,
+        ejectaStructs.initUniform(dist_thetas0, dist_cthetas0,dist_moms,dist_ek, dist_mass, dist_ye, dist_s, nlayers,mfac,
                                   ej_eats_method, m_loglevel);
         is_ejecta_struct_set = true;
     }
-    void setEjectaStructNumeric(Vector dist_thetas, Vector dist_betas, VecVector dist_ek, VecVector dist_ye, VecVector dist_s,
-                                bool force_grid, StrStrMap & opts){
+    void setEjectaStructNumeric(Vector & dist_thetas0,Vector & dist_cthetas0, Vector & dist_moms, Vector & dist_ek, Vector & dist_mass,
+                                Vector & dist_ye, Vector & dist_s, StrStrMap & opts){
+        run_ej_bws = getBoolOpt("run_ej_bws", opts, AT,p_log, false, true);
+        if (!run_ej_bws)
+            return;
+        std::string ej_eats_method = getStrOpt("method_eats",opts,AT,p_log,"", true);
+        ejecta_eats_method = LatStruct::setEatsMethod(ej_eats_method);
+        ejectaStructs.initCustom(dist_thetas0, dist_cthetas0,dist_moms,dist_ek,dist_mass, dist_ye, dist_s,
+                                 ej_eats_method, m_loglevel);
+        is_ejecta_struct_set = true;
+    }
+    void setEjectaStructNumeric(Vector & dist_thetas, Vector & dist_cthetas, Vector & dist_moms, VecVector & dist_ek, VecVector & dist_mass,
+                                VecVector & dist_ye, VecVector & dist_s, bool force_grid, StrStrMap & opts){
         run_ej_bws = getBoolOpt("run_ej_bws", opts, AT,p_log,false, true);
         if (!run_ej_bws)
             return;
         std::string ej_eats_method = getStrOpt("method_eats",opts,AT,p_log,"", true);
         ejecta_eats_method = LatStruct::setEatsMethod(ej_eats_method);
-        ejectaStructs.initCustom(dist_thetas, dist_betas, dist_ek, dist_ye, dist_s, force_grid,
+        ejectaStructs.initCustom(dist_thetas,dist_cthetas, dist_moms, dist_ek, dist_mass, dist_ye, dist_s, force_grid,
                                  ej_eats_method, m_loglevel);
         is_ejecta_struct_set = true;
     }
@@ -2648,6 +2667,10 @@ public:
         std::vector<size_t> n_empty_images_shells;
         size_t nshells = ejectaStructs.nshells;
         size_t n_layers_ej = ejectaStructs.structs[0].nlayers;
+        if (n_layers_ej == 0){
+            (*p_log)(LOG_ERR,AT)<<" no layers found to evolve!\n";
+            exit(1);
+        }
         std::vector<std::vector<size_t>> n_empty_images_layer_shell;
         for (auto & n_empty_images_layer : n_empty_images_layer_shell)
             n_empty_images_layer.resize(nshells);

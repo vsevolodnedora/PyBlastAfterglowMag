@@ -58,81 +58,7 @@ struct {
 #include "main.cfg"
 
 /// -------------- Read H5 table with ID ------------------
-class ReadH5ThetaVinfCorrelationFile{
-    Vector m_vel_inf;
-    Vector m_theta;
-    VecVector m_ek_corr;
-    VecVector m_ye_corr;
-    Vector m_ek_hist;
-    Vector m_ye_hist;
-    std::unique_ptr<logger> p_log;
-public:
-    enum IDTYPE { i_id_hist, i_id_corr };
-    IDTYPE idtype;
-    ReadH5ThetaVinfCorrelationFile(std::string path_to_table, int loglevel){
-        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "ReadH5ThetaVinfCorrelationFile");
-//        auto path_to_table = pars.m_path_to_ejecta_id;
-//        path_to_table = "../../tst/dynamics/corr_vel_inf_theta.h5";
-        if (!std::experimental::filesystem::exists(path_to_table))
-            throw std::runtime_error("File not found. " + path_to_table);
 
-        LoadH5 ldata;
-        ldata.setFileName(path_to_table);
-        ldata.setVarName("vel_inf");
-        m_vel_inf = ldata.getData();
-        int beta_size = ldata.getSize();
-
-        ldata.setVarName("theta");
-        m_theta = ldata.getData();
-
-        ldata.setVarName("ek");
-        int ek_size = ldata.getSize();
-        if (ek_size!=beta_size) {
-            m_ek_corr = ldata.getData2Ddouble();
-            m_ek_hist = {};
-            (*p_log)(LOG_INFO, AT)
-                    << "h5table 2D loaded [vinf="<<m_vel_inf.size()<<", theta="
-                    << m_theta.size()<<", ek="<<m_ek_corr.size()<< "x" << m_ek_corr[0].size()<<"] \n";
-            idtype = i_id_corr;
-        }
-        else{
-            m_ek_hist = ldata.getDataVDouble();
-            m_ek_corr = {};
-            (*p_log)(LOG_INFO, AT)
-                    << "h5table 1D loaded [vinf="<<m_vel_inf.size()<<", theta="
-                    << m_theta.size()<<", ek="<<m_ek_hist.size()<<"] \n";
-            idtype = i_id_hist;
-        }
-
-        ldata.setVarName("ye");
-        int ye_size = ldata.getSize();
-        if (ye_size!=beta_size) {
-            m_ye_corr = ldata.getData2Ddouble();
-            m_ye_hist = {};
-            (*p_log)(LOG_INFO, AT)
-                    << "h5table 2D loaded [vinf="<<m_vel_inf.size()<<", theta="
-                    << m_theta.size()<<", ye="<<m_ye_corr.size()<< "x" << m_ye_corr[0].size()<<"] \n";
-            idtype = i_id_corr;
-        }
-        else{
-            m_ye_hist = ldata.getDataVDouble();
-            m_ye_corr = {};
-            (*p_log)(LOG_INFO, AT)
-                    << "h5table 1D loaded [vinf="<<m_vel_inf.size()<<", theta="
-                    << m_theta.size()<<", ye="<<m_ye_hist.size()<<"] \n";
-            idtype = i_id_hist;
-        }
-
-        (*p_log)(LOG_INFO, AT) << "Ejecta ID loaded\n";
-
-    }
-    Vector & getVelInf(){ return m_vel_inf; }
-    Vector & getTheta(){ return m_theta; }
-    VecVector & getEkCorr(){ return m_ek_corr; }
-    VecVector & getYeCorr(){ return m_ye_corr; }
-    Vector & getEkHist(){ return m_ek_hist; }
-    Vector & getYeHist(){ return m_ye_hist; }
-};
 
 /// ----------- Read H5 file with magnetar table -------
 class ReadMagnetarEvolutionFile{
@@ -308,9 +234,10 @@ int main(int argc, char** argv) {
     int loglevel;
     if (argc<4){
 //        working_dir = "../tst/grbafg_gauss_offaxis/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../tst/grbafg_gauss_offaxis_io/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-//        working_dir = "../../tst/knafg_nrinformed/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-        working_dir = "../tst/magnetar/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/knafg_nrinformed/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/magnetar/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_tophat_wind/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/knafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
@@ -485,26 +412,32 @@ int main(int argc, char** argv) {
             }
             kn_pars[key] = main_pars.at(key);
         }
+        kn_opts["workingdir"] = working_dir; // For loading Nuclear Heating table
         if (run_ejecta_bws) {
-
             std::string fname_ejecta_id = getStrOpt("fname_ejecta_id", kn_opts, AT, p_log, "", true);
+            bool use_1d_id = getBoolOpt("use_1d_id", kn_opts, AT, p_log, false, true);
             if (!std::experimental::filesystem::exists(working_dir + fname_ejecta_id)) {
                 (*p_log)(LOG_ERR, AT) << " File not found. " + working_dir + fname_ejecta_id << "\n";
                 exit(1);
             }
-            ReadH5ThetaVinfCorrelationFile dfile(working_dir + fname_ejecta_id, loglevel);
+            EjectaID ID(working_dir + fname_ejecta_id, loglevel);
 //        dfile.loadTable(working_dir+fname_ejecta_id, loglevel);
-            if (dfile.idtype == ReadH5ThetaVinfCorrelationFile::IDTYPE::i_id_corr)
-                pba.getEj()->setEjectaStructNumeric(dfile.getTheta(), dfile.getVelInf(),
-                                                    dfile.getEkCorr(), dfile.getYeCorr(),
+            if (ID.idtype == EjectaID::IDTYPE::i_id_corr && (!use_1d_id))
+                pba.getEj()->setEjectaStructNumeric(ID.getTheta0(), ID.getCtheta0(), ID.getMome(),
+                                                    ID.getEkCorr(), ID.getMassCorr(), ID.getYeCorr(), ID.getEntropyCorr(),
                                                     getBoolOpt("enforce_angular_grid", kn_opts, AT, p_log, false, true),
                                                     kn_opts);
-            else if (dfile.idtype == ReadH5ThetaVinfCorrelationFile::IDTYPE::i_id_hist)
-                pba.getEj()->setEjectaStructNumericUniformInTheta(dfile.getTheta(), dfile.getVelInf(),
-                                                                  dfile.getEkHist(), dfile.getYeHist(),
+            else if (ID.idtype == EjectaID::IDTYPE::i_id_hist && (!use_1d_id))
+                pba.getEj()->setEjectaStructNumericUniformInTheta(ID.getTheta0(), ID.getCtheta0(), ID.getMome(),
+                                                                  ID.getEkHist(), ID.getMassHist(),  ID.getYeHist(), ID.getEntropyHist(),
                                                                   (size_t) getDoublePar("nlayers", kn_pars, AT, p_log, 30, true),
                                                                   getDoublePar("mfac", kn_pars, AT, p_log, 1.0, true),
                                                                   kn_opts);
+            else if (ID.idtype == EjectaID::IDTYPE::i_id_hist && (use_1d_id)){
+                pba.getEj()->setEjectaStructNumeric(ID.getTheta0(), ID.getCtheta0(), ID.getMome(),
+                                                    ID.getEkHist(), ID.getMassHist(),  ID.getYeHist(), ID.getEntropyHist(),
+                                                    kn_opts);
+            }
             else {
                 (*p_log)(LOG_ERR, AT) << " no valid ejecta structure given\n";
                 exit(1);
@@ -665,7 +598,7 @@ int main(int argc, char** argv) {
 
 //
 //    pr.m_path_to_ejecta_id = getStrOpt("path_to_ejecta_id", opts, AT, p_log, "", true);
-//    ReadH5ThetaVinfCorrelationFile ejecta_id;
+//    EjectaID ejecta_id;
 //    ejecta_id.loadTable(pr, CurrLogLevel);
 //
 //

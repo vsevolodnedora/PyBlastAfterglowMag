@@ -15,7 +15,7 @@
 #include "observer.h"
 #include "synchrotron_an.h"
 #include "composition.h"
-
+#include "initial_data.h"
 
 enum METHODS_Up { iuseEint2, iuseGamma }; // energy density behind the shock
 enum METHOD_Delta { iuseJoh06, iuseVE12, iNoDelta }; // thickness of the shock
@@ -496,7 +496,7 @@ public:
                       << " is_within=   " << p_pars->is_within<< "\n"
                       << " ----------------------------------------------------------- \n"
                       << " ishell="<<p_pars->ishell << " ilayer=" << p_pars->ilayer<<" ii_eq="<<p_pars->ii_eq
-                      << " Gamma0="<<p_pars->Gamma0 <<" E0="<<p_pars->E0<<" theta0="<<p_pars->theta_b0
+                      << " Mom0="<<p_pars->mom0 <<" E0="<<p_pars->E0<<" theta0="<<p_pars->theta_b0
                       << " theta_max="<<p_pars->theta_max <<" ncells="<<p_pars->ncells<< "\n"
                       << " ----------------------------------------------------------- \n"
                       << " iR=          " << m_data[Q::iR][it] << "\n"
@@ -534,16 +534,18 @@ public:
                                      StrDbMap & pars, StrStrMap & opts,
                                      size_t ilayer, size_t ii_eq){
 
-        if (!std::isfinite(latStruct.dist_E0_pw[ilayer])||
-            !std::isfinite(latStruct.dist_M0_pw[ilayer])||
-            !std::isfinite(latStruct.dist_G0_pw[ilayer])){
-            std::cerr << AT << "\n E0="<<latStruct.dist_E0_pw[ilayer]
-                      << " M0=" << latStruct.dist_M0_pw[ilayer]
-                      << " G0=" << latStruct.dist_G0_pw[ilayer]
-                      << " wrong value. exiting...\n";
-//            std::cerr << AT << " error." << "\n";
-            exit(1);
-        }
+
+
+//        if (!std::isfinite(latStruct.dist_E0_pw[ilayer])||
+//            !std::isfinite(latStruct.dist_M0_pw[ilayer])||
+//            !std::isfinite(latStruct.dist_Mom0_pw[ilayer])){
+//            std::cerr << AT << "\n E0="<<latStruct.dist_E0_pw[ilayer]
+//                      << " M0=" << latStruct.dist_M0_pw[ilayer]
+//                      << " G0=" << latStruct.dist_Mom0_pw[ilayer]
+//                      << " wrong value. exiting...\n";
+////            std::cerr << AT << " error." << "\n";
+//            exit(1);
+//        }
 
         double nism, A0, s, r_ej, r_ism,  a, theta_max, epsilon_e_rad;
 
@@ -831,7 +833,7 @@ public:
         switch (latStruct.m_method_eats) {
 
             case LatStruct::i_pw:
-                if ( latStruct.dist_E0_pw.empty() || latStruct.dist_M0_pw.empty() || latStruct.dist_G0_pw.empty()
+                if ( latStruct.dist_E0_pw.empty() || latStruct.dist_M0_pw.empty() || latStruct.dist_Mom0_pw.empty()
                     || latStruct.dist_Ye_pw.empty() || latStruct.theta_pw.empty()){
                     (*p_log)(LOG_ERR, AT) << "one of the blast-wave initial data arrays is empty. \n";
                     exit(1);
@@ -841,8 +843,8 @@ public:
                                      << " Ye="<<latStruct.dist_Ye_pw[ilayer]
                                      << " s="<<latStruct.dist_s_pw[ilayer]
                                      << " M0="<<latStruct.dist_M0_pw[ilayer]
-                                     << " G0="<<latStruct.dist_G0_pw[ilayer]
-                                     << " beta0="<<EQS::Beta(latStruct.dist_G0_pw[ilayer])
+                                     << " M0m0="<<latStruct.dist_Mom0_pw[ilayer]
+                                     << " beta0="<<EQS::BetFromMom(latStruct.dist_Mom0_pw[ilayer])
                                      << " tb0="<<m_tb_arr[0]
                                      << " thetab0="<<latStruct.m_theta_w
                                      << " theta0="<<latStruct.theta_pw[ilayer]
@@ -876,10 +878,9 @@ public:
 //
                 p_pars->E0        = latStruct.dist_E0_pw[ilayer];
                 p_pars->Ye0       = latStruct.dist_Ye_pw[ilayer];
-                p_pars->s0       = latStruct.dist_s_pw[ilayer];
+                p_pars->s0        = latStruct.dist_s_pw[ilayer];
                 p_pars->M0        = latStruct.dist_M0_pw[ilayer];
-                p_pars->Gamma0    = latStruct.dist_G0_pw[ilayer];
-                p_pars->mom0      = latStruct.dist_G0_pw[ilayer]*EQS::Beta(latStruct.dist_G0_pw[ilayer]); // TODO replace Gamma with momentum
+                p_pars->mom0      = latStruct.dist_Mom0_pw[ilayer];
                 p_pars->tb0       = m_tb_arr[0];
                 p_pars->theta_a   = 0.; // theta_a
                 p_pars->theta_b0  = latStruct.m_theta_w; // theta_b0
@@ -900,7 +901,7 @@ public:
 
                 break;
             case LatStruct::i_adap:
-                if ( latStruct.dist_E0_a.empty() || latStruct.dist_M0_a.empty() || latStruct.dist_G0_a.empty()
+                if ( latStruct.dist_E0_a.empty() || latStruct.dist_M0_a.empty() || latStruct.dist_Mom0_a.empty()
                     || latStruct.dist_Ye_a.empty() || latStruct.thetas_c_h.empty()){
                     (*p_log)(LOG_ERR, AT) << "one of the blast-wave initial data arrays is empty. \n";
                     exit(1);
@@ -910,8 +911,8 @@ public:
                                      << " Ye="<<latStruct.dist_Ye_a[ilayer]
                                      << " s="<<latStruct.dist_s_a[ilayer]
                                      << " M0="<<latStruct.dist_M0_a[ilayer]
-                                     << " G0="<<latStruct.dist_G0_a[ilayer]
-                                     << " beta0="<<EQS::Beta(latStruct.dist_G0_a[ilayer])
+                                     << " G0="<<latStruct.dist_Mom0_a[ilayer]
+                                     << " beta0="<<EQS::BetFromMom(latStruct.dist_Mom0_a[ilayer])
                                      << " tb0="<<m_tb_arr[0]
                                      << " thetab0="<<latStruct.thetas_c_h[ilayer]
                                      << " theta0="<<latStruct.thetas_c_l[ilayer]
@@ -931,7 +932,7 @@ public:
                 p_pars->Ye0     = latStruct.dist_Ye_a[ilayer];
                 p_pars->s0      = latStruct.dist_s_a[ilayer];
                 p_pars->M0      = latStruct.dist_M0_a[ilayer];
-                p_pars->Gamma0  = latStruct.dist_G0_a[ilayer];
+                p_pars->mom0    = latStruct.dist_Mom0_a[ilayer];
                 p_pars->tb0     = m_tb_arr[0];
                 p_pars->theta_a = 0.;
                 p_pars->theta_b0= latStruct.thetas_c_h[ilayer];
@@ -976,10 +977,7 @@ public:
 //                  <<" ctheta0="<<bw_obj.getPars()->ctheta0
 //                  <<"\n";
     }
-    // ---------------------------------------------------------
-    void evalNucleoEnergy(){
 
-    }
 };
 
 //    void setMagPars(double E0, double M0, double Gamma0, double tb0, double theta_a, double theta_b0,

@@ -2077,7 +2077,8 @@ public:
         if ((m_data[BlastWaveBase::Q::iR][0] == 0.0) && (m_data[BlastWaveBase::Q::iR][p_pars->nr-1] == 0.0)){
             (*p_log)(LOG_WARN, AT)
                     << " blast wave not evolved, flux=0 [ishell="<<p_pars->ishell<<", ilayer="<<p_pars->ilayer<<"]\n";
-//            return std::move(light_curve);
+            std::fill(light_curve.begin(), light_curve.end(),0.0);
+            return ; //std::move(light_curve);
         }
 
         double rtol = 1e-6;
