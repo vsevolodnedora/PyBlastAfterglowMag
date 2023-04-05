@@ -17,6 +17,8 @@
 #include "composition.h"
 #include "initial_data.h"
 
+
+#if 0
 enum METHODS_Up { iuseEint2, iuseGamma }; // energy density behind the shock
 enum METHOD_Delta { iuseJoh06, iuseVE12, iNoDelta }; // thickness of the shock
 enum METHOD_GammaSh { iuseJK, isameAsGamma, iuseGammaRel, iuseJKwithGammaRel };
@@ -216,7 +218,7 @@ struct Pars{
 // --------------------------------------------------
 
 /// blast wave system base (class)
-class BlastWaveBase{
+class BW{
     std::unique_ptr<logger> p_log;
 protected:
     Vector m_tb_arr;
@@ -232,9 +234,9 @@ protected:
     int m_loglevel;
     Pars * p_pars;
 public:
-    explicit BlastWaveBase(Vector & tb_arr, size_t ishell, size_t ilayer, int loglevel )
+    explicit BW(Vector & tb_arr, size_t ishell, size_t ilayer, int loglevel )
             : m_tb_arr(tb_arr), m_loglevel(loglevel) {
-        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BlastWaveBase");
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BW");
         // allocate the space for the the entire solution of a given blast wave
         if (m_tb_arr.size() < 1){
             // REMOVING LOGGER
@@ -268,7 +270,7 @@ public:
         p_pars->ishell = ishell;
         // ----------------------
     }
-    ~BlastWaveBase(){ delete p_pars; delete p_spread; delete p_eos; delete p_dens; delete p_sedov; delete p_bm; }
+    BWp_pars; delete p_spread; delete p_eos; delete p_dens; delete p_sedov; delete p_bm; }
     // ------------------------------------------------------
     Pars *& getPars(){ return p_pars; }
     EOSadi *& getEos(){ return p_eos; }
@@ -526,10 +528,10 @@ public:
         }
     }
 //    virtual void evaluateCollision(double * out_Y, size_t i, double x, double const * Y,
-//                                   std::unique_ptr<BlastWaveBase> & other, size_t other_i ) = 0;
+//                                   std::unique_ptr<BW> & other, size_t other_i ) = 0;
 
     virtual void evaluateRhsDensModel2(double * out_Y, size_t i, double x, double const * Y,
-                                       void * others, size_t prev_ix) = 0; // std::vector<std::unique_ptr<BlastWaveBase>>
+                                       void * others, size_t prev_ix) = 0; // std::vector<std::unique_ptr<BW>>
     void setAllParametersForOneLayer(LatStruct & latStruct, //RadBlastWave & bw_obj,
                                      StrDbMap & pars, StrStrMap & opts,
                                      size_t ilayer, size_t ii_eq){
@@ -1086,4 +1088,3860 @@ public:
 //    }
 
 
+
+static double check_emission_time( double t_e, double mu, double t_obs, Array & mu_arr, int N ) {
+    if(mu > mu_arr[N - 1]) {
+
+        printf("mu >> 1? this should not have happened\n");
+        printf("   t_obs=%.6lg t_e=%.6lg mu=%.6lg mu_arr[-1]=%.6lg\n", t_obs, t_e, mu, mu_arr[N - 1]);
+        return -1;
+    }
+    if(mu_arr[0] >= mu) // happens only if t_e very small
+    {
+        printf("very small mu: mu=%.3lg, mu[0]=%.3lg\n", mu, mu_arr[0]);
+        //return t_obs / (1.0 - mu); // so return small t_e limit
+        return -1;
+    }
+    return t_e;
+}
+
+static double shock_synchrotron_flux_density(double Gamma, double GammaShock, double m2, double rho2, double acc_frac, double B,
+                                             double gm, double gM, double gc, double Theta, double z_cool,
+                                             double t_e, double mu, double R, double dr, double dr_tau, void * params){
+    auto * p_pars = (struct Pars *) params; // removing EATS_pars for simplicity
+    auto & p_syn = p_pars->p_fs->getAnSynch();
+//        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+    auto & m_data = p_pars->m_data;
+    double beta = EQS::Beta(Gamma);
+    double a = 1.0 - beta * mu; // beaming factor
+    double delta_D = Gamma * a; // doppler factor
+
+    double beta_shock;
+    switch (p_pars->method_shock_vel) {
+
+        case isameAsBW:
+            beta_shock = EQS::Beta(Gamma);
+            break;
+        case ishockVel:
+//                double u = sqrt(GammaShock * GammaShock - 1.0);
+//                double us = 4.0 * u * sqrt((u * u + 1) / (8. * u * u + 9.)); // from the blast wave velocity -> compute shock velocity
+            beta_shock = EQS::Beta(GammaShock);//us / sqrt(1. + us * us);
+            break;
+    }
+    double ashock = (1.0 - mu * beta_shock); // shock velocity beaming factor
+    dr /= ashock; // TODO why is this here? What it means? Well.. Without it GRB LCs do not work!
+    dr_tau /= ashock;
+
+    double nuprime = (1.0 + p_pars->z ) * p_pars->nu_obs * delta_D;
+    double Ne = m2 / CGS::mp; // numer of protons/electrons
+    double nprime = rho2 / CGS::mp; // number density of protons/electrons
+    double em_prime,em_lab,abs_prime,abs_lab,intensity,flux_dens,dtau;
+
+    switch (p_pars->m_method_ne) {
+        // default (presumably more correct version)
+        case iusenprime:
+            /// this is informed by van Earten et al. and afterglowpy
+            p_syn->compute( nprime, Ne, acc_frac, B, gm, gM, gc, Theta, z_cool, nuprime );
+            em_prime = p_syn->get_em();
+            em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
+            abs_prime = p_syn->get_abs();
+            abs_lab = abs_prime * delta_D; // conversion of absorption (see vanEerten+2010)
+            dtau = RadiationBase::optical_depth(abs_lab,dr_tau, mu, beta_shock);
+            intensity = RadiationBase::computeIntensity(em_lab, dtau,
+                                                        p_syn->getPars()->method_tau);
+//                flux_dens = (intensity * R * R * dr) * (1.0 + p_eats->z) / (2.0 * p_eats->d_l * p_eats->d_l);
+            flux_dens = (intensity * R * R * dr) ;
+            break;
+        case iuseNe:
+            /// This is informed by the G. Lamb and Fernandez et al.
+            p_syn->compute( Ne, Ne, acc_frac, B, gm, gM, gc, Theta, z_cool, nuprime );
+            em_prime = p_syn->get_em();
+            em_lab = em_prime / (delta_D * delta_D);
+            em_lab /= delta_D; // TODO this should be from 'dr'...
+            abs_lab = abs_prime * delta_D; // TODO with Ne this might not work as we do not use 'dr' of the shock...
+            dtau = RadiationBase::optical_depth(abs_lab,dr_tau,mu,beta_shock);
+            intensity = RadiationBase::computeIntensity(em_lab, dtau,
+                                                        p_syn->getPars()->method_tau);
+//                flux_dens = intensity * (1.0 + p_eats->z) / (p_eats->d_l * p_eats->d_l) / 10;
+            flux_dens = intensity / 5.; // TODO why no '2'?? // why this need /10 to fit the upper result?
+            break;
+    }
+    return flux_dens;
+}
+
+
+/// check if during the quadrature integration there was an error
+static int check_error(void *params) {
+    auto *fp = (struct Pars *) params; // removing EATS_pars for simplicity
+    return fp->error;
+//        return 0;
+}
+/// find angle at which currently jet ends (after lateral expansion)
+static double find_jet_edge(double phi, double theta_obs, //double cos_th_obs, double sin_th_obs,
+                            double th_con_hi, Array & a_mu, Array & a_thj, int N,
+                            double (*obs_angle)( const double &, const double &, const double & )) {
+    /*
+     *
+     * Return the (outer) edge of the jet section for a particular obs.
+     *
+     * phi: double
+     *      phi-coordinate of jet along which to search
+     * cos_theta_obs: double
+     *      cos(theta_obs) cosine of observer angle
+     * sin_theta_obs: double
+     *      sin(theta_obs) sine of observer angle
+     * th_con_hi: double
+     *
+     * a_mu: double array
+     *      time-ordered array of mu values for this observation.
+     *      mu = c * (t_em - t_obs) / R(t_em)
+     *         = cos(th_obs)*cos(theta) + sin(theta_obs)*sin(theta)*cos(phi)
+     * a_thj: double array
+     *      time ordered array of jet-edge values. [from dynamic evolution]
+     */
+
+//        double cos_phi = cos(phi);
+//        double mu = cos(th_con_hi) * cos_th_obs + sin(th_con_hi) * sin_th_obs * cos(phi); // cos(th_obs)*cos(theta) + sin(theta_obs)*sin(theta)*cos(phi)
+    double mu = obs_angle( th_con_hi, phi, theta_obs );
+
+    // in the mu_array -- find the index of the current 'mu'
+    size_t ia = findIndex(mu, a_mu, N);
+    // [ia,ib] contains the boundary of the shell, based on mu
+
+    // *if the jet has not yet spread* = if theta[ia] from dynamic evolution < th_con_hi
+    if(a_thj[ia] <= th_con_hi && th_con_hi <= a_thj[ia + 1])
+        return th_con_hi;
+
+    // *if the jet started to spread* start with the assumptions
+
+    double theta_a, theta_b;
+    // if current angle is larger then th_con_hi
+    if(th_con_hi < a_thj[ia]) {
+        //The jet is spreading
+        theta_a = th_con_hi;   // set boundary
+        theta_b = 0.5 * M_PI; // set boundary
+    }
+    else // if th_con_hi >= a_thj[ia]
+    {
+        //Guessed too far out!
+        theta_a = 0.0;    // set boundary
+        theta_b = th_con_hi; // set boundary
+    }
+
+    int i = 0;
+    // similar to search sorted alborithim :: iteratively approach the 'theta' (theta_a) that correspods to mu
+    while(theta_b - theta_a > 1.0e-5 && i < 100)
+    {
+        double theta_c_i = 0.5 * (theta_a + theta_b);          // middle of the two boundaries of the edge [theta_a ... edge ... ... theta_b]
+//            mu = cos(theta_c_i) * cos_th_obs + sin(theta_c_i) * sin_th_obs * cos(phi);  // evaluate 'mu' at the current iteration of the search
+        mu = obs_angle(theta_c_i, phi, theta_obs);
+
+        ia = findIndex(mu, a_mu, N);     //
+        if(theta_c_i < a_thj[ia])
+            theta_a = theta_c_i;
+        else
+            theta_b = theta_c_i;
+        i++;
+    }
+
+    //printf("iter: %d, th0=%.6lf, th=%.6lf\n", i, th_con_hi, theta_a);
+
+    return theta_a;
+}
+/// function to be integrated for theta and phi
+static double integrand( double i_cos_theta, double i_phi, void* params ){
+
+    auto * p_pars = (struct Pars *) params; // removing EATS_pars for simplicity
+    auto & p_syn = p_pars->p_fs->getAnSynch();
+//        auto * p_log = p_ params;
+    auto & m_data = p_pars->m_data;
+    auto & tburst = m_data[BW::Q::itburst];
+
+    if (m_data[BW::Q::iR][0] == 0.0 && m_data[BW::Q::iR][p_pars->nr - 1] == 0.0){
+        (*p_pars->p_log)(LOG_WARN, AT)
+                << " blast wave not evolved, flux=0 [ishell=" << p_pars->ishell << ", ilayer=" << p_pars->ilayer << "]\n";
+        return 0.0;
+    }
+
+    double a_theta = arccos(i_cos_theta);
+    double mu = p_pars->obsangle(a_theta, i_phi, p_pars->theta_obs);
+
+    p_pars->theta = a_theta;
+    p_pars->o_phi = i_phi;
+    p_pars->o_theta = a_theta;
+
+    double dFnu = 0.;
+
+    /// Observed flux density evaluation (interpolate comoving spectrum)
+    if (p_pars->m_method_rad == METHODS_RAD::icomovspec){
+        Interp2d int_em(p_pars->m_freq_arr, m_data[BW::Q::iR], p_pars->m_synch_em);
+        Interp2d int_abs(p_pars->m_freq_arr, m_data[BW::Q::iR], p_pars->m_synch_abs);
+        Interp1d::METHODS mth = Interp1d::iLagrangeLinear;
+        ///----
+        auto & mu_arr = m_data[BW::Q::imu];
+        size_t ia = findIndex(mu, m_data[BW::Q::imu], p_pars->nr);
+        size_t ib = ia + 1;
+        /// interpolate the time in comobing frame that corresponds to the t_obs in observer frame
+        double t_e = interpSegLin(ia, ib, mu, m_data[BW::Q::imu], m_data[BW::Q::itburst]);
+        t_e = check_emission_time(t_e, mu, p_pars->t_obs, m_data[BW::Q::imu], (int) p_pars->nr);
+        if (t_e < 0.0) {
+            // REMOVING LOGGER
+            (*p_pars->p_log)(LOG_ERR,AT) << " t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";
+//            std::cerr << AT  << "Error t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";
+            return 0.;
+        }
+        /// interpolate the exact radial position of the blast that corresponds to the req. obs time
+        double r = interpSegLog(ia, ib, t_e, tburst, m_data[BW::Q::iR]);
+        //  double r = ( Interp1d(ttobs, m_data[BW::Q::iR] ) ).Interpolate(t_obs, mth );
+        if ((r <= 0.0) || !std::isfinite(r)) {
+            (*p_pars->p_log)(LOG_ERR,AT) << " R <= 0. Extend R grid (increasing R0, R1). "
+                                         << " Current R grid us ["
+                                         << m_data[BW::Q::iR][0] << ", "
+                                         << m_data[BW::Q::iR][tburst.size() - 1] << "] "
+                                         << "and tburst arr ["
+                                         << tburst[0] << ", " << tburst[p_pars->nr - 1]
+                                         << "] while the requried obs_time=" << p_pars->t_obs
+                                         << "\n";
+//                std::cerr << AT << "\n";
+            return 0.;
+        }
+        double Gamma = interpSegLog(ia, ib, t_e, tburst, m_data[BW::Q::iGamma]);
+        double beta = interpSegLog(ia, ib, t_e, tburst, m_data[BW::Q::ibeta]);
+        // double GammaSh = ( Interp1d(m_data[BW::Q::iR], m_data[BW::Q::iGammaFsh] ) ).Interpolate(r, mth );
+        /// compute Doppler factor
+        double a = 1.0 - beta * mu; // beaming factor
+        double delta_D = Gamma * a; // doppler factor
+        /// compute the comoving obs. frequency from given one in obs. frame
+        double nuprime = (1.0 + p_pars->z ) * p_pars->nu_obs * delta_D;
+        size_t ia_nu = findIndex(nuprime, p_pars->m_freq_arr, p_pars->m_freq_arr.size());
+        size_t ib_nu = ia_nu + 1;
+        /// interpolate the emissivity and absorption coefficines
+//                double em_prime = int_em.Interpolate(nuprime, r, mth);
+        double em_prime = int_em.InterpolateBilinear(nuprime, r, ia_nu, ib_nu, ia, ib);
+//                double abs_prime = int_abs.Interpolate(nuprime, r, mth);
+        double abs_prime = int_abs.InterpolateBilinear(nuprime, r, ia_nu, ib_nu, ia, ib);
+        /// convert to the laboratory frame
+        double em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
+        double abs_lab = abs_prime * delta_D; // conversion of absorption (see vanEerten+2010)
+
+        /// compute optical depth (for this shock radius and thickness are needed)
+        double GammaShock = interpSegLog(ia, ib, t_e, tburst, m_data[BW::Q::iGammaFsh]);
+        double dr = interpSegLog(ia, ib, t_e, tburst, m_data[BW::Q::ithickness]);
+        double dr_tau = EQS::shock_delta(r, GammaShock); // TODO this is added becasue in Johanneson Eq. I use ncells
+
+        double beta_shock;
+        switch (p_pars->method_shock_vel) {
+
+            case isameAsBW:
+                beta_shock = EQS::Beta(Gamma);
+                break;
+            case ishockVel:
+//                double u = sqrt(GammaShock * GammaShock - 1.0);
+//                double us = 4.0 * u * sqrt((u * u + 1) / (8. * u * u + 9.)); // from the blast wave velocity -> compute shock velocity
+                beta_shock = EQS::Beta(GammaShock);//us / sqrt(1. + us * us);
+                break;
+        }
+        double ashock = (1.0 - mu * beta_shock); // shock velocity beaming factor
+        dr /= ashock; // TODO why is this here? What it means? Well.. Without it GRB LCs do not work!
+        dr_tau /= ashock;
+        double dtau = RadiationBase::optical_depth(abs_lab,dr_tau, mu, beta_shock);
+        double intensity = RadiationBase::computeIntensity(em_lab, dtau,
+                                                           p_pars->p_fs->getAnSynch()->getPars()->method_tau);
+        double flux_dens = (intensity * r * r * dr); //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+        dFnu+=flux_dens;
+        /// save the result in image
+        double ctheta = interpSegLin(ia, ib, t_e, tburst, m_data[BW::Q::ictheta]);
+        double theta = interpSegLin(ia, ib, t_e, tburst, m_data[BW::Q::itheta]);
+
+        /// save current position
+        p_pars->o_gam = Gamma;
+        p_pars->o_r = r;
+        p_pars->o_mu = mu;
+        p_pars->o_flux = dFnu;
+        p_pars->o_theta_j = theta;
+
+    }
+        /// Observed flux density evaluation (compute directly)
+    else {
+
+        size_t ia = findIndex(mu, m_data[BW::Q::imu], p_pars->nr);
+        size_t ib = ia + 1;
+        /// interpolate the time in comobing frame that corresponds to the t_obs in observer frame
+        double t_e = interpSegLin(ia, ib, mu, m_data[BW::Q::imu], m_data[BW::Q::itburst]);
+        t_e = check_emission_time(t_e, mu, p_pars->t_obs, m_data[BW::Q::imu], (int) p_pars->nr);
+        if (t_e < 0.0) {
+            auto & _r = m_data[BW::Q::iR];
+            auto & _mu = m_data[BW::Q::imu];
+            auto & _tt = m_data[BW::Q::itt];
+            auto & _tburst = m_data[BW::Q::itburst];
+            auto & _beta = m_data[BW::Q::ibeta];
+//                (*p_pars->p_log)(LOG_ERR,AT) << "R      " << _r << "\n";
+//                (*p_log)(LOG_ERR,AT) << "Mu     " << _mu << "\n";
+//                (*p_log)(LOG_ERR,AT) << "tt     " << _tt << "\n";
+//                (*p_log)(LOG_ERR,AT) << "tburst " << _tburst << "\n";
+//                (*p_log)(LOG_ERR,AT) << "beta   " << _beta << "\n";
+
+
+            // REMOVING LOGGER
+            (*p_pars->p_log)(LOG_ERR,AT) << " t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";
+//            std::cerr << AT  << "Error t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";
+            return 0.;
+        }
+
+//        double R = interpSegLog(ia, ib, t_e, p_pars->t_arr_burst, p_pars->r_arr, p_pars->nr);
+        double R = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::iR]);
+        if (!std::isfinite(R)) {
+            (*p_pars->p_log)(LOG_ERR,AT) << " R is NAN in integrand for radiation" << "\n";
+            // REMOVING LOGGER
+//            std::cerr  << "R = " << R << "\n";
+//            std::cout << " R = " << m_data[BW::Q::iR] << "\n";
+//            std::cout << " Gamma= " << m_data[BW::Q::iGamma] << "\n";
+//            std::cerr << AT << "\n";
+            return 0.;
+        }
+
+        double rho = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::irho]);
+        double Gamma = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst],
+                                    m_data[BW::Q::iGamma]);
+        double GammaSh = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst],
+                                      m_data[BW::Q::iGammaFsh]);
+        double beta = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::ibeta]);
+        double U_p = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::iU_p]);
+//        double M2    = interpSegLog(ia, ib, t_e, p_pars->t_arr_burst, p_pars->dyn(BWDyn::iM2));
+        double theta = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst],
+                                    m_data[BW::Q::itheta]);
+        double rho2 = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::irho2]);
+        double m2 = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::iM2]);
+        double frac = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst],
+                                   m_data[BW::Q::iacc_frac]);
+        double thick = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst],
+                                    m_data[BW::Q::ithickness]);
+        double gm = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::igm]);
+        double gM = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::igM]);
+        double gc = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::igc]);
+        double B = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::iB]);
+        double Theta = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst],
+                                    m_data[BW::Q::iTheta]);
+        double z_cool = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst],
+                                     m_data[BW::Q::iz_cool]);
+
+        if (rho < 0. || Gamma < 1. || U_p < 0. || theta <= 0. || rho2 < 0. || thick <= 0.) {
+            (*p_pars->p_log)(LOG_ERR,AT) << " wrong value in interpolation to EATS surface  \n"
+                                         << " R = " << R << "\n"
+                                         << " rho = " << rho << "\n"
+                                         << " Gamma = " << Gamma << "\n"
+                                         << " U_p = " << U_p << "\n"
+                                         << " theta = " << theta << "\n"
+                                         << " rho2 = " << rho2 << "\n"
+                                         << " thick = " << thick << "\n"
+                                         << " t_e = " << t_e << "\n"
+                                         << " Exiting...\n";
+            exit(1);
+        }
+
+        dFnu = shock_synchrotron_flux_density(Gamma, GammaSh, m2, rho2,
+                                              frac, B, gm, gM, gc, Theta, z_cool,
+                                              t_e, mu, R, thick, thick, params);
+//            dFnu*=(p_pars->d_l*p_pars->d_l*2.);
+#if 0
+        /* -- Reverse shock --- */
+            double dFnu_rs = 0.0;
+            if (p_pars->synch_rs){
+                std::cout << AT << " Warning! Reverse shock is not finished!" << "\n";
+                double rho4   = interpSegLog(ia, ib, t_e, p_pars->t_arr_burst, p_pars->dyn(BWDyn::irho4));
+                double U_e3   = interpSegLog(ia, ib, t_e, p_pars->t_arr_burst, p_pars->dyn(BWDyn::iU_e3));
+                double rho3   = interpSegLog(ia, ib, t_e, p_pars->t_arr_burst, p_pars->dyn(BWDyn::irho2));
+                double thick3 = interpSegLog(ia, ib, t_e, p_pars->t_arr_burst, p_pars->dyn(BWDyn::ithickness));
+    //            double M3     = interpSegLog(ia, ib, t_e, p_pars->t_arr_burst, p_pars->dyn(BWDyn::iM3));
+                double gamma43= interpSegLog(ia, ib, t_e, p_pars->t_arr_burst, p_pars->dyn(BWDyn::iGamma43));
+    //            double gammaAdi_rs = p_pars->p_eos->getGammaAdi(gamma43, EQS::Beta(gamma43));
+    //            double nprime3 = 4.0 * Gamma * (rho4 / CGS::mppme);
+    //            double nprime3 = p_pars->eq_rho2(Gamma, rho4 / CGS::mp, gammaAdi_rs); // TODO check if for RS here is Gamma!
+                double nprime3 = rho3 / CGS::mp;
+                /// compute the 'thickness' of the shock (emitting region)
+    //            double dr_rs = thick3;
+
+    //          // TODO check if for the shock velocity gamma43 has to be used!!! I think it is gam43! See gammaAdi calc.
+                dFnu_rs = Observables::shock_synchrotron_flux_density(
+                        Gamma, gamma43, rho3, U_e3, t_e, mu, R, thick3, thick3, params );
+            }
+            dFnu += dFnu_rs;
+#endif
+        if (dFnu == 0 || !std::isfinite(dFnu)) {
+            // REMOVING LOGGER
+            (*p_pars->p_log)(LOG_ERR,AT) << " flux density is zero ( dFnu = 0 )" << "\n";
+        }
+
+        p_pars->o_gam = Gamma;
+        p_pars->o_r = R;
+        p_pars->o_mu = mu;
+        p_pars->o_flux = dFnu;
+        p_pars->o_theta_j = theta;
+
+    }
+
+    return dFnu;
+
+}
+static double costheta_integrand( double aomct, void* params ){
+    auto * p_eats = (struct Pars *) params; // removing EATS_pars for simplicity
+    p_eats->nevals = p_eats->nevals + 1;
+    double act = 1 - aomct; // one minus cos theta 0 -> 'doppler_d' cos theta
+    double integ = integrand(act, p_eats->phi, params );
+    return integ;
+
+}
+/// integral of the (costheta_integrand)dtheta
+static double phi_integrand( double a_phi, void* params ){
+    double result;
+    auto * p_eats = (struct Pars *) params; // removing EATS_pars for simplicity
+    auto & m_data = p_eats->m_data;
+//        std::cout <<  p_eats->mu_arr[0]  << ' ' << p_eats->mu_arr[100] << "\n";
+    p_eats->phi = a_phi;
+    p_eats->cos_phi = cos(a_phi);
+    // INITIAL GUESSES FOR BOUNDARIES :: TO BE REFINED (based on spreading model)
+    double theta_1 = p_eats->current_theta_cone_hi;  // shel upper theta boudnary
+    double theta_0 = p_eats->current_theta_cone_low; // shel lower theta boundary
+    double Dtheta = theta_1 - theta_0;             // m_size of the theta shell
+    /// get the boundaries of the jet
+    double th_0, th_1;
+    if (p_eats->spread_method == 1){
+        th_1 = find_jet_edge(a_phi, p_eats->theta_obs,// p_eats->cos_theta_obs, p_eats->sin_theta_obs,
+                             theta_1, m_data[BW::Q::imu], m_data[BW::Q::itheta],
+                             (int)p_eats->nr,
+                             p_eats->obsangle);
+        double frac = theta_0 / theta_1;
+        th_0 = frac * th_1;
+        theta_0 = th_0;
+        theta_1 = th_1;
+        // assure that the inner and outer boundaries are within then 0.5Pi steradian
+        if(theta_0 > 0.5*M_PI) theta_0 = 0.5*M_PI;
+        if(theta_1 > 0.5*M_PI) theta_1 = 0.5*M_PI;
+    } else {
+        (*p_eats->p_log)(LOG_ERR,AT)  << " method not implemented. Exiting..." << "\n";
+//            std :: cout << AT << "\n";
+        exit(1);
+    }
+    /// For a given phi, integrate over 1 - cos(theta) (to avoid sin(theta->0) errors)
+    double sin_half_theta_0 = sin(0.5 * theta_0);
+    double sin_half_theta_1 = sin(0.5 * theta_1);
+    double one_minus_cos_theta_0 = 2.0 * sin_half_theta_0 * sin_half_theta_0;
+    double one_minus_cos_theta_1 = 2.0 * sin_half_theta_1 * sin_half_theta_1;
+
+    int Neval;
+    double err;
+    switch (p_eats->method_quad) {
+
+        case INT_TRAP_FIXED:
+            result = trap(&costheta_integrand, one_minus_cos_theta_0, one_minus_cos_theta_1, p_eats->nmax_theta,
+                          params, check_error);
+            break;
+        case INT_TRAP_ADAPT:
+            result = trap_adapt(&costheta_integrand, one_minus_cos_theta_0, one_minus_cos_theta_1,
+                                p_eats->nmax_theta, p_eats->atol_theta,
+                                p_eats->rtol_theta, params, nullptr, nullptr, nullptr, 0,
+                                check_error, nullptr, nullptr);
+            break;
+        case INT_SIMP_FIXED:
+            result = simp(&costheta_integrand, one_minus_cos_theta_0, one_minus_cos_theta_1, p_eats->nmax_theta,
+                          params, check_error);
+            break;
+        case INT_SIMP_ADAPT:
+            result = simp_adapt(&costheta_integrand, one_minus_cos_theta_0, one_minus_cos_theta_1,
+                                p_eats->nmax_theta, p_eats->atol_theta,
+                                p_eats->rtol_theta, params, nullptr, nullptr, nullptr, 0,
+                                check_error, nullptr, nullptr);
+            break;
+        case INT_ROMB_ADAPT:
+            Neval = 0;
+            err = 0;
+            result = romb(&costheta_integrand, one_minus_cos_theta_0, one_minus_cos_theta_1, p_eats->nmax_theta,
+                          p_eats->atol_theta, p_eats->rtol_theta, params,
+                          &Neval, &err, 0, check_error, nullptr, nullptr);
+            break;
+        case INT_TRAP_NL:
+            result = trapNL_adapt(&costheta_integrand, one_minus_cos_theta_0, one_minus_cos_theta_1,
+                                  p_eats->nmax_theta, p_eats->atol_theta,
+                                  p_eats->rtol_theta, params, nullptr, nullptr, nullptr, 0,
+                                  check_error, nullptr, nullptr);
+            break;
+        case INT_HYBRID:
+            result = hybrid_adapt(&costheta_integrand, one_minus_cos_theta_0, one_minus_cos_theta_1,
+                                  p_eats->nmax_theta, p_eats->atol_theta,
+                                  p_eats->rtol_theta, params, nullptr, nullptr, 0,
+                                  check_error, nullptr, nullptr);
+            break;
+        case INT_CADRE:
+            result = cadre_adapt(&costheta_integrand, one_minus_cos_theta_0, one_minus_cos_theta_1,
+                                 p_eats->nmax_theta, p_eats->atol_theta,
+                                 p_eats->rtol_theta, params, nullptr, nullptr, 0,
+                                 check_error, nullptr, nullptr);
+            break;
+        case INT_GK49_ADAPT:
+            result = gk49_adapt(&costheta_integrand, one_minus_cos_theta_0, one_minus_cos_theta_1,
+                                p_eats->nmax_theta, p_eats->atol_theta,
+                                p_eats->rtol_theta, params, nullptr, nullptr, 0,
+                                check_error);
+            break;
+        case INT_GK715_ADAPT:
+            result = gk715_adapt(&costheta_integrand, one_minus_cos_theta_0, one_minus_cos_theta_1,
+                                 p_eats->nmax_theta, p_eats->atol_theta,
+                                 p_eats->rtol_theta, params, nullptr, nullptr, 0,
+                                 check_error);
+            break;
+        case INT_GK1021_ADAPT:
+            result = gk1021_adapt(&costheta_integrand, one_minus_cos_theta_0, one_minus_cos_theta_1,
+                                  p_eats->nmax_theta, p_eats->atol_theta,
+                                  p_eats->rtol_theta, params, nullptr, nullptr, 0,
+                                  check_error);
+            break;
+    }
+
+    if(result != result || result < 0.0){
+        // REMOVING LOGGER
+        (*p_eats->p_log)(LOG_ERR,AT) << " phi_integrand failed. Nan or negative. Result=" << result
+                                     << " for t_obs=" << p_eats->t_obs
+                                     << " theta_lo=" << theta_0
+                                     << " theta_hi=" << theta_1
+                                     << " phi=" << p_eats->phi
+                                     << "\n"
+                                     << " Exiting...";
+//            std::cerr << AT << "\n";
+        return 0.;
+    }
+
+    return result;
+
+}
+/// integral of the (phi_integrand)dphi
+static double integrate_theta_phi( void* params ){
+    auto * p_eats = (struct Pars *) params; // removing EATS_pars for simplicity
+    double atol = p_eats->atol_theta;
+    // check if the parameters are set TODO wrap it into "run in safe mode"
+    if(p_eats->nmax_theta < 0 || p_eats->nmax_phi < 0 || p_eats->rtol_phi < 0
+       || p_eats->rtol_theta < 0 || p_eats->atol_theta < 0 || p_eats->atol_phi < 0 ){
+        (*p_eats->p_log)(LOG_ERR,AT) << " one of the tolerance parameters for adaptive quad. is not set (< 0). Given:\n"
+                                     << " nmax_theta=" << p_eats->nmax_theta
+                                     << " nmax_phi=" << p_eats->nmax_phi
+                                     << " rtol_phi=" << p_eats->rtol_phi
+                                     << " rtol_theta=" << p_eats->rtol_theta
+                                     << " atol_theta=" << p_eats->atol_theta
+                                     << " atol_phi=" << p_eats->atol_phi << "\n"
+                                     << " Exiting...\n";
+//            std::cerr << AT << "\n";
+        exit(1);
+    }
+    double phi_0 = p_eats->current_phi_low;//0.0;
+    double phi_1 = p_eats->current_phi_hi;//M_PI;
+
+    double result;
+    double phi_a;
+    switch (p_eats->method_quad) {
+
+        case INT_TRAP_FIXED:
+            result = trap(&phi_integrand, phi_0, phi_1,
+                          p_eats->nmax_phi, p_eats, check_error);
+            break;
+        case INT_TRAP_ADAPT:
+            result = trap_adapt(&phi_integrand, phi_0, phi_1,
+                                p_eats->nmax_phi, atol,
+                                p_eats->rtol_phi, p_eats, nullptr, nullptr,
+                                nullptr, 0, check_error, nullptr, nullptr);
+            break;
+        case INT_SIMP_FIXED:
+            result = simp(&phi_integrand, phi_0, phi_1,
+                          p_eats->nmax_phi, p_eats, check_error);
+            break;
+        case INT_SIMP_ADAPT:
+            result = simp_adapt(&phi_integrand, phi_0, phi_1,
+                                p_eats->nmax_phi, atol,
+                                p_eats->rtol_phi, p_eats, nullptr, nullptr,
+                                nullptr, 0, check_error, nullptr, nullptr);
+            break;
+        case INT_ROMB_ADAPT:
+            phi_a = phi_0 + 0.5*(phi_1-phi_0);
+            result = romb(&phi_integrand, phi_0, phi_a,
+                          p_eats->nmax_phi, atol,
+                          p_eats->rtol_phi, p_eats, nullptr, nullptr, 0,
+                          check_error, nullptr, nullptr);
+            result += romb(&phi_integrand, phi_a, phi_1,
+                           p_eats->nmax_phi,
+                           (atol + p_eats->rtol_phi * result),
+                           p_eats->rtol_phi, p_eats, nullptr, nullptr, 0,
+                           check_error, nullptr, nullptr);
+            break;
+        case INT_TRAP_NL:
+            result = trapNL_adapt(&phi_integrand, phi_0, phi_1,
+                                  p_eats->nmax_phi, atol,
+                                  p_eats->rtol_phi, p_eats, nullptr, nullptr,
+                                  nullptr, 0, check_error, nullptr, nullptr);
+            break;
+        case INT_HYBRID:
+            result = hybrid_adapt(&phi_integrand, phi_0, phi_1,
+                                  p_eats->nmax_phi, atol,
+                                  p_eats->rtol_phi, p_eats, nullptr, nullptr,
+                                  0, check_error, nullptr, nullptr);
+            break;
+        case INT_CADRE:
+            result = cadre_adapt(&phi_integrand, phi_0, phi_1,
+                                 p_eats->nmax_phi, atol,
+                                 p_eats->rtol_phi, p_eats, nullptr, nullptr,
+                                 0, check_error, nullptr, nullptr);
+            break;
+        case INT_GK49_ADAPT:
+            result = gk49_adapt(&phi_integrand, phi_0, phi_1,
+                                p_eats->nmax_phi, atol,
+                                p_eats->rtol_phi, p_eats, nullptr, nullptr,
+                                0, check_error);
+            break;
+        case INT_GK715_ADAPT:
+            result = gk715_adapt(&phi_integrand, phi_0, phi_1,
+                                 p_eats->nmax_phi, atol,
+                                 p_eats->rtol_phi, p_eats, nullptr, nullptr,
+                                 0, check_error);
+            break;
+        case INT_GK1021_ADAPT:
+            result = gk1021_adapt(&phi_integrand, phi_0, phi_1,
+                                  p_eats->nmax_phi, atol,
+                                  p_eats->rtol_phi, p_eats, nullptr, nullptr,
+                                  0, check_error);
+            break;
+    }
+    return result;
+}
+
+class BlastWaveRadiation{
+    struct Pars{
+        std::unique_ptr<logger> p_log = nullptr;
+        std::unique_ptr<SynchrotronAnalytic> p_syna = nullptr;
+        Pars(VecArray & m_data, Vector & tb_arr, double ctheta_0, size_t ish, size_t il, size_t n_layers, int loglevel)
+                : m_data(m_data), tb_arr(tb_arr) {
+            ishell = ish;
+            ilayer= il;
+            nr = tb_arr.size();
+            p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BlastWaveRadiation");
+            p_syna = std::make_unique<SynchrotronAnalytic>(loglevel);
+            ctheta0 = ctheta_0;
+            ctheta0 = ctheta_0;
+            nlayers = n_layers;
+        }
+        VecArray & m_data;
+        Vector & tb_arr;
+        double ctheta0 = -1.;
+        inline Array & operator[](BW::Q ivn){ return this->m_data[ivn]; }
+        inline double & operator()(BW::Q ivn, size_t ir){ return this->m_data[ivn][ir]; }
+        Vector getTbGrid(size_t every_it) {
+            if ((every_it == 1)||(every_it==0)) return tb_arr;
+            Vector tmp{};
+            for (size_t it = 0; it < tb_arr.size(); it = it + every_it){
+                tmp.push_back(tb_arr[it]);
+            }
+            return std::move(tmp);
+        }
+        /// -----------------------------------------------------------------------------
+        void parsPars(double t_obs_, double nu_obs_,
+                      double theta_cone_low, double theta_cone_hi, double phi_low, double phi_hi,
+                      double (*obs_angle)( const double &, const double &, const double & )){
+//        auto & m_data = p_eats->m_data;
+            nu_obs = nu_obs_;
+            t_obs = t_obs_;
+            // -- settings
+            error = 0;
+            current_phi_hi = phi_hi;
+            current_phi_low = phi_low;
+            current_theta_cone_hi = theta_cone_hi;
+            current_theta_cone_low = theta_cone_low;
+            cos_theta_obs = std::cos(theta_obs);
+            sin_theta_obs = std::sin(theta_obs);
+            obsangle = obs_angle;
+            // ---
+//        p_eats->nr = p_pars->nr; // removing EATS_pars for simplicity
+            for (size_t i = 0; i < nr; i++)
+                m_data[BW::Q::imu][i] = ( m_data[BW::Q::itburst][i] - t_obs
+                                                                                            / (1.0 + z) ) / m_data[BW::Q::iR][i] * CGS::c;
+
+            if(m_data[BW::Q::imu][nr-1] < 1. ){
+                std::cout << m_data[BW::Q::itburst] << "\n";
+                std::cout << m_data[BW::Q::iR] << "\n";
+                (*p_log)(LOG_WARN,AT) << " mu[-1]=" << m_data[BW::Q::imu][nr-1] << " < 1 (expected >1) "
+                                      << " tobs="<<t_obs
+                                      << " tbutst[-1]="<< m_data[BW::Q::itburst][nr-1]
+                                      << " R[nr-1]="<<m_data[BW::Q::iR][nr-1]
+                                      << "\n";
+            }
+            if(m_data[BW::Q::imu][0] > 1. ){
+                (*p_log)(LOG_WARN,AT) << " mu[0]=" << m_data[BW::Q::imu][0] << " > 1 (expected <1) "
+                                      << " tobs="<<t_obs
+                                      << " tbutst[0]="<< m_data[BW::Q::itburst][0]
+                                      << " R[0]="<<m_data[BW::Q::iR][0]
+                                      << "\n";
+            }
+
+
+            //        std::cerr << AT
+//                  << "Observables for Gamma0=[" << (p_pars->p_dyn)->getData()[(*p_pars->p_dyn).Q::iGamma][0] << ", " << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::iGamma][p_pars->nr - 1] << "] "
+//                  << " R0=[" << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::iR][0] << ", " << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::iR][p_pars->nr - 1] << "] "
+//                  << " time0=[" << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::itburst][0] << ", " << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::itburst][p_pars->nr - 1] << "] "
+//                  << " mu0=[" << p_pars->mu_arr[0] << ", " << p_pars->mu_arr[p_pars->nr-1]<<"] "
+//                  <<"\n";
+
+        }
+        void check_pars() const {
+            if ((nu_obs <= 0.) || (z < 0) || (z > 10) || (d_l < 1) || (t_obs < 1)){
+                (*p_log)(LOG_ERR,AT) << " error in input parameters"
+                                     << " nu_obs="<<nu_obs
+                                     << " z="<<z
+                                     << " d_l="<<d_l
+                                     << " t_obs="<<t_obs
+                                     << " theta_obs="<<theta_obs
+                                     << " theta_cone_low="<<current_theta_cone_low
+                                     << " theta_cone_hi="<<current_theta_cone_hi
+                                     << " phi_low="<<current_phi_low
+                                     << " phi_hi="<<current_phi_hi
+                                     << "\n Exiting... \n";
+                exit(1);
+            }
+        }
+        void setEatsPars(StrDbMap & pars, StrStrMap & opts){
+            // set parameters
+            nmax_phi = (int)getDoublePar("nmax_phi", pars, AT, p_log,1000, false);//pars.at("nmax_phi");
+            nmax_theta = (int)getDoublePar("nmax_theta", pars, AT, p_log,1000, false);//pars.at("nmax_theta");
+            rtol_theta = getDoublePar("rtol_theta", pars, AT, p_log,1e-2, false);//pars.at("rtol_theta");
+            rtol_phi = getDoublePar("rtol_phi", pars, AT, p_log,1e-2, false);//pars.at("rtol_phi");
+            atol_theta = getDoublePar("atol_theta", pars, AT, p_log,1e-2, false);//pars.at("atol_theta");
+            atol_phi = getDoublePar("atol_phi", pars, AT, p_log,1e-2, false);//pars.at("atol_phi");
+            theta_obs = getDoublePar("theta_obs", pars, AT, p_log,-1, true);//pars.at("theta_obs");
+            d_l = getDoublePar("d_l", pars, AT, p_log,-1, true);//pars.at("d_l");
+            z = getDoublePar("z", pars, AT, p_log,-1, true);//pars.at("z");
+
+            freq1 = getDoublePar("freq1", pars, AT, p_log,1.e7, false);//pars.at("freq1");
+            freq2 = getDoublePar("freq2", pars, AT, p_log,1.e14, false);//pars.at("freq2");
+            nfreq = (size_t)getDoublePar("nfreq", pars, AT, p_log,100, false);//pars.at("nfreq");
+
+            // set options
+            std::string opt;
+
+            opt = "method_ne";
+            METHOD_NE methodNe;
+            if ( opts.find(opt) == opts.end() ) {
+                (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+                methodNe = METHOD_NE::iuseNe;
+            }
+            else{
+                if(opts.at(opt) == "useNe")
+                    methodNe = METHOD_NE::iuseNe;
+                else if(opts.at(opt) == "usenprime")
+                    methodNe = METHOD_NE::iusenprime;
+                else{
+                    (*p_log)(LOG_ERR,AT) << " option for: " << opt
+                                         <<" given: " << opts.at(opt)
+                                         << " is not recognized. "
+                                         << "Possible options: "
+                                         << " useNe " << " usenprime " << "\n";
+//                std::cerr << AT << "\n";
+                    exit(1);
+                }
+            }
+            m_method_ne = methodNe;
+
+            opt = "method_quad";
+            METHODS_QUADRATURES methodsQuadratures;
+            if ( opts.find(opt) == opts.end() ) {
+                (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+                methodsQuadratures = METHODS_QUADRATURES::INT_CADRE;
+            }
+            else{
+                if(opts.at(opt) == "CADRE")
+                    methodsQuadratures = METHODS_QUADRATURES::INT_CADRE;
+                else if(opts.at(opt) == "TRAP_FIXED")
+                    methodsQuadratures = METHODS_QUADRATURES::INT_TRAP_FIXED;
+                else{
+                    (*p_log)(LOG_ERR,AT) << " option for: " << opt
+                                         <<" given: " << opts.at(opt)
+                                         << " is not recognized. "
+                                         << "Possible options: "
+                                         << " CADRE " << " TRAP_FIXED " << "\n";
+                    exit(1);
+                }
+            }
+            method_quad = methodsQuadratures;
+
+            opt = "method_shock_vel";
+            METHODS_SHOCK_VEL methodsShockVel;
+            if ( opts.find(opt) == opts.end() ) {
+                (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+                methodsShockVel = METHODS_SHOCK_VEL::isameAsBW;
+            }
+            else{
+                if(opts.at(opt) == "sameAsBW")
+                    methodsShockVel = METHODS_SHOCK_VEL::isameAsBW;
+                else if(opts.at(opt) == "shockVel")
+                    methodsShockVel = METHODS_SHOCK_VEL::ishockVel;
+                else{
+                    (*p_log)(LOG_ERR,AT) << " option for: " << opt
+                                         <<" given: " << opts.at(opt)
+                                         << " is not recognized. "
+                                         << " Possible options: "
+                                         << " sameAsBW " << " shockVel " << "\n";
+//                std::cerr << AT << "\n";
+                    exit(1);
+                }
+            }
+            method_shock_vel = methodsShockVel;
+
+            counter_jet = getBoolOpt("counter_jet", opts, AT, p_log,true, false);
+
+            opt = "method_comp_mode";
+            METHODS_RAD methodCompMode;
+            if ( opts.find(opt) == opts.end() ) {
+                (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+                methodCompMode = METHODS_RAD::iobservflux;
+            }
+            else{
+                if(opts.at(opt) == "observFlux")
+                    methodCompMode = METHODS_RAD::iobservflux;
+                else if(opts.at(opt) == "comovSpec")
+                    methodCompMode = METHODS_RAD::icomovspec;
+                else{
+                    (*p_log)(LOG_ERR,AT) << AT << " option for: " << opt
+                                         <<" given: " << opts.at(opt)
+                                         << " is not recognized. "
+                                         << "Possible options: "
+                                         << " observFlux " << " comovSpec " << "\n";
+                    exit(1);
+                }
+            }
+            m_method_rad = methodCompMode;
+
+            m_freq_arr = TOOLS::MakeLogspace(log10(freq1), log10(freq2),(int)nfreq);
+            if (m_method_rad == METHODS_RAD::icomovspec){
+                (*p_log)(LOG_INFO,AT) << " allocating comoving spectrum array (fs) "
+                                      << " freqs="<<m_freq_arr.size() << " by radii=" << nr << " Spec. grid="
+                                      << m_freq_arr.size() * nr << "\n";
+                m_synch_em.resize( m_freq_arr.size() * nr );
+                m_synch_abs.resize( m_freq_arr.size() * nr );
+            }
+
+
+        }
+        void updateObsPars(StrDbMap & pars){
+            theta_obs = getDoublePar("theta_obs", pars, AT, p_log,-1, true);//pars.at("theta_obs");
+            d_l = getDoublePar("d_l", pars, AT, p_log,-1, true);//pars.at("d_l");
+            z = getDoublePar("z", pars, AT, p_log,-1, true);//pars.at("z");
+//        check_for_unexpected_par(pars, {"theta_obs","d_l","z"});
+        }
+        /// precompute electron distribution properties for each timestep
+        void addComputeForwardShockMicrophysics(size_t it){
+//        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+            if ((m_data[BW::Q::ibeta][it] < p_syna->getPars()->beta_min)){
+                return;
+            }
+            if ((m_data[BW::Q::iCSCBM][it] >= m_data[BW::Q::ibeta][it])){
+                m_data[BW::Q::iB][it] = 0.;
+                return;
+            }
+            // no ISM case -> no electron acceleration
+            if ((m_data[BW::Q::iU_p][it] <= 0) || (m_data[BW::Q::irho2][it] <= 0)){
+                if (i0_failed_elecctrons == 0)
+                    i0_failed_elecctrons = it;
+                i0_failed_elecctrons += 1;
+//            std::cerr << AT << " at it="<<it<<" U_e="<<m_data[Q::iU_e][it]<<" and rho2="<<m_data[Q::irho2][it]<<" skipping electron calc.\n";
+                return;
+            }
+//        if(m_data[Q::iGammaREL][it]<=1.){
+//            std::cerr << AT << " at it="<<it<<" iGammaREL="<<m_data[Q::iGammaREL][it]<<" skipping electron calc.\n";
+//            exit(1);
+//        }
+            double Gamma_; // TODO should be GammaSh
+            if (m_data[BW::Q::iGammaREL][it] > 0.) Gamma_ = m_data[BW::Q::iGammaREL][it];
+            else Gamma_ = m_data[BW::Q::iGamma][it];
+
+            /// for observer frame evaluation, the rad. needs TT, while for comov. spectrum it needs tcomov
+            // TODO Check if time is TT or tburst here
+//        Array * tmp_time;
+//        if (p_syn->getPars()->method_comp_mode==SynchrotronAnalytic::METHODS_RAD::icomovspec)
+//            *tmp_time = m_data[Q::itt][it];
+//        else
+//            *tmp_time = m_data[Q::itburst][it];
+            p_syna->precompute(m_data[BW::Q::iU_p][it],
+                               m_data[BW::Q::iGamma][it],
+//                               m_data[Q::iGamma][it],
+                               m_data[BW::Q::iGammaFsh][it],
+                               m_data[BW::Q::itt][it], // TODO WHICH TIME IS HERE? tbirst? tcomov? observer time (TT)
+//                               m_data[Q::itburst][it], // emission time (TT)
+                               m_data[BW::Q::irho2][it] / CGS::mp);
+            // adding
+            m_data[BW::Q::iB][it]      = p_syna->getPars()->B;
+            m_data[BW::Q::igm][it]     = p_syna->getPars()->gamma_min;
+            m_data[BW::Q::igM][it]     = p_syna->getPars()->gamma_max;
+            m_data[BW::Q::igc][it]     = p_syna->getPars()->gamma_c;
+            m_data[BW::Q::iTheta][it]  = p_syna->getPars()->Theta;
+//        m_data[Q::ix][it]      = p_syn->getPars()->x; // IT is not evaluated/ It depends in freq
+            m_data[BW::Q::iz_cool][it] = p_syna->getPars()->z_cool;
+            m_data[BW::Q::inprime][it] = p_syna->getPars()->n_prime;
+            m_data[BW::Q::iacc_frac][it] = p_syna->getPars()->accel_frac;
+//        if ( m_data[Q::iGamma][it] < 5 ){
+//            exit(1);
+//        }
+            if ((!std::isfinite( m_data[BW::Q::igm][it] )) || (m_data[BW::Q::iB][it] < 0.)) {
+                (*p_log)(LOG_ERR,AT) << " Wrong value at i=" << it << " tb=" << m_data[BW::Q::itburst][it]
+                                     << " iR="     << m_data[BW::Q::iR][it] << "\n"
+                                     << " iGamma=" << m_data[BW::Q::iGamma][it] << "\n"
+                                     << " ibeta=" << m_data[BW::Q::ibeta][it] << "\n"
+                                     << " iM2="    << m_data[BW::Q::iM2][it] << "\n"
+                                     << " iEint2=" << m_data[BW::Q::iEint2][it] << "\n"
+                                     << " iU_p="   << m_data[BW::Q::iU_p][it] << "\n"
+                                     << " irho="   << m_data[BW::Q::irho][it] << "\n"
+                                     << " irho2="  << m_data[BW::Q::irho2][it] << "\n"
+                                     << " iB="     << m_data[BW::Q::iB][it] << "\n"
+                                     << " igm="    << m_data[BW::Q::igm][it] << "\n"
+                                     << " igM="    << m_data[BW::Q::igM][it] << "\n"
+                                     << " igc="    << m_data[BW::Q::igc][it] << "\n"
+                                     << " iTheta=" << m_data[BW::Q::iTheta][it] << "\n"
+                                     //                      << " ix="     << m_data[Q::ix][it] << "\n"
+                                     << " iz_cool="<< m_data[BW::Q::iz_cool][it] << "\n"
+                                     << " inprime="<< m_data[BW::Q::inprime][it]
+                                     << "\n";
+                exit(1);
+            }
+        }
+        void computeForwardShockElectronAnalyticVars(){
+            for (size_t it = 0; it < tb_arr.size(); ++it){
+                addComputeForwardShockMicrophysics(it);
+            }
+
+            if (n_fialed_electrons == tb_arr.size()-1){
+                (*p_log)(LOG_ERR,AT) << " Electron calculation failed for all iterations. Exiting...\n";
+                exit(1);
+            }
+
+            else if (n_fialed_electrons != 0){
+                (*p_log)(LOG_ERR,AT) <<" Electron calculation failed for n=" << n_fialed_electrons
+                                     << " iterations starting from it=" << i0_failed_elecctrons<<"\n";
+//            exit(1);
+            }
+        }
+        /// compute comoving emissivity and absorption for each ifreq and each timestep
+        void computeForwardShockComovingEmissivityAndAbsorption(size_t it){
+//        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+            /// exit if the obs. radiation method of choice does not need comoving spectrum
+            if (m_freq_arr.size() < 1){
+                (*p_log)(LOG_ERR,AT) << " array for comoving spectrum is not initialized \n Exiting...\n";
+                exit(1);
+            }
+            if (m_synch_em.size() < 1){
+                (*p_log)(LOG_ERR,AT)<< " array for comoving spectrum frequencies is not initialized \n Exiting...\n";
+                exit(1);
+            }
+//        (*p_log)(LOG_INFO) << " computing comoving intensity spectum for "
+//                              << p_syna->getFreqArr().size() << " grid";
+            /// -- check if there are any data first
+            double beta_;
+            if (m_data[BW::Q::iGammaREL][it] > 0.) beta_
+                                                                      = EQS::Beta( m_data[BW::Q::iGammaREL][it] );
+            else beta_ = m_data[BW::Q::ibeta][it];
+
+            /// if BW is not evolved to this 'it' or velocity is smaller than minimum
+            if ((m_data[BW::Q::iR][it] < 1)||(beta_ < p_syna->getPars()->beta_min))
+                return;
+
+            if (m_data[BW::Q::igm][it] == 0){
+                (*p_log)(LOG_ERR,AT)<< " in evolved blast wave, found gm = 0" << "\n";
+                exit(1);
+            }
+
+            /// compute emissivity and absorption for each frequency
+            for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq){
+                /// compute all types of emissivities and absoprtions
+                p_syna->compute(m_data[BW::Q::irho2][it] / CGS::mp,//m_data[Q::iM2][it] / CGS::mp,
+                                m_data[BW::Q::iM2][it] / CGS::mp,//m_data[Q::iM2][it] / CGS::mp,
+                                m_data[BW::Q::iacc_frac][it],
+                                m_data[BW::Q::iB][it],
+                                m_data[BW::Q::igm][it],
+                                m_data[BW::Q::igM][it],
+                                m_data[BW::Q::igc][it],
+                                m_data[BW::Q::iTheta][it],
+                                m_data[BW::Q::iz_cool][it],
+//                                       m_data[Q::irho2][it] / CGS::mp,
+                                m_freq_arr[ifreq]
+                );
+                /// add evaluated data to the storage
+//            double thick_tau = EQS::shock_delta(m_data[Q::iRsh][it],m_data[Q::iGammaFsh][it]);
+//            p_syna->addIntensity(thick_tau, 0., 1.);
+                m_synch_em[ifreq + nfreq * it] = p_syna->get_em();
+                m_synch_abs[ifreq + nfreq * it] = p_syna->get_abs();
+            }
+        }
+        void computeForwardShockSynchrotronAnalyticSpectrum(){
+            if (m_method_rad==METHODS_RAD::icomovspec) {
+                (*p_log)(LOG_INFO,AT) << " computing analytic comoving spectrum\n";
+                for (size_t it = 0; it < tb_arr.size(); ++it) {
+                    computeForwardShockComovingEmissivityAndAbsorption(it);
+                }
+            }
+        }
+        /// comoving spectrum for external use
+        // TODO remove and use previous (above) functions for it!!
+        auto evalForwardShockComovingSynchrotron(Vector & freq_arr, size_t every_it ){
+//        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+            Vector t_arr{};
+            if (every_it == 0){
+                (*p_log)(LOG_ERR,AT) << " comov spectrum at every_it="<<every_it<<" cannot be evaluated.\n Exiting...\n";
+//            std::cerr << AT << " \n";
+                exit(1);
+            }
+            else if (every_it == 1){
+//            t_arr = getTbGrid();
+//            out_em.resize(m_mag_time.size());
+//            out_abs.resize(m_mag_time.size());
+                t_arr = tb_arr;
+                for(auto & arr : p_syna->m_names_)
+                    arr.resize( tb_arr.size() );
+            }
+            else{
+                t_arr = getTbGrid(every_it);
+                for(auto & arr : p_syna->m_names_)
+                    arr.resize( tb_arr.size() );
+            }
+
+            /// allocate momory for data
+            std::vector< // types (em/abs)
+                    std::vector< // freqs
+                            std::vector<double>>> // times
+            data (p_syna->m_names_.size() );
+            for (auto & arr : data) {
+                arr.resize(freq_arr.size());
+                for (auto & arrr : arr){
+                    arrr.resize( t_arr.size() );
+                }
+            }
+
+            /// compute spectra and fill storage
+            size_t iit = 0;
+            for (size_t it = 0; it < tb_arr.size(); it = it + every_it){
+                /// -- check if there are any data first
+                double beta_;
+                if (m_data[BW::Q::iGammaREL][it] > 0.) beta_
+                                                                          = EQS::Beta( m_data[BW::Q::iGammaREL][it] );
+                else beta_ = m_data[BW::Q::ibeta][it];
+                if ((m_data[BW::Q::iR][it] < 1)||(beta_ < p_syna->getPars()->beta_min))
+                    continue;
+                if (m_data[BW::Q::igm][it] == 0){
+                    (*p_log)(LOG_ERR,AT) << " in evolved blast wave, found gm = 0" << "\n";
+                    exit(1);
+                }
+
+                /// if so
+                for (size_t ifreq = 0; ifreq < freq_arr.size(); ++ifreq){
+                    /// compute all types of emissivities and absoprtions
+                    p_syna->compute(m_data[BW::Q::irho2][it] / CGS::mp,//m_data[Q::iM2][it] / CGS::mp,
+                                    m_data[BW::Q::iM2][it] / CGS::mp,
+                                    m_data[BW::Q::iacc_frac][it],
+                                    m_data[BW::Q::iB][it],
+                                    m_data[BW::Q::igm][it],
+                                    m_data[BW::Q::igM][it],
+                                    m_data[BW::Q::igc][it],
+                                    m_data[BW::Q::iTheta][it],
+                                    m_data[BW::Q::iz_cool][it],
+//                                       m_data[Q::irho2][it] / CGS::mp,
+                                    freq_arr[ifreq]
+                    );
+                    /// add evaluated data to the storage
+                    double thick_tau = EQS::shock_delta(m_data[BW::Q::iRsh][it],m_data[BW::Q::iGammaFsh][it]);
+//                p_syna->addIntensity(m_data[Q::ithickness][it], 0., 1.);
+                    p_syna->addIntensity(thick_tau, 0., 1.);
+                    double val;
+                    for (size_t i_type = 0; i_type < p_syna->m_names_.size(); ++i_type) {
+                        val = p_syna->getData()[i_type];
+                        data[i_type][ifreq][iit] = val;
+                    }
+//                data[p_syna->i_int][ifreq][iit] =
+//                        (data[p_syna->i_em][ifreq][iit] / data[p_syna->i_abs][ifreq][iit])
+//                        * (1. - )
+//                intensity = computeIntensity(em_lab, abs_lab, dr_tau, mu, beta_shock, p_eats->method_tau);
+
+
+                }
+                iit++;
+            }
+            return std::move(data);
+#if 0
+            for (size_t ifreq = 0; ifreq < freq_arr.size(); ++ifreq){
+            for (size_t it = 0; it < t_arr.size(); ++it){
+                // -- check if
+                double beta_;
+                if (m_data[Q::iGammaREL][it] > 0.) beta_ = EQS::Beta( m_data[Q::iGammaREL][it] );
+                else beta_ = m_data[Q::ibeta][it];
+                if ((m_data[Q::iR][it] < 1)||(beta_ < p_syna->getPars()->beta_min))
+                    continue;
+            }
+        }
+
+        for (size_t i_type = 0; i_type < p_syna->cspec_vnames.size(); ++i_type) {
+            for ()
+        }
+
+        VecVector data_em{}; // emissivity of absorption in the comoving frame
+        VecVector data_abs{}; // emissivity of absorption in the comoving frame
+        for (auto & freq : freq_arr) {
+//            std::cout << "inu=" << freq << "/" << freq_arr.size() << " [comoving spectrum]\n";
+            auto data = evalComovingSynchrotron(freq, every_it);
+            data_em.emplace_back(std::get<0>(data));
+            data_abs.emplace_back(std::get<1>(data));
+//            data.emplace_back(evalForwardShockComovingSynchrotron(freq, itype, every_it));
+        }
+        return std::move(std::pair(data_em,data_abs));
+#endif
+        }
+        /// -------------------------------------------------------------------------------
+        size_t ishell = 0, ilayer = 0;  size_t nlayers = 0;
+        double theta_c_l = -1.;
+        double theta_c_h = -1.;
+        double theta_w = -1.;
+        double theta_max=-1.;
+        bool use_t_e = false;
+        double z{}, d_l{}, nu_obs{}, t_obs{}, theta_obs{};
+        double (* obsangle)(const double &, const double &, const double &) = nullptr;
+        double (* im_xxs)( const double &, const double &, const double & ) = nullptr;
+        double (* im_yys)( const double &, const double &, const double & ) = nullptr;
+        // --- for adaptive quad. method
+        int nmax_phi=-1, nmax_theta=-1;
+        double rtol_theta=-1., rtol_phi=-1.;
+        double atol_theta=-1., atol_phi=-1.;
+        int error = 0;
+        double current_phi_hi=-1.;
+        double current_phi_low=-1.;
+        double current_theta_cone_hi=-1;
+        double current_theta_cone_low=-1.;
+        double cos_theta_obs=-1.;
+        double sin_theta_obs=-1.;
+        double phi = -1.;
+        double cos_phi = -1.;
+        double theta=-1., o_phi=-1, o_theta=-1., o_gam=-1, o_mu=-1, o_r=-1, o_flux=-1, o_theta_j=-1; // for map
+        double freq1=-1.0, freq2=-1.0;
+        size_t nfreq=0;
+        METHODS_QUADRATURES method_quad{};
+        METHODS_SHOCK_VEL method_shock_vel{};
+        METHOD_NE m_method_ne{};
+        METHODS_RAD m_method_rad{};
+//        METHOD_TAU method_tau{};
+        bool counter_jet = true;
+        int spread_method = 1; // TODO this is the only option!
+        long nevals = 0; // counter for how many times the integrand was evaluated
+        size_t nr = 0;
+        Array m_freq_arr{};
+        Array m_synch_em{};
+        Array m_synch_abs{};
+        size_t i0_failed_elecctrons = 0;
+        long n_fialed_electrons = 0;
+    };
+    std::unique_ptr<logger> p_log;
+    Pars * p_pars{};
+private:
+    /// for internal use inside the adaptive quadrature
+    void parsPars(double t_obs, double nu_obs,
+                  double theta_cone_low, double theta_cone_hi, double phi_low, double phi_hi,
+                  double (*obs_angle)( const double &, const double &, const double & )){
+        p_pars->parsPars(t_obs,nu_obs,theta_cone_low,theta_cone_hi,phi_low,phi_hi,obs_angle);
+    }
+    void check_pars(){ p_pars->check_pars(); }
+    void setEatsPars(StrDbMap & pars, StrStrMap & opts){ p_pars->setEatsPars(pars,opts); }
+    void updateObsPars(StrDbMap & pars){p_pars->updateObsPars(pars);}
+public:
+    /// ----------------------------------------------------------------------------------------------
+    BlastWaveRadiation(VecArray & m_data, Vector & tb_arr, size_t ish, size_t il, size_t nlayers, double ctheta0, int loglevel){
+        p_pars = new Pars(m_data, tb_arr, ctheta0, ish, il, nlayers, loglevel);
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "RadBlastWave");
+    }
+    ~BlastWaveRadiation(){
+        delete p_pars;
+    }
+    /// ----------------------------------------------------------------------------------------------
+
+    /// evaluate flux density using adaptive integrator
+    double evalFluxDensA(double t_obs, double nu_obs, double atol) {
+        double fluxdens = 0.;
+        parsPars(t_obs, nu_obs, p_pars->theta_c_l, p_pars->theta_c_h,
+                 0., M_PI, obsAngle);
+        check_pars();
+        double Fcoeff = CGS::cgs2mJy / (4.0 * M_PI * p_pars->d_l * p_pars->d_l); // result will be in mJy
+        p_pars->atol_theta = atol;// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
+        p_pars->atol_phi = atol;//  / (2.0 * Fcoeff);
+        fluxdens += 2. * Fcoeff * integrate_theta_phi(p_pars); // 2. because Integ_0^pi (not 2pi)
+        if (p_pars->counter_jet){
+            parsPars(t_obs, nu_obs, p_pars->theta_c_l, p_pars->theta_c_h,
+                     0., M_PI, obsAngleCJ);
+            check_pars();
+            p_pars->atol_theta = atol;// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
+            p_pars->atol_phi = atol;//  / (2.0 * Fcoeff);
+            fluxdens += 2. * Fcoeff * integrate_theta_phi(p_pars);
+        }
+        return fluxdens;
+    }
+
+    /// evaluate intensity/flux density distribution using piece-wise summation
+    void evalImagePW(Image & image, Image & im_pj, Image & im_cj, double obs_time, double obs_freq){
+        Array phi_grid = LatStruct::getCphiGridPW( p_pars->ilayer );
+        computeImagePW(im_pj, im_cj, obs_time, obs_freq );
+        /// combine the two images (use full 'ncells' array, and fill only cells that correspond to this layer)
+        for (size_t icell = 0; icell < phi_grid.size(); ++icell) {
+            for (size_t ivn = 0; ivn < image.m_names.size(); ++ivn)
+                image(ivn, icell) = im_pj(ivn,icell);
+            for (size_t ivn = 0; ivn < image.m_names.size(); ++ivn)
+                image(ivn,phi_grid.size()+icell) = im_cj(ivn,icell);
+        }
+        image.m_f_tot = (im_pj.m_f_tot + im_cj.m_f_tot);
+    }
+
+
+    void evalImageFromPW(Image & image, double t_obs, double nu_obs,
+                         double (*obs_angle)( const double &, const double &, const double & ),
+                         double (*im_xxs)( const double &, const double &, const double & ),
+                         double (*im_yys)( const double &, const double &, const double & )){
+
+//        auto & p_syna = p_pars->p_rs->getAnSynch();
+        auto & m_data = p_pars->m_data;
+        if ((m_data[BW::Q::iR][0] == 0.) && (m_data[BW::Q::iGamma][0] == 0.)){
+            (*p_log)(LOG_WARN,AT) << " [ishell=" << p_pars->ishell << " ilayer="<<p_pars->ilayer << "] "
+                                  << " R[0]=0. Seems not evolved -> returning empty image." << "\n";
+            return;
+        }
+
+        parsPars(t_obs, nu_obs, 0., 0., 0., 0., obs_angle);
+        check_pars();
+
+        double flux = 0.;
+//        if (p_pars->end_evolution){
+//            (*p_log)(LOG_WARN,AT)
+//                    << "[ish=" << p_pars->ishell << ", il="<<p_pars->ilayer << "] "
+//                    << " Evolution was terminated at ix="<<p_pars->comp_ix<<" "
+//                    << " Error might occure here... [TODO] Check if limited calcs to this ix works..\n";
+//        }
+        Array ttobs( std::numeric_limits<double>::max(), m_data[BW::Q::iR].size()  );
+        Array cphis = LatStruct::getCphiGridPW(p_pars->ilayer);
+
+        /// limit the evaluation to the latest 'R' that is not 0 (before termination)
+        size_t nr = m_data[BW::Q::iR].size();
+        size_t i_end_r = nr;
+        for(size_t ir = 0; ir < nr; ++ir){
+            if (m_data[BW::Q::iR][ir] == 0.) {
+                i_end_r = ir;
+                break;
+            }
+        }
+        if (i_end_r == 0){
+            (*p_log)(LOG_ERR,AT) << " i_end_r = " << i_end_r << "\n";
+            exit(1);
+        }
+
+        Vector mu_arr (cphis.size(),0.0);
+        for (size_t k = 0; k < cphis.size(); k++) {
+            double _phi_cell = cphis[k];
+            double _ctheta_cell = p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
+            mu_arr[k] = obs_angle(_ctheta_cell, _phi_cell, p_pars->theta_obs);
+        }
+
+        /// TODO make it so after some 'phi' the loop stops -- speed up the calculation
+
+        /// main loops (if to use pre-computed comoving emissivities or compute them here)
+        if (p_pars->m_method_rad == METHODS_RAD::icomovspec) {
+            /// init interpolator // TODO major speedup -- do index search for interpolation ONCE and use for both
+            Interp2d int_em(p_pars->m_freq_arr, m_data[BW::Q::iR], p_pars->m_synch_em);
+            Interp2d int_abs(p_pars->m_freq_arr, m_data[BW::Q::iR], p_pars->m_synch_abs);
+            Interp1d::METHODS mth = Interp1d::iLagrangeLinear;
+            for (size_t i = 0; i < cphis.size(); i++){
+                double phi_cell = cphis[i];
+                double ctheta_cell = p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
+//                double mu = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
+                for (size_t i_ = 0; i_ < i_end_r; i_++) {
+                    ttobs[i_] = m_data[BW::Q::itt][i_] + m_data[BW::Q::iR][i_] / CGS::c * (1.0 - mu_arr[i]);
+                }
+                /// check if req. obs time is outside of the evolved times (throw error)
+                if (t_obs < ttobs[0]) {
+                    (*p_log)(LOG_ERR,AT) << " time grid starts too late "
+                                         << " t_grid[0]=" << ttobs[0] << " while requested obs.time=" << t_obs << "\n"
+                                         << " extend the grid to earlier time or request tobs at later times\n"
+                                         << " Exiting...\n";
+                    exit(1);
+                }
+                if ((i_end_r == nr) && (t_obs > ttobs[i_end_r - 1])) {
+                    (*p_log)(LOG_ERR,AT) << " time grid ends too early. "
+                                         << " t_grid[i_end_r-1]=" << ttobs[i_end_r - 1] << " while requested obs.time=" << t_obs << "\n"
+                                         << " extend the grid to later time or request tobs at earlier times\n"
+                                         << " Exiting...\n";
+//                    std::cout << ttobs << std::endl;
+                    exit(1);
+                }
+                else if ((i_end_r < nr) && (t_obs > ttobs[i_end_r - 1])) {
+                    (*p_log)(LOG_WARN,AT) << " time grid was shorten to i=" << i_end_r << " from nr=" << nr
+                                          << " and now ends at t_grid[i_end_r-1]=" << ttobs[i_end_r - 1]
+                                          << " while t_obs=" << t_obs << "\n";
+                    continue;
+                }
+                /// locate closest evolution points to the requested obs. time
+                size_t ia = findIndex(t_obs, ttobs, ttobs.size());
+                if (ia >= i_end_r - 1) continue; // ??
+                size_t ib = ia + 1;
+                /// interpolate the exact radial position of the blast that corresponds to the req. obs time
+                double r = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iR]);
+                //  double r = ( Interp1d(ttobs, m_data[BW::Q::iR] ) ).Interpolate(t_obs, mth );
+                if ((r <= 0.0) || !std::isfinite(r)) {
+                    (*p_log)(LOG_ERR,AT) << " R <= 0. Extend R grid (increasing R0, R1). "
+                                         << " Current R grid us ["
+                                         << m_data[BW::Q::iR][0] << ", "
+                                         << m_data[BW::Q::iR][p_pars->nr - 1] << "] "
+                                         << "and tobs arr ["
+                                         << ttobs[0] << ", " << ttobs[p_pars->nr - 1]
+                                         << "] while the requried obs_time=" << p_pars->t_obs
+                                         << "\n";
+                    break;
+                }
+                double Gamma = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iGamma]);
+                double beta = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::ibeta]);
+                // double GammaSh = ( Interp1d(m_data[BW::Q::iR], m_data[BW::Q::iGammaFsh] ) ).Interpolate(r, mth );
+                /// compute Doppler factor
+                double a = 1.0 - beta * mu_arr[i]; // beaming factor
+                double delta_D = Gamma * a; // doppler factor
+                /// compute the comoving obs. frequency from given one in obs. frame
+                double nuprime = (1.0 + p_pars->z ) * p_pars->nu_obs * delta_D;
+                size_t ia_nu = findIndex(nuprime, p_pars->m_freq_arr, p_pars->m_freq_arr.size());
+                size_t ib_nu = ia_nu + 1;
+                /// interpolate the emissivity and absorption coefficines
+//                double em_prime = int_em.Interpolate(nuprime, r, mth);
+                double em_prime = int_em.InterpolateBilinear(nuprime, r, ia_nu, ib_nu, ia, ib);
+//                double abs_prime = int_abs.Interpolate(nuprime, r, mth);
+                double abs_prime = int_abs.InterpolateBilinear(nuprime, r, ia_nu, ib_nu, ia, ib);
+                /// convert to the laboratory frame
+                double em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
+                double abs_lab = abs_prime * delta_D; // conversion of absorption (see vanEerten+2010)
+
+                /// compute optical depth (for this shock radius and thickness are needed)
+                double GammaShock = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iGammaFsh]);
+                double dr = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::ithickness]);
+                double dr_tau = EQS::shock_delta(r, GammaShock); // TODO this is added becasue in Johanneson Eq. I use ncells
+
+                double beta_shock;
+                switch (p_pars->method_shock_vel) {
+
+                    case isameAsBW:
+                        beta_shock = EQS::Beta(Gamma);
+                        break;
+                    case ishockVel:
+//                double u = sqrt(GammaShock * GammaShock - 1.0);
+//                double us = 4.0 * u * sqrt((u * u + 1) / (8. * u * u + 9.)); // from the blast wave velocity -> compute shock velocity
+                        beta_shock = EQS::Beta(GammaShock);//us / sqrt(1. + us * us);
+                        break;
+                }
+                double ashock = (1.0 - mu_arr[i] * beta_shock); // shock velocity beaming factor
+                dr /= ashock; // TODO why is this here? What it means? Well.. Without it GRB LCs do not work!
+                dr_tau /= ashock;
+                double dtau = RadiationBase::optical_depth(abs_lab,dr_tau, mu_arr[i], beta_shock);
+                double intensity = RadiationBase::computeIntensity(em_lab, dtau,
+                                                                   p_pars->p_syna->getPars()->method_tau);
+                double flux_dens = (intensity * r * r * dr) * (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+                flux+=flux_dens;
+                /// save the result in image
+                double ctheta = interpSegLin(ia, ib, t_obs, ttobs, m_data[BW::Q::ictheta]);
+                //  double ctheta = ( Interp1d(m_data[BW::Q::iR], m_data[BW::Q::ictheta] ) ).Interpolate(r, mth );
+                image(Image::iintens, i) =
+                        flux_dens / (r * r * std::abs(mu_arr[i])) * CGS::cgs2mJy; //(obs_flux / (delta_D * delta_D * delta_D)); //* tmp;
+                image(Image::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
+                image(Image::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
+                image(Image::imu, i) = mu_arr[i];
+            }
+            image.m_f_tot = flux * CGS::cgs2mJy; /// flux in mJy
+        }
+        else {
+            Interp1d::METHODS mth = Interp1d::iLagrangeLinear;
+            for (size_t i = 0; i < cphis.size(); i++){
+                double phi_cell = cphis[i];
+                double ctheta_cell = p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
+//                double mu = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
+                for (size_t i_ = 0; i_ < i_end_r; i_++) {
+                    ttobs[i_] = m_data[BW::Q::itt][i_] + m_data[BW::Q::iR][i_] / CGS::c * (1.0 - mu_arr[i]);
+                }
+                if (t_obs < ttobs[0]) {
+                    (*p_log)(LOG_ERR,AT) << " time grid starts too late "
+                                         << " t_grid[0]=" << ttobs[0] << " while requested obs.time=" << t_obs << "\n"
+                                         << " extend the grid to earlier time or request tobs at later times\n"
+                                         << " Exiting...\n";
+//                        (*p_log)(LOG_ERR,AT) << AT << "\n";
+                    exit(1);
+                }
+                if ((i_end_r == nr) && (t_obs > ttobs[i_end_r - 1])) {
+                    (*p_log)(LOG_ERR,AT) << " time grid ends too early. "
+                                         << " t_grid[i_end_r-1]=" << ttobs[i_end_r - 1] << " while requested obs.time=" << t_obs << "\n"
+                                         << " extend the grid to later time or request tobs at earlier times\n"
+                                         << " Exiting...\n";
+//                        std::cout << ttobs << std::endl;
+//                        std::cerr << AT << "\n";
+                    exit(1);
+                } else if ((i_end_r < nr) && (t_obs > ttobs[i_end_r - 1])) {
+                    (*p_log)(LOG_WARN,AT) << " time grid was shorten to i=" << i_end_r << " from nr=" << nr
+                                          << " and now ends at t_grid[i_end_r-1]=" << ttobs[i_end_r - 1]
+                                          << " while t_obs=" << t_obs << "\n";
+                    continue;
+                }
+
+                size_t ia = findIndex(t_obs, ttobs, ttobs.size());
+                if (ia >= i_end_r - 1)
+                    continue;
+                size_t ib = ia + 1;
+
+                double r = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iR]);
+                if ((r <= 0.0) || !std::isfinite(r)) {
+                    (*p_log)(LOG_WARN,AT) << " R <= 0. Extend R grid (increasing R0, R1). "
+                                          << " Current R grid us ["
+                                          << m_data[BW::Q::iR][0] << ", "
+                                          << m_data[BW::Q::iR][p_pars->nr - 1] << "] "
+                                          << "and tobs arr ["
+                                          << ttobs[0] << ", " << ttobs[p_pars->nr - 1]
+                                          << "] while the requried obs_time=" << p_pars->t_obs
+                                          << "\n";
+                    break;
+                }
+
+                double Gamma = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iGamma]);
+                double GammaSh = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iGammaFsh]);
+                double rho2 = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::irho2]);
+                double m2 = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iM2]);
+                double frac = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iacc_frac]);
+                double thick = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::ithickness]);
+                double theta = interpSegLin(ia, ib, t_obs, ttobs, m_data[BW::Q::itheta]);
+                double ctheta = interpSegLin(ia, ib, t_obs, ttobs, m_data[BW::Q::ictheta]);
+                double B = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iB]);
+                double gm = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::igm]);
+                double gM = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::igM]);
+                double gc = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::igc]);
+                double Theta = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iTheta]);
+                double z_cool = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iz_cool]);
+                double tb = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::itburst]);
+                double tt = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::itt]);
+                double cs = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iCSCBM]);
+
+                double dFnu = 0.;
+                if ((m_data[BW::Q::iB][ia] == 0.) || (m_data[BW::Q::iB][ib] == 0.)){
+                    dFnu = 0.;
+                }
+                else{
+#if 0
+                    if ((Gamma < 1. || !std::isfinite(Gamma))
+                        || (gm < 0.) || (!std::isfinite(gm))
+                        || (gM < 0.) || (gc < 0.) || (B < 0.) || (!std::isfinite(B))
+                        || (theta <= 0.)
+                        || (rho2 < 0.) || (!std::isfinite(rho2))
+                        || (thick <= 0.) || (GammaSh <= 1.)) {
+                        (*p_log)(LOG_ERR,AT)<< " Error in interpolation to EATS surface: \n"
+                                            << " R = " << r << "\n"
+                                            << " Gamma = " << Gamma << "\n"
+                                            << " GammaSh = " << GammaSh << "\n"
+                                            << " gm = " << gm << "\n"
+                                            << " gM = " << gM << "\n"
+                                            << " gc = " << gc << "\n"
+                                            << " B = " << B << "\n"
+                                            << " Theta = " << Theta << "\n"
+                                            << " z_cool = " << z_cool << "\n"
+                                            << " theta = " << theta << "\n"
+                                            << " rho2 = " << rho2 << "\n"
+                                            << " thick = " << thick << "\n"
+                                            << " t_obs = " << t_obs << "\n";
+//                    exit(1);
+                    }
+                    if ((B != 0.) && (!std::isfinite(rho2))) {
+                        (*p_log)(LOG_ERR,AT)<< " B!=0 and rho2 is NAN \n"
+                                            << " Error in data \n"
+                                            << " R = " << r << "\n"
+                                            << " Gamma = " << Gamma << "\n"
+                                            << " gm = " << gm << "\n"
+                                            << " gM = " << gM << "\n"
+                                            << " gc = " << gc << "\n"
+                                            << " B = " << B << "\n"
+                                            << " Theta = " << Theta << "\n"
+                                            << " z_cool = " << z_cool << "\n"
+                                            << " theta = " << theta << "\n"
+                                            << " rho2 = " << rho2 << "\n"
+                                            << " thick = " << thick << "\n"
+                                            << " t_obs = " << t_obs << "\n"
+                                            << " Exiting...\n";
+                        exit(1);
+                    }
+#endif
+                    double thick_tau = EQS::shock_delta(r,GammaSh); // TODO this is added becasue in Johanneson Eq. I use ncells
+                    dFnu = shock_synchrotron_flux_density(Gamma, GammaSh, m2, rho2, frac, B, gm, gM, gc,
+                                                          Theta, z_cool, t_obs, mu_arr[i],
+                                                          r, thick,  thick_tau, p_pars);
+                }
+                dFnu *= (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+
+                flux += dFnu;
+
+                image(Image::iintens, i) =
+                        dFnu / (r * r * std::abs(mu_arr[i])) * CGS::cgs2mJy; //(obs_flux / (delta_D * delta_D * delta_D)); //* tmp;
+                image(Image::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
+                image(Image::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
+                image(Image::imu, i) = mu_arr[i];
+            }
+            image.m_f_tot = flux * CGS::cgs2mJy; /// flux in mJy
+        }
+    }
+    /// get the observed flux density distrib 'image' for 2 projections for given time, freq, angle, distance, red shift
+    void computeImagePW(Image & im_pj, Image & im_cj, double obs_time, double obs_freq){
+        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+        size_t cells_in_layer = LatStruct::CellsInLayer(p_pars->ilayer);
+        /// compute image for primary jet and counter jet
+        evalImageFromPW(im_pj, obs_time, obs_freq, obsAngle, imageXXs, imageYYs);
+        if (p_eats->counter_jet) // p_eats->counter_jet
+            evalImageFromPW(im_cj, obs_time, obs_freq, obsAngleCJ, imageXXsCJ, imageYYsCJ);
+    }
+
+    void addComputeForwardShockMicrophysics(size_t it){ p_pars->addComputeForwardShockMicrophysics(it); }
+    void computeForwardShockElectronAnalyticVars(){ p_pars->computeForwardShockElectronAnalyticVars(); }
+
+    void computeForwardShockComovingEmissivityAndAbsorption(size_t it){p_pars->computeForwardShockComovingEmissivityAndAbsorption(it);}
+    void computeForwardShockSynchrotronAnalyticSpectrum(){ p_pars->computeForwardShockSynchrotronAnalyticSpectrum();}
+
+    auto evalForwardShockComovingSynchrotron(Vector & freq_arr, size_t every_it){
+        return p_pars->evalForwardShockComovingSynchrotron(freq_arr,every_it);
+    }
+
+
+    /// compute light curve using Adapitve or Piece-Wise EATS method
+    void evalForwardShockLightCurve(LatStruct::METHOD_eats m_method_eats,
+                                    Image & image, Image & im_pj, Image & im_cj,
+                                    Vector & light_curve, Vector & times, Vector & freqs ){
+//        Vector light_curve (times.size(), 0.0);
+        auto & m_data = p_pars->m_data;
+        if ((m_data[BW::Q::iR][0] == 0.0) && (m_data[BW::Q::iR][p_pars->nr-1] == 0.0)){
+            (*p_log)(LOG_WARN, AT)
+                    << " blast wave not evolved, flux=0 [ishell="<<p_pars->ishell<<", ilayer="<<p_pars->ilayer<<"]\n";
+            std::fill(light_curve.begin(), light_curve.end(),0.0);
+            return ; //std::move(light_curve);
+        }
+
+        double rtol = 1e-6;
+//        Image image; Image im_pj; Image im_cj;
+        for (size_t it = 0; it < times.size(); it++) {
+//            (*p_log)(LOG_INFO,AT)<<" LC processing it="<<it<<"/"<<times.size()<<"\n";
+            if (m_method_eats == LatStruct::i_pw) {
+//                    auto image = model->evalImagePW(obs_times[it], obs_freqs[it]);
+                computeImagePW(im_pj, im_cj, times[it], freqs[it] );
+                image.m_f_tot = (im_pj.m_f_tot + im_cj.m_f_tot);
+//                evalImagePW(image, im_pj, im_cj, times[it], freqs[it]);
+                light_curve[it] += image.m_f_tot;
+            }
+            else{
+                double atol = light_curve[it] * rtol / (double)p_pars->nlayers;
+                light_curve[it] += evalFluxDensA(times[it], freqs[it], atol);
+            }
+        }
+//        return std::move(light_curve);
+    }
+};
+
+/// Blast wave emission from shock
+class RadBlastWave : public BW{
+    std::unique_ptr<logger> p_log;
+private:
+    /// for internal use inside the adaptive quadrature
+    void parsPars(double t_obs, double nu_obs,
+                  double theta_cone_low, double theta_cone_hi, double phi_low, double phi_hi,
+                  double (*obs_angle)( const double &, const double &, const double & )){
+        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+        auto & m_data = p_eats->m_data;
+        p_eats->nu_obs = nu_obs;
+        p_eats->t_obs = t_obs;
+        // -- settings
+        p_eats->error = 0;
+        p_eats->current_phi_hi = phi_hi;
+        p_eats->current_phi_low = phi_low;
+        p_eats->current_theta_cone_hi = theta_cone_hi;
+        p_eats->current_theta_cone_low = theta_cone_low;
+        p_eats->cos_theta_obs = std::cos(p_eats->theta_obs);
+        p_eats->sin_theta_obs = std::sin(p_eats->theta_obs);
+        p_eats->obsangle = obs_angle;
+        // ---
+//        p_eats->nr = p_pars->nr; // removing EATS_pars for simplicity
+        for (size_t i = 0; i < p_pars->nr; i++)
+            m_data[Q::imu][i] = ( m_data[Q::itburst][i] - t_obs / (1.0 + p_eats->z) ) / m_data[Q::iR][i] * CGS::c;
+
+        if(m_data[Q::imu][p_pars->nr-1] < 1. ){
+            std::cout << m_data[Q::itburst] << "\n";
+            std::cout << m_data[Q::iR] << "\n";
+            (*p_log)(LOG_WARN,AT) << " mu[-1]=" << m_data[Q::imu][p_pars->nr-1] << " < 1 (expected >1) "
+                                  << " tobs="<<t_obs
+                                  << " tbutst[-1]="<< m_data[Q::itburst][p_pars->nr-1]
+                                  << " R[nr-1]="<<m_data[Q::iR][p_pars->nr-1]
+                                  << "\n";
+        }
+        if(m_data[Q::imu][0] > 1. ){
+            (*p_log)(LOG_WARN,AT) << " mu[0]=" << m_data[Q::imu][0] << " > 1 (expected <1) "
+                                  << " tobs="<<t_obs
+                                  << " tbutst[0]="<< m_data[Q::itburst][0]
+                                  << " R[0]="<<m_data[Q::iR][0]
+                                  << "\n";
+        }
+
+
+        //        std::cerr << AT
+//                  << "Observables for Gamma0=[" << (p_pars->p_dyn)->getData()[(*p_pars->p_dyn).Q::iGamma][0] << ", " << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::iGamma][p_pars->nr - 1] << "] "
+//                  << " R0=[" << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::iR][0] << ", " << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::iR][p_pars->nr - 1] << "] "
+//                  << " time0=[" << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::itburst][0] << ", " << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::itburst][p_pars->nr - 1] << "] "
+//                  << " mu0=[" << p_pars->mu_arr[0] << ", " << p_pars->mu_arr[p_pars->nr-1]<<"] "
+//                  <<"\n";
+
+    }
+    void check_pars(){
+        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+        if ((p_eats->nu_obs <= 0.) || (p_eats->z < 0) || (p_eats->z > 10) || (p_eats->d_l < 1) || (p_eats->t_obs < 1)){
+            (*p_log)(LOG_ERR,AT) << " error in input parameters"
+                                 << " nu_obs="<<p_eats->nu_obs
+                                 << " z="<<p_eats->z
+                                 << " d_l="<<p_eats->d_l
+                                 << " t_obs="<<p_eats->t_obs
+                                 << " theta_obs="<<p_eats->theta_obs
+                                 << " theta_cone_low="<<p_eats->current_theta_cone_low
+                                 << " theta_cone_hi="<<p_eats->current_theta_cone_hi
+                                 << " phi_low="<<p_eats->current_phi_low
+                                 << " phi_hi="<<p_eats->current_phi_hi
+                                 << "\n Exiting... \n";
+            exit(1);
+        }
+    }
+
+public:
+    RadBlastWave(Vector & tb_arr, size_t ishell, size_t ilayer, int loglevel )
+            : BW(tb_arr, ishell, ilayer, loglevel )
+    {
+//        p_log = std::make_unique<logger>(std::cout, loglevel, "RadBlastWave");
+//        p_eats = new EatsPars(m_data);
+        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+
+//        p_eats->nr = tb_arr.size(); // removing EATS_pars for simplicity
+//        p_syn = std::make_unique<SynchrotronAnalytic>( loglevel );
+//        p_eats->p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "EatsPars");
+//        m_cspec.resize( cspec_vnames.size() );
+//        for(auto & arr : m_cspec)
+//            arr.resize( arr.resize(getTbGrid()) )
+//        std::unique_ptr<logger>(p_log);
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "RadBlastWave");
+
+    }
+
+    /// set parameters used inside the integrator
+    void setEatsPars(StrDbMap & pars, StrStrMap & opts){
+        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+        // set parameters
+        p_eats->nmax_phi = (int)getDoublePar("nmax_phi", pars, AT, p_log,1000, false);//pars.at("nmax_phi");
+        p_eats->nmax_theta = (int)getDoublePar("nmax_theta", pars, AT, p_log,1000, false);//pars.at("nmax_theta");
+        p_eats->rtol_theta = getDoublePar("rtol_theta", pars, AT, p_log,1e-2, false);//pars.at("rtol_theta");
+        p_eats->rtol_phi = getDoublePar("rtol_phi", pars, AT, p_log,1e-2, false);//pars.at("rtol_phi");
+        p_eats->atol_theta = getDoublePar("atol_theta", pars, AT, p_log,1e-2, false);//pars.at("atol_theta");
+        p_eats->atol_phi = getDoublePar("atol_phi", pars, AT, p_log,1e-2, false);//pars.at("atol_phi");
+        p_eats->theta_obs = getDoublePar("theta_obs", pars, AT, p_log,-1, true);//pars.at("theta_obs");
+        p_eats->d_l = getDoublePar("d_l", pars, AT, p_log,-1, true);//pars.at("d_l");
+        p_eats->z = getDoublePar("z", pars, AT, p_log,-1, true);//pars.at("z");
+
+        p_eats->freq1 = getDoublePar("freq1", pars, AT, p_log,1.e7, false);//pars.at("freq1");
+        p_eats->freq2 = getDoublePar("freq2", pars, AT, p_log,1.e14, false);//pars.at("freq2");
+        p_eats->nfreq = (size_t)getDoublePar("nfreq", pars, AT, p_log,100, false);//pars.at("nfreq");
+
+        // set options
+        std::string opt;
+
+        opt = "method_ne";
+        METHOD_NE methodNe;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            methodNe = METHOD_NE::iuseNe;
+        }
+        else{
+            if(opts.at(opt) == "useNe")
+                methodNe = METHOD_NE::iuseNe;
+            else if(opts.at(opt) == "usenprime")
+                methodNe = METHOD_NE::iusenprime;
+            else{
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
+                                     <<" given: " << opts.at(opt)
+                                     << " is not recognized. "
+                                     << "Possible options: "
+                                     << " useNe " << " usenprime " << "\n";
+//                std::cerr << AT << "\n";
+                exit(1);
+            }
+        }
+        p_eats->m_method_ne = methodNe;
+
+        opt = "method_quad";
+        METHODS_QUADRATURES methodsQuadratures;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            methodsQuadratures = METHODS_QUADRATURES::INT_CADRE;
+        }
+        else{
+            if(opts.at(opt) == "CADRE")
+                methodsQuadratures = METHODS_QUADRATURES::INT_CADRE;
+            else if(opts.at(opt) == "TRAP_FIXED")
+                methodsQuadratures = METHODS_QUADRATURES::INT_TRAP_FIXED;
+            else{
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
+                                     <<" given: " << opts.at(opt)
+                                     << " is not recognized. "
+                                     << "Possible options: "
+                                     << " CADRE " << " TRAP_FIXED " << "\n";
+                exit(1);
+            }
+        }
+        p_eats->method_quad = methodsQuadratures;
+
+        opt = "method_shock_vel";
+        METHODS_SHOCK_VEL methodsShockVel;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            methodsShockVel = METHODS_SHOCK_VEL::isameAsBW;
+        }
+        else{
+            if(opts.at(opt) == "sameAsBW")
+                methodsShockVel = METHODS_SHOCK_VEL::isameAsBW;
+            else if(opts.at(opt) == "shockVel")
+                methodsShockVel = METHODS_SHOCK_VEL::ishockVel;
+            else{
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
+                                     <<" given: " << opts.at(opt)
+                                     << " is not recognized. "
+                                     << " Possible options: "
+                                     << " sameAsBW " << " shockVel " << "\n";
+//                std::cerr << AT << "\n";
+                exit(1);
+            }
+        }
+        p_eats->method_shock_vel = methodsShockVel;
+
+        p_eats->counter_jet = getBoolOpt("counter_jet", opts, AT, p_log,true, false);
+
+        opt = "method_comp_mode";
+        METHODS_RAD methodCompMode;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            methodCompMode = METHODS_RAD::iobservflux;
+        }
+        else{
+            if(opts.at(opt) == "observFlux")
+                methodCompMode = METHODS_RAD::iobservflux;
+            else if(opts.at(opt) == "comovSpec")
+                methodCompMode = METHODS_RAD::icomovspec;
+            else{
+                (*p_log)(LOG_ERR,AT) << AT << " option for: " << opt
+                                     <<" given: " << opts.at(opt)
+                                     << " is not recognized. "
+                                     << "Possible options: "
+                                     << " observFlux " << " comovSpec " << "\n";
+                exit(1);
+            }
+        }
+        p_eats->m_method_rad = methodCompMode;
+
+
+        p_eats->m_freq_arr = TOOLS::MakeLogspace(log10(p_eats->freq1), log10(p_eats->freq2),(int)p_eats->nfreq);
+        if (p_eats->m_method_rad == METHODS_RAD::icomovspec){
+            (*p_log)(LOG_INFO,AT) << " allocating comoving spectrum array (fs) "
+                                  << " freqs="<<p_eats->m_freq_arr.size() << " by radii=" << p_pars->nr << " Spec. grid="
+                                  << p_eats->m_freq_arr.size() * p_pars->nr << "\n";
+            p_eats->m_synch_em.resize( p_eats->m_freq_arr.size() * p_pars->nr );
+            p_eats->m_synch_abs.resize( p_eats->m_freq_arr.size() * p_pars->nr );
+        }
+
+
+    }
+    void updateObsPars(StrDbMap & pars){
+        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+        p_eats->theta_obs = getDoublePar("theta_obs", pars, AT, p_log,-1, true);//pars.at("theta_obs");
+        p_eats->d_l = getDoublePar("d_l", pars, AT, p_log,-1, true);//pars.at("d_l");
+        p_eats->z = getDoublePar("z", pars, AT, p_log,-1, true);//pars.at("z");
+//        check_for_unexpected_par(pars, {"theta_obs","d_l","z"});
+    }
+
+    auto *& getEatsPars() {
+        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+        return p_eats;
+    }
+    auto & getSynchAnPtr(){
+        return p_pars->p_fs->getAnSynch();
+    }
+
+
+
+    /// evaluate flux density using adaptive integrator
+    double evalFluxDensA(double t_obs, double nu_obs, double atol) {
+        double fluxdens = 0.;
+        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+        parsPars(t_obs, nu_obs, p_pars->theta_c_l, p_pars->theta_c_h,
+                 0., M_PI, obsAngle);
+        check_pars();
+        double Fcoeff = CGS::cgs2mJy / (4.0 * M_PI * p_eats->d_l * p_eats->d_l); // result will be in mJy
+        p_eats->atol_theta = atol;// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
+        p_eats->atol_phi = atol;//  / (2.0 * Fcoeff);
+        fluxdens += 2. * Fcoeff * integrate_theta_phi(p_eats); // 2. because Integ_0^pi (not 2pi)
+        if (p_eats->counter_jet){
+            parsPars(t_obs, nu_obs, p_pars->theta_c_l, p_pars->theta_c_h,
+                     0., M_PI, obsAngleCJ);
+            check_pars();
+            p_eats->atol_theta = atol;// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
+            p_eats->atol_phi = atol;//  / (2.0 * Fcoeff);
+            fluxdens += 2. * Fcoeff * integrate_theta_phi(p_eats);
+        }
+        return fluxdens;
+    }
+
+    /// evaluate intensity/flux density distribution using piece-wise summation
+    void evalImagePW(Image & image, Image & im_pj, Image & im_cj, double obs_time, double obs_freq){
+        Array phi_grid = LatStruct::getCphiGridPW( p_pars->ilayer );
+        computeImagePW(im_pj, im_cj, obs_time, obs_freq );
+        /// combine the two images (use full 'ncells' array, and fill only cells that correspond to this layer)
+        for (size_t icell = 0; icell < phi_grid.size(); ++icell) {
+            for (size_t ivn = 0; ivn < image.m_names.size(); ++ivn)
+                image(ivn, icell) = im_pj(ivn,icell);
+            for (size_t ivn = 0; ivn < image.m_names.size(); ++ivn)
+                image(ivn,phi_grid.size()+icell) = im_cj(ivn,icell);
+        }
+        image.m_f_tot = (im_pj.m_f_tot + im_cj.m_f_tot);
+    }
+
+
+    void evalImageFromPW(Image & image, double t_obs, double nu_obs,
+                         double (*obs_angle)( const double &, const double &, const double & ),
+                         double (*im_xxs)( const double &, const double &, const double & ),
+                         double (*im_yys)( const double &, const double &, const double & )){
+
+        auto & p_syn = p_pars->p_rs->getAnSynch();
+
+        if ((m_data[BW::Q::iR][0] == 0.) && (p_pars->Gamma0 > 0)){
+            (*p_log)(LOG_WARN,AT) << " [ishell=" << p_pars->ishell << " ilayer="<<p_pars->ilayer << "] "
+                                  << " R[0]=0. Seems not evolved -> returning empty image." << "\n";
+            return;
+        }
+
+        parsPars(t_obs, nu_obs, 0., 0., 0., 0., obs_angle);
+        check_pars();
+
+        double flux = 0.;
+        auto & m_data = p_pars->m_data;
+        if (p_pars->end_evolution){
+            (*p_log)(LOG_WARN,AT)
+                    << "[ish=" << p_pars->ishell << ", il="<<p_pars->ilayer << "] "
+                    << " Evolution was terminated at ix="<<p_pars->comp_ix<<" "
+                    << " Error might occure here... [TODO] Check if limited calcs to this ix works..\n";
+        }
+        Array ttobs( 1e200, m_data[BW::Q::iR].size()  );
+        Array cphis = LatStruct::getCphiGridPW(p_pars->ilayer);
+
+        /// limit the evaluation to the latest 'R' that is not 0 (before termination)
+        size_t nr = m_data[BW::Q::iR].size();
+        size_t i_end_r = nr;
+        for(size_t ir = 0; ir < nr; ++ir){
+            if (m_data[BW::Q::iR][ir] == 0.) {
+                i_end_r = ir;
+                break;
+            }
+        }
+        if (i_end_r == 0){
+            (*p_log)(LOG_ERR,AT) << " i_end_r = " << i_end_r << "\n";
+            exit(1);
+        }
+
+        Vector mu_arr (cphis.size(),0.0);
+        for (size_t k = 0; k < cphis.size(); k++) {
+            double _phi_cell = cphis[k];
+            double _ctheta_cell = p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
+            mu_arr[k] = obs_angle(_ctheta_cell, _phi_cell, p_pars->theta_obs);
+        }
+
+        /// TODO make it so after some 'phi' the loop stops -- speed up the calculation
+
+        /// main loops (if to use pre-computed comoving emissivities or compute them here)
+        if (p_pars->m_method_rad == METHODS_RAD::icomovspec) {
+            /// init interpolator // TODO major speedup -- do index search for interpolation ONCE and use for both
+            Interp2d int_em(p_pars->m_freq_arr, m_data[BW::Q::iR], p_pars->m_synch_em);
+            Interp2d int_abs(p_pars->m_freq_arr, m_data[BW::Q::iR], p_pars->m_synch_abs);
+            Interp1d::METHODS mth = Interp1d::iLagrangeLinear;
+            for (size_t i = 0; i < cphis.size(); i++){
+                double phi_cell = cphis[i];
+                double ctheta_cell = p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
+//                double mu = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
+                for (size_t i_ = 0; i_ < i_end_r; i_++) {
+                    ttobs[i_] = m_data[BW::Q::itt][i_] + m_data[BW::Q::iR][i_] / CGS::c * (1.0 - mu_arr[i]);
+                }
+                /// check if req. obs time is outside of the evolved times (throw error)
+                if (t_obs < ttobs[0]) {
+                    (*p_log)(LOG_ERR,AT) << " time grid starts too late "
+                                         << " t_grid[0]=" << ttobs[0] << " while requested obs.time=" << t_obs << "\n"
+                                         << " extend the grid to earlier time or request tobs at later times\n"
+                                         << " Exiting...\n";
+                    exit(1);
+                }
+                if ((i_end_r == nr) && (t_obs > ttobs[i_end_r - 1])) {
+                    (*p_log)(LOG_ERR,AT) << " time grid ends too early. "
+                                         << " t_grid[i_end_r-1]=" << ttobs[i_end_r - 1] << " while requested obs.time=" << t_obs << "\n"
+                                         << " extend the grid to later time or request tobs at earlier times\n"
+                                         << " Exiting...\n";
+//                    std::cout << ttobs << std::endl;
+                    exit(1);
+                }
+                else if ((i_end_r < nr) && (t_obs > ttobs[i_end_r - 1])) {
+                    (*p_log)(LOG_WARN,AT) << " time grid was shorten to i=" << i_end_r << " from nr=" << nr
+                                          << " and now ends at t_grid[i_end_r-1]=" << ttobs[i_end_r - 1]
+                                          << " while t_obs=" << t_obs << "\n";
+                    continue;
+                }
+                /// locate closest evolution points to the requested obs. time
+                size_t ia = findIndex(t_obs, ttobs, ttobs.size());
+                if (ia >= i_end_r - 1) continue; // ??
+                size_t ib = ia + 1;
+                /// interpolate the exact radial position of the blast that corresponds to the req. obs time
+                double r = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iR]);
+                //  double r = ( Interp1d(ttobs, m_data[BW::Q::iR] ) ).Interpolate(t_obs, mth );
+                if ((r <= 0.0) || !std::isfinite(r)) {
+                    (*p_log)(LOG_ERR,AT) << " R <= 0. Extend R grid (increasing R0, R1). "
+                                         << " Current R grid us ["
+                                         << m_data[BW::Q::iR][0] << ", "
+                                         << m_data[BW::Q::iR][m_tb_arr.size() - 1] << "] "
+                                         << "and tobs arr ["
+                                         << ttobs[0] << ", " << ttobs[p_pars->nr - 1]
+                                         << "] while the requried obs_time=" << p_pars->t_obs
+                                         << "\n";
+                    break;
+                }
+                double Gamma = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iGamma]);
+                double beta = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::ibeta]);
+                // double GammaSh = ( Interp1d(m_data[BW::Q::iR], m_data[BW::Q::iGammaFsh] ) ).Interpolate(r, mth );
+                /// compute Doppler factor
+                double a = 1.0 - beta * mu_arr[i]; // beaming factor
+                double delta_D = Gamma * a; // doppler factor
+                /// compute the comoving obs. frequency from given one in obs. frame
+                double nuprime = (1.0 + p_pars->z ) * p_pars->nu_obs * delta_D;
+                size_t ia_nu = findIndex(nuprime, p_pars->m_freq_arr, p_pars->m_freq_arr.size());
+                size_t ib_nu = ia_nu + 1;
+                /// interpolate the emissivity and absorption coefficines
+//                double em_prime = int_em.Interpolate(nuprime, r, mth);
+                double em_prime = int_em.InterpolateBilinear(nuprime, r, ia_nu, ib_nu, ia, ib);
+//                double abs_prime = int_abs.Interpolate(nuprime, r, mth);
+                double abs_prime = int_abs.InterpolateBilinear(nuprime, r, ia_nu, ib_nu, ia, ib);
+                /// convert to the laboratory frame
+                double em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
+                double abs_lab = abs_prime * delta_D; // conversion of absorption (see vanEerten+2010)
+
+                /// compute optical depth (for this shock radius and thickness are needed)
+                double GammaShock = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iGammaFsh]);
+                double dr = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::ithickness]);
+                double dr_tau = EQS::shock_delta(r, GammaShock); // TODO this is added becasue in Johanneson Eq. I use ncells
+
+                double beta_shock;
+                switch (p_pars->method_shock_vel) {
+
+                    case isameAsBW:
+                        beta_shock = EQS::Beta(Gamma);
+                        break;
+                    case ishockVel:
+//                double u = sqrt(GammaShock * GammaShock - 1.0);
+//                double us = 4.0 * u * sqrt((u * u + 1) / (8. * u * u + 9.)); // from the blast wave velocity -> compute shock velocity
+                        beta_shock = EQS::Beta(GammaShock);//us / sqrt(1. + us * us);
+                        break;
+                }
+                double ashock = (1.0 - mu_arr[i] * beta_shock); // shock velocity beaming factor
+                dr /= ashock; // TODO why is this here? What it means? Well.. Without it GRB LCs do not work!
+                dr_tau /= ashock;
+                double dtau = RadiationBase::optical_depth(abs_lab,dr_tau, mu_arr[i], beta_shock);
+                double intensity = RadiationBase::computeIntensity(em_lab, dtau,
+                                                                   p_syn->getPars()->method_tau);
+                double flux_dens = (intensity * r * r * dr) * (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+                flux+=flux_dens;
+                /// save the result in image
+                double ctheta = interpSegLin(ia, ib, t_obs, ttobs, m_data[BW::Q::ictheta]);
+                //  double ctheta = ( Interp1d(m_data[BW::Q::iR], m_data[BW::Q::ictheta] ) ).Interpolate(r, mth );
+                image(Image::iintens, i) =
+                        flux_dens / (r * r * std::abs(mu_arr[i])) * CGS::cgs2mJy; //(obs_flux / (delta_D * delta_D * delta_D)); //* tmp;
+                image(Image::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
+                image(Image::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
+                image(Image::imu, i) = mu_arr[i];
+            }
+            image.m_f_tot = flux * CGS::cgs2mJy; /// flux in mJy
+        }
+        else {
+            Interp1d::METHODS mth = Interp1d::iLagrangeLinear;
+            for (size_t i = 0; i < cphis.size(); i++){
+                double phi_cell = cphis[i];
+                double ctheta_cell = p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
+//                double mu = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
+                for (size_t i_ = 0; i_ < i_end_r; i_++) {
+                    ttobs[i_] = m_data[BW::Q::itt][i_] + m_data[BW::Q::iR][i_] / CGS::c * (1.0 - mu_arr[i]);
+                }
+                if (t_obs < ttobs[0]) {
+                    (*p_log)(LOG_ERR,AT) << " time grid starts too late "
+                                         << " t_grid[0]=" << ttobs[0] << " while requested obs.time=" << t_obs << "\n"
+                                         << " extend the grid to earlier time or request tobs at later times\n"
+                                         << " Exiting...\n";
+//                        (*p_log)(LOG_ERR,AT) << AT << "\n";
+                    exit(1);
+                }
+                if ((i_end_r == nr) && (t_obs > ttobs[i_end_r - 1])) {
+                    (*p_log)(LOG_ERR,AT) << " time grid ends too early. "
+                                         << " t_grid[i_end_r-1]=" << ttobs[i_end_r - 1] << " while requested obs.time=" << t_obs << "\n"
+                                         << " extend the grid to later time or request tobs at earlier times\n"
+                                         << " Exiting...\n";
+//                        std::cout << ttobs << std::endl;
+//                        std::cerr << AT << "\n";
+                    exit(1);
+                } else if ((i_end_r < nr) && (t_obs > ttobs[i_end_r - 1])) {
+                    (*p_log)(LOG_WARN,AT) << " time grid was shorten to i=" << i_end_r << " from nr=" << nr
+                                          << " and now ends at t_grid[i_end_r-1]=" << ttobs[i_end_r - 1]
+                                          << " while t_obs=" << t_obs << "\n";
+                    continue;
+                }
+
+                size_t ia = findIndex(t_obs, ttobs, ttobs.size());
+                if (ia >= i_end_r - 1)
+                    continue;
+                size_t ib = ia + 1;
+
+                double r = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iR]);
+                if ((r <= 0.0) || !std::isfinite(r)) {
+                    (*p_log)(LOG_WARN,AT) << " R <= 0. Extend R grid (increasing R0, R1). "
+                                          << " Current R grid us ["
+                                          << m_data[BW::Q::iR][0] << ", "
+                                          << m_data[BW::Q::iR][m_tb_arr.size() - 1] << "] "
+                                          << "and tobs arr ["
+                                          << ttobs[0] << ", " << ttobs[p_pars->nr - 1]
+                                          << "] while the requried obs_time=" << p_pars->t_obs
+                                          << "\n";
+                    break;
+                }
+
+                double Gamma = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iGamma]);
+                double GammaSh = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iGammaFsh]);
+                double rho2 = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::irho2]);
+                double m2 = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iM2]);
+                double frac = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iacc_frac]);
+                double thick = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::ithickness]);
+                double theta = interpSegLin(ia, ib, t_obs, ttobs, m_data[BW::Q::itheta]);
+                double ctheta = interpSegLin(ia, ib, t_obs, ttobs, m_data[BW::Q::ictheta]);
+                double B = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iB]);
+                double gm = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::igm]);
+                double gM = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::igM]);
+                double gc = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::igc]);
+                double Theta = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iTheta]);
+                double z_cool = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iz_cool]);
+                double tb = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::itburst]);
+                double tt = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::itt]);
+                double cs = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iCSCBM]);
+
+                double dFnu = 0.;
+                if ((m_data[BW::Q::iB][ia] == 0.) || (m_data[BW::Q::iB][ib] == 0.)){
+                    dFnu = 0.;
+                }
+                else{
+#if 0
+                    if ((Gamma < 1. || !std::isfinite(Gamma))
+                        || (gm < 0.) || (!std::isfinite(gm))
+                        || (gM < 0.) || (gc < 0.) || (B < 0.) || (!std::isfinite(B))
+                        || (theta <= 0.)
+                        || (rho2 < 0.) || (!std::isfinite(rho2))
+                        || (thick <= 0.) || (GammaSh <= 1.)) {
+                        (*p_log)(LOG_ERR,AT)<< " Error in interpolation to EATS surface: \n"
+                                            << " R = " << r << "\n"
+                                            << " Gamma = " << Gamma << "\n"
+                                            << " GammaSh = " << GammaSh << "\n"
+                                            << " gm = " << gm << "\n"
+                                            << " gM = " << gM << "\n"
+                                            << " gc = " << gc << "\n"
+                                            << " B = " << B << "\n"
+                                            << " Theta = " << Theta << "\n"
+                                            << " z_cool = " << z_cool << "\n"
+                                            << " theta = " << theta << "\n"
+                                            << " rho2 = " << rho2 << "\n"
+                                            << " thick = " << thick << "\n"
+                                            << " t_obs = " << t_obs << "\n";
+//                    exit(1);
+                    }
+                    if ((B != 0.) && (!std::isfinite(rho2))) {
+                        (*p_log)(LOG_ERR,AT)<< " B!=0 and rho2 is NAN \n"
+                                            << " Error in data \n"
+                                            << " R = " << r << "\n"
+                                            << " Gamma = " << Gamma << "\n"
+                                            << " gm = " << gm << "\n"
+                                            << " gM = " << gM << "\n"
+                                            << " gc = " << gc << "\n"
+                                            << " B = " << B << "\n"
+                                            << " Theta = " << Theta << "\n"
+                                            << " z_cool = " << z_cool << "\n"
+                                            << " theta = " << theta << "\n"
+                                            << " rho2 = " << rho2 << "\n"
+                                            << " thick = " << thick << "\n"
+                                            << " t_obs = " << t_obs << "\n"
+                                            << " Exiting...\n";
+                        exit(1);
+                    }
+#endif
+                    double thick_tau = EQS::shock_delta(r,GammaSh); // TODO this is added becasue in Johanneson Eq. I use ncells
+                    dFnu = shock_synchrotron_flux_density(Gamma, GammaSh, m2, rho2, frac, B, gm, gM, gc,
+                                                          Theta, z_cool, t_obs, mu_arr[i],
+                                                          r, thick,  thick_tau, p_pars);
+                }
+                dFnu *= (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+
+                flux += dFnu;
+
+                image(Image::iintens, i) =
+                        dFnu / (r * r * std::abs(mu_arr[i])) * CGS::cgs2mJy; //(obs_flux / (delta_D * delta_D * delta_D)); //* tmp;
+                image(Image::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
+                image(Image::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
+                image(Image::imu, i) = mu_arr[i];
+            }
+            image.m_f_tot = flux * CGS::cgs2mJy; /// flux in mJy
+        }
+    }
+    /// get the observed flux density distrib 'image' for 2 projections for given time, freq, angle, distance, red shift
+    void computeImagePW(Image & im_pj, Image & im_cj, double obs_time, double obs_freq){
+        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+        size_t cells_in_layer = LatStruct::CellsInLayer(p_pars->ilayer);
+        /// compute image for primary jet and counter jet
+        evalImageFromPW(im_pj, obs_time, obs_freq, obsAngle, imageXXs, imageYYs);
+        if (p_eats->counter_jet) // p_eats->counter_jet
+            evalImageFromPW(im_cj, obs_time, obs_freq, obsAngleCJ, imageXXsCJ, imageYYsCJ);
+    }
+
+
+    /// precompute electron distribution properties for each timestep
+    void addComputeForwardShockMicrophysics(size_t it){
+//        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+        auto & p_syn = p_pars->p_fs->getAnSynch();
+        if ((m_data[Q::ibeta][it] < p_pars->p_fs->getAnSynch()->getPars()->beta_min)){
+            return;
+        }
+        if ((m_data[Q::iCSCBM][it] >= m_data[Q::ibeta][it])){
+            m_data[Q::iB][it] = 0.;
+            return;
+        }
+        // no ISM case -> no electron acceleration
+        if ((m_data[Q::iU_p][it] <= 0) || (m_data[Q::irho2][it] <= 0)){
+            if (p_pars->i0_failed_elecctrons == 0)
+                p_pars->i0_failed_elecctrons = it;
+            p_pars->i0_failed_elecctrons += 1;
+//            std::cerr << AT << " at it="<<it<<" U_e="<<m_data[Q::iU_e][it]<<" and rho2="<<m_data[Q::irho2][it]<<" skipping electron calc.\n";
+            return;
+        }
+//        if(m_data[Q::iGammaREL][it]<=1.){
+//            std::cerr << AT << " at it="<<it<<" iGammaREL="<<m_data[Q::iGammaREL][it]<<" skipping electron calc.\n";
+//            exit(1);
+//        }
+        double Gamma_; // TODO should be GammaSh
+        if (m_data[Q::iGammaREL][it] > 0.) Gamma_ = m_data[Q::iGammaREL][it];
+        else Gamma_ = m_data[Q::iGamma][it];
+
+        /// for observer frame evaluation, the rad. needs TT, while for comov. spectrum it needs tcomov
+        // TODO Check if time is TT or tburst here
+//        Array * tmp_time;
+//        if (p_syn->getPars()->method_comp_mode==SynchrotronAnalytic::METHODS_RAD::icomovspec)
+//            *tmp_time = m_data[Q::itt][it];
+//        else
+//            *tmp_time = m_data[Q::itburst][it];
+        p_syn->precompute(m_data[Q::iU_p][it],
+                          m_data[Q::iGamma][it],
+//                               m_data[Q::iGamma][it],
+                          m_data[Q::iGammaFsh][it],
+                          m_data[Q::itt][it], // TODO WHICH TIME IS HERE? tbirst? tcomov? observer time (TT)
+//                               m_data[Q::itburst][it], // emission time (TT)
+                          m_data[Q::irho2][it] / CGS::mp);
+        // adding
+        m_data[Q::iB][it]      = p_syn->getPars()->B;
+        m_data[Q::igm][it]     = p_syn->getPars()->gamma_min;
+        m_data[Q::igM][it]     = p_syn->getPars()->gamma_max;
+        m_data[Q::igc][it]     = p_syn->getPars()->gamma_c;
+        m_data[Q::iTheta][it]  = p_syn->getPars()->Theta;
+//        m_data[Q::ix][it]      = p_syn->getPars()->x; // IT is not evaluated/ It depends in freq
+        m_data[Q::iz_cool][it] = p_syn->getPars()->z_cool;
+        m_data[Q::inprime][it] = p_syn->getPars()->n_prime;
+        m_data[Q::iacc_frac][it] = p_syn->getPars()->accel_frac;
+//        if ( m_data[Q::iGamma][it] < 5 ){
+//            exit(1);
+//        }
+        if ((!std::isfinite( m_data[Q::igm][it] )) || (m_data[Q::iB][it] < 0.)) {
+            (*p_log)(LOG_ERR,AT) << " Wrong value at i=" << it << " tb=" << m_data[Q::itburst][it]
+                                 << " iR="     << m_data[Q::iR][it] << "\n"
+                                 << " iGamma=" << m_data[Q::iGamma][it] << "\n"
+                                 << " ibeta=" << m_data[Q::ibeta][it] << "\n"
+                                 << " iM2="    << m_data[Q::iM2][it] << "\n"
+                                 << " iEint2=" << m_data[Q::iEint2][it] << "\n"
+                                 << " iU_p="   << m_data[Q::iU_p][it] << "\n"
+                                 << " irho="   << m_data[Q::irho][it] << "\n"
+                                 << " irho2="  << m_data[Q::irho2][it] << "\n"
+                                 << " iB="     << m_data[Q::iB][it] << "\n"
+                                 << " igm="    << m_data[Q::igm][it] << "\n"
+                                 << " igM="    << m_data[Q::igM][it] << "\n"
+                                 << " igc="    << m_data[Q::igc][it] << "\n"
+                                 << " iTheta=" << m_data[Q::iTheta][it] << "\n"
+                                 //                      << " ix="     << m_data[Q::ix][it] << "\n"
+                                 << " iz_cool="<< m_data[Q::iz_cool][it] << "\n"
+                                 << " inprime="<< m_data[Q::inprime][it]
+                                 << "\n";
+            exit(1);
+        }
+    }
+    void computeForwardShockElectronAnalyticVars(){
+        for (size_t it = 0; it < m_tb_arr.size(); ++it){
+            addComputeForwardShockMicrophysics(it);
+        }
+
+        if (p_pars->n_fialed_electrons == m_tb_arr.size()-1){
+            (*p_log)(LOG_ERR,AT) << " Electron calculation failed for all iterations. Exiting...\n";
+            exit(1);
+        }
+
+        else if (p_pars->n_fialed_electrons != 0){
+            (*p_log)(LOG_ERR,AT) <<" Electron calculation failed for n=" << p_pars->n_fialed_electrons
+                                 << " iterations starting from it=" << p_pars->i0_failed_elecctrons<<"\n";
+//            exit(1);
+        }
+    }
+
+    /// compute comoving emissivity and absorption for each ifreq and each timestep
+    void computeForwardShockComovingEmissivityAndAbsorption(size_t it){
+//        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+        auto & p_syn = p_pars->p_fs->getAnSynch();
+        /// exit if the obs. radiation method of choice does not need comoving spectrum
+        if (p_pars->m_freq_arr.size() < 1){
+            (*p_log)(LOG_ERR,AT) << " array for comoving spectrum is not initialized \n Exiting...\n";
+            exit(1);
+        }
+        if (p_pars->m_synch_em.size() < 1){
+            (*p_log)(LOG_ERR,AT)<< " array for comoving spectrum frequencies is not initialized \n Exiting...\n";
+            exit(1);
+        }
+//        (*p_log)(LOG_INFO) << " computing comoving intensity spectum for "
+//                              << p_syn->getFreqArr().size() << " grid";
+        /// -- check if there are any data first
+        double beta_;
+        if (m_data[Q::iGammaREL][it] > 0.) beta_ = EQS::Beta( m_data[Q::iGammaREL][it] );
+        else beta_ = m_data[Q::ibeta][it];
+
+        /// if BW is not evolved to this 'it' or velocity is smaller than minimum
+        if ((m_data[Q::iR][it] < 1)||(beta_ < p_syn->getPars()->beta_min))
+            return;
+
+        if (m_data[Q::igm][it] == 0){
+            (*p_log)(LOG_ERR,AT)<< " in evolved blast wave, found gm = 0" << "\n";
+            exit(1);
+        }
+
+        /// compute emissivity and absorption for each frequency
+        for (size_t ifreq = 0; ifreq < p_pars->m_freq_arr.size(); ++ifreq){
+            /// compute all types of emissivities and absoprtions
+            p_syn->compute(m_data[Q::irho2][it] / CGS::mp,//m_data[Q::iM2][it] / CGS::mp,
+                           m_data[Q::iM2][it] / CGS::mp,//m_data[Q::iM2][it] / CGS::mp,
+                           m_data[Q::iacc_frac][it],
+                           m_data[Q::iB][it],
+                           m_data[Q::igm][it],
+                           m_data[Q::igM][it],
+                           m_data[Q::igc][it],
+                           m_data[Q::iTheta][it],
+                           m_data[Q::iz_cool][it],
+//                                       m_data[Q::irho2][it] / CGS::mp,
+                           p_pars->m_freq_arr[ifreq]
+            );
+            /// add evaluated data to the storage
+//            double thick_tau = EQS::shock_delta(m_data[Q::iRsh][it],m_data[Q::iGammaFsh][it]);
+//            p_syn->addIntensity(thick_tau, 0., 1.);
+            p_pars->m_synch_em[ifreq + p_pars->nfreq * it] = p_syn->get_em();
+            p_pars->m_synch_abs[ifreq + p_pars->nfreq * it] = p_syn->get_abs();
+        }
+    }
+    void computeForwardShockSynchrotronAnalyticSpectrum(){
+        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+        if (p_eats->m_method_rad==METHODS_RAD::icomovspec) {
+            (*p_log)(LOG_INFO,AT) << " computing analytic comoving spectrum\n";
+            for (size_t it = 0; it < m_tb_arr.size(); ++it) {
+                computeForwardShockComovingEmissivityAndAbsorption(it);
+            }
+        }
+    }
+
+    /// comoving spectrum for external use
+    // TODO remove and use previous (above) functions for it!!
+    auto evalForwardShockComovingSynchrotron(Vector & freq_arr, size_t every_it ){
+//        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+        auto & p_syn = p_pars->p_fs->getAnSynch();
+        Vector t_arr{};
+        if (every_it == 0){
+            (*p_log)(LOG_ERR,AT) << " comov spectrum at every_it="<<every_it<<" cannot be evaluated.\n Exiting...\n";
+//            std::cerr << AT << " \n";
+            exit(1);
+        }
+        else if (every_it == 1){
+//            t_arr = getTbGrid();
+//            out_em.resize(m_mag_time.size());
+//            out_abs.resize(m_mag_time.size());
+            t_arr = m_tb_arr;
+            for(auto & arr : p_syn->m_names_)
+                arr.resize( m_tb_arr.size() );
+        }
+        else{
+            t_arr = getTbGrid(every_it);
+            for(auto & arr : p_syn->m_names_)
+                arr.resize( m_tb_arr.size() );
+//            out_em.resize(t_arr.size());
+//            out_abs.resize(t_arr.size());
+        }
+
+        /// allocate momory for data
+        std::vector< // types (em/abs)
+                std::vector< // freqs
+                        std::vector<double>>> // times
+        data ( p_syn->m_names_.size() );
+        for (auto & arr : data) {
+            arr.resize(freq_arr.size());
+            for (auto & arrr : arr){
+                arrr.resize( t_arr.size() );
+            }
+        }
+
+        /// compute spectra and fill storage
+        size_t iit = 0;
+        for (size_t it = 0; it < m_tb_arr.size(); it = it + every_it){
+            /// -- check if there are any data first
+            double beta_;
+            if (m_data[Q::iGammaREL][it] > 0.) beta_ = EQS::Beta( m_data[Q::iGammaREL][it] );
+            else beta_ = m_data[Q::ibeta][it];
+            if ((m_data[Q::iR][it] < 1)||(beta_ < p_syn->getPars()->beta_min))
+                continue;
+            if (m_data[Q::igm][it] == 0){
+                (*p_log)(LOG_ERR,AT) << " in evolved blast wave, found gm = 0" << "\n";
+                exit(1);
+            }
+
+            /// if so
+            for (size_t ifreq = 0; ifreq < freq_arr.size(); ++ifreq){
+                /// compute all types of emissivities and absoprtions
+                p_syn->compute(m_data[Q::irho2][it]/CGS::mp,//m_data[Q::iM2][it] / CGS::mp,
+                               m_data[Q::iM2][it] / CGS::mp,
+                               m_data[Q::iacc_frac][it],
+                               m_data[Q::iB][it],
+                               m_data[Q::igm][it],
+                               m_data[Q::igM][it],
+                               m_data[Q::igc][it],
+                               m_data[Q::iTheta][it],
+                               m_data[Q::iz_cool][it],
+//                                       m_data[Q::irho2][it] / CGS::mp,
+                               freq_arr[ifreq]
+                );
+                /// add evaluated data to the storage
+                double thick_tau = EQS::shock_delta(m_data[Q::iRsh][it],m_data[Q::iGammaFsh][it]);
+//                p_syn->addIntensity(m_data[Q::ithickness][it], 0., 1.);
+                p_syn->addIntensity(thick_tau, 0., 1.);
+                double val;
+                for (size_t i_type = 0; i_type < p_syn->m_names_.size(); ++i_type) {
+                    val = p_syn->getData()[i_type];
+                    data[i_type][ifreq][iit] = val;
+                }
+//                data[p_syn->i_int][ifreq][iit] =
+//                        (data[p_syn->i_em][ifreq][iit] / data[p_syn->i_abs][ifreq][iit])
+//                        * (1. - )
+//                intensity = computeIntensity(em_lab, abs_lab, dr_tau, mu, beta_shock, p_eats->method_tau);
+
+
+            }
+            iit++;
+        }
+        return std::move(data);
+#if 0
+        for (size_t ifreq = 0; ifreq < freq_arr.size(); ++ifreq){
+            for (size_t it = 0; it < t_arr.size(); ++it){
+                // -- check if
+                double beta_;
+                if (m_data[Q::iGammaREL][it] > 0.) beta_ = EQS::Beta( m_data[Q::iGammaREL][it] );
+                else beta_ = m_data[Q::ibeta][it];
+                if ((m_data[Q::iR][it] < 1)||(beta_ < p_syn->getPars()->beta_min))
+                    continue;
+            }
+        }
+
+        for (size_t i_type = 0; i_type < p_syn->cspec_vnames.size(); ++i_type) {
+            for ()
+        }
+
+        VecVector data_em{}; // emissivity of absorption in the comoving frame
+        VecVector data_abs{}; // emissivity of absorption in the comoving frame
+        for (auto & freq : freq_arr) {
+//            std::cout << "inu=" << freq << "/" << freq_arr.size() << " [comoving spectrum]\n";
+            auto data = evalComovingSynchrotron(freq, every_it);
+            data_em.emplace_back(std::get<0>(data));
+            data_abs.emplace_back(std::get<1>(data));
+//            data.emplace_back(evalForwardShockComovingSynchrotron(freq, itype, every_it));
+        }
+        return std::move(std::pair(data_em,data_abs));
+#endif
+    }
+
+    /// compute light curve using Adapitve or Piece-Wise EATS method
+    void evalForwardShockLightCurve(Image & image, Image & im_pj, Image & im_cj,
+                                    Vector & light_curve, Vector & times, Vector & freqs ){
+//        Vector light_curve (times.size(), 0.0);
+        if ((m_data[BW::Q::iR][0] == 0.0) && (m_data[BW::Q::iR][p_pars->nr-1] == 0.0)){
+            (*p_log)(LOG_WARN, AT)
+                    << " blast wave not evolved, flux=0 [ishell="<<p_pars->ishell<<", ilayer="<<p_pars->ilayer<<"]\n";
+            std::fill(light_curve.begin(), light_curve.end(),0.0);
+            return ; //std::move(light_curve);
+        }
+
+        double rtol = 1e-6;
+//        Image image; Image im_pj; Image im_cj;
+        for (size_t it = 0; it < times.size(); it++) {
+//            (*p_log)(LOG_INFO,AT)<<" LC processing it="<<it<<"/"<<times.size()<<"\n";
+            if (p_pars->m_method_eats == LatStruct::i_pw) {
+//                    auto image = model->evalImagePW(obs_times[it], obs_freqs[it]);
+                computeImagePW(im_pj, im_cj, times[it], freqs[it] );
+                image.m_f_tot = (im_pj.m_f_tot + im_cj.m_f_tot);
+//                evalImagePW(image, im_pj, im_cj, times[it], freqs[it]);
+                light_curve[it] += image.m_f_tot;
+            }
+            else{
+                double atol = light_curve[it] * rtol / (double)p_pars->nlayers;
+                light_curve[it] += evalFluxDensA(times[it], freqs[it], atol);
+            }
+        }
+//        return std::move(light_curve);
+    }
+};
+
+class DynRadBlastWave : public RadBlastWave{
+    std::unique_ptr<logger> p_log;
+public:
+    explicit DynRadBlastWave(Vector & tb_arr, size_t ishell, size_t ilayer, int loglevel )
+            : RadBlastWave(tb_arr, ishell, ilayer, loglevel) {
+//        p_log = std::make_unique<logger>(std::cout, loglevel, "RadBlastWave");
+//        pfsolvePars = new FsolvePars;
+//        pfsolvePars->p_eos = p_eos;
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "DynRadBlastWave");
+    }
+
+    ~DynRadBlastWave(){ }
+//    FsolvePars *& getCombPars(){ return pfsolvePars; }
+    // RHS settings
+    const static int neq = 11;
+    std::vector<std::string> vars { "R", "Rsh", "tt", "tcomov", "mom", "Eint2", "theta", "Erad2", "Esh2", "Ead2", "M2" };
+    enum QS { iR, iRsh, itt, itcomov, imom, iEint2, itheta, iErad2, iEsh2, iEad2, iM2 };
+    size_t getNeq() override {
+        return neq;
+    }
+    enum CASES { i_INSIDE_BEHIND, i_OUTSIDE_BEHIND, i_INSIDE_ABOVE, i_OUTSIDE_ABOVE, i_AT_ZERO_INSIDE };
+    ///
+    void updateNucAtomic( double * sol, const double t ){
+        p_nuc->update(
+                p_pars->Ye0,
+                p_pars->M0 * (double)LatStruct::CellsInLayer(p_pars->ilayer), // m_iso ( for eps_th )
+                EQS::BetFromMom( sol[ p_pars->ii_eq + DynRadBlastWave::QS::imom ] ),
+                t,
+                sol[ p_pars->ii_eq + DynRadBlastWave::QS::iR ],
+                p_pars->s0
+                );
+        p_pars->kappa = p_nuc->getPars()->kappa;
+        p_pars->dEnuc = p_pars->M0 * p_nuc->getPars()->eps_nuc_thermalized;
+    }
+    /// set initial condition 'ic_arr' for this blast wave using data from Pars{} struct
+    void setInitConditions( double * ic_arr, size_t i ) override {
+
+        /// if layer does not have energy / mass -- do not evolve it
+        if ((p_pars->M0 == 0.) && (p_pars->E0 == 0.)){
+//            std::cerr << AT << "\n "
+//                      << "[ishell=" << p_pars->ishell << " ilayer="<<p_pars->ilayer << "] "
+//                      <<" M0=0 and E0=0 -> Ignoring this layer.\n";
+            p_pars->end_evolution = true;
+            for (size_t v = 0; v < neq; ++v){
+                ic_arr[i+v] = 0.;
+            }
+            return;
+        }
+        p_pars->Gamma0 = EQS::GamFromMom(p_pars->mom0);
+        // ****************************************
+        double beta0 = EQS::BetFromMom(p_pars->mom0);
+        p_pars->R0    = p_pars->tb0 * beta0 * CGS::c;
+
+        p_dens->evaluateRhoDrhoDrDefault(p_pars->R0, p_pars->ctheta0);
+        if (p_pars->is_within0){ //p_pars->j_i0!=123456789
+            // behind a jet BW
+            p_dens->m_rho_ = p_dens->m_rho_floor_val * p_dens->m_rho_def;
+            p_dens->m_drhodr_ = 0.;
+        }
+        else{
+            // outside jet BW
+            p_dens->m_rho_ = p_dens->m_rho_def;
+            p_dens->m_drhodr_=p_dens->m_drhodr_def;
+        }
+
+        double m_M20 = (2.0 / 3.0)
+                     * CGS::pi
+                     * (std::cos(p_pars->theta_a) - std::cos(p_pars->theta_b0))
+                     * p_dens->m_rho_
+                     * std::pow(p_pars->R0, 3)
+                     / p_pars->ncells;
+        double adi0 = p_eos->getGammaAdi(p_pars->Gamma0,EQS::Beta(p_pars->Gamma0));
+        double GammaSh0 = EQS::GammaSh(p_pars->Gamma0,adi0);
+        // ****************************************
+        if ((p_pars->mom0 <= 0.) || (!std::isfinite(p_pars->mom0))){
+            // REMOVING LOGGER
+            (*p_log)(LOG_ERR, AT)  << " Mom0 < 0 (Mom0=" <<p_pars->Gamma0 << ") "
+                                   << "Mom0="<<p_pars->mom0 << " E0="<<p_pars->E0 << " tb0="<<p_pars->tb0 << " (offset i="<<i<<")\n"
+                                   << " \n";
+            //std::cout << "[ Error ] " << "Gamma0 < 0 (Gamma0=" <<Gamma0 << ")\n";
+//            std::cerr << AT  << "\n";
+            exit(1);
+        }
+        if ((p_pars->M0 <= 0.) || (!std::isfinite(p_pars->M0))){
+//            std::cout << "[ WARNING ] " << "M0 < 0 Setting M0=E0/(Gamma0 c^2)\n";
+            // REMOVING LOGGER
+            (*p_log)(LOG_WARN, AT)  << " M0 < 0 Setting M0=E0/(Gamma0 c^2)\n";
+            p_pars->M0 = p_pars->E0 / (p_pars->Gamma0 * CGS::c * CGS::c);
+        }
+        if ((p_pars->R0 <= 1.) || (!std::isfinite(p_pars->R0))){
+            // REMOVING LOGGER
+            (*p_log)(LOG_ERR, AT)  << " R0 <= 0 (R0=" <<p_pars->R0 << ") " << "G0="<<p_pars->Gamma0
+                       << " E0="<<p_pars->E0 << " tb0="<<p_pars->tb0 << " (offset i="<<i<<") \n"
+                       << " \n";
+//            std::cerr << AT  << "\n";
+            //std::cout << "[ Error ] " << "R0 <= 0 (R0=" <<R0 << ")\n";
+            exit(1);
+        }
+        if ((p_dens->m_rho_) <= 0.|| (!std::isfinite(p_dens->m_rho_))){
+            // REMOVING LOGGER
+            (*p_log)(LOG_ERR, AT)  << " rho0 < 0 (rho0=" <<p_dens->m_rho_ << ") "
+                       << "G0="<<p_pars->Gamma0 << " E0="<<p_pars->E0
+                       << " tb0="<<p_pars->tb0 << " (offset i="<<i<<")\n"
+                       << " \n";
+//            std::cerr << AT  << "\n";
+
+            //std::cout << "[ Error ] " << "rho0 < 0 (rho0=" <<rho0 << ")\n";
+            exit(1);
+        }
+        if ((p_pars->E0 <= 0.) || (!std::isfinite(p_pars->E0))){
+            // REMOVING LOGGER
+            (*p_log)(LOG_ERR, AT)  << "E0 <= 0 (E0=" <<p_pars->E0 << ") "
+                       << "G0="<<p_pars->Gamma0 << " E0="<<p_pars->E0
+                       << " tb0="<<p_pars->tb0 << " (offset i="<<i<<")\n"
+                       << " \n";
+//            std::cerr << AT  << "\n";
+            //std::cout << "[ Error ] " << "E0 < 0 (E0=" <<E0 << ")\n";
+            exit(1);
+        }
+        if ((p_pars->Gamma0 < 1.) || (!std::isfinite(p_pars->Gamma0))){
+            // REMOVING LOGGER
+            (*p_log)(LOG_ERR, AT)  << " Gamma0 < 1 (Gamma0=" <<p_pars->Gamma0 << ") "
+                       << "G0="<<p_pars->Gamma0 << " E0="<<p_pars->E0 << " tb0="<<p_pars->tb0 << " (offset i="<<i<<")\n"
+                       << " \n";
+            //std::cout << "[ Error ] " << "Gamma0 < 0 (Gamma0=" <<Gamma0 << ")\n";
+//            std::cerr << AT  << "\n";
+            exit(1);
+        }
+        if ((p_pars->theta_b0 < 0.) || (!std::isfinite(p_pars->theta_b0))){
+            // REMOVING LOGGER
+            (*p_log)(LOG_ERR, AT)  << " theta_b0 < 0 (theta_b0=" <<p_pars->theta_b0 << ") "
+                       << "G0="<<p_pars->Gamma0 << " E0="<<p_pars->E0 << " tb0="<<p_pars->tb0 << " (offset i="<<i<<")\n"
+                       << " \n";
+            //std::cout << "[ Error ] " << "theta_b0 < 0 (theta_b0=" <<theta_b0 << ")\n";
+//            std::cerr << AT  << "\n";
+            exit(1);
+        }
+        if ((p_pars->ncells < 1 )|| (!std::isfinite(p_pars->ncells))){
+            // REMOVING LOGGER
+            (*p_log)(LOG_ERR, AT)  << " ncells < 1 (ncells=" <<p_pars->ncells << ")\n"
+                       << " \n";
+            //std::cout << "[ Error ] " << "ncells < 1 (ncells=" <<ncells << ")\n";
+            exit(1);
+        }
+        if (cos(p_pars->theta_a) <= cos(p_pars->theta_b0)){
+            // REMOVING LOGGER
+            (*p_log)(LOG_ERR, AT)  << " cos(theta_a) < cos(theta_b0) (theta_a="<<p_pars->theta_a
+                       << ", theta_b0="<<p_pars->theta_b0<<")\n"
+                       << " \n";
+            //std::cout << "[ Error ] " <<" cos(theta_a) < cos(theta_b0) (theta_a="<<theta_a<<", theta_b0="<<theta_b0<<")\n";
+//            std::cerr << AT  << "\n";
+            exit(1);
+        }
+        bool use_spread = p_spread->m_method != LatSpread::METHODS::iNULL;
+        p_pars->Rd = std::pow(3./(4.*CGS::pi) * 1./(CGS::c*CGS::c*CGS::mp) *
+                              p_pars->E0/( p_dens->m_rho_ / CGS::mp * p_pars->Gamma0*p_pars->Gamma0), 1./3.);
+
+        double x = p_pars->Rd / p_pars->R0;
+        // ***************************************
+        ic_arr[i + QS::iR]      = m_tb_arr[0] * beta0 * CGS::c;
+        ic_arr[i + QS::iRsh]    = m_tb_arr[0] * EQS::Beta(GammaSh0) * CGS::c;
+        ic_arr[i + QS::itt]     = EQS::init_elapsed_time(p_pars->R0, p_pars->Gamma0, use_spread);
+        ic_arr[i + QS::itcomov] = p_pars->R0 / (beta0 * p_pars->Gamma0 * CGS::c);
+        ic_arr[i + QS::iEint2]  = (p_pars->Gamma0 - 1 ) * m_M20 / p_pars->M0;  //TODO Isnt it just E0 / m_M0 ???? As M0 = E0 * cgs.c ** -2 / Gamma0
+        ic_arr[i + QS::imom]    = p_pars->Gamma0 * EQS::Beta(p_pars->Gamma0);//std::log( p_pars->Gamma0 );
+//        ic_arr[i + QS::iGamma]  = p_pars->Gamma0;//std::log( p_pars->Gamma0 );
+        ic_arr[i + QS::itheta]  = p_pars->theta_b0;
+        ic_arr[i + QS::iErad2]  = 0.0;
+        ic_arr[i + QS::iEsh2]   = 0.0;
+        ic_arr[i + QS::iEad2]   = 0.0;
+        ic_arr[i + QS::iM2]     = m_M20 / p_pars->M0;
+        // ***************************************
+        for (size_t v = 0; v < neq; ++v){
+            if (!std::isfinite(ic_arr[i + v])){
+                (*p_log)(LOG_ERR, AT)  << " NAN in initial data for shell="<<p_pars->ishell<<" ilayer="<<p_pars->ilayer
+                           << " v_n="<<vars[v]<<" val="<<ic_arr[i + v]<<" Exiting...\n";
+//                std::cerr << AT  << "\n";
+                exit(1);
+            }
+        }
+//        p_spread->m_theta_b0 = p_pars->theta_b0;
+//        p_pars->x = p_pars->tb0;
+        // ***************************************
+    }
+    /// add the current solution 'sol' to the 'm_data' which is Vector of Arrays (for all variables)
+    void insertSolution( const double * sol, size_t it, size_t i ) override {
+        if (p_pars->end_evolution)
+            return;
+//        double mom = sol[i+QS::imom];
+//        double gam = sol[i+QS::iGamma];
+        p_pars->comp_ix = it; // latest computed iteration
+        m_data[Q::itburst][it]   = m_tb_arr[it];
+        m_data[Q::iR][it]        = sol[i+QS::iR]; // TODO you do not need 'i' -- this is p_pars->ii_eq
+        m_data[Q::iRsh][it]      = sol[i+QS::iRsh];
+        m_data[Q::itt][it]       = sol[i+QS::itt];
+        m_data[Q::imom][it]      = sol[i+QS::imom];
+        m_data[Q::iGamma][it]    = EQS::GamFromMom(sol[i+QS::imom]);//sol[i+QS::iGamma];
+        m_data[Q::itheta][it]    = sol[i+QS::itheta];
+        m_data[Q::iM2][it]       = sol[i+QS::iM2];
+        m_data[Q::itcomov][it]   = sol[i+QS::itcomov];
+        m_data[Q::iEad2][it]     = sol[i+QS::iEad2];
+        m_data[Q::iEint2][it]    = sol[i+QS::iEint2];
+        m_data[Q::iEsh2][it]     = sol[i+QS::iEsh2];
+        m_data[Q::iErad2][it]    = sol[i+QS::iErad2];
+        if (sol[i+QS::iR] < 1. || m_data[Q::iGamma][it] < 1. || sol[i+QS::imom] < 0) {
+            (*p_log)(LOG_ERR, AT)  << "Wrong value at i=" << it << " tb=" << sol[i + QS::iR]
+                       << " iR="      << sol[i + QS::iR]
+                       << " iRsh="    << sol[i + QS::iRsh]
+//                       << " imom="  << m_data[Q::iGamma][it]
+                       << " iMom="    << sol[i+QS::imom]
+                       << " itheta="  << sol[i + QS::itheta]
+                       << " iM2="     << sol[i + QS::iM2]
+                       << " itcomov=" << sol[i + QS::itcomov]
+                       << " iEad2="   << sol[i + QS::iEad2]
+                       << " iEint2="  << sol[i + QS::iEint2]
+                       << " iEsh2="   << sol[i + QS::iEsh2]
+                       << " iErad2="  << sol[i + QS::iErad2]
+                       << " "
+                       << " Exiting...\n";
+            std::cerr << AT  << "\n";
+            exit(1);
+        }
+    }
+    /// Mass and energy are evolved in units of M0 and M0c2 respectively
+    void applyUnits( double * sol, size_t i ) override {
+        sol[i + QS::iM2]    *= p_pars->M0;
+        sol[i + QS::iEint2] *= (p_pars->M0 * CGS::c * CGS::c);
+        sol[i + QS::iEad2]  *= (p_pars->M0 * CGS::c * CGS::c);
+        sol[i + QS::iEsh2]  *= (p_pars->M0 * CGS::c * CGS::c);
+        sol[i + QS::iEad2]  *= (p_pars->M0 * CGS::c * CGS::c);
+    }
+    /// check if to terminate the evolution
+    bool isToTerminate( double * sol, size_t i ) override {
+        double mom = sol[i+QS::imom];
+//        double igamma = sol[i+QS::iGamma];//EQS::GamFromMom(mom);
+        double igamma = EQS::GamFromMom(mom);
+        double ibeta = EQS::Beta(igamma);//EQS::BetFromMom(mom);
+        double iEint2 = sol[i + QS::iEint2];
+        bool do_terminate = false;
+        if (!p_pars->end_evolution) {
+            /// if BW is too slow numerical issues arise (Gamma goes below 1) # TODO rewrite ALL eqs in terms of GammaBeta
+//            double beta = EQS::Beta(igamma);
+            if ((iEint2 <= 0.)||(!std::isfinite(iEint2))||(mom < 0)||(ibeta < 0)){
+                do_terminate = true;
+                (*p_log)(LOG_ERR,AT)
+                        << " Terminating evolution [ishell=" << p_pars->ishell << " ilayer=" << p_pars->ilayer << "] "
+                        << " REASON :: Eint2 < 0 or NAN ("<<iEint2<<")\n";
+            }
+            if ((std::abs(ibeta) < p_pars->min_beta_terminate)||(!std::isfinite(ibeta))){
+                do_terminate = true;
+                (*p_log)(LOG_ERR,AT)
+                        << " Terminating evolution [ishell=" << p_pars->ishell << " ilayer=" << p_pars->ilayer << "] "
+                        << " REASON :: beta < beta_min or NAN ("<<ibeta<<") with beta_min= "
+                        << p_pars->min_beta_terminate<<"\n";
+            }
+            if (do_terminate) {
+                (*p_log)(LOG_WARN, AT) << " TERMINATION Previous iterations: \n"
+                                      << " E0=" << string_format("%.9e", p_pars->E0)
+                                      << " Gamma0=" << string_format("%.9e", p_pars->Gamma0)
+                                      << " M0=" << string_format("%.9e", p_pars->M0)
+                                      << " \n";
+                (*p_log)(LOG_WARN, AT) << " i=Current" << " Eint2=" << string_format("%.9e", sol[i + QS::iEint2])
+                                      << " Gamma=" << string_format("%.9e", igamma)
+                                      << " beta=" << string_format("%.9f", ibeta)
+                                      << " M2=" << string_format("%.9e", sol[i + QS::iM2])
+                                      << " rho=" << string_format("%.9e", p_dens->m_rho_)
+                                      << " \n";
+                (*p_log)(LOG_WARN, AT) << " i=" << p_pars->comp_ix << " Eint2="
+                                      << string_format("%.9e", getVal(Q::iEint2, p_pars->comp_ix))
+                                      << " Gamma=" << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix))
+                                      << " beta=" << string_format("%.9f", getVal(Q::ibeta, p_pars->comp_ix))
+                                      << " M2=" << string_format("%.9e", getVal(Q::iM2, p_pars->comp_ix))
+                                      << " rho=" << string_format("%.9e", getVal(Q::irho, p_pars->comp_ix))
+                                      << " \n";
+                (*p_log)(LOG_WARN, AT) << " i=" << p_pars->comp_ix - 1 << " Eint2="
+                                      << string_format("%.9e", getVal(Q::iEint2, p_pars->comp_ix - 1))
+                                      << " Gamma=" << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix - 1))
+                                      << " beta=" << string_format("%.9f", getVal(Q::ibeta, p_pars->comp_ix - 1))
+                                      << " M2=" << string_format("%.9e", getVal(Q::iM2, p_pars->comp_ix - 1))
+                                      << " rho=" << string_format("%.9e", getVal(Q::irho, p_pars->comp_ix - 1))
+                                      << " \n";
+                (*p_log)(LOG_WARN, AT) << " i=" << p_pars->comp_ix - 2 << " Eint2="
+                                      << string_format("%.9e", getVal(Q::iEint2, p_pars->comp_ix - 2))
+                                      << " Gamma=" << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix - 2))
+                                      << " beta=" << string_format("%.9f", getVal(Q::ibeta, p_pars->comp_ix - 2))
+                                      << " M2=" << string_format("%.9e", getVal(Q::iM2, p_pars->comp_ix - 2))
+                                      << " rho=" << string_format("%.9e", getVal(Q::irho, p_pars->comp_ix - 2))
+                                      << " \n";
+            }
+        }
+        return do_terminate;
+    }
+    /// check if to terminate the evolution
+    bool isToStopLateralExpansion( double * sol, size_t i ) override {
+        double itheta = sol[i + QS::itheta];
+        double iEint2 = sol[i + QS::iEint2];
+        bool do_terminate = false;
+        if (!p_pars->end_spreading) {
+            if (itheta > 0.99 * p_pars->theta_max){
+//                std::cerr << AT << " \n"
+//                          << " Stopping Jet Lateral Expansion  ishell=" << p_pars->ishell << " ilayer=" << p_pars->ilayer
+//                          << " with Gamma0=" << p_pars->Gamma0 << " [iteration=" << p_pars->comp_ix << "] REASON :: theta > 0.99 theta_max ("<<string_format("%.3e", p_pars->theta_max)<<") \n";
+//                std::cerr << " Last Gammas: " << "\n"
+//                          << " Gamma[" << p_pars->comp_ix << "]=" << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix)) << "\n"
+//                          << " theta[" << p_pars->comp_ix << "]=" << string_format("%.4f", getVal(Q::itheta, p_pars->comp_ix))
+//                          << " Gamma[" << p_pars->comp_ix - 1 << "]=" << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix - 1)) << "\n"
+//                          << " theta[" << p_pars->comp_ix - 1 << "]=" << string_format("%.4f", getVal(Q::itheta, p_pars->comp_ix - 1))
+//                          << " Gamma[" << p_pars->comp_ix - 2 << "]=" << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix - 2)) << "\n"
+//                          << " theta[" << p_pars->comp_ix - 2 << "]=" << string_format("%.4f", getVal(Q::itheta, p_pars->comp_ix - 2))
+//                          << " Gamma[" << p_pars->comp_ix - 3 << "]=" << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix - 3)) << "\n"
+//                          << " theta[" << p_pars->comp_ix - 3 << "]=" << string_format("%.4f", getVal(Q::itheta, p_pars->comp_ix - 3))
+//                          << "\n";
+                do_terminate = true;
+            }
+        }
+        return do_terminate;
+    }
+    /// check if the solution 'makes sense'
+    bool isSolutionOk( double * sol, size_t i ) override {
+
+        bool no_issues = true;
+        double mom = sol[i+QS::imom];
+        double mom0 = p_pars->Gamma0 * EQS::Beta(p_pars->Gamma0);
+//        double igamma = sol[i+QS::iGamma];
+        double igamma = EQS::GamFromMom(mom);
+//        double ibeta = EQS::Beta(igamma);//EQS::BetFromMom(mom);
+        double ibeta = EQS::BetFromMom(mom);
+        if (!p_pars->end_evolution) {
+            /// if BW is too slow numerical issues arise (Gamma goes below 1) # TODO rewrite ALL eqs in terms of GammaBeta
+            double beta   = EQS::Beta(igamma);
+
+            if ((igamma < 1.) || (mom < 0)) {
+                // REMOVING LOGGER
+
+                //            std::cout << "theta:" << getData(Q::iR)<<"\n";
+                (*p_log)(LOG_ERR,AT)  << AT << " \n"
+                           << " Gamma < 1. ishell="<<p_pars->ishell<<" ilayer="<<p_pars->ilayer
+                           << " with Gamma0="<<p_pars->Gamma0 << " [iteration="<<p_pars->comp_ix<<"] \n";
+                (*p_log)(LOG_ERR,AT) << " Last Gammas: " << "\n";
+                (*p_log)(LOG_ERR,AT)<< " Gamma[" << p_pars->comp_ix << "]="
+                           << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix)) << "\n";
+                (*p_log)(LOG_ERR,AT)<< " beta[" << p_pars->comp_ix << "]="
+                           << string_format("%.9e", getVal(Q::ibeta, p_pars->comp_ix))
+                           << " Gamma[" << p_pars->comp_ix - 1 << "]="
+                           << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix - 1)) << "\n";
+                (*p_log)(LOG_ERR,AT)<< " beta[" << p_pars->comp_ix - 1 << "]="
+                           << string_format("%.9e", getVal(Q::ibeta, p_pars->comp_ix - 1))
+                           << " Gamma[" << p_pars->comp_ix - 2 << "]="
+                           << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix - 2)) << "\n";
+                (*p_log)(LOG_ERR,AT)<< " beta[" << p_pars->comp_ix - 2 << "]="
+                           << string_format("%.9e", getVal(Q::ibeta, p_pars->comp_ix - 2))
+                           << " Gamma[" << p_pars->comp_ix - 3 << "]="
+                           << string_format("%.9e", getVal(Q::iGamma, p_pars->comp_ix - 3)) << "\n";
+                (*p_log)(LOG_ERR,AT)<< " beta[" << p_pars->comp_ix - 3 << "]="
+                           << string_format("%.9e", getVal(Q::ibeta, p_pars->comp_ix - 3))
+                           << "\n";
+//                std::cerr << "Gamma:" << getData(Q::iGamma) << "\n";
+//                std::cerr << "R:" << getData(Q::iR) << "\n";
+                (*p_log)(LOG_ERR,AT)  << " Gamma cannot be less than 1. or too large. "
+                                         "Found: Gamma(" << igamma << "). Gamma0="<<p_pars->Gamma0<<" \n";
+                no_issues = false;
+            }
+//            if (igamma > p_pars->Gamma0 * 2.) {
+//                // REMOVING LOGGER
+//                (*p_log)(LOG_ERR,AT)  << " too large value of Gamma(" << igamma
+//                           << ") > 2*Gamma0" << p_pars->Gamma0 * 2 << ")\n";
+//                no_issues = false;
+//            }
+            if (sol[i + QS::itheta] < p_pars->theta_b0 * 0.99) {
+                // REMOVING LOGGER
+                (*p_log)(LOG_ERR,AT) << " unphysical decrease in theta(" << sol[i + QS::itheta]
+                          << ") < theta_b0(" << p_pars->theta_b0 << ")\n";
+                no_issues = false;
+            }
+            if (sol[i + QS::itt] <= 0.) {
+                // REMOVING LOGGER
+                (*p_log)(LOG_ERR,AT) << " unphysical value of observer time (on axis) itt("
+                          << sol[i + QS::itt] << ") < 0 \n";
+                no_issues = false;
+            }
+        }
+        return no_issues;
+    }
+    /// right hand side of the blast wave evolution equation (ODE)
+    void evaluateRhs( double * out_Y, size_t i, double x, double const * Y ) override {
+        // ****************************************
+        double R      = Y[i+QS::iR];
+        double Rsh    = Y[i+QS::iRsh];
+//        double tcomov = Y[i+Q::itcomov];
+        double mom    = Y[i+QS::imom];
+//        double Gamma  = Y[i+QS::iGamma];
+        double Eint2  = Y[i+QS::iEint2];
+        double theta  = Y[i+QS::itheta];
+        double M2     = Y[i+QS::iM2];
+        // ****************************************
+        if (mom < 0) {
+            (*p_log)(LOG_ERR, AT) << " negative momentum\n";
+            exit(1);
+        }
+        double Gamma = EQS::GamFromMom(mom);
+//        if (Gamma <= 1.)
+//            Gamma = EQS::GamFromMom(mom);
+//            Gamma = 1.0000000001;
+//        if ((theta < p_pars->theta_b0) || (theta > p_pars->theta_max)){
+////            std::cerr << "theta < theta_b0 || theta > theta_max\n";
+////            exit(1);
+//            theta = p_pars->theta_max;
+//        }
+        double beta   = EQS::Beta(Gamma);
+
+        // ****************************************
+//        auto *_pars = (struct RHS_pars *) rhs_pars;
+        double ctheta_ = LatStruct::ctheta(theta,p_pars->ilayer,p_pars->nlayers);//ctheta(theta);//p_pars->ctheta0 + 0.5 * (2. * theta - 2. * p_pars->theta_w);
+        p_dens->evaluateRhoDrhoDrDefault(R, ctheta_);
+        double rho = p_dens->m_rho_def / p_pars->M0;
+        double drhodr = p_dens->m_drhodr_def / p_pars->M0;
+
+//        dlnrho1dR /= p_pars->M0;
+//        double _rhoi = p_pars->rho/p_pars->M0;
+        // ****************************************
+        double dRdt = beta * CGS::c; // TODO this is beta_sh ! ...
+
+        double gammaAdi  = p_eos->getGammaAdi(Gamma, beta);
+        double GammaSh = EQS::GammaSh(Gamma,gammaAdi);
+        double dRshdt = EQS::Beta(GammaSh) * CGS::c;
+
+        double dthetadr = 0.0;
+        if ( (theta < 2*p_pars->theta_max)
+             && (R > p_pars->Rd)
+             && (Gamma < std::max(2., p_pars->Gamma0*p_pars->fraction_of_Gamma0_when_spread))
+             && (!p_pars->end_spreading) ) { // &&(Gamma < p_pars->Gamma0*.95)&&
+            dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
+//            if (dthetadr > 0.){
+//                int x = 1;
+//            }
+        }
+
+
+        double dM2dR = 0;
+        switch (p_pars->m_method_dmdr) {
+
+            case iusingA:
+                dM2dR = EQS::dmdr(Gamma, R, p_pars->theta_a, theta, rho, p_spread->m_aa) / p_pars->ncells;
+                break;
+            case iusingdthdR:
+                dM2dR = EQS::dmdr(Gamma, R, dthetadr, theta, rho) / p_pars->ncells;
+                break;
+        }
+        if (dM2dR < 0.){
+            (*p_log)(LOG_ERR, AT) << " dM/dR < 0\n";
+            exit(1);
+        }
+
+        // --- dGammadR ---
+        double dGammadR = 0.,GammaEff=0.,dGammaEffdGamma=0., num=0., denum=0.;
+        switch (p_pars->m_method_dgdr) {
+
+            case iour:
+                GammaEff = get_GammaEff(Gamma, gammaAdi); // gammaAdi) #(gammaAdi * Gamma ** 2. - gammaAdi + 1.) / Gamma
+                dGammaEffdGamma = get_dGammaEffdGamma(Gamma, gammaAdi); // 4. / 3. + 1. / Gamma ** 2. / 3. + 2. / Gamma ** 3. / 3.
+                num = ((Gamma - 1.) * (GammaEff + 1.) * dM2dR - GammaEff * (gammaAdi - 1.) * Eint2 * (dM2dR / M2 - drhodr / rho));
+                denum = ((1. + M2) + Eint2 * dGammaEffdGamma + GammaEff * (gammaAdi - 1.) * Eint2 / Gamma);
+                dGammadR = -num/denum;
+                break;
+            case ipeer:
+                dGammadR = EQS::dgdr(1, Gamma, beta, M2, gammaAdi, dM2dR);
+                break;
+        }
+//        double dmomdR = dGammadR * (Gamma / std::sqrt(Gamma * Gamma - 1.0));
+        double dmomdR = dGammadR / beta;
+
+
+//        if (dGammadR > 0){
+//            if ( Gamma > 0.95 * p_pars->Gamma0 ){
+//                dGammadR = 0.;
+//            }
+//        }
+        // -- Energies --
+        double dEsh2dR  = (Gamma - 1.0) * dM2dR; // Shocked energy;
+        double dlnV2dR  = dM2dR / M2 - drhodr / rho - dGammadR / Gamma;
+        double dEad2dR  = 0.0;
+        if ( p_pars->adiabLoss )
+            dEad2dR = -(gammaAdi - 1.0) * Eint2 * dlnV2dR;
+        // -- Radiative losses
+        double dErad2dR = p_pars->eps_rad * dEsh2dR;
+        // -- Energy equation
+        double dEint2dR = dEsh2dR + dEad2dR - dErad2dR; // / (m_pars.M0 * c ** 2)
+        double dtcomov_dR = 1.0 / beta / Gamma / CGS::c;
+        double dttdr = 0.;
+        if (p_spread->m_method != LatSpread::METHODS::iNULL)
+            dttdr = 1. / (CGS::c * beta) * sqrt(1. + R * R * dthetadr * dthetadr) - (1. / CGS::c);
+        else
+            dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
+        dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
+        // ****************************************
+
+        if (!std::isfinite(dRdt) || !std::isfinite(dGammadR) || !std::isfinite(dlnV2dR) || !std::isfinite(dthetadr)) {
+            (*p_log)(LOG_ERR,AT)  << " nan in derivatives. Exiting..." << "\n";
+            exit(1);
+        }
+        // ****************************************
+//        double theta_c_h = dthetadr * dRdt * (x - p_pars->x);
+//        if (theta + theta_c_h >= p_pars->theta_max ){
+////            exit(1);
+//            dthetadr = 0.;
+//        }
+        if (!std::isfinite(dRdt) || !std::isfinite(dGammadR) || dM2dR < 0.
+            || !std::isfinite(dlnV2dR) || !std::isfinite(dthetadr)) {
+            (*p_log)(LOG_ERR,AT) << " nan in derivatives. "
+                      << " dRdt="<<dRdt<<"\n"
+                      << " dM2dR="<<dM2dR<<"\n"
+                      << " dthetadr=" << dthetadr << "\n"
+                      << " dGammadR=" << dGammadR << "\n"
+                      << " dthetadr=" << dRdt << "\n"
+                      << " dEsh2dR=" << dEsh2dR << "\n"
+                      << " dlnV2dR=" << dlnV2dR << "\n"
+                      << " dEad2dR=" << dEad2dR << "\n"
+                      << " dErad2dR=" << dErad2dR << "\n"
+                      << " dEint2dR=" << dEint2dR << "\n"
+                      << " dttdr=" << dttdr << "\n"
+                      << "  \n";
+//            std::cerr << AT << "\n";
+            exit(1);
+        }
+        if (std::abs(dRdt * dGammadR) > p_pars->Gamma0){
+            (*p_log)(LOG_ERR,AT)  << " nan in derivatives. "
+                       << "i="<< i << "["<<p_pars->ishell<<", "<<p_pars->ilayer<<"] " << "\n"
+                       << " dGamma/dr > Gamma0 "
+                       <<  "dG/dr="<< dRdt * dGammadR
+                       << " Gamma0=" <<p_pars->Gamma0 << "\n"
+                       << " E0=" <<p_pars->E0 << "\n"
+                       << " M0=" <<p_pars->M0 << "\n"
+                       << " R=" <<R << " Rsh=" <<Rsh<< " Gamma=" <<Gamma<< " Eint2=" <<Eint2<< " theta=" <<theta
+                       << " M2=" <<M2<< " rho=" <<rho<<" drhodr=" <<drhodr<<" dM2dR=" <<dM2dR<< "\n";
+            (*p_log)(LOG_ERR,AT)  << " maybe timestep is too large \n Exiting...";
+//            std::cerr << AT << "\n";
+            exit(1);
+        }
+        p_pars->x = x; // update
+        out_Y[i + QS::iR] = dRdt;//1.0 / beta / CGS::c;
+        out_Y[i + QS::iRsh] = dRshdt;//1.0 / beta / CGS::c;
+        out_Y[i + QS::itt] = dRdt * dttdr;
+        out_Y[i + QS::itcomov] = dRdt * dtcomov_dR;
+//        out_Y[i + QS::iGamma] = 0.;//dRdt * dGammadR;//dRdt * dGammadR/Gamma;
+        out_Y[i + QS::imom] = dRdt * dmomdR;//dRdt * dGammadR/Gamma;
+        out_Y[i + QS::iEint2] = dRdt * dEint2dR;
+        out_Y[i + QS::itheta] = dRdt * dthetadr;
+        out_Y[i + QS::iErad2] = dRdt * dErad2dR;
+        out_Y[i + QS::iEsh2] = dRdt * dEsh2dR;
+        out_Y[i + QS::iEad2] = dRdt * dEad2dR;
+        out_Y[i + QS::iM2] = dRdt * dM2dR;
+//        if (beta>1e-5)  p_pars->end_evolution = true;
+        // ****************************************
+//        if (mom+out_Y[i + QS::imom])
+    }
+    /// RHS with ODEs for dGammadR modified for pre-accelerated ISM
+    void evaluateRhsDens( double * out_Y, size_t i, double x, double const * Y ) override {
+//        double Gamma = Y[i+QS::iGamma];//EQS::GamFromMom(Y[i+QS::imom]);
+        double mom = Y[i+QS::imom];
+        // ****************************************
+        double R      = Y[i+QS::iR];
+        double Rsh    = Y[i+QS::iRsh];
+//        double tcomov = Y[i+Q::itcomov];
+//        double Gamma  = std::exp(Y[i+QS::ilnGamma]);
+        double Eint2  = Y[i+QS::iEint2];
+        double theta  = Y[i+QS::itheta];
+        double M2     = Y[i+QS::iM2];
+        // *****************************************
+        double Gamma = EQS::GamFromMom(Y[i+QS::imom]);
+//        double beta = EQS::Beta(Y[i+QS::iGamma]);//EQS::BetFromMom(Y[i+QS::imom]);
+        double beta = EQS::BetFromMom(Y[i+QS::imom]);
+        if (mom < 0){
+            (*p_log)(LOG_ERR,AT) << "Error\n";
+            mom = 1e-5;
+            Gamma = EQS::GamFromMom(Y[i+QS::imom]);
+            beta = EQS::BetFromMom(Y[i+QS::imom]);
+        }
+        // ****************************************
+//        if (!std::isfinite(R) || !std::isfinite(Gamma) || M2 < 0.
+//            || !std::isfinite(M2) || !std::isfinite(Eint2) || Eint2<0) {
+//            (*p_log)(LOG_ERR,AT)  << " nan in derivatives (may lead to crash) " << "\n"
+//                                  << " R="<<R<<"\n"
+//                                  << " M2="<<M2<<"\n"
+//                                  << " Gamma=" << Gamma << "\n"
+//                                  << " Mom=" << mom << "\n"
+//                                  << " Eint2=" << Eint2
+//                                  << " \n";
+//            exit(1);
+//        }
+//        if (Gamma <= 1.) { // TODO to be removed
+//            Gamma = 1.0001;
+//            (*p_log)(LOG_ERR, AT) << " Gamma < 1 in RHS for kN Ejecta\n";
+//        }
+//        if (Gamma > p_pars->Gamma0){ // TODO to be removed
+//            Gamma = p_pars->Gamma0;
+//            (*p_log)(LOG_ERR, AT) << " Gamma > Gamma0 in RHS for kN Ejecta\n";
+//        }
+//        if (mom < 0.){
+//            (*p_log)(LOG_ERR, AT) << " mom < 0 = "<< mom << " in kN RHS dynamics\n";
+//            exit(1);
+//        }
+
+
+
+//        if ((theta < p_pars->theta_b0) || (theta > p_pars->theta_max)){
+////            std::cerr << "theta < theta_b0 || theta > theta_max\n";
+////            exit(1);
+//            theta = p_pars->theta_max;
+//        }
+//        double beta   = EQS::Beta(Gamma);
+
+
+        // ****************************************
+        // Get ISM density and its velocity
+//        double rho, m_drhodr;
+        double ctheta_ = LatStruct::ctheta(theta,p_pars->ilayer,p_pars->nlayers);//ctheta(theta);// = p_pars->ctheta0 + 0.5 * (2. * theta - 2. * p_pars->theta_w);
+//        p_dens->getDrhoDr( rho, m_drhodr, R,ctheta );
+//        rho /= p_pars->M0;
+//        m_drhodr /= p_pars->M0;
+//        p_dens->evaluate(R, ctheta);
+        if (p_dens->m_GammaRel < 0){
+            (*p_log)(LOG_ERR,AT) << AT << " GammaRel is not set or incorrect \n";
+            exit(1);
+        }
+        double rho = p_dens->m_rho_ / p_pars->M0;
+        double drhodr = p_dens->m_drhodr_ / p_pars->M0;
+        double GammaRho = p_dens->m_GammaRho;
+        double GammaRel = p_dens->m_GammaRel; // Gamma
+        double dGammaRelDGamma = p_dens->m_dGammaReldGamma; // 1.
+        double dGammaRhodR = p_dens->m_dGammaRhodR; // 0.
+        double cs_cbm = p_dens->m_CS_CBM;
+
+
+        if (GammaRho < 1.) {
+            (*p_log)(LOG_ERR,AT)  << "GammaRho=" << GammaRho << "\n" << " Exiting...";
+//            std::cerr << AT<< "\n";
+            exit(1);
+        }
+        if (GammaRel < 1.) {
+            (*p_log)(LOG_ERR,AT)  << "GammaRel=" << GammaRel << "\n"; GammaRel = Gamma;
+//            std::cerr << AT<< "\n";
+            exit(1);
+        }
+        if (!std::isfinite(dGammaRelDGamma)) { (*p_log)(LOG_ERR,AT) << "dGammaRelDGamma=" << dGammaRelDGamma << "\n"; exit(1); }
+        if (!std::isfinite(dGammaRhodR)) { (*p_log)(LOG_ERR,AT)  << "dlnGammaCBMdR=" << dGammaRhodR << "\n"; exit(1); }
+        // ****************************************
+        double dRdt = beta * CGS::c; // TODO this is beta_sh ! ...
+        double Gamma_ = GammaRel;
+        double beta_ = EQS::Beta(Gamma_);
+        double gammaAdi  = p_eos->getGammaAdi(Gamma_, beta_);//p_eos->getGammaAdi(Gamma, beta);
+
+        double GammaSh = EQS::GammaSh(Gamma,gammaAdi);
+        double dRshdt = EQS::Beta(GammaSh) * CGS::c;
+
+        double dthetadr = 0.0;
+//        if (theta < (p_pars->theta_max * 0.999999) ) {
+//            dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
+//        }
+//        double dM2dR     = EQS::dmdr(Gamma, R, p_pars->theta_a,
+//                                     theta, rho, p_spread->m_aa) / p_pars->ncells;
+
+        double dM2dR = 0;
+        switch (p_pars->m_method_dmdr) {
+
+            case iusingA:
+                dM2dR = EQS::dmdr(Gamma, R, p_pars->theta_a, theta, rho, p_spread->m_aa) / p_pars->ncells;
+                break;
+            case iusingdthdR:
+                dM2dR = EQS::dmdr(Gamma, R, dthetadr, theta, rho) / p_pars->ncells;
+                break;
+        }
+//        dM2dR*=0;
+        if (dM2dR < 0.){
+            (*p_log)(LOG_ERR,AT) << " dMdR < 0 in RHS dyn for kN ejecta\n";
+            exit(1);
+        }
+
+        // --- Energy injection --- ||
+        double xi_inj = 1.;
+        double dEindt = p_pars->dEinjdt;
+
+        double dEinjdt = dEindt / (p_pars->M0 * CGS::c * CGS::c) / p_pars->ncells;
+        double dEinjdR = dEinjdt / dRdt;
+        double theta_ej = 0.; // assume that ejecta is alinged with magnetar emission?..
+        double Doppler = Gamma / (1. - beta * std::cos(theta_ej));
+        double dEinjdR_dop = dEinjdR * Doppler;
+        double dEingdR_abs = dEinjdR;// * ( 1. - std::exp(-1.*p_pars->dtau) ) * std::exp(-1.*p_pars->tau_to0);
+        double dEingdR_abs_dop = dEingdR_abs / Doppler / Doppler;
+
+        double dEnuc = p_pars->dEnuc;//->getPars()->eps_nuc_thermalized;
+        double dEnuc_norm = dEnuc / (p_pars->M0 * CGS::c * CGS::c);
+        double dEnucdR = dEnuc_norm / dRdt;
+
+        double dElum = p_pars->dElum;
+        double dElum_norm = dElum / (p_pars->M0 * CGS::c * CGS::c);
+        double dElumdR = dElum_norm / dRdt;
+
+        // --- dGammadR ---
+        double dGammadR = 0., GammaEff=0.,dGammaEffdGamma=0.,num1=0.,num2=0.,num3=0.,denum1=0.,denum2=0.,denom3=0.;
+        double _tmp = (1. - GammaEff / Gamma * xi_inj) * dEingdR_abs;
+        switch (p_pars->m_method_dgdr) {
+
+            case iour:
+                GammaEff = get_GammaEff(Gamma_, gammaAdi); // TODO check if GammaRel should be used for this!!!
+                dGammaEffdGamma = get_dGammaEffdGamma(Gamma_, gammaAdi);
+                num1 = (Gamma - GammaRho + GammaEff * (GammaRel - 1.)) * dM2dR;
+                num2 = - GammaEff * (gammaAdi - 1.) * Eint2 * (dM2dR/M2 - drhodr/rho - dGammaRhodR / GammaRho); // - 3.*Eint2/R
+                num3 = - (1. + GammaEff / Gamma * xi_inj) * dEingdR_abs;
+                denum1 = (1.+M2);
+                denum2 = Eint2 * dGammaEffdGamma;
+                denom3 = GammaEff * (gammaAdi - 1.) * Eint2 * dGammaRelDGamma / GammaRel;
+                dGammadR = -1. * (num1 + num2 + num3) / (denum1+denum2+denom3);
+                break;
+            case ipeer:
+                dGammadR = EQS::dgdr(1, Gamma, beta, M2, gammaAdi, dM2dR);
+                break;
+        }
+
+//        if ((dGammadR > 0) && (Gamma > p_pars->Gamma0*0.99)){
+//            std::cerr << AT << " \n"
+//                      << "dGammadR>0 ("<<dGammadR<<") and Gamma="<<Gamma<<" > Gamma0="<<p_pars->Gamma0<<"\n";
+//            std::cerr << " p_dens->m_GammaRho="<<p_dens->m_GammaRho<<"\n"
+//                      << " p_dens->m_GammaRel="<<p_dens->m_GammaRel<<"\n"
+//                      << " p_dens->m_dGammaReldGamma="<<p_dens->m_dGammaReldGamma<<"\n"
+//                      << " p_dens->m_dGammaRhodR="<<p_dens->m_dGammaRhodR<<"\n";
+//            dGammadR = 0.;
+//        }
+        //        double dmomdR = dGammadR * (Gamma / std::sqrt(Gamma * Gamma - 1.0));
+        double dmomdR = dGammadR / beta;
+
+
+//        drhodr = 0.; // TODO why was this set?! This overrides the derivative
+        // -- Energies --
+
+//        double dlnV2dR  = dM2dR / M2 - m_drhodr - dGammadR / Gamma;
+        double dlnV2dR  = dM2dR / M2 - drhodr / rho - (1./GammaRel)*dGammaRelDGamma*dGammadR + dGammaRhodR / GammaRho;// + 3./R;
+        double dlnVdR = (3./R) - (1/Gamma * dGammadR);
+        double dEad2dR  = 0.0;
+        if ( p_pars->adiabLoss )
+            dEad2dR = -(gammaAdi - 1.0) * Eint2 * dlnV2dR;
+        double dx = dRdt * (x - p_pars->x);
+//        double Eint_ = Eint2 + dEad2dR * dRdt * (x - p_pars->x);
+//        if (Eint_ < 0){
+//            int x = 1;
+//        }
+//        double mom_ = mom + dmomdR * dRdt * (x - p_pars->x);
+//        if (mom_ < 0){
+//            int x = 1;
+//        }
+
+        // --- shock energy
+        double dEsh2dR = (GammaRel - 1.0) * dM2dR;
+//        if (cs_cbm > 100){
+//            int y = 1;
+//        }
+        if ((cs_cbm > EQS::Beta(GammaRel)&&(p_pars->comp_ix > p_pars->nr*1e-2))){ // TODO Subsonic flow -- no shock
+            dEsh2dR *= 1e-10;
+        }
+//        double dEsh2dR = 0.;
+
+//        double dEsh2dR  = (GammaRel - 1.0) * dM2dR; // Shocked energy;
+        // -- Radiative losses
+        double dErad2dR = p_pars->eps_rad * dEsh2dR;
+        // -- Energy equation
+        double dEint2dR = dEsh2dR + dEad2dR - dErad2dR + dEnucdR - dElumdR + dEingdR_abs_dop;// dEingdR_abs_dop; // / (m_pars.M0 * c ** 2)
+        double _x = dEint2dR/Eint2;
+
+        double dtcomov_dR = 1.0 / beta / Gamma / CGS::c;
+        double dttdr;
+//        if (p_spread->m_method != LatSpread::METHODS::iNULL)
+//            dttdr = 1. / (CGS::c * beta) * sqrt(1. + R * R * dthetadr * dthetadr) - (1. / CGS::c);
+//        else
+//            dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
+        dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
+        // ****************************************
+//        if (!std::isfinite(Gamma) ||
+//        !std::isfinite(beta) //||
+////        !std::isfinite(Eint2) ||
+////        !std::isfinite(theta) ||
+////        !std::isfinite(M2)
+////        || Eint2 < 0.
+////        || M2 < 0.
+//          ) {
+//            std::cerr << AT << " wrong data at the beginning of RHS t_b=" << x << "\n";
+//            std::cerr << " Gamma="<<Gamma<<"\n"
+//                      << " theta="<<theta<<"\n"
+//                      << " M2="<<M2<<"\n"
+//                      << " Eint2="<<Eint2<<"\n"
+//                      << " p_dens->m_GammaRho="<<p_dens->m_GammaRho<<"\n"
+//                      << " p_dens->Gamma_rel="<<p_dens->m_GammaRel<<"\n"
+//                      << " p_dens->m_dGammaRhodR="<<p_dens->m_dGammaRhodR<<"\n"
+//                      << " p_dens->m_dGammaReldGamma="<<p_dens->m_dGammaReldGamma<<"\n"
+//                      << " p_dens->m_CS_CBM="<<p_dens->m_CS_CBM<<"\n"
+//                      << " p_dens->m_P_cbm="<<p_dens->m_P_cbm<<"\n";
+//            exit(1);
+//        }
+        if (mom < 0.){
+            (*p_log)(LOG_ERR, AT) << " mom < 0 = "<< mom << " in kN RHS dynamics\n";
+//            exit(1);
+        }
+        if (!std::isfinite(dRdt) || !std::isfinite(dGammadR) || dM2dR < 0.
+            || !std::isfinite(dlnV2dR) || !std::isfinite(dthetadr)) {
+            (*p_log)(LOG_ERR,AT)  << " nan in derivatives (may lead to crash) " //<< "\n"
+                       << " dRdt="<<dRdt//<<"\n"
+                       << " dM2dR="<<dM2dR//<<"\n"
+                       << " dthetadr=" << dthetadr// << "\n"
+                       << " dGammadR=" << dGammadR //<< "\n"
+                       << " dthetadr=" << dRdt //<< "\n"
+                       << " dEsh2dR=" << dEsh2dR //<< "\n"
+                       << " dlnV2dR=" << dlnV2dR //<< "\n"
+                       << " dEad2dR=" << dEad2dR //<< "\n"
+                       << " dErad2dR=" << dErad2dR //<< "\n"
+                       << " dEint2dR=" << dEint2dR //<< "\n"
+                       << " dttdr=" << dttdr// << "\n"
+                       << " dGammaRelDGamma=" << dGammaRelDGamma //<< "\n"
+                       << " dGammaRhodR=" << dGammaRhodR //<< "\n"
+                       << " drhodr=" << drhodr //<< "\n"
+                       << " Gamma="<<Gamma//<< "\n"
+                       << " beta="<<beta//<< "\n"
+                       << " theta"<<theta//<< "\n"
+                       << " M2="<<M2//<< "\n"
+                       << " Eint2="<<Eint2//<< "\n"
+                       << " GammaRel"<<GammaRel//<< "\n"
+                       << " GammaRho"<<GammaRho//<< "\n"
+                       << " \n";
+//            exit(1);
+        }
+        // ****************************************
+//        double theta_c_h = dthetadr * dRdt * (x - p_pars->x);
+//        if (theta + theta_c_h >= p_pars->theta_max ){
+////            exit(1);
+//            dthetadr = 0.;
+//        }
+//        if (dGammadR > 0){
+//            std::cout << " Gamma="<<Gamma<< " Gamma0="<<p_pars->Gamma0<<" Gamma/Gamma0="<<Gamma/p_pars->Gamma0<<"\n";
+//        }
+//        p_pars->x = x; // update
+//        if (Gamma > 2.*p_pars->Gamma0){
+//            int x = 1;
+//        }
+//        if ( std::abs(dRdt * dGammadR ) > 2. * p_pars->Gamma0 )+{
+//            dGammadR = 0.;
+//        }
+//        if ( std::abs(dRdt * dGammadR ) > p_pars->Gamma0 ){
+//            std::cerr << AT
+//                      << "i="<< i << "["<<p_pars->ishell<<", "<<p_pars->ilayer<<"] " << "\n"
+//                      << " dGamma/dr > Gamma0 "
+//                      <<  "dG/dr="<< dRdt * dGammadR
+//                      << " Gamma0=" <<p_pars->Gamma0 << "\n"
+//                      << " theta_b0=" <<p_pars->theta_b0 << "\n"
+//                      << " GammaRho=" <<GammaRho << "\n"
+//                      << " GammaRel=" <<GammaRel << "\n"
+//                      << " dGammaRelDGamma=" <<dGammaRelDGamma << "\n"
+//                      << " dGammaRhodR=" <<dGammaRhodR << "\n"
+//                      << " R=" <<R << " Rsh=" <<Rsh<< " Gamma=" <<Gamma<< " Eint2=" <<Eint2<< " theta=" <<theta
+//                      << " M2=" <<M2<< " rho=" <<rho<<" drhodr=" <<drhodr<<" dM2dR=" <<dM2dR<< "\n";
+//            std::cerr << " maybe timestep is too large \n";
+////            exit(1);
+//            dGammadR = 0.;
+//            out_Y[i+QS::iR]      = dRdt;
+//            out_Y[i+QS::iRsh]    = dRshdt;
+//            out_Y[i+QS::itt]     = dRdt * dttdr;
+//            out_Y[i+QS::itcomov] = dRdt * dtcomov_dR;
+//            out_Y[i+QS::iGamma]  = 0 * dGammadR;
+//            out_Y[i+QS::iEint2]  = 0 * dEint2dR;
+//            out_Y[i+QS::itheta]  = 0 * dthetadr;
+//            out_Y[i+QS::iErad2]  = 0 * dErad2dR;
+//            out_Y[i+QS::iEsh2]   = 0 * dEsh2dR;
+//            out_Y[i+QS::iEad2]   = 0 * dEad2dR;
+//            out_Y[i+QS::iM2]     = 0 * dM2dR;
+////            Gamma = p_pars->Gamma0;
+//        }
+//        else{
+//            out_Y[i+QS::iR]      = dRdt;//1.0 / beta / CGS::c;
+//            out_Y[i+QS::iRsh]    = dRshdt;//1.0 / beta / CGS::c;
+//            out_Y[i+QS::itt]     = dRdt * dttdr;
+//            out_Y[i+QS::itcomov] = dRdt * dtcomov_dR;
+//            out_Y[i+QS::iGamma]  = dRdt * dGammadR;
+//            out_Y[i+QS::iEint2]  = dRdt * dEint2dR;
+//            out_Y[i+QS::itheta]  = dRdt * dthetadr;
+//            out_Y[i+QS::iErad2]  = dRdt * dErad2dR;
+//            out_Y[i+QS::iEsh2]   = dRdt * dEsh2dR;
+//            out_Y[i+QS::iEad2]   = dRdt * dEad2dR;
+//            out_Y[i+QS::iM2]     = dRdt * dM2dR;
+//        }
+        out_Y[i+QS::iR]      = dRdt;//1.0 / beta / CGS::c;
+        out_Y[i+QS::iRsh]    = dRshdt;//1.0 / beta / CGS::c;
+        out_Y[i+QS::itt]     = dRdt * dttdr;
+        out_Y[i+QS::itcomov] = dRdt * dtcomov_dR;
+        out_Y[i+QS::imom]    = dRdt * dmomdR; //dRdt * dGammadR / Gamma;
+//        out_Y[i+QS::iGamma]  = 0.;//dRdt * dGammadR; //dRdt * dGammadR / Gamma;
+        out_Y[i+QS::iEint2]  = dRdt * dEint2dR;
+//        out_Y[i+QS::iEinj]   = dRdt * dEingdR_abs;
+        out_Y[i+QS::itheta]  = dRdt * dthetadr;
+        out_Y[i+QS::iErad2]  = dRdt * dErad2dR;
+        out_Y[i+QS::iEsh2]   = dRdt * dEsh2dR;
+        out_Y[i+QS::iEad2]   = dRdt * dEad2dR;
+        out_Y[i+QS::iM2]     = dRdt * dM2dR;
+//        if (Gamma)
+//        out_Y[i+QS::iR]      = dRdt;//1.0 / beta / CGS::c;
+//        out_Y[i+QS::iRsh]    = dRshdt;//1.0 / beta / CGS::c;
+//        out_Y[i+QS::itt]     = dRdt * dttdr;
+//        out_Y[i+QS::itcomov] = dRdt * dtcomov_dR;
+//        out_Y[i+QS::iGamma]  = dRdt * dGammadR;
+//        out_Y[i+QS::iEint2]  = dRdt * dEint2dR;
+//        out_Y[i+QS::itheta]  = dRdt * dthetadr;
+//        out_Y[i+QS::iErad2]  = dRdt * dErad2dR;
+//        out_Y[i+QS::iEsh2]   = dRdt * dEsh2dR;
+//        out_Y[i+QS::iEad2]   = dRdt * dEad2dR;
+//        out_Y[i+QS::iM2]     = dRdt * dM2dR;
+        // ****************************************
+//        if (beta<1e-5)  p_pars->end_evolution = true;
+    }
+    /// --- Evaluate the density (and its velocity) at point ej_R left by blast wave at a point j_R
+    void evalDensAndItsVelocityBehindBlastWave(double & rho, double & GammaCMB, double & p_cbm,
+                                               double rho_def, double rho_prev,
+                                               double ej_R, double j_R, double j_rho, double j_rho2, double j_Gamma, double j_Gamma0, double j_P2){
+
+        GammaCMB = 1.;
+        /// exponential decay from the point of entry
+        double rho0 = getVal(Q::irho,0);
+        /// if inside from the it=0 -- keep floor dens untill BM and ST profiles
+        if ((rho0==(p_dens->m_rho_floor_val*rho_def))
+            &&(rho_prev==(p_dens->m_rho_floor_val*rho_def))){
+            rho = rho_prev;
+        }
+        else if (p_pars->use_exp_rho_decay_as_floor) {
+            double coeff = p_pars->steepnes_of_exp_decay;
+            double scale_rho = exp(1. - coeff * ej_R / getPars()->first_entry_r);
+            double scale_dlnrhodr = -1. * coeff * scale_rho / getPars()->first_entry_r;
+            if (scale_rho > 1.) {
+                (*p_log)(LOG_ERR,AT)  << " scale_rho > 1 for ej_R=" << ej_R
+                           << "  entry_r=" << getPars()->first_entry_r << "\n"
+                           << " Exiting...";
+//                std::cerr << AT  << "\n";
+                exit(1);
+            }
+            rho = rho_def * scale_rho;
+//            if (rho_prev < rho){
+//                std::cerr <<AT<<"\n";
+//                exit(1);
+//            }
+//            dlnrhodr = rho_def * scale_dlnrhodr;// analytc. derivative
+        }
+        else if ((p_pars->use_flat_dens_floor)){
+            rho = rho_def * p_dens->m_rho_floor_val;
+//            dlnrhodr = 0.;
+        }
+
+        /// check
+        if (!std::isfinite(rho) || rho < 0. || rho > 1. || rho > rho_def ){
+            (*p_log)(LOG_ERR,AT) << " wrong floor rho="<<rho<<"\n" << " Exiting...\n";
+//            std::cerr << AT << "\n";
+            exit(1);
+        }
+
+        /// Blandford-Mckee tail from the jet blast wave (j_Gamma > GammaST and j_Gamma < GammaBM)
+        double rho_bm = -1;
+        double gam_cbm_bm = -1;
+        if((ej_R > j_R * 0.01)&&(p_pars->use_bm_dens_profile)
+           &&(j_Gamma > p_pars->Gamma_when_st_starts)
+           &&(j_Gamma < (j_Gamma0 * p_pars->fraction_of_Gamma0_when_bm_for_bm))) {
+            rho_bm = getBM()->rho_downstream(ej_R, j_R, j_Gamma, j_rho / CGS::mp, j_rho2) * CGS::mp;
+            gam_cbm_bm = getBM()->gamma_downstream(ej_R, j_R, j_Gamma, j_rho / CGS::mp, j_rho2);
+//            p_cbm_s = getSedov()->pressure_profile_int(ej_R, j_R, EQS::Beta(j_P2));
+            (*p_log)(LOG_ERR,AT)  << " pressure is not implemented\n Exiting...\n";
+//            std::cerr << AT << "\n";
+            exit(1);
+            /// apply only of above the floor
+            if (rho_bm > rho) { rho = rho_bm; GammaCMB = gam_cbm_bm; }
+        }
+
+        /// Sedov-Taylor tail from the jet blast wave (j_Gamma < GammaST)
+        double rho_s = -1;
+        double gam_cbm_s = -1;
+        double p_cbm_s = -1.;
+        if ((ej_R > j_R * 0.01) && // TODO this is needed to activate ST when kB BW is close to jet BW
+            (p_pars->use_st_dens_profile)
+            &&(j_Gamma <= p_pars->Gamma_when_st_starts)) {
+            rho_s = getSedov()->rho_profile_int(ej_R, j_R, j_rho2);
+            gam_cbm_s = getSedov()->Gamma_profile_int(ej_R, j_R, EQS::Beta(j_Gamma));
+            p_cbm_s = getSedov()->pressure_profile_int(ej_R, j_R, j_P2);
+            // apply only of above the floor
+//            if ((rho_bm > rho_s)&&(rho_bm > rho)){
+//                rho = rho_bm; GammaCMB = gam_cbm_bm;
+//            }
+//            else
+            if (rho_s > rho) { // # THis is needed for some reason :)
+                p_pars->is_using_st_prof = true;
+                rho = rho_s; GammaCMB = gam_cbm_s; p_cbm = p_cbm_s;
+            }
+
+
+//            if (rho_prev < 1e-10 * rho){
+//                std::cerr << AT << " rho_prev="<<rho_prev<<" rho="<<rho<<" rho0="<<rho0<<" density gradient >10 orders of magnitude\n";
+////                exit(1);
+//            }
+        }
+
+
+
+        if ((GammaCMB < 1.) || (!std::isfinite(GammaCMB))){
+            (*p_log)(LOG_ERR,AT)  << " bad GammaCMB=" << GammaCMB << "\n Exiting...\n";
+//            std::cerr << AT << "\n";
+            exit(1);
+        }
+
+        if ((((std::abs(rho_prev/rho) < 1e-4)||((std::abs(rho_prev/rho) > 1e4))))){
+            //std::cerr << AT << " rho_prev="<<rho_prev<<" rho="<<rho<<" rho0="<<rho0<<" density gradient >4 orders of magnitude\n";
+//            exit(1);
+        }
+    }
+
+    /// Density profiles application based on the jet BW position and velocity
+    void evalDensAndItsVelocityBehindBlastWave_Case1(
+            double j_R, double j_Gamma, double j_ctheta, double j_rho, double j_rho2, double j_Gamma0, double j_P2,
+            double ej_R, double ej_Gamma, double ej_theta ){
+
+        double ej_ctheta = p_pars->ctheta0;//ctheta(ej_theta);
+
+        if (ej_Gamma <= 1.) { ej_Gamma = 1. + 5e-5; } // TODO REMOVE
+
+        size_t prev_ix = p_pars->comp_ix;
+
+        // --- evaluate what density profile the ejecta blast wave would experience
+        p_dens->evaluateRhoDrhoDrDefault(ej_R, ej_ctheta); // set default values for density
+        double rho_prev = getVal(Q::irho, prev_ix-1);
+        double rho_def = p_dens->m_rho_def;
+        double drhodr_def = p_dens->m_drhodr_def;
+        if (rho_def<(p_dens->m_rho_floor_val*rho_def)){
+            (*p_log)(LOG_ERR,AT)  << " rho_def is not initialized\n Exiting...\n";
+//            std::cerr<<AT<<"\n";
+            exit(1);
+        }
+//        if ((rho_prev/p_dens->m_rho_) >= p_dens->m_rho_floor_val){
+//            std::cerr << AT << " " << p_pars->is_within0 << " and "<< p_pars->is_within <<"\n";
+//            std::cerr<<AT<<" rho_def is not initialized\n";
+//            exit(1);
+//        }
+        double rho=rho_def, GammaCMB=1, P=0, GammaREL=ej_Gamma, drhodr=drhodr_def, dGammaRELdGamma=1, dGammaRhodR=0, dPdrho=0., cscbm=1., mcbm=0.;
+        if (rho_prev<(p_dens->m_rho_floor_val*rho_def)){
+            (*p_log)(LOG_ERR,AT) <<" rho_prev is not initialized\n Exiting...\n";
+//            std::cerr<<AT<<"\n";
+            exit(1);
+        }
+        if (rho_prev == 0){
+            (*p_log)(LOG_ERR,AT)  << " rho[i] = 0" << "\n Exiting...\n";
+//            std::cerr << AT << "\n";
+            exit(1);
+        }
+        /// eval dens seen by ejecta BW
+        evalDensAndItsVelocityBehindBlastWave( rho, GammaCMB, P, rho_def, rho_prev, ej_R,  j_R,
+                                               j_rho,  j_rho2,  j_Gamma, j_Gamma0, j_P2);
+
+        /// Compute the density derivative (with radius)
+        double r_prev = getVal(Q::iR, prev_ix - 1);
+//        double rho_prev = getVal(Q::irho, evaled_ix - 1);
+        if (ej_R == r_prev){ (*p_log)(LOG_ERR,AT) << AT << " R = R_i-1 \n"; exit(1); }
+        m_data[Q::irho][prev_ix+1] = rho;
+        m_data[Q::iR][prev_ix+1] = ej_R;
+        m_data[Q::iPcbm][prev_ix + 1] = P;
+        double dr = m_data[Q::iR][prev_ix] - m_data[Q::iR][prev_ix-1];
+//            double dr1 = m_data[Q::iR][0] - m_data[Q::iR][1];
+        drhodr = dydx(m_data[Q::iR], m_data[Q::irho], m_data[Q::idrhodr],
+                      dr, prev_ix+1, ej_R, true);
+//        double drhodr2 = (rho - rho_prev) / (ej_R - r_prev);
+        if (rho < p_dens->m_rho_floor_val*rho_def){ rho = p_dens->m_rho_floor_val*rho_def; drhodr = 0.; }
+        if (!std::isfinite(rho) || !std::isfinite(drhodr)) {
+            (*p_log)(LOG_ERR,AT)  <<" bad rho="<<rho<<" or m_drhodr="<<drhodr<<" \n Exiting...\n";
+//            std::cerr << AT <<" \n";
+            exit(1);
+        }
+
+        /// Compute the CBM density derivative (with radius)
+        double GammaCBM_prev = getVal(Q::iGammaCBM, prev_ix - 1);
+        if (GammaCMB == GammaCBM_prev ){
+            dGammaRhodR = 0;
+        }
+        else{
+            m_data[Q::iGammaCBM][prev_ix+1] = GammaCMB;
+            dGammaRhodR = dydx(m_data[Q::iR], m_data[Q::iGammaCBM], m_data[Q::idGammaCBMdr],
+                               dr, prev_ix+1, ej_R, false);
+
+//            double dGammaRhodR1 = (GammaCMB - GammaCBM_prev) / (ej_R - r_prev);
+//            if (dGammaRhodR != dGammaRhodR1){
+//                exit(1);
+//            }
+        }
+        if (!std::isfinite(dGammaRhodR)){
+            (*p_log)(LOG_ERR,AT)  << " Nan dGammaRhodR . setting to 0\n Exiting...";
+//            std::cerr << AT << "\n";
+            dGammaRhodR = 0.;
+        }
+
+        /// compute the relative velocity of the ISM (with respect to ejecta) and its derivative
+//            double betaREL = EQS::BetaRel(EQS::Beta(ej_Gamma),EQS::Beta(GammaCMB));
+//            GammaREL = EQS::Gamma(betaREL);
+        GammaREL = EQS::GammaRel(ej_Gamma,GammaCMB);
+        if (GammaREL < 1.) GammaREL = 1.;
+        if ((GammaREL < 1.) || (!std::isfinite(GammaREL)) ){
+            (*p_log)(LOG_ERR,AT)  << " bad GammaREL=" << GammaREL << " (too big for ejecta or nan)" << "\n"
+                       << " j_R=" << j_R << "\n"
+                       << " ej_R=" << ej_R << "\n"
+                       << " ej_theta=" << ej_theta << "\n"
+                       << " j_Gamma=" << j_Gamma << "\n"
+                       << " ej_Gamma=" << ej_Gamma << "\n"
+                       << " Gamma0=" << p_pars->Gamma0 << "\n"
+                       << " E0=" << p_pars->E0 << "\n"
+                       << " M0=" << p_pars->M0 << "\n"
+                       << " rho=" << rho << "\n"
+                       << " rho_prev=" << rho_prev << "\n"
+                       << " GammaCMB=" << GammaCMB << "\n"
+                       << " GammaCBM_prev=" << GammaCBM_prev << "\n"
+                       << " Exiting...";
+//            std::cerr << "| Gamma evol: \n";
+//            std::cerr << m_data[Q::iGamma] << "\n";
+//            std::cerr << AT << "\n";
+            exit(1);
+        }
+
+        double adi = p_eos->getGammaAdi(GammaCMB,EQS::Beta(GammaCMB));//5/3.;
+        cscbm = sqrt(adi * P / rho) / CGS::c; // sound speed
+        mcbm = sqrt(rho * EQS::Beta(GammaREL) * EQS::Beta(GammaREL) * CGS::c * CGS::c / adi / P); // mach number
+
+        double ej_Gamma_prev = getVal(Q::iGamma, prev_ix - 1);
+        double GammaCMB_prev = getVal(Q::iGammaCBM, prev_ix - 1);
+        double GammaREL_prev = EQS::GammaRel(ej_Gamma_prev, GammaCMB_prev);
+        if ((ej_Gamma == ej_Gamma_prev) || (GammaREL_prev < 1.) || (GammaCMB_prev == 1.)){
+            dGammaRELdGamma = 1.;
+        }
+        else{
+            m_data[Q::iGammaREL][prev_ix+1] = GammaREL;
+            double dGammaRel = m_data[Q::iGammaREL][prev_ix] - m_data[Q::iGammaREL][prev_ix-1];
+            dGammaRELdGamma = dydx(m_data[Q::iGammaREL], m_data[Q::iGamma], m_data[Q::idGammaRELdGamma],
+                                   dr, prev_ix+1, GammaREL, false);
+            dPdrho = dydx(m_data[Q::iPcbm], m_data[Q::irho], m_data[Q::idPCBMdrho],
+                          dr, prev_ix+1, P, false);
+            double tmp = sqrt(P / rho) / CGS::c;
+            int x = 1;
+//            dGammaRELdGamma1 = (GammaREL - GammaREL_prev) / (ej_Gamma - ej_Gamma_prev);
+        }
+        if ((!std::isfinite(dGammaRELdGamma)) || (dGammaRELdGamma > 1.e2)){
+//                std::cerr << AT << " Nan dGammaRELdGamma . setting to 1\n";
+            dGammaRELdGamma = 1.;
+        }
+
+        // Finally, apply the computed density profile to be used in RHS
+        if( (GammaCMB >= ej_Gamma) ){
+//            std::cerr << AT << " GammaCMB="<<GammaCMB<<" > ej_Gamma="<<ej_Gamma<<"\n";
+            GammaCMB = 1.; GammaREL = ej_Gamma; dGammaRhodR = 0; dGammaRELdGamma = 1.; //rho = 1e-70; m_drhodr = 0.;
+        }
+
+        p_dens->m_rho_ = rho;
+        p_dens->m_drhodr_ = drhodr;
+        p_dens->m_GammaRho = GammaCMB;
+        p_dens->m_GammaRel = GammaREL;
+        p_dens->m_dGammaRhodR = dGammaRhodR;
+        p_dens->m_dGammaReldGamma = dGammaRELdGamma;
+        p_dens->m_dPCBMdrho = dPdrho;
+        p_dens->m_P_cbm = P;
+        p_dens->m_M_cbm = mcbm; // 4.47 Zhang:2018
+        p_dens->m_CS_CBM = cscbm; // 4.43 Zhang:2018
+
+    }
+    void set_no_ism(double ej_R, double ej_ctheta, double ej_Gamma_rel){
+//        if (ej_Gamma_rel>10){ std::cerr << AT << "\n"; exit(1); }
+        p_dens->evaluateRhoDrhoDrDefault(ej_R, ej_ctheta);
+        p_dens->m_rho_ = p_dens->m_rho_floor_val * p_dens->m_rho_def;
+        p_dens->m_drhodr_ = 0.;
+
+        p_dens->m_GammaRho = 1;
+        p_dens->m_GammaRel = ej_Gamma_rel;
+        p_dens->m_dGammaRhodR = 0;
+        p_dens->m_dGammaReldGamma = 1;
+        p_dens->m_dPCBMdrho = 0.;
+        p_dens->m_P_cbm = 0.;
+        p_dens->m_M_cbm = 0.;
+        p_dens->m_CS_CBM = 0;
+    }
+    void set_standard_ism(double ej_R, double ej_ctheta, double ej_Gamma_rel){
+//        if (ej_Gamma_rel>10){ std::cerr << AT << "\n"; exit(1); }
+        p_dens->evaluateRhoDrhoDrDefault(ej_R, ej_ctheta);
+        p_dens->m_rho_ = p_dens->m_rho_def;
+        p_dens->m_drhodr_ = p_dens->m_drhodr_def;
+        p_dens->m_GammaRho = 1;
+        p_dens->m_GammaRel = ej_Gamma_rel;
+        p_dens->m_dGammaRhodR = 0;
+        p_dens->m_dGammaReldGamma = 1;
+        p_dens->m_dPCBMdrho = 0.;
+        p_dens->m_P_cbm = 0.;
+        p_dens->m_M_cbm = 0.;
+        p_dens->m_CS_CBM = 0;
+    }
+    void prepareDensProfileFromJet(double * out_Y, size_t i, double x, double const * Y,
+                                   void * _others, size_t evaled_ix){
+//        auto * p_pars = (struct Pars *) params; // removing EATS_pars for simplicity
+        auto * p_others = (std::vector<std::unique_ptr<BW>> *) _others;
+        auto & others = * p_others;
+        // --- current ejecta bw
+//        double ej_Gamma  = Y[p_pars->ii_eq + DynRadBlastWave::QS::iGamma];
+        double ej_mom = Y[p_pars->ii_eq + DynRadBlastWave::QS::imom];
+        if (ej_mom < 0.){
+            (*p_log)(LOG_ERR,AT)<<" ej_mom < 0\n";
+            exit(1);
+        }
+        double ej_Gamma  = EQS::GamFromMom(ej_mom);
+//        double ej_Gamma = std::exp(ej_lnGamma);
+        if (ej_Gamma < 1.) ej_Gamma = 1.0000000099999;
+//        if (ej_Gamma > 10.) {
+//            std::cerr << AT << " ej_Gamma="<<ej_Gamma<<"\n";
+//            exit(1);
+//        }
+        double ej_R      = Y[p_pars->ii_eq + DynRadBlastWave::QS::iR];
+        double theta_b0  = p_pars->theta_b0;
+        double ej_theta  = Y[p_pars->ii_eq + DynRadBlastWave::QS::itheta];
+        double ej_ctheta = p_pars->ctheta0;//ctheta(ej_theta);
+        // -- loop over jets
+
+        int i_ej_l = p_pars->which_jet_layer_to_use;//others.size()-1;
+        bool is_within = false;
+//        for (size_t ij = 0; ij < others.size(); ij++){
+//            double j_R      = Y[others[ij]->getPars()->ii_eq + DynRadBlastWave::QS::iR];
+//            double j_Gamma  = Y[others[ij]->getPars()->ii_eq + DynRadBlastWave::QS::iGamma];
+//            double j_theta  = Y[others[ij]->getPars()->ii_eq + DynRadBlastWave::QS::itheta];
+//            double j_ctheta = others[ij]->ctheta(j_theta);
+//            double j_theta0 = others[ij]->theta0(j_theta); //
+//            double j_theta1 = others[ij]->theta1(j_theta);
+//            if ((ej_ctheta > j_theta0) && (ej_ctheta <= j_theta1)){
+////            if ((ej_ctheta < j_ctheta)){
+//                i_ej_l = ij; is_within = true;
+////                if(i_ej_l!=p_pars->j_i0){
+////                    std::cerr << AT<< " \nj_theta0"<<p_pars->j_theta0<<" j_theta1="<<p_pars->j_theta1<<" prev_layer="<<p_pars->j_i0<<"\n";
+////                    std::cerr << "ctheta="<<j_theta0<<" ctheta0="<< p_pars->ctheta0 <<"\n";
+////                    exit(1);
+////                }
+//            }
+//        }
+//        if (!is_within){
+//            double j_R      = Y[others[0]->getPars()->ii_eq + DynRadBlastWave::QS::iR];
+//            double j_Gamma  = Y[others[0]->getPars()->ii_eq + DynRadBlastWave::QS::iGamma];
+//            double j_theta  = Y[others[0]->getPars()->ii_eq + DynRadBlastWave::QS::itheta];
+//            double j_ctheta = others[0]->ctheta(j_theta);
+//            double j_theta0 = others[0]->theta0(j_theta); //
+//            double j_theta1 = others[0]->theta1(j_theta);
+//            if (ej_ctheta < j_theta0){
+//                i_ej_l = 0.;
+//                is_within = true;
+//            }
+//        }
+
+//        i_ej_l = 0;//others.size()-1;
+        double j_mom = Y[others[i_ej_l]->getPars()->ii_eq + DynRadBlastWave::QS::imom];
+        double j_Gamma = EQS::GamFromMom(j_mom);
+//        double j_Gamma = Y[others[i_ej_l]->getPars()->ii_eq + DynRadBlastWave::QS::iGamma];
+//        double ibeta = EQS::BetFromMom(Y[others[i_ej_l]->getPars()->ii_eq + DynRadBlastWave::QS::imom]);
+        double j_theta = Y[others[i_ej_l]->getPars()->ii_eq + DynRadBlastWave::QS::itheta];
+//        double j_lnGamma = Y[others[i_ej_l]->getPars()->ii_eq + DynRadBlastWave::QS::ilnGamma];
+//        double j_Gamma = std::exp(j_lnGamma);
+        double j_Gamma0 = others[i_ej_l]->getPars()->Gamma0;
+//        double j_ctheta = others[i_ej_l]->ctheta(j_theta);
+        double j_ctheta = LatStruct::ctheta(j_theta,
+                                            others[i_ej_l]->getPars()->ilayer,
+                                            others[i_ej_l]->getPars()->nlayers);//others[i_ej_l]->ctheta(j_theta);
+        if (ej_ctheta < j_ctheta){ is_within = true; }
+
+        auto & other = others[i_ej_l];
+        double j_R = Y[other->getPars()->ii_eq + QS::iR];
+
+        if ((ej_R == p_pars->R0)||(evaled_ix == 0)){
+//            if (evaled_ix > 1){
+//                std::cerr<<AT<<" \n";exit(1);
+//            }
+            if (is_within){
+                // inside -- NO ISM
+                set_no_ism(ej_R, ej_ctheta, ej_Gamma);
+//                p_pars->is_within0 = is_within;
+            }
+            else {
+                // outside -- standard ISM
+                set_standard_ism(ej_R, ej_ctheta, ej_Gamma);
+//                p_pars->is_within0 = is_within;
+            }
+//            if ((p_pars->ilayer==1)&&(p_dens->m_rho_!=(p_dens->m_rho_floor_val*p_dens->m_rho_def))){
+//                exit(1);
+//            }
+        }
+        else if ((ej_R < j_R)&&(ej_R > p_pars->R0)){
+            if (is_within && (evaled_ix > 0)){
+                // inside and behind -- complex ISM
+                if ((p_pars->first_entry_r < 0) || (p_pars->first_entry_r > ej_R))
+                    p_pars->first_entry_r = ej_R;
+                // if entering a new jet layer
+                if (i_ej_l != p_pars->ijl) {
+                    p_pars->prev_ijl = p_pars->ijl; // -1 0 1 2 3 4
+                    p_pars->ijl = i_ej_l; // 0 2 3 4 5
+                }
+
+                size_t other_i = others[i_ej_l]->getPars()->ii_eq;//other->getPars()->ii_eq;
+                double other_Gamma = EQS::GamFromMom(Y[other_i + DynRadBlastWave::QS::imom]);//std::exp( Y[other_i + DynRadBlastWave::QS::ilnGamma] );
+//                double other_Gamma = Y[other_i + DynRadBlastWave::QS::iGamma];//std::exp( Y[other_i + DynRadBlastWave::QS::ilnGamma] );
+                // --- density experienced by the jet blast wave and the density in the downstream (rho2)
+                other->getDensIsm()->evaluateRhoDrhoDrDefault(j_R, INFINITY);
+                double j_rho = other->getDensIsm()->m_rho_def;
+                double j_drhodr = other->getDensIsm()->m_drhodr_def;
+                double j_adi = other->getEos()->getGammaAdi(other_Gamma, EQS::Beta(other_Gamma));
+                double j_rho2 = EQS::rho2t(j_Gamma, j_adi, j_rho);
+                double j_V2 = Y[other_i + DynRadBlastWave::QS::iM2] / j_rho2; // Units -> c^2 for energy
+                double j_P2 = (j_adi - 1.) * Y[other_i + DynRadBlastWave::QS::iEint2] / j_V2 * CGS::c * CGS::c;//# * CGS::c * CGS::c; // Units -> c^2 for energy
+                double cs = sqrt(j_adi * j_P2 / j_rho2) / CGS::c;
+                double cs2 = sqrt(j_adi*(j_adi-1)*(j_Gamma-1)/(1+j_adi*(j_Gamma-1)));
+                // ---
+//                size_t i = p_pars->ii_eq;
+//                double ej_Gamma = Y[i + DynRadBlastWave::QS::iGamma];
+//                double ej_R = Y[i + DynRadBlastWave::QS::iR];
+//                double theta_b0 = p_pars->theta_b0;
+//                double ej_theta = Y[i + DynRadBlastWave::QS::itheta];
+//                double ej_ctheta = ctheta(ej_theta);
+                if (ej_Gamma <= 1.) { ej_Gamma = 1.0000000000999; } // --------------------------- [ kostil ]
+
+                evalDensAndItsVelocityBehindBlastWave_Case1(j_R, j_Gamma, j_ctheta, j_rho, j_rho2, j_Gamma0, j_P2, ej_R, ej_Gamma, ej_theta);
+//                evalDensAndItsVelocityBehindBlastWave_Case1( Y, other );
+            }
+            else{
+                // outside -- standard ISM
+                set_standard_ism(ej_R, ej_ctheta, ej_Gamma);
+            }
+        }
+        else if (ej_R >= j_R){
+            // outside -- standard ISM
+            set_standard_ism(ej_R, ej_ctheta, ej_Gamma);
+        }
+        else{
+            (*p_log)(LOG_ERR,AT)  << " should not be entered. Exiting..."<<"\n";
+//            std::cerr << AT << "\n";
+            exit(1);
+        }
+
+//        if ((p_pars->is_within)&&(!is_within)){
+//            exit(1);
+//        }
+//        double rho =  p_dens->m_rho_;
+//        p_dens->evaluateRhoDrhoDr(ej_R, ej_ctheta); // set default values for density
+//        double rho_def = p_dens->m_rho;
+//        double drhodr_def = p_dens->m_drhodr;
+        double rho_prev    = getVal(Q::irho, evaled_ix-1);
+        double drhodr_prev = getVal(Q::idrhodr, evaled_ix-1);
+        double prev_ej_R   = getVal(Q::iR, evaled_ix-1);
+//        if ((rho<1e-30)&&(evaled_ix>1)&&(rho_prev<rho)){
+//            std::cerr<<AT<<" rho_prev is not initialized\n";
+//            exit(1);
+//        }
+        p_pars->is_within = is_within;
+        p_pars->r_dist = j_R - ej_R;
+
+//        if (p_pars-> < pfsolvePars->dens_floor_frac*rho_def)
+        /// evaluate the RHS
+
+//        if ((p_pars->prev_ijl!=i_ej_l)&&(evaled_ix>20)){
+//            std::cerr << " ishell="<<p_pars->ishell
+//                      << " ilayer="<<p_pars->ilayer
+//                      << " Gamma0="<<p_pars->Gamma0
+//                      << " Gamma="<<ej_Gamma
+//                      << " rho_prev"<<rho_prev
+//                      << " drhodr_prev"<<drhodr_prev
+//                      << " rho="<<p_dens->m_rho
+//                      << " drhodr="<<p_dens->m_drhodr
+//                      << " ej_ctheta="<<ej_ctheta
+//                      << " ej_ctheta_prev="<<getVal(Q::ictheta, evaled_ix-1)
+//                      << " j_theta0="<<others[ijl]->theta0(Y[others[i_ej_l]->getPars()->ii_eq + DynRadBlastWave::QS::itheta])
+//                      << " j_theta1="<<others[ijl]->theta1(Y[others[i_ej_l]->getPars()->ii_eq + DynRadBlastWave::QS::itheta])
+//                      << "\n";
+//        }
+
+//        if (((rho_prev/p_dens->m_rho_) >= p_dens->m_rho_floor_val)){
+//            exit(1);
+//        }
+//        if ((p_pars->ilayer==1)&&(p_dens->m_rho_!=(p_dens->m_rho_floor_val*p_dens->m_rho_def))){
+//            exit(1);
+//        }
+//        if (p_pars->is_within0 != p_pars->is_within){
+//            exit(1);
+//        }
+    }
+    void evaluateRhsDensModel2(double * out_Y, size_t i, double x, double const * Y, void * others, size_t evaled_ix) override {
+
+        /// do not evaluate RHS if the evolution was terminated
+        if (p_pars->end_evolution) {
+            return;
+        }
+
+        /// compute density profile in front of the kN BW
+        if (p_pars->use_dens_prof_behind_jet_for_ejecta){
+            prepareDensProfileFromJet(out_Y,i,x,Y,others,evaled_ix);
+        }
+        else{
+            double ej_Gamma  = EQS::GamFromMom( Y[i + DynRadBlastWave::QS::imom] );
+//            double ej_Gamma  = Y[i + DynRadBlastWave::QS::iGamma];
+            if (ej_Gamma < 1.) {
+                (*p_log)(LOG_ERR,AT) << "Gamma < 1\n";
+                ej_Gamma = 1. + 1e-5;
+            }
+            double ej_R      = Y[i + DynRadBlastWave::QS::iR];
+            double theta_b0  = p_pars->theta_b0;
+            double ej_theta  = Y[i + DynRadBlastWave::QS::itheta];
+            double ej_ctheta = LatStruct::ctheta(ej_theta,p_pars->ilayer,p_pars->nlayers);//ctheta(ej_theta);
+//            if (ej_Gamma>10.){
+//                (*p_log)(LOG_ERR,AT)
+//                        << "["<<p_pars->ishell<<", "<<p_pars->ilayer<<"]"
+//                        << " ii_eq = "<<p_pars->ii_eq
+//                        << " i = " << i
+//                        << " Gamma="<<ej_Gamma
+//                        << " R = " << ej_R
+//                        << " theta_b0 = " <<theta_b0
+//                        << " ctheta =" <<ej_ctheta
+//                        << "\n"
+//                        << " Exiting...\n";
+////                std::cerr << AT << "\n";
+//                exit(1);
+//            }
+            set_standard_ism(ej_R, ej_ctheta, ej_Gamma);
+        }
+
+        /// evaluate actual RHS
+//        evaluateRhsDens(out_Y, i, x, Y);
+        evaluateRhs(out_Y, i, x, Y);
+
+    }
+
+    /// ---
+
+
+};
+
+#endif
 #endif //SRC_BLASTWAVE_BASE_H

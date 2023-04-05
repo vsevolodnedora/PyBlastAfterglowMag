@@ -16,10 +16,11 @@
 #include "synchrotron_an.h"
 
 #include "magnetar.h"
+#include "blastwave.h"
 //#include "pulsar_wind_nebula.h"
-#include "blastwave_base.h"
-#include "blastwave_rad.h"
-#include "blastwave_dyn.h"
+//#include "blastwave_base.h"
+//#include "blastwave_rad.h"
+//#include "blastwave_dyn.h"
 
 class BlastWaveCollision{
     struct FsolvePars{
@@ -67,8 +68,8 @@ public:
     }
     ~BlastWaveCollision(){ delete p_colsolve; delete p_eos; }
 
-    void collideBlastWaves(std::unique_ptr<RadBlastWave> & bw1,
-                           std::unique_ptr<RadBlastWave> & bw2,
+    void collideBlastWaves(std::unique_ptr<BlastWave> & bw1,
+                           std::unique_ptr<BlastWave> & bw2,
                            double * Y, double rcoll, size_t il){
         if (p_colsolve->p_eos == nullptr){
             (*p_log)(LOG_ERR,AT) << " eos pointer is not set\n;";
@@ -79,21 +80,21 @@ public:
             exit(1);
         }
         /// get relevant parameters
-        double gam1 = EQS::GamFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        double beta1 = EQS::BetFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        double gam1 = EQS::GamFromMom( Y[bw1->getPars()->ii_eq + SOL::QS::imom] );
+        double beta1 = EQS::BetFromMom( Y[bw1->getPars()->ii_eq + SOL::QS::imom] );
         double m0_1 = bw1->getPars()->M0;
-        double m2_1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
+        double m2_1 = Y[bw1->getPars()->ii_eq + SOL::QS::iM2];
         double m2_1_ = m2_1 * m0_1;
-        double eint2_1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        double eint2_1 = Y[bw1->getPars()->ii_eq + SOL::QS::iEint2];
         double eint2_1_ = eint2_1 * bw1->getPars()->M0 * CGS::c * CGS::c;
         double adi1 = bw1->getEos()->getGammaAdi(gam1, beta1);
         /// --------------------
-        double gam2 = EQS::GamFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        double beta2 = EQS::BetFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
+        double gam2 = EQS::GamFromMom( Y[bw2->getPars()->ii_eq + SOL::QS::imom] );
+        double beta2 = EQS::BetFromMom( Y[bw2->getPars()->ii_eq + SOL::QS::imom] );
         double m0_2 = bw2->getPars()->M0;
-        double m2_2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
+        double m2_2 = Y[bw2->getPars()->ii_eq + SOL::QS::iM2];
         double m2_2_ = m2_2 * m0_2;
-        double eint2_2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        double eint2_2 = Y[bw2->getPars()->ii_eq + SOL::QS::iEint2];
         double eint2_2_ = eint2_1 * bw2->getPars()->M0 * CGS::c * CGS::c;
         double adi2 = bw2->getEos()->getGammaAdi(gam2, beta2);
         /// -------------------
@@ -130,17 +131,17 @@ public:
             bw2->getPars()->end_evolution = true;
             bw1->getPars()->M0 = m0_c;
             bw1->getPars()->Ye0 = ye_c;
-            Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] = mom_c;
-            Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2] = eint2_c;
-            Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2] = m2_c;
+            Y[bw1->getPars()->ii_eq + SOL::QS::imom] = mom_c;
+            Y[bw1->getPars()->ii_eq + SOL::QS::iEint2] = eint2_c;
+            Y[bw1->getPars()->ii_eq + SOL::QS::iM2] = m2_c;
         }
         else {
             bw1->getPars()->end_evolution = true;
             bw2->getPars()->M0 = m0_c;
             bw2->getPars()->Ye0 = ye_c;
-            Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] = mom_c;
-            Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2] = eint2_c;
-            Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2] = m2_c;
+            Y[bw2->getPars()->ii_eq + SOL::QS::imom] = mom_c;
+            Y[bw2->getPars()->ii_eq + SOL::QS::iEint2] = eint2_c;
+            Y[bw2->getPars()->ii_eq + SOL::QS::iM2] = m2_c;
         }
         (*p_log)(LOG_INFO,AT) << "\tLayer [il="<<il<<"] Outcome for"
                               << " Eint2/M0c^2: ["<<eint2_1<<", "<<eint2_2<<"] -> "<<eint2_c
@@ -155,12 +156,12 @@ public:
 
 #if 0
         /// Extract data for first shell
-        p_colsolve->m_gam1 = EQS::GamFromMom(Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        p_colsolve->m_beta1 = EQS::BetFromMom(Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        double m2_1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2] * bw1->getPars()->M0;
-        std::cout << " m2="<<Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2]
+        p_colsolve->m_gam1 = EQS::GamFromMom(Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+        p_colsolve->m_beta1 = EQS::BetFromMom(Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+        double m2_1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::iM2] * bw1->getPars()->M0;
+        std::cout << " m2="<<Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::iM2]
                 <<" m0="<<bw1->getPars()->M0<<" m2*m0="<<m2_1<<"\n";
-        p_colsolve->m_eint1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        p_colsolve->m_eint1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
         p_colsolve->m_adi1 = bw1->getEos()->getGammaAdi(p_colsolve->m_gam1, p_colsolve->m_beta1);
         /// apply units for the first shell (mass and energy)
         double m0_1 = bw1->getPars()->M0;
@@ -168,12 +169,12 @@ public:
         p_colsolve->m_mass1 = m0_1 + m2_1;
 
         /// extract data for the second shell
-        p_colsolve->m_gam2 = EQS::GamFromMom(Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        p_colsolve->m_beta2 = EQS::BetFromMom(Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        double m2_2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2] * bw2->getPars()->M0;
-        std::cout << " m2="<<Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2]
+        p_colsolve->m_gam2 = EQS::GamFromMom(Y[bw2->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+        p_colsolve->m_beta2 = EQS::BetFromMom(Y[bw2->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+        double m2_2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::QS::iM2] * bw2->getPars()->M0;
+        std::cout << " m2="<<Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::iM2]
                   <<" m0="<<bw1->getPars()->M0<<" m2*m0="<<m2_1<<"\n";
-        p_colsolve->m_eint2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        p_colsolve->m_eint2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
         p_colsolve->m_adi2 = bw2->getEos()->getGammaAdi(p_colsolve->m_gam2, p_colsolve->m_beta2);
         /// apply units for the second shell (mass and energy)
         double m0_2 = bw2->getPars()->M0;
@@ -209,72 +210,72 @@ public:
         if (ish == 1){
             iieq = bw1->getPars()->ii_eq;
             iieq_other = bw2->getPars()->ii_eq;
-            eint_before = Y[iieq + DynRadBlastWave::Q_SOL::iEint2];
-            m2_before = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            eint_before = Y[iieq + DynRadBlastWave::QS::iEint2];
+            m2_before = Y[iieq + DynRadBlastWave::QS::iM2];
             m0_before = bw1->getPars()->M0;
-//            Y[iieq + DynRadBlastWave::Q_SOL::iEad2] += Y[iieq + DynRadBlastWave::Q_SOL::iEint2] * bw1->getPars()->M0 / bw2->getPars()->M0;
-//            Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] += Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] * bw1->getPars()->M0 / bw2->getPars()->M0;
-//            Y[iieq + DynRadBlastWave::Q_SOL::iR] = rcoll;
+//            Y[iieq + DynRadBlastWave::QS::iEad2] += Y[iieq + DynRadBlastWave::QS::iEint2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::QS::iEsh2] += Y[iieq + DynRadBlastWave::QS::iEsh2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::QS::iR] = rcoll;
             //
             bw1->getPars()->M0 = bw2->getPars()->M0 + bw1->getPars()->M0;//i_mM; // update the total mass of the shell
-//            Y[iieq + DynRadBlastWave::Q_SOL::iM2] = i_mM / bw1->getPars()->M0;//Y[iieq + DynRadBlastWave::Q_SOL::iM2] * bw2->getPars()->M0 / bw1->getPars()->M0;
-            Y[iieq + DynRadBlastWave::Q_SOL::iM2] = (m0_1 + m2_1 + m2_2 + m0_2) / (m0_1 + m0_2);
-            m2_after = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+//            Y[iieq + DynRadBlastWave::QS::iM2] = i_mM / bw1->getPars()->M0;//Y[iieq + DynRadBlastWave::QS::iM2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+            Y[iieq + DynRadBlastWave::QS::iM2] = (m0_1 + m2_1 + m2_2 + m0_2) / (m0_1 + m0_2);
+            m2_after = Y[iieq + DynRadBlastWave::QS::iM2];
             // terminated collided shell
             bw2->getPars()->end_evolution = true;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iR] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iM2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEint2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEad2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEsh2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iErad2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iRsh] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itcomov] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itheta] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itt] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iR] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iM2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEint2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEsh2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iErad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iRsh] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itcomov] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itheta] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itt] = 0;
             eint_after = i_eM / ( bw1->getPars()->M0 * CGS::c * CGS::c );
-            Y[iieq + DynRadBlastWave::Q_SOL::iEint2] = eint_after;
-            Y[iieq + DynRadBlastWave::Q_SOL::imom] = i_gM * EQS::Beta(i_gM);
+            Y[iieq + DynRadBlastWave::QS::iEint2] = eint_after;
+            Y[iieq + DynRadBlastWave::QS::imom] = i_gM * EQS::Beta(i_gM);
             m0_after = bw1->getPars()->M0;
         }
         else{
             iieq = bw2->getPars()->ii_eq;
             iieq_other = bw1->getPars()->ii_eq;
-            eint_before = Y[iieq + DynRadBlastWave::Q_SOL::iEint2];
-            m2_before = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            eint_before = Y[iieq + DynRadBlastWave::QS::iEint2];
+            m2_before = Y[iieq + DynRadBlastWave::QS::iM2];
             m0_before = bw2->getPars()->M0;
-//            Y[iieq + DynRadBlastWave::Q_SOL::iEad2] += Y[iieq + DynRadBlastWave::Q_SOL::iEint2] * bw2->getPars()->M0 / bw1->getPars()->M0;
-//            Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] += Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] * bw2->getPars()->M0 / bw1->getPars()->M0;
-//            Y[iieq + DynRadBlastWave::Q_SOL::iR] = rcoll;
+//            Y[iieq + DynRadBlastWave::QS::iEad2] += Y[iieq + DynRadBlastWave::QS::iEint2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::QS::iEsh2] += Y[iieq + DynRadBlastWave::QS::iEsh2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::QS::iR] = rcoll;
             ///
             ///
             bw2->getPars()->M0 = bw2->getPars()->M0 + bw1->getPars()->M0;//i_mM; // update the total mass of the shell
-//            Y[iieq + DynRadBlastWave::Q_SOL::iM2] = i_mM / bw2->getPars()->M0;// Y[iieq + DynRadBlastWave::Q_SOL::iM2] * bw1->getPars()->M0 / bw2->getPars()->M0;
-            Y[iieq + DynRadBlastWave::Q_SOL::iM2] = (m0_1 + m2_1 + m2_2 + m0_2) / (m0_1 + m0_2);
-            m2_after = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+//            Y[iieq + DynRadBlastWave::QS::iM2] = i_mM / bw2->getPars()->M0;// Y[iieq + DynRadBlastWave::QS::iM2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+            Y[iieq + DynRadBlastWave::QS::iM2] = (m0_1 + m2_1 + m2_2 + m0_2) / (m0_1 + m0_2);
+            m2_after = Y[iieq + DynRadBlastWave::QS::iM2];
             // terminated collided shell
             bw1->getPars()->end_evolution = true;
 
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iR] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iM2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEint2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEsh2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iErad2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEad2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iRsh] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itcomov] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itheta] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itt] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iR] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iM2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEint2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEsh2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iErad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iRsh] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itcomov] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itheta] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itt] = 0;
             eint_after = i_eM / ( bw2->getPars()->M0 * CGS::c * CGS::c );
-            Y[iieq + DynRadBlastWave::Q_SOL::iEint2] = eint_after;
-            Y[iieq + DynRadBlastWave::Q_SOL::imom] = i_gM * EQS::Beta(i_gM);
+            Y[iieq + DynRadBlastWave::QS::iEint2] = eint_after;
+            Y[iieq + DynRadBlastWave::QS::imom] = i_gM * EQS::Beta(i_gM);
             m0_after = bw2->getPars()->M0;
         }
         /// using the solution (mass, lorentz factor, energy) update the state vector
 //        double _mom = i_gM * EQS::Beta(i_gM);
 //        double _eint2 = i_eM / ( i_mM * CGS::c * CGS::c );
-//        Y[iieq + DynRadBlastWave::Q_SOL::imom] = _mom;
-//        Y[iieq + DynRadBlastWave::Q_SOL::iEint2] = _eint2; // use ODE units
+//        Y[iieq + DynRadBlastWave::QS::imom] = _mom;
+//        Y[iieq + DynRadBlastWave::QS::iEint2] = _eint2; // use ODE units
 
         (*p_log)(LOG_INFO,AT) << "\tLayer [il="<<il<<"] Outcome for"
 //                              << " idx1="<<idx1<<", idx2="<<idx2 << " collision:"
@@ -500,7 +501,7 @@ public:
         bool is_sorted = true;
         for (size_t i=0; i<n_active_shells; ++i) {
             size_t idx = m_idxs[i];
-            m_radii_init[i] = Y[ p_bws_ej[idx]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ];
+            m_radii_init[i] = Y[ p_bws_ej[idx]->getPars()->ii_eq + DynRadBlastWave::QS::iR ];
         }
         for (size_t i=1; i<n_active_shells; ++i) {
             size_t idx = m_idxs[i];
@@ -555,8 +556,8 @@ public:
             }
             /// if shell is active record its current index (order)
             m_idxs[idx] = i; // add only active shells to the list
-//            std::cerr << "i="<<i<<" R="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ]<<"\n";
-            m_radii_init[idx] = Y[p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ];
+//            std::cerr << "i="<<i<<" R="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::QS::iR ]<<"\n";
+            m_radii_init[idx] = Y[p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::QS::iR ];
             /// if the next shells in the list has a radius > than the previous; shells not ordered
             if (m_radii_init[idx] > ri){
                 ri = m_radii_init[idx];
@@ -629,10 +630,10 @@ public:
 //                    double tim1 = m_t_grid[ix - 1];
 //                    double ti = m_t_grid[ix];
                     double dt = ti - tim1;
-                    double r0im1 = Ym1_[p_bws_ej[i_idx]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];//p_bws_ej[i]->getVal(BlastWaveBase::iR, (int) (ix - 1));
-                    double r0i   = Y_[p_bws_ej[i_idx]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
-                    double r1im1 = Ym1_[p_bws_ej[j_idx]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];//p_bws_ej[j]->getVal(BlastWaveBase::iR, (int) (ix - 1));
-                    double r1i   = Y_[p_bws_ej[j_idx]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+                    double r0im1 = Ym1_[p_bws_ej[i_idx]->getPars()->ii_eq + DynRadBlastWave::QS::iR];//p_bws_ej[i]->getVal(BW::iR, (int) (ix - 1));
+                    double r0i   = Y_[p_bws_ej[i_idx]->getPars()->ii_eq + DynRadBlastWave::QS::iR];
+                    double r1im1 = Ym1_[p_bws_ej[j_idx]->getPars()->ii_eq + DynRadBlastWave::QS::iR];//p_bws_ej[j]->getVal(BW::iR, (int) (ix - 1));
+                    double r1i   = Y_[p_bws_ej[j_idx]->getPars()->ii_eq + DynRadBlastWave::QS::iR];
                     double slope0 = (r0i - r0im1) / dt;
                     double slope1 = (r1i - r1im1) / dt;
                     double r0int = r0im1 - slope0 * tim1;
@@ -655,11 +656,11 @@ public:
 //                    (*p_log)(LOG_WARN, AT)
 //                            << " Interpolating shell collision time" << " [ilayer=" << mylayer
 //                            << " ishell=" << i << "] "
-//                            << " mom=" << Y[p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom]
+//                            << " mom=" << Y[p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::QS::imom]
 //                            << " (mom0=" << p_bws_ej[i]->getPars()->mom0 << ") "
 //                            << " has overrun shell j=" << overrun_shells[0]
 //                            << " with momenta "
-//                            << Y[p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom]
+//                            << Y[p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::QS::imom]
 //                            << " (mom0=" << p_bws_ej[overrun_shells[0]]->getPars()->mom0 << ") "
 //                            << "\n";
 //                    if (x < tcoll)
@@ -708,19 +709,19 @@ public:
             exit(1);
         }
         /// Extract data for first shell
-        p_colsolve->m_gam1 = EQS::GamFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        p_colsolve->m_beta1 = EQS::BetFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        p_colsolve->m_mass1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
-        p_colsolve->m_eint1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        p_colsolve->m_gam1 = EQS::GamFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+        p_colsolve->m_beta1 = EQS::BetFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+        p_colsolve->m_mass1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::iM2];
+        p_colsolve->m_eint1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
         p_colsolve->m_adi1 = bw1->getEos()->getGammaAdi(p_colsolve->m_gam1, p_colsolve->m_beta1);
         /// apply units for the first shell (mass and energy)
         p_colsolve->m_mass1 = bw1->getPars()->M0 + (p_colsolve->m_mass1 * bw1->getPars()->M0);
         p_colsolve->m_eint1 = p_colsolve->m_eint1 * (bw1->getPars()->M0 * CGS::c * CGS::c);
         /// extract data for the second shell
-        p_colsolve->m_gam2 = EQS::GamFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        p_colsolve->m_beta2 = EQS::BetFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        p_colsolve->m_mass2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
-        p_colsolve->m_eint2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        p_colsolve->m_gam2 = EQS::GamFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+        p_colsolve->m_beta2 = EQS::BetFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+        p_colsolve->m_mass2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::QS::iM2];
+        p_colsolve->m_eint2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
         p_colsolve->m_adi2 = bw2->getEos()->getGammaAdi(p_colsolve->m_gam2, p_colsolve->m_beta2);
         /// apply units for the second shell (mass and energy)
         p_colsolve->m_mass2 = bw2->getPars()->M0 + (p_colsolve->m_mass2 * bw2->getPars()->M0);
@@ -829,62 +830,62 @@ public:
         if (ish == 1){
             iieq = bw1->getPars()->ii_eq;
             iieq_other = bw2->getPars()->ii_eq;
-            eint_before = Y[iieq + DynRadBlastWave::Q_SOL::iEint2];
-            m2_before = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
-            Y[iieq + DynRadBlastWave::Q_SOL::iEad2] += Y[iieq + DynRadBlastWave::Q_SOL::iEint2] * bw1->getPars()->M0 / bw2->getPars()->M0;
-            Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] += Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] * bw1->getPars()->M0 / bw2->getPars()->M0;
-//            Y[iieq + DynRadBlastWave::Q_SOL::iR] = rcoll;
+            eint_before = Y[iieq + DynRadBlastWave::QS::iEint2];
+            m2_before = Y[iieq + DynRadBlastWave::QS::iM2];
+            Y[iieq + DynRadBlastWave::QS::iEad2] += Y[iieq + DynRadBlastWave::QS::iEint2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+            Y[iieq + DynRadBlastWave::QS::iEsh2] += Y[iieq + DynRadBlastWave::QS::iEsh2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::QS::iR] = rcoll;
             //
             //
             bw1->getPars()->M0 = bw2->getPars()->M0+bw1->getPars()->M0;//i_mM; // update the total mass of the shell
-            Y[iieq + DynRadBlastWave::Q_SOL::iM2] = i_mM / bw2->getPars()->M0;//Y[iieq + DynRadBlastWave::Q_SOL::iM2] * bw2->getPars()->M0 / bw1->getPars()->M0;
-            m2_after = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            Y[iieq + DynRadBlastWave::QS::iM2] = i_mM / bw2->getPars()->M0;//Y[iieq + DynRadBlastWave::QS::iM2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+            m2_after = Y[iieq + DynRadBlastWave::QS::iM2];
             // terminated collided shell
             bw2->getPars()->end_evolution = true;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iR] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iM2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEint2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEad2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEsh2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iErad2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iRsh] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itcomov] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itheta] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itt] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iR] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iM2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEint2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEsh2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iErad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iRsh] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itcomov] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itheta] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itt] = 0;
 
         }
         else{
             iieq = bw2->getPars()->ii_eq;
             iieq_other = bw1->getPars()->ii_eq;
-            eint_before = Y[iieq + DynRadBlastWave::Q_SOL::iEint2];
-            m2_before = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
-            Y[iieq + DynRadBlastWave::Q_SOL::iEad2] += Y[iieq + DynRadBlastWave::Q_SOL::iEint2] * bw2->getPars()->M0 / bw1->getPars()->M0;
-            Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] += Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] * bw2->getPars()->M0 / bw1->getPars()->M0;
-//            Y[iieq + DynRadBlastWave::Q_SOL::iR] = rcoll;
+            eint_before = Y[iieq + DynRadBlastWave::QS::iEint2];
+            m2_before = Y[iieq + DynRadBlastWave::QS::iM2];
+            Y[iieq + DynRadBlastWave::QS::iEad2] += Y[iieq + DynRadBlastWave::QS::iEint2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+            Y[iieq + DynRadBlastWave::QS::iEsh2] += Y[iieq + DynRadBlastWave::QS::iEsh2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::QS::iR] = rcoll;
             ///
             ///
             bw2->getPars()->M0 = bw2->getPars()->M0+bw1->getPars()->M0;//i_mM; // update the total mass of the shell
-            Y[iieq + DynRadBlastWave::Q_SOL::iM2] = i_mM/ bw2->getPars()->M0;// Y[iieq + DynRadBlastWave::Q_SOL::iM2] * bw1->getPars()->M0 / bw2->getPars()->M0;
-            m2_after = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            Y[iieq + DynRadBlastWave::QS::iM2] = i_mM/ bw2->getPars()->M0;// Y[iieq + DynRadBlastWave::QS::iM2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+            m2_after = Y[iieq + DynRadBlastWave::QS::iM2];
             // terminated collided shell
             bw1->getPars()->end_evolution = true;
 
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iR] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iM2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEint2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEsh2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iErad2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEad2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iRsh] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itcomov] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itheta] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itt] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iR] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iM2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEint2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEsh2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iErad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iRsh] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itcomov] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itheta] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itt] = 0;
         }
         /// using the solution (mass, lorentz factor, energy) update the state vector
         double _mom = i_gM * EQS::Beta(i_gM);
         double _eint2 = i_eM / ( i_mM * CGS::c * CGS::c );
-        Y[iieq + DynRadBlastWave::Q_SOL::imom] = _mom;
-        Y[iieq + DynRadBlastWave::Q_SOL::iEint2] = _eint2; // use ODE units
+        Y[iieq + DynRadBlastWave::QS::imom] = _mom;
+        Y[iieq + DynRadBlastWave::QS::iEint2] = _eint2; // use ODE units
 
         (*p_log)(LOG_INFO,AT) << "\tLayer [il="<<mylayer<<"] Outcome for"
                               << " idx1="<<idx1<<", idx2="<<idx2 << " collision:"
@@ -899,7 +900,7 @@ public:
 
 
 //
-//        Y[iieq + DynRadBlastWave::Q_SOL::i] = i_gM * EQS::Beta(i_gM);
+//        Y[iieq + DynRadBlastWave::QS::i] = i_gM * EQS::Beta(i_gM);
 
 
     }
@@ -920,19 +921,19 @@ public:
             exit(1);
         }
         /// Extract data for first shell
-        p_colsolve->m_gam1 = EQS::GamFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        p_colsolve->m_beta1 = EQS::BetFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        p_colsolve->m_mass1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
-        p_colsolve->m_eint1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        p_colsolve->m_gam1 = EQS::GamFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+        p_colsolve->m_beta1 = EQS::BetFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+        p_colsolve->m_mass1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::iM2];
+        p_colsolve->m_eint1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
         p_colsolve->m_adi1 = bw1->getEos()->getGammaAdi(p_colsolve->m_gam1, p_colsolve->m_beta1);
         /// apply units for the first shell (mass and energy)
         p_colsolve->m_mass1 = bw1->getPars()->M0 + (p_colsolve->m_mass1 * bw1->getPars()->M0);
         p_colsolve->m_eint1 = p_colsolve->m_eint1 * (bw1->getPars()->M0 * CGS::c * CGS::c);
         /// extract data for the second shell
-        p_colsolve->m_gam2 = EQS::GamFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        p_colsolve->m_beta2 = EQS::BetFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        p_colsolve->m_mass2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
-        p_colsolve->m_eint2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        p_colsolve->m_gam2 = EQS::GamFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+        p_colsolve->m_beta2 = EQS::BetFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+        p_colsolve->m_mass2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::QS::iM2];
+        p_colsolve->m_eint2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
         p_colsolve->m_adi2 = bw2->getEos()->getGammaAdi(p_colsolve->m_gam2, p_colsolve->m_beta2);
         /// apply units for the second shell (mass and energy)
         p_colsolve->m_mass2 = bw2->getPars()->M0 + (p_colsolve->m_mass2 * bw2->getPars()->M0);
@@ -1041,62 +1042,62 @@ public:
         if (ish == 1){
             iieq = bw1->getPars()->ii_eq;
             iieq_other = bw2->getPars()->ii_eq;
-            eint_before = Y[iieq + DynRadBlastWave::Q_SOL::iEint2];
-            m2_before = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
-            Y[iieq + DynRadBlastWave::Q_SOL::iEad2] += Y[iieq + DynRadBlastWave::Q_SOL::iEint2] * bw1->getPars()->M0 / bw2->getPars()->M0;
-            Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] += Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] * bw1->getPars()->M0 / bw2->getPars()->M0;
-//            Y[iieq + DynRadBlastWave::Q_SOL::iR] = rcoll;
+            eint_before = Y[iieq + DynRadBlastWave::QS::iEint2];
+            m2_before = Y[iieq + DynRadBlastWave::QS::iM2];
+            Y[iieq + DynRadBlastWave::QS::iEad2] += Y[iieq + DynRadBlastWave::QS::iEint2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+            Y[iieq + DynRadBlastWave::QS::iEsh2] += Y[iieq + DynRadBlastWave::QS::iEsh2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::QS::iR] = rcoll;
             //
             //
             bw1->getPars()->M0 = bw2->getPars()->M0+bw1->getPars()->M0;//i_mM; // update the total mass of the shell
-            Y[iieq + DynRadBlastWave::Q_SOL::iM2] = i_mM / bw2->getPars()->M0;//Y[iieq + DynRadBlastWave::Q_SOL::iM2] * bw2->getPars()->M0 / bw1->getPars()->M0;
-            m2_after = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            Y[iieq + DynRadBlastWave::QS::iM2] = i_mM / bw2->getPars()->M0;//Y[iieq + DynRadBlastWave::QS::iM2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+            m2_after = Y[iieq + DynRadBlastWave::QS::iM2];
             // terminated collided shell
             bw2->getPars()->end_evolution = true;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iR] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iM2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEint2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEad2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEsh2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iErad2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iRsh] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itcomov] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itheta] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itt] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iR] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iM2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEint2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEsh2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iErad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iRsh] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itcomov] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itheta] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itt] = 0;
 
         }
         else{
             iieq = bw2->getPars()->ii_eq;
             iieq_other = bw1->getPars()->ii_eq;
-            eint_before = Y[iieq + DynRadBlastWave::Q_SOL::iEint2];
-            m2_before = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
-            Y[iieq + DynRadBlastWave::Q_SOL::iEad2] += Y[iieq + DynRadBlastWave::Q_SOL::iEint2] * bw2->getPars()->M0 / bw1->getPars()->M0;
-            Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] += Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] * bw2->getPars()->M0 / bw1->getPars()->M0;
-//            Y[iieq + DynRadBlastWave::Q_SOL::iR] = rcoll;
+            eint_before = Y[iieq + DynRadBlastWave::QS::iEint2];
+            m2_before = Y[iieq + DynRadBlastWave::QS::iM2];
+            Y[iieq + DynRadBlastWave::QS::iEad2] += Y[iieq + DynRadBlastWave::QS::iEint2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+            Y[iieq + DynRadBlastWave::QS::iEsh2] += Y[iieq + DynRadBlastWave::QS::iEsh2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::QS::iR] = rcoll;
             ///
             ///
             bw2->getPars()->M0 = bw2->getPars()->M0+bw1->getPars()->M0;//i_mM; // update the total mass of the shell
-            Y[iieq + DynRadBlastWave::Q_SOL::iM2] = i_mM/ bw2->getPars()->M0;// Y[iieq + DynRadBlastWave::Q_SOL::iM2] * bw1->getPars()->M0 / bw2->getPars()->M0;
-            m2_after = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            Y[iieq + DynRadBlastWave::QS::iM2] = i_mM/ bw2->getPars()->M0;// Y[iieq + DynRadBlastWave::QS::iM2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+            m2_after = Y[iieq + DynRadBlastWave::QS::iM2];
             // terminated collided shell
             bw1->getPars()->end_evolution = true;
 
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iR] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iM2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEint2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEsh2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iErad2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEad2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iRsh] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itcomov] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itheta] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itt] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iR] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iM2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEint2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEsh2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iErad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iRsh] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itcomov] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itheta] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itt] = 0;
         }
         /// using the solution (mass, lorentz factor, energy) update the state vector
         double _mom = i_gM * EQS::Beta(i_gM);
         double _eint2 = i_eM / ( i_mM * CGS::c * CGS::c );
-        Y[iieq + DynRadBlastWave::Q_SOL::imom] = _mom;
-        Y[iieq + DynRadBlastWave::Q_SOL::iEint2] = _eint2; // use ODE units
+        Y[iieq + DynRadBlastWave::QS::imom] = _mom;
+        Y[iieq + DynRadBlastWave::QS::iEint2] = _eint2; // use ODE units
 
         (*p_log)(LOG_INFO,AT) << "\tLayer [il="<<mylayer<<"] Outcome for"
                               << " idx1="<<idx1<<", idx2="<<idx2 << " collision:"
@@ -1111,7 +1112,7 @@ public:
 
 
 //
-//        Y[iieq + DynRadBlastWave::Q_SOL::i] = i_gM * EQS::Beta(i_gM);
+//        Y[iieq + DynRadBlastWave::QS::i] = i_gM * EQS::Beta(i_gM);
 
 
     }
@@ -1136,20 +1137,20 @@ public:
         }
         /// Extract data for first shell
 //        double m_gam1, m_beta1, m_mass1, m_eint1, m_adi1;
-        p_colsolve->m_gam1 = EQS::GamFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        p_colsolve->m_beta1 = EQS::BetFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        p_colsolve->m_mass1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
-        p_colsolve->m_eint1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        p_colsolve->m_gam1 = EQS::GamFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+        p_colsolve->m_beta1 = EQS::BetFromMom( Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+        p_colsolve->m_mass1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::iM2];
+        p_colsolve->m_eint1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
         p_colsolve->m_adi1 = bw1->getEos()->getGammaAdi(p_colsolve->m_gam1, p_colsolve->m_beta1);
         /// apply units for the first shell (mass and energy)
         p_colsolve->m_mass1 = bw1->getPars()->M0 + (p_colsolve->m_mass1 * bw1->getPars()->M0);
         p_colsolve->m_eint1 = p_colsolve->m_eint1 * (bw1->getPars()->M0 * CGS::c * CGS::c);
         /// extract data for the second shell
 //        double m_gam2, m_beta2, m_mass2, m_eint2, m_adi2;
-        p_colsolve->m_gam2 = EQS::GamFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        p_colsolve->m_beta2 = EQS::BetFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-        p_colsolve->m_mass2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
-        p_colsolve->m_eint2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+        p_colsolve->m_gam2 = EQS::GamFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+        p_colsolve->m_beta2 = EQS::BetFromMom( Y[bw2->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+        p_colsolve->m_mass2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::QS::iM2];
+        p_colsolve->m_eint2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
         p_colsolve->m_adi2 = bw2->getEos()->getGammaAdi(p_colsolve->m_gam2, p_colsolve->m_beta2);
         /// apply units for the second shell (mass and energy)
         p_colsolve->m_mass2 = bw2->getPars()->M0 + (p_colsolve->m_mass2 * bw2->getPars()->M0);
@@ -1258,62 +1259,62 @@ public:
         if (ish == 1){
             iieq = bw1->getPars()->ii_eq;
             iieq_other = bw2->getPars()->ii_eq;
-            eint_before = Y[iieq + DynRadBlastWave::Q_SOL::iEint2];
-            eint_before = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
-            Y[iieq + DynRadBlastWave::Q_SOL::iEad2] += Y[iieq + DynRadBlastWave::Q_SOL::iEint2] * bw1->getPars()->M0 / bw2->getPars()->M0;
-            Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] += Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] * bw1->getPars()->M0 / bw2->getPars()->M0;
-//            Y[iieq + DynRadBlastWave::Q_SOL::iR] = rcoll;
+            eint_before = Y[iieq + DynRadBlastWave::QS::iEint2];
+            eint_before = Y[iieq + DynRadBlastWave::QS::iM2];
+            Y[iieq + DynRadBlastWave::QS::iEad2] += Y[iieq + DynRadBlastWave::QS::iEint2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+            Y[iieq + DynRadBlastWave::QS::iEsh2] += Y[iieq + DynRadBlastWave::QS::iEsh2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::QS::iR] = rcoll;
             //
             //
             bw1->getPars()->M0 = bw2->getPars()->M0+bw1->getPars()->M0;//i_mM; // update the total mass of the shell
-            Y[iieq + DynRadBlastWave::Q_SOL::iM2] = i_mM / bw2->getPars()->M0;//Y[iieq + DynRadBlastWave::Q_SOL::iM2] * bw2->getPars()->M0 / bw1->getPars()->M0;
-            m2_after = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            Y[iieq + DynRadBlastWave::QS::iM2] = i_mM / bw2->getPars()->M0;//Y[iieq + DynRadBlastWave::QS::iM2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+            m2_after = Y[iieq + DynRadBlastWave::QS::iM2];
             // terminated collided shell
             bw2->getPars()->end_evolution = true;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iR] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iM2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEint2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEad2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEsh2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iErad2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iRsh] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itcomov] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itheta] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itt] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iR] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iM2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEint2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEsh2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iErad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iRsh] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itcomov] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itheta] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itt] = 0;
 
         }
         else{
             iieq = bw2->getPars()->ii_eq;
             iieq_other = bw1->getPars()->ii_eq;
-            eint_before = Y[iieq + DynRadBlastWave::Q_SOL::iEint2];
-            eint_before = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
-            Y[iieq + DynRadBlastWave::Q_SOL::iEad2] += Y[iieq + DynRadBlastWave::Q_SOL::iEint2] * bw2->getPars()->M0 / bw1->getPars()->M0;
-            Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] += Y[iieq + DynRadBlastWave::Q_SOL::iEsh2] * bw2->getPars()->M0 / bw1->getPars()->M0;
-//            Y[iieq + DynRadBlastWave::Q_SOL::iR] = rcoll;
+            eint_before = Y[iieq + DynRadBlastWave::QS::iEint2];
+            eint_before = Y[iieq + DynRadBlastWave::QS::iM2];
+            Y[iieq + DynRadBlastWave::QS::iEad2] += Y[iieq + DynRadBlastWave::QS::iEint2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+            Y[iieq + DynRadBlastWave::QS::iEsh2] += Y[iieq + DynRadBlastWave::QS::iEsh2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::QS::iR] = rcoll;
             ///
             ///
             bw2->getPars()->M0 = bw2->getPars()->M0+bw1->getPars()->M0;//i_mM; // update the total mass of the shell
-            Y[iieq + DynRadBlastWave::Q_SOL::iM2] = i_mM/ bw2->getPars()->M0;// Y[iieq + DynRadBlastWave::Q_SOL::iM2] * bw1->getPars()->M0 / bw2->getPars()->M0;
-            m2_after = Y[iieq + DynRadBlastWave::Q_SOL::iM2];
+            Y[iieq + DynRadBlastWave::QS::iM2] = i_mM/ bw2->getPars()->M0;// Y[iieq + DynRadBlastWave::QS::iM2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+            m2_after = Y[iieq + DynRadBlastWave::QS::iM2];
             // terminated collided shell
             bw1->getPars()->end_evolution = true;
 
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iR] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iM2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEint2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEsh2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iErad2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iEad2] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::iRsh] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itcomov] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itheta] = 0;
-//            Y[iieq_other + DynRadBlastWave::Q_SOL::itt] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iR] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iM2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEint2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEsh2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iErad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iRsh] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itcomov] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itheta] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itt] = 0;
         }
         /// using the solution (mass, lorentz factor, energy) update the state vector
         double _mom = i_gM * EQS::Beta(i_gM);
         double _eint2 = i_eM / ( i_mM * CGS::c * CGS::c );
-        Y[iieq + DynRadBlastWave::Q_SOL::imom] = _mom;
-        Y[iieq + DynRadBlastWave::Q_SOL::iEint2] = _eint2; // use ODE units
+        Y[iieq + DynRadBlastWave::QS::imom] = _mom;
+        Y[iieq + DynRadBlastWave::QS::iEint2] = _eint2; // use ODE units
 
         (*p_log)(LOG_INFO,AT) << "\tLayer [ll="<<mylayer<<"] Outcome for"
                               << " idx1="<<idx1<<", idx2="<<idx2 << " collision:"
@@ -1328,7 +1329,7 @@ public:
 
 
 //
-//        Y[iieq + DynRadBlastWave::Q_SOL::i] = i_gM * EQS::Beta(i_gM);
+//        Y[iieq + DynRadBlastWave::QS::i] = i_gM * EQS::Beta(i_gM);
 
 
     }
@@ -1351,10 +1352,10 @@ public:
                     /// interpolate the time at which shells collided
                     double tim1 = m_t_grid[ix-1];
                     double ti = m_t_grid[ix];
-                    double r0im1 = p_bws_ej[i]->getVal(BlastWaveBase::iR,(int)(ix-1));
-                    double r0i = Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ];
-                    double r1im1 = p_bws_ej[j]->getVal(BlastWaveBase::iR,(int)(ix-1));
-                    double r1i = Y[ p_bws_ej[j]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ];
+                    double r0im1 = p_bws_ej[i]->getVal(BW::iR,(int)(ix-1));
+                    double r0i = Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::QS::iR ];
+                    double r1im1 = p_bws_ej[j]->getVal(BW::iR,(int)(ix-1));
+                    double r1i = Y[ p_bws_ej[j]->getPars()->ii_eq + DynRadBlastWave::QS::iR ];
                     double slope0 = (r0i - r0im1) / (ti - tim1);
                     double slope1 = (r1i - r1im1) / (ti - tim1);
                     double r0int = r0im1 - slope0 * tim1;
@@ -1376,12 +1377,12 @@ public:
             if (overrun_shells.size() > 1){
                 (*p_log)(LOG_ERR,AT)
                         <<" at t="<<x << " ("<<ix<<"/"<<m_tarr_size << ")" <<" [ilayer="<<mylayer<<" ishell="<<i<<"] "
-                        <<" mom="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+                        <<" mom="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::QS::imom ]
                         <<" (mom0="<<p_bws_ej[i]->getPars()->mom0<<") "
                         <<" has overrun n_shells="<<overrun_shells.size()
-                        <<" with momenta ["<<Y[ p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+                        <<" with momenta ["<<Y[ p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::QS::imom ]
                         <<" (mom0="<<p_bws_ej[overrun_shells[0]]->getPars()->mom0<<") "
-                        <<" ... " << Y[ p_bws_ej[overrun_shells.back()]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+                        <<" ... " << Y[ p_bws_ej[overrun_shells.back()]->getPars()->ii_eq + DynRadBlastWave::QS::imom ]
                         <<"] \n";
 
 //                (*p_log)(LOG_ERR,AT) << " shell i="<<i<<" has overrun n="<<overrun_shells.size()<<" other shells.\n";
@@ -1390,10 +1391,10 @@ public:
             if (overrun_shells.size() == 1){
                 (*p_log)(LOG_WARN,AT)
                         <<" at t="<<x << " ("<<ix<<"/"<<m_tarr_size << ")" <<" [ilayer="<<mylayer<<" ishell="<<i<<"] "
-                        <<" mom="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+                        <<" mom="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::QS::imom ]
                         <<" (mom0="<<p_bws_ej[i]->getPars()->mom0<<") "
                         <<" has overrun shell j="<<overrun_shells[0]
-                        <<" with momenta "<<Y[ p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+                        <<" with momenta "<<Y[ p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::QS::imom ]
                         <<" (mom0="<<p_bws_ej[overrun_shells[0]]->getPars()->mom0<<") "
                         <<"\n";
                 n_overruns += 1;
@@ -1405,10 +1406,10 @@ public:
             (*p_log)(LOG_ERR,AT)
 
                     << " at t="<<x << " multimple overruns have occured n_overruns="<<n_overruns<<"\n";
-//                    <<" with mom="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+//                    <<" with mom="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::QS::imom ]
 //                    <<" has overrun n_shells="<<overrun_shells.size()
-//                    <<" with momenta ["<<Y[ p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ]
-//                    <<" ... " << Y[ p_bws_ej[overrun_shells.back()]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ]
+//                    <<" with momenta ["<<Y[ p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::QS::iR ]
+//                    <<" ... " << Y[ p_bws_ej[overrun_shells.back()]->getPars()->ii_eq + DynRadBlastWave::QS::iR ]
 //                    <<" \n";
 
 //            (*p_log)(LOG_ERR,AT) << "n_overruns="<<n_overruns<<"\n";
@@ -1424,7 +1425,7 @@ public:
             m_idxs[i] = i;
             if (p_bws_ej[i]->getPars()->end_evolution)
                 continue;
-            m_radii_init[i] = Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ];
+            m_radii_init[i] = Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::QS::iR ];
         }
 
         /// check if radii are sorted
@@ -1453,12 +1454,12 @@ public:
             if (overrun_shells.size() > 1){
                 (*p_log)(LOG_ERR,AT)
                     <<" at t="<<x << " ("<<ix<<"/"<<m_tarr_size << ")" <<" [ilayer="<<mylayer<<" ishell="<<i<<"] "
-                    <<" mom="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+                    <<" mom="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::QS::imom ]
                     <<" (mom0="<<p_bws_ej[i]->getPars()->mom0<<") "
                     <<" has overrun n_shells="<<overrun_shells.size()
-                    <<" with momenta ["<<Y[ p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+                    <<" with momenta ["<<Y[ p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::QS::imom ]
                     <<" (mom0="<<p_bws_ej[overrun_shells[0]]->getPars()->mom0<<") "
-                    <<" ... " << Y[ p_bws_ej[overrun_shells.back()]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+                    <<" ... " << Y[ p_bws_ej[overrun_shells.back()]->getPars()->ii_eq + DynRadBlastWave::QS::imom ]
                     <<"] \n";
 
 //                (*p_log)(LOG_ERR,AT) << " shell i="<<i<<" has overrun n="<<overrun_shells.size()<<" other shells.\n";
@@ -1467,10 +1468,10 @@ public:
             if (overrun_shells.size() == 1){
                 (*p_log)(LOG_WARN,AT)
                 <<" at t="<<x << " ("<<ix<<"/"<<m_tarr_size << ")" <<" [ilayer="<<mylayer<<" ishell="<<i<<"] "
-                <<" mom="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+                <<" mom="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::QS::imom ]
                 <<" (mom0="<<p_bws_ej[i]->getPars()->mom0<<") "
                 <<" has overrun shell j="<<overrun_shells[0]
-                <<" with momenta "<<Y[ p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+                <<" with momenta "<<Y[ p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::QS::imom ]
                 <<" (mom0="<<p_bws_ej[overrun_shells[0]]->getPars()->mom0<<") "
                 <<"\n";
                 n_overruns += 1;
@@ -1480,10 +1481,10 @@ public:
             (*p_log)(LOG_ERR,AT)
 
                     << " at t="<<x << " multimple overruns have occured n_overruns="<<n_overruns<<"\n";
-//                    <<" with mom="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom ]
+//                    <<" with mom="<<Y[ p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::QS::imom ]
 //                    <<" has overrun n_shells="<<overrun_shells.size()
-//                    <<" with momenta ["<<Y[ p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ]
-//                    <<" ... " << Y[ p_bws_ej[overrun_shells.back()]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ]
+//                    <<" with momenta ["<<Y[ p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::QS::iR ]
+//                    <<" ... " << Y[ p_bws_ej[overrun_shells.back()]->getPars()->ii_eq + DynRadBlastWave::QS::iR ]
 //                    <<" \n";
 
 //            (*p_log)(LOG_ERR,AT) << "n_overruns="<<n_overruns<<"\n";
@@ -1499,7 +1500,7 @@ public:
         double r_i=0., r_ip1=0., dr_i = 0., vol_i=0.;
         double frac = 0.1; // TODO fraction of the shell volume to be used as its width. !!! Inaccurate as we need adjacent shells to get the volume...
         auto & bw = p_bws_ej[idx];
-        r_i =  Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+        r_i =  Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iR];
         dr_i = frac * r_i;
         vol_i = frac * (4./3.) * CGS::pi * (r_i*r_i*r_i) / bw->getPars()->ncells;
         bw->getPars()->thickness = dr_i;
@@ -1523,10 +1524,10 @@ public:
                 if ((bw->getPars()->end_evolution) || (nextbw->getPars()->end_evolution)){
                     evalShellThicknessIsolated(idx, Y);
                 }
-//            double r_cur = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+//            double r_cur = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iR];
 //            double r_cur = bw->getVal(DynRadBlastWave::Q::iR, 0);
-                r_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
-                r_ip1 = Y[nextbw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+                r_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iR];
+                r_ip1 = Y[nextbw->getPars()->ii_eq + DynRadBlastWave::QS::iR];
                 if ((r_i == 0.) || (r_ip1 == 0.)) {
 //                (*p_log)(LOG_WARN,AT)<<" shell="<<idx<<" has r_i="<<r_i<<" and r_ip1="<<r_ip1<<"\n";
                     continue;
@@ -1558,9 +1559,9 @@ public:
             vol_i = bw->getPars()->volume;// = frac * (4./3.) * CGS::pi * (r_i*r_i*r_i) / bw->getPars()->ncells;
 //            kappa_i = bw->getPars()->kappa;
             ///store also velocity
-            m_beta[0] = EQS::BetFromMom( Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-//            r_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
-            eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+            m_beta[0] = EQS::BetFromMom( Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+//            r_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iR];
+            eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
             eint2_i *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
             ene_th = eint2_i; // TODO is this shock??
             m_temp[0] = std::pow(ene_th/A_RAD/vol_i,0.25); // Stephan-Boltzman law
@@ -1573,8 +1574,8 @@ public:
                 dr_i = bw->getPars()->thickness;//frac * r_i; // TODO add other methods 1/Gamma...
                 vol_i = bw->getPars()->volume;// = frac * (4./3.) * CGS::pi * (r_i*r_i*r_i) / bw->getPars()->ncells;
                 ///store also velocity
-                m_beta[i] = EQS::BetFromMom(Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom]);
-                eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+                m_beta[i] = EQS::BetFromMom(Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::imom]);
+                eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
                 eint2_i *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
                 ene_th = eint2_i; // TODO is this shock??
                 m_temp[i] = std::pow(ene_th / A_RAD / vol_i, 0.25); // Stephan-Boltzman law
@@ -1589,16 +1590,16 @@ public:
             double frac = 0.1; // fraction of the shell volume to be used as its width. Inaccurate as we need adjacent shells to get the volume...
             auto & bw = p_bws_ej[0];
             kappa_i = bw->getPars()->kappa;
-//            r_i =  Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+//            r_i =  Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iR];
             dr_i = bw->getPars()->thickness;//frac * r_i; // TODO add other methods 1/Gamma...
             vol_i = bw->getPars()->volume;// = frac * (4./3.) * CGS::pi * (r_i*r_i*r_i) / bw->getPars()->ncells;
             m_i = bw->getPars()->M0;
-            m2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2] * m_i;
+            m2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iM2] * m_i;
             m_i += m2_i;
             rho_i = m_i / vol_i;
             //
-            r_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
-//            eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+            r_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iR];
+//            eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
 //            eint2_i *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
 //            ene_th = eint2_i; // TODO is this shock??
             //
@@ -1623,19 +1624,19 @@ public:
 
             /// evaluate mass within the shell
             m_i = bw->getPars()->M0;
-            m2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2] * m_i;
+            m2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iM2] * m_i;
             m_i += m2_i;
             m_ip1 = nextbw->getPars()->M0;
-            m2_ip1 = Y[nextbw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2] * m_ip1;
+            m2_ip1 = Y[nextbw->getPars()->ii_eq + DynRadBlastWave::QS::iM2] * m_ip1;
             m_ip1 += m2_ip1;
-            r_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+            r_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iR];
             /// evaluate the volume of the shell (fraction of the 4pi)
             vol_i = bw->getPars()->volume;//(4./3.) * CGS::pi * (r_ip1*r_ip1*r_ip1 - r_i*r_i*r_i) / bw->getPars()->ncells;
             /// evaluate density within a shell (neglecting the accreted by the shock!)
             rho_i = m_i / vol_i;
             m_rho[ii] = rho_i;
 
-//            eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+//            eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
 //            eint2_i *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
 
             /// evaluate optical depth
@@ -1649,7 +1650,7 @@ public:
 
             m_tlc[ii] = r_i / CGS::c;
             m_tdiff[ii] = kappa_i * bw->getPars()->M0 / m_beta[ii] / r_i / CGS::c; // TODO M0 or M0+M2 )
-//            tdiff = m_dtau[ii] * Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR] / CGS::c;
+//            tdiff = m_dtau[ii] * Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iR] / CGS::c;
 
         }
 
@@ -1696,7 +1697,7 @@ public:
         for (size_t ii=0; ii<n_active_shells-1; ii++){
             size_t idx = m_idxs[ii];
             auto & bw = p_bws_ej[idx];
-            eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+            eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
             eint2_i *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
             ene_th = eint2_i; // TODO is this shock??
             m_lum[ii] = ene_th / m_tdiff_out[ii]; // m_dtau[ii] * ene_th * bw->getPars()->M0 * CGS::c * CGS::c / tdiff;
@@ -1726,7 +1727,7 @@ public:
             int x = 1;
         }
         else{
-            m_photo_r = Y[p_bws_ej[idx_photo-1]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+            m_photo_r = Y[p_bws_ej[idx_photo-1]->getPars()->ii_eq + DynRadBlastWave::QS::iR];
             m_photo_teff = 0.;
         }
 
@@ -1805,7 +1806,7 @@ public:
         double mtot = 0.;
         for (size_t ii=0; ii<n_active_shells; ++ii){
             size_t i_idx = m_idxs[ii];
-            double m2 = Y_[p_bws_ej[i_idx]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
+            double m2 = Y_[p_bws_ej[i_idx]->getPars()->ii_eq + DynRadBlastWave::QS::iM2];
             double m0 = p_bws_ej[i_idx]->getPars()->M0;
             double m2plus0 = (1. + m2) * m0;
             mtot+=m2plus0;
@@ -1817,8 +1818,8 @@ public:
         return mtot;
     }
     double getShellVolume(const double * Y){
-        double r0 = Y[p_bws_ej[ m_idxs[0] ]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
-        double r1 = Y[p_bws_ej[ m_idxs[n_active_shells-1] ]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+        double r0 = Y[p_bws_ej[ m_idxs[0] ]->getPars()->ii_eq + DynRadBlastWave::QS::iR];
+        double r1 = Y[p_bws_ej[ m_idxs[n_active_shells-1] ]->getPars()->ii_eq + DynRadBlastWave::QS::iR];
         if ((r0 >= r1)||(r0==0)||(r1==0)){
             (*p_log)(LOG_ERR,AT)<<" r0 > r1. in the shell; r0="<<r0<<" r1="<<r1<<"\n";
             exit(1);
@@ -1846,9 +1847,9 @@ public:
         /// evaluate relative positions of shells at this time
         for (size_t i=0; i<m_nshells; i++){
             auto & bw = p_bws_ej[i];
-            double r = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+            double r = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iR];
             m_radii[i] = r == 0. ? 1e90 : r;
-//            radii[i] = p_bws_ej[i]->getLastVal(std::static_pointer_cast<BlastWaveBase::Q>())
+//            radii[i] = p_bws_ej[i]->getLastVal(std::static_pointer_cast<BW::Q>())
         }
         /// get indexes of sorted shells by radius
         sort_indexes(m_radii, m_idxs);
@@ -1881,7 +1882,7 @@ public:
         /// optical depth at a given radius
         double tau = 0;
         auto & bw_cur = p_bws_ej[i_cur];
-        double r_cur = Y[bw_cur->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+        double r_cur = Y[bw_cur->getPars()->ii_eq + DynRadBlastWave::QS::iR];
         for (size_t i=0; i<bw_cur->getPars()->i_position_in_layer; i++) {
             auto &bw = p_bws_ej[i];
             tau += bw->getVal(RadBlastWave::Q::ikappa, bw->getPars()->)
@@ -1896,9 +1897,9 @@ public:
     inline void evalRelativePosition(double x, const double * Y){
         for (size_t i=0; i<m_nshells; i++){
             auto & bw = p_bws_ej[i];
-            double r = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+            double r = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iR];
             m_radii[i] = r == 0. ? 1e90 : r;
-//            radii[i] = p_bws_ej[i]->getLastVal(std::static_pointer_cast<BlastWaveBase::Q>())
+//            radii[i] = p_bws_ej[i]->getLastVal(std::static_pointer_cast<BW::Q>())
         }
         sort_indexes(m_radii, m_idxs);
 
@@ -1942,7 +1943,7 @@ public:
     void evaluateOpticalDepthToMagnetarEmission(size_t i_cur, double x, const double * Y){
         double tau = 0;
         auto & bw_cur = p_bws_ej[i_cur];
-        double r_cur = Y[bw_cur->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+        double r_cur = Y[bw_cur->getPars()->ii_eq + DynRadBlastWave::QS::iR];
         for (size_t i=0; i<bw_cur->getPars()->i_position_in_layer; i++) {
             auto &bw = p_bws_ej[i];
             tau += bw->getVal(RadBlastWave::Q::ikappa, bw->getPars()->)
@@ -1981,7 +1982,7 @@ class CumulativeShell{
     std::unique_ptr<logger> p_log = nullptr;
     std::unique_ptr<Pars> p_pars = nullptr;
     std::unique_ptr<BlastWaveCollision> p_coll = nullptr;
-    std::vector<std::unique_ptr<RadBlastWave>> p_bws_ej{};
+    std::vector<std::unique_ptr<BlastWave>> p_bws_ej{};
     VecVector m_data{};
 public:
     enum Q { ir, irho, ibeta, idelta, ivol, idtau, itaucum, itaucum0, ieth, itemp, ilum, itdiff };
@@ -1993,7 +1994,7 @@ public:
         p_coll = std::make_unique<BlastWaveCollision>(loglevel);
         p_pars = std::make_unique<Pars>();
         for (size_t ishell = 0; ishell < nshells; ishell++)
-            p_bws_ej.emplace_back( std::make_unique<DynRadBlastWave>(t_grid, ishell, ilayer, loglevel ) );
+            p_bws_ej.emplace_back( std::make_unique<BlastWave>(t_grid, ishell, ilayer, loglevel ) );
         m_data.resize(m_vnames.size());
         for (auto & arr : m_data)
             arr.resize(nshells);
@@ -2020,7 +2021,7 @@ public:
     inline Vector & getTempVec(){return m_data[Q::itemp]; }
     inline Vector & getDeltaVec(){return m_data[Q::idelta]; }
     // -----------------------
-    std::unique_ptr<RadBlastWave> & getBW(size_t ish){
+    std::unique_ptr<BlastWave> & getBW(size_t ish){
         if (p_bws_ej.empty()){
             (*p_log)(LOG_ERR, AT) << " shell does not contain blast waves\n";
             exit(1);
@@ -2032,7 +2033,9 @@ public:
     }
     std::unique_ptr<Pars> & getPars(){ return p_pars; }
     inline size_t nBWs() const { return p_bws_ej.size();}
-    inline std::vector<std::unique_ptr<RadBlastWave>> & getBWs() { return p_bws_ej; }
+    inline std::vector<std::unique_ptr<BlastWave>> & getBWs() {
+        return p_bws_ej;
+    }
     // -----------------------
     /// update the number of active shells
     void updateActiveShells(){
@@ -2057,7 +2060,7 @@ public:
         bool is_sorted = true;
         for (size_t i=0; i<p_pars->n_active_shells; ++i) {
             size_t idx = m_idxs[i];
-            m_data[Q::ir][i] = Y[ p_bws_ej[idx]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR ];
+            m_data[Q::ir][i] = Y[ p_bws_ej[idx]->getPars()->ii_eq + SOL::QS::iR ];
         }
         for (size_t i=1; i<p_pars->n_active_shells; ++i) {
             size_t idx = m_idxs[i];
@@ -2129,10 +2132,10 @@ public:
 //                    double tim1 = m_t_grid[ix - 1];
 //                    double ti = m_t_grid[ix];
                     double dt = ti - tim1;
-                    double r0im1 = Ym1_[p_bws_ej[i_idx]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];//p_bws_ej[i]->getVal(BlastWaveBase::iR, (int) (ix - 1));
-                    double r0i   = Y_[p_bws_ej[i_idx]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
-                    double r1im1 = Ym1_[p_bws_ej[j_idx]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];//p_bws_ej[j]->getVal(BlastWaveBase::iR, (int) (ix - 1));
-                    double r1i   = Y_[p_bws_ej[j_idx]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+                    double r0im1 = Ym1_[p_bws_ej[i_idx]->getPars()->ii_eq + SOL::QS::iR];//p_bws_ej[i]->getVal(BW::iR, (int) (ix - 1));
+                    double r0i   = Y_[p_bws_ej[i_idx]->getPars()->ii_eq + SOL::QS::iR];
+                    double r1im1 = Ym1_[p_bws_ej[j_idx]->getPars()->ii_eq + SOL::QS::iR];//p_bws_ej[j]->getVal(BW::iR, (int) (ix - 1));
+                    double r1i   = Y_[p_bws_ej[j_idx]->getPars()->ii_eq + SOL::QS::iR];
                     double slope0 = (r0i - r0im1) / dt;
                     double slope1 = (r1i - r1im1) / dt;
                     double r0int = r0im1 - slope0 * tim1;
@@ -2155,11 +2158,11 @@ public:
 //                    (*p_log)(LOG_WARN, AT)
 //                            << " Interpolating shell collision time" << " [ilayer=" << mylayer
 //                            << " ishell=" << i << "] "
-//                            << " mom=" << Y[p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom]
+//                            << " mom=" << Y[p_bws_ej[i]->getPars()->ii_eq + DynRadBlastWave::QS::imom]
 //                            << " (mom0=" << p_bws_ej[i]->getPars()->mom0 << ") "
 //                            << " has overrun shell j=" << overrun_shells[0]
 //                            << " with momenta "
-//                            << Y[p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom]
+//                            << Y[p_bws_ej[overrun_shells[0]]->getPars()->ii_eq + DynRadBlastWave::QS::imom]
 //                            << " (mom0=" << p_bws_ej[overrun_shells[0]]->getPars()->mom0 << ") "
 //                            << "\n";
 //                    if (x < tcoll)
@@ -2196,7 +2199,7 @@ public:
             size_t idx = 0;
             double frac = 0.1; // TODO fraction of the shell volume to be used as its width. !!! Inaccurate as we need adjacent shells to get the volume...
             auto & bw = p_bws_ej[idx];
-            double r_i =  Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+            double r_i =  Y[bw->getPars()->ii_eq + SOL::QS::iR];
             double dr_i = frac * r_i;
             double vol_i = frac * (4./3.) * CGS::pi * (r_i*r_i*r_i) / bw->getPars()->ncells;
             m_data[Q::idelta][idx] = dr_i;
@@ -2214,8 +2217,8 @@ public:
                     (*p_log)(LOG_ERR,AT) << "|error|\n";
                     exit(1);
                 }
-                double r_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
-                double r_ip1 = Y[nextbw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+                double r_i = Y[bw->getPars()->ii_eq + SOL::QS::iR];
+                double r_ip1 = Y[nextbw->getPars()->ii_eq + SOL::QS::iR];
                 if ((r_i == 0.) || (r_ip1 == 0.)) {
 //                (*p_log)(LOG_WARN,AT)<<" shell="<<idx<<" has r_i="<<r_i<<" and r_ip1="<<r_ip1<<"\n";
                     continue;
@@ -2231,7 +2234,7 @@ public:
             size_t idx = p_pars->n_active_shells-1;
             double frac = 0.1; // TODO fraction of the shell volume to be used as its width. !!! Inaccurate as we need adjacent shells to get the volume...
             auto & bw = p_bws_ej[idx];
-            double r_i =  Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+            double r_i =  Y[bw->getPars()->ii_eq + SOL::QS::iR];
             double dr_i = frac * r_i;
             double vol_i = frac * (4./3.) * CGS::pi * (r_i*r_i*r_i) / bw->getPars()->ncells;
             m_data[Q::idelta][idx] = dr_i;
@@ -2253,8 +2256,8 @@ public:
                 exit(1);
             }
             ///store also velocity
-            double m_beta = EQS::BetFromMom( Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom] );
-            double eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+            double m_beta = EQS::BetFromMom( Y[bw->getPars()->ii_eq + SOL::QS::imom] );
+            double eint2_i = Y[bw->getPars()->ii_eq + SOL::QS::iEint2];
             eint2_i *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
             double ene_th = eint2_i; // TODO is this shock??
             double temp = std::pow(ene_th / A_RAD / vol_i, 0.25); // Stephan-Boltzman law
@@ -2263,7 +2266,7 @@ public:
             m_data[Q::ibeta][i] = m_beta;
 
             double m_i = bw->getPars()->M0;
-            double m2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2] * m_i;
+            double m2_i = Y[bw->getPars()->ii_eq + SOL::QS::iM2] * m_i;
 //            m_i += m2_i; // TODO should I include this?/
             double rho_i = m_i / vol_i;
             double kappa_i = bw->getPars()->kappa;
@@ -2271,7 +2274,7 @@ public:
             m_data[Q::idtau][i] = kappa_i * rho_i * dr_i;
             tau_tot += m_data[Q::idtau][i];
 
-            double r_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+            double r_i = Y[bw->getPars()->ii_eq + SOL::QS::iR];
             double m_tlc = r_i / CGS::c;
             m_data[Q::itdiff][i] = std::max( kappa_i * m_i / m_data[Q::ibeta][i] / r_i / CGS::c, m_tlc); // TODO M0 or M0+M2 )
 
@@ -2327,16 +2330,16 @@ public:
             double frac = 0.1; // fraction of the shell volume to be used as its width. Inaccurate as we need adjacent shells to get the volume...
             auto & bw = p_bws_ej[0];
             double kappa_i = bw->getPars()->kappa;
-//            r_i =  Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+//            r_i =  Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iR];
             double dr_i = m_data[Q::idelta][idx];//bw->getPars()->thickness;//frac * r_i; // TODO add other methods 1/Gamma...
             double vol_i = m_data[Q::ivol][idx];//bw->getPars()->volume;// = frac * (4./3.) * CGS::pi * (r_i*r_i*r_i) / bw->getPars()->ncells;
             double m_i = bw->getPars()->M0;
-            double m2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2] * m_i;
+            double m2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iM2] * m_i;
 //            m_i += m2_i; // TODO should I include this?/
             double rho_i = m_i / vol_i;
             //
-            double r_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
-//            eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+            double r_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iR];
+//            eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
 //            eint2_i *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
 //            ene_th = eint2_i; // TODO is this shock??
             //
@@ -2364,19 +2367,19 @@ public:
 
             /// evaluate mass within the shell
             double m_i = bw->getPars()->M0;
-            double m2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2] * m_i;
+            double m2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iM2] * m_i;
             m_i += m2_i;
             double m_ip1 = nextbw->getPars()->M0;
-            double m2_ip1 = Y[nextbw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2] * m_ip1;
+            double m2_ip1 = Y[nextbw->getPars()->ii_eq + DynRadBlastWave::QS::iM2] * m_ip1;
             m_ip1 += m2_ip1;
-            double r_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+            double r_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iR];
             /// evaluate the volume of the shell (fraction of the 4pi)
             double vol_i = m_data[Q::ivol][ii];//bw->getPars()->volume;//(4./3.) * CGS::pi * (r_ip1*r_ip1*r_ip1 - r_i*r_i*r_i) / bw->getPars()->ncells;
             /// evaluate density within a shell (neglecting the accreted by the shock!)
             double rho_i = m_i / vol_i;
             m_data[Q::irho][ii] = rho_i;//m_rho[ii] = rho_i;
 
-//            eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+//            eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
 //            eint2_i *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
 
             /// evaluate optical depth
@@ -2391,7 +2394,7 @@ public:
             double m_tlc = r_i / CGS::c;
             m_data[Q::itdiff][ii] = std::max(
                     kappa_i * bw->getPars()->M0 / m_data[Q::ibeta][ii] / r_i / CGS::c, m_tlc); // TODO M0 or M0+M2 )
-//            tdiff = m_dtau[ii] * Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR] / CGS::c;
+//            tdiff = m_dtau[ii] * Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iR] / CGS::c;
 
         }
 #endif
@@ -2424,7 +2427,7 @@ public:
         for (size_t ii=0; ii<p_pars->n_active_shells-1; ii++){
             size_t idx = m_idxs[ii];
             auto & bw = p_bws_ej[idx];
-            double eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
+            double eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
             eint2_i *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
             double ene_th = eint2_i; // TODO is this shock??
             m_data[Q::ilum][ii] = ene_th / m_data[Q::itdiff][ii]; // m_dtau[ii] * ene_th * bw->getPars()->M0 * CGS::c * CGS::c / tdiff;
@@ -2455,7 +2458,7 @@ public:
             int x = 1;
         }
         else{
-            p_pars->rphot = Y[p_bws_ej[idx_photo-1]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+            p_pars->rphot = Y[p_bws_ej[idx_photo-1]->getPars()->ii_eq + DynRadBlastWave::QS::iR];
             p_pars->tphoto = 0.;
         }
 #endif
@@ -2528,7 +2531,7 @@ public:
         double mtot = 0.;
         for (size_t ii=0; ii<p_pars->n_active_shells; ++ii){
             size_t i_idx = m_idxs[ii];
-            double m2 = Y_[p_bws_ej[i_idx]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iM2];
+            double m2 = Y_[p_bws_ej[i_idx]->getPars()->ii_eq + SOL::QS::iM2];
             double m0 = p_bws_ej[i_idx]->getPars()->M0;
             double m2plus0 = (1. + m2) * m0;
             mtot+=m2plus0;
@@ -2540,8 +2543,8 @@ public:
         return mtot;
     }
     double getShellVolume(const double * Y){
-        double r0 = Y[p_bws_ej[ m_idxs[0] ]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
-        double r1 = Y[p_bws_ej[ m_idxs[p_pars->n_active_shells-1] ]->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iR];
+        double r0 = Y[p_bws_ej[ m_idxs[0] ]->getPars()->ii_eq + SOL::QS::iR];
+        double r1 = Y[p_bws_ej[ m_idxs[p_pars->n_active_shells-1] ]->getPars()->ii_eq + SOL::QS::iR];
         if ((r0 >= r1)||(r0==0)||(r1==0)){
             (*p_log)(LOG_ERR,AT)<<" r0 > r1. in the shell; r0="<<r0<<" r1="<<r1<<"\n";
             exit(1);
@@ -2561,6 +2564,7 @@ public:
 
 class Ejecta{
     VelocityAngularStruct ejectaStructs{};
+    std::unique_ptr<Output> p_out = nullptr;
     std::vector<std::unique_ptr<CumulativeShell>> p_ej {};
     std::unique_ptr<logger> p_log = nullptr;
     bool is_ejBW_init = false;
@@ -2573,22 +2577,25 @@ class Ejecta{
     Vector & t_arr;
 public:
     bool do_eninj_inside_rhs = false;
-    bool run_ej_bws = false;
+    bool run_bws=false, save_dyn=false, do_ele=false, do_spec=false, do_lc=false, do_skymap=false;
     bool do_collision = false;
     bool is_ejecta_obs_pars_set = false;
     bool is_ejecta_anal_synch_computed = false;
+    StrDbMap grb_pars; StrStrMap grb_opts;
+    std::string working_dir{}; std::string parfilename{};
     Ejecta(Vector & t_arr, int loglevel) : t_arr(t_arr), m_loglevel(loglevel){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "Ejecta");
+        p_out = std::make_unique<Output>(loglevel);
     }
     size_t getNeq() const {
-        if (!run_ej_bws)
+        if (!run_bws)
             return 0;
         else {
             if (p_ej.empty()){
                 (*p_log)(LOG_ERR,AT)<<" error\n";
                 exit(1);
             }
-            return (p_ej.size() * p_ej[0]->nBWs() * p_ej[0]->getBW(0)->getNeq());
+            return (p_ej.size() * p_ej[0]->nBWs() * SOL::neq);//p_ej[0]->getBW(0)->getNeq());
         }
     }
     VecArray & getData(size_t il, size_t ish){ return getShells()[il]->getBW(ish)->getData(); }
@@ -2613,19 +2620,229 @@ public:
         return nsh;
     }
     int ncells() const { return (int)p_ej[0]->getBW(0)->getPars()->ncells; }
-    std::vector<std::unique_ptr<CumulativeShell>> & getShells(){ return p_ej;}
-    /// set ejecta lateral & velocity structure
-//    static auto listParsAnalyticEjectaStruct(){ std::cerr << AT << " not implemented\n"; exit(1); }
-    void setEjectaStructAnalytic(StrDbMap pars, StrStrMap opts){
-        (*p_log)(LOG_ERR,AT) << " not implimeneted\n Exiting...";
-        exit(1);
+    std::vector<std::unique_ptr<CumulativeShell>> & getShells(){
+        return p_ej;
     }
-//    static std::vector<std::string> listParsNumericEjectaStruct(){ return VelocityAngularStruct::list_pars_v_ns(); }
+
+    void setPars(StrDbMap & pars, StrStrMap & opts,
+                 std::string working_dir_, std::string parfilename_, StrDbMap main_pars, size_t ii_eq, size_t iljet){
+        working_dir = working_dir_;
+        parfilename = parfilename_;
+        grb_pars = pars;
+        grb_opts = opts;
+        /// read GRB afterglow parameters
+//        StrDbMap grb_pars; StrStrMap grb_opts;
+//        run_bws=false; bool save_dyn=false, do_ele=false, do_spec=false, do_lc=false, do_skymap=false;
+        if ((!grb_pars.empty()) || (!grb_opts.empty())) {
+            run_bws = getBoolOpt("run_bws", grb_opts, AT, p_log, false, true);
+            save_dyn = getBoolOpt("save_dynamics", grb_opts, AT, p_log, false, true);
+            do_ele = getBoolOpt("do_ele", grb_opts, AT, p_log, false, true);
+            do_spec = getBoolOpt("do_spec", grb_opts, AT, p_log, false, true);
+            do_lc = getBoolOpt("do_lc", grb_opts, AT, p_log, false, true);
+            do_skymap = getBoolOpt("do_skymap", grb_opts, AT, p_log, false, true);
+            for (auto &key: {"n_ism", "d_l", "z", "theta_obs", "A0", "s", "r_ej", "r_ism"}) {
+                if (main_pars.find(key) == main_pars.end()) {
+                    (*p_log)(LOG_ERR, AT) << " keyword '" << key << "' is not found in main parameters. \n";
+                    exit(1);
+                }
+                grb_pars[key] = main_pars.at(key);
+            }
+            grb_opts["workingdir"] = working_dir; // For loading Nuclear Heating table
+            if (run_bws) {
+                std::string fname_ejecta_id = getStrOpt("fname_ejecta_id", grb_opts, AT, p_log, "", true);
+                bool use_1d_id = getBoolOpt("use_1d_id", grb_opts, AT, p_log, false, true);
+                if (!std::experimental::filesystem::exists(working_dir + fname_ejecta_id)) {
+                    (*p_log)(LOG_ERR, AT) << " File not found. " + working_dir + fname_ejecta_id << "\n";
+                    exit(1);
+                }
+                EjectaID ID(working_dir + fname_ejecta_id, m_loglevel);
+                if (ID.idtype == EjectaID::IDTYPE::i_id_corr && (!use_1d_id))
+                    setEjectaStructNumeric(
+                            ID,
+                            getBoolOpt("enforce_angular_grid", grb_opts, AT, p_log, false, true),
+                            grb_opts);
+                else if (ID.idtype == EjectaID::IDTYPE::i_id_hist && (use_1d_id))
+                    setEjectaStructNumeric(ID, grb_opts);
+                else if (ID.idtype == EjectaID::IDTYPE::i_id_hist && (!use_1d_id))
+                    setEjectaStructNumericUniformInTheta(
+                            ID,
+                            (size_t) getDoublePar("nlayers", grb_pars, AT, p_log, 30, true),
+                            getDoublePar("mfac", grb_pars, AT, p_log, 1.0, true),
+                            grb_opts);
+                else {
+                    (*p_log)(LOG_ERR, AT) << " no valid grb ejecta structure given\n";
+                    exit(1);
+                }
+//                size_t ii_eq = pba.getMag()->getNeq();
+//            size_t nlayers_jet = pba.getGRB()->getBWs().size();
+                setEjectaBwPars(grb_pars, grb_opts, ii_eq, iljet);
+
+                /// initialize Ejecta Bound PWN
+//                if (run_pwn) {
+//                    (*p_log)(LOG_ERR,AT) << " not implemented\n";
+//                    exit(1);
+////                size_t ii_eq_ = pba.getMag()->getNeq() + pba.getGRB()->getNeq() + pba.getEj()->getNeq();
+//                    /// init ejecta-bound PWN
+////                pba.getEjPWN()->setPWNpars(pba.getTburst(), pwn_pars, pwn_opts, ii_eq_,
+////                                           pba.getEj()->getShells().size());
+//                }
+            }
+        }
+        else{
+            (*p_log)(LOG_INFO, AT) << "ejecta is not initialized and will not be considered.\n";
+        }
+    }
+
+    void computeAndOutputObservables(StrDbMap main_pars, StrStrMap main_opts){
+        /// work on GRB afterglow
+        if (run_bws){
+
+            bool lc_freq_to_time = getBoolOpt("lc_use_freq_to_time",main_opts,AT,p_log,false,true);
+            Vector lc_freqs = makeVecFromString(getStrOpt("lc_freqs",main_opts,AT,p_log,"",true),p_log);
+            Vector lc_times = makeVecFromString(getStrOpt("lc_times",main_opts,AT,p_log,"",true), p_log);
+            Vector skymap_freqs = makeVecFromString(getStrOpt("skymap_freqs",main_opts,AT,p_log,"",true), p_log);
+            Vector skymap_times = makeVecFromString(getStrOpt("skymap_times",main_opts,AT,p_log,"",true), p_log);
+
+            if (save_dyn)
+                saveEjectaBWsDynamics(
+                        working_dir,
+                        getStrOpt("fname_dyn", grb_opts, AT, p_log, "", true),
+                        (int)getDoublePar("save_dyn_every_it", grb_pars, AT, p_log, 1, true),
+                        main_pars, grb_pars);
+            if (do_ele) {
+                setPreComputeEjectaAnalyticElectronsPars();
+//                (*p_log)(LOG_INFO, AT) << "jet analytic synch. electrons finished [" << timer.checkPoint() << " s]" << "\n";
+            }
+            if (do_lc or do_skymap) {
+                if (do_lc) {
+                    computeSaveEjectaLightCurveAnalytic(
+                            working_dir,
+                            getStrOpt("fname_light_curve", grb_opts, AT, p_log, "", true),
+                            getStrOpt("fname_light_curve_layers", grb_opts, AT, p_log, "", true),
+                            lc_times, lc_freqs, main_pars, grb_pars, lc_freq_to_time);
+//                    (*p_log)(LOG_INFO, AT) << "jet analytic synch. light curve finished [" << timer.checkPoint() << " s]" << "\n";
+                }
+                if (do_skymap) {
+                    computeSaveEjectaSkyImagesAnalytic(
+                            working_dir,
+                            getStrOpt("fname_sky_map", grb_opts, AT, p_log, "", true),
+                            skymap_times, skymap_freqs, main_pars, grb_pars);
+//                    (*p_log)(LOG_INFO, AT) << "jet analytic synch. sky map finished [" << timer.checkPoint() << " s]" << "\n";
+                }
+            }
+        }
+    }
+
+    void infoFastestShell(size_t it, const double * Ym1, const double * Y, logger sstream){
+        size_t n_active_min = std::numeric_limits<size_t>::max(); int il_with_min_nact = -1;
+        size_t n_active_max = 0; int il_with_max_nact = -1;
+        size_t n_accel_max = 0; int il_with_n_accel_max = -1;
+        size_t n_decel_max = 0; int il_with_n_decel_max = -1;
+
+        double Mom_max_over_Gamma0 = 0;
+        int il_wich_fastest = -1; int ish_with_fastest = -1;
+        double Eint2max = 0.;
+        int il_wich_energetic = -1; int ish_with_energetic = -1;
+        double Mom_min_over_Gamma0 = std::numeric_limits<double>::max();
+        int il_with_slowest = -1; int ish_with_slowest = -1;
+        /// collect info in active shells
+        for (size_t il = 0; il < nlayers(); il++ ){
+            if (p_ej[il]->getPars()->n_active_shells > n_active_max){
+                n_active_max = p_ej[il]->getPars()->n_active_shells;
+                il_with_min_nact = (int)il;
+            }
+            if (p_ej[il]->getPars()->n_active_shells < n_active_min){
+                n_active_min = p_ej[il]->getPars()->n_active_shells;
+                il_with_max_nact = (int)il;
+            }
+            /// find number of shells in each layer that (i) accelerating (ii) decelerating
+            size_t n_accel = 0;
+            size_t n_decel = 0;
+            for (size_t ish = 0; ish < p_ej[il]->getPars()->n_active_shells; ish++){
+                auto & bws = p_ej[il]->getBW(ish);
+                double MomIm1 = Ym1[bws->getPars()->ii_eq + SOL::QS::imom];
+                double MomI = Y[bws->getPars()->ii_eq + SOL::QS::imom];
+                double Eint2I = Y[bws->getPars()->ii_eq + SOL::QS::iEint2];
+                double Mom0 = bws->getPars()->mom0;
+                if (MomI > MomIm1){
+                    /// acceleration
+                    n_accel += 1;
+                }
+                else if (MomI < MomIm1){
+                    /// deceleration
+                    n_decel += 1;
+                }
+                /// find fastest
+                if (MomI/Mom0 > Mom_max_over_Gamma0){
+                    Mom_max_over_Gamma0 = MomI/Mom0;
+                    il_wich_fastest = (int)il;
+                    ish_with_fastest = (int)ish;
+                }
+                /// find slowest
+                if (MomI/Mom0 < Mom_min_over_Gamma0){
+                    Mom_min_over_Gamma0 = MomI/Mom0;
+                    il_with_slowest = (int)il;
+                    ish_with_slowest = (int)ish;
+                }
+                /// most energetic
+                if (Eint2max < Eint2I){
+                    Eint2max = Eint2I;
+                    il_wich_energetic= (int)il;
+                    ish_with_energetic = (int)ish;
+                }
+            }
+            /// record layer with the maximum number of accelerating and decelerating shells
+            if (n_accel > n_accel_max){
+                n_accel_max = n_accel;
+                il_with_n_accel_max = (int)il;
+                int x = 1;
+            }
+            if (n_decel > n_decel_max){
+                n_decel_max = n_decel;
+                il_with_n_decel_max = (int)il;
+            }
+        }
+
+        sstream << "Ej:"
+                <<" [NActive max/min="<<n_active_max<<"/"<<n_active_min<<" (il="<<il_with_max_nact<<"/"<<il_with_min_nact<<")"
+                <<" MAX_Nacc/dec="<<n_accel_max<<"/"<<n_decel_max<<" (il="<<il_with_n_accel_max<<"/"<<il_with_n_decel_max<<")"
+                <<" Mmax/M0="<<Mom_max_over_Gamma0<<" (il="<<il_wich_fastest<<", ish="<<ish_with_fastest<<")"
+                <<" Mmin/M0="<<Mom_min_over_Gamma0<<" (il="<<il_with_slowest<<", ish="<<ish_with_slowest<<")"
+                <<" Eint2max="<<Eint2max<<" (il="<<il_wich_energetic<<", ish="<<ish_with_energetic<<")"
+                <<"]";
+
+//
+//
+//        size_t fastest_sh = 0;
+//        size_t fastest_l = 0;
+//        double mom = 0;
+//        double n_active_min = 0;
+//        double layer
+//        size_t n_acc = 0;
+//        for (size_t ish = 0; ish < ejectaStructs.nshells; ish++){
+//            for (size_t il = 0; il < ejectaStructs.structs[0].nlayers; il++){
+//                if (p_ej[il]->getBW(ish)->getVal(RadBlastWave::Q::imom,(int)it) > mom) {
+//                    mom = p_ej[il]->getBW(ish)->getVal(RadBlastWave::Q::imom,(int)it) > mom;
+//                    fastest_l = il;
+//                    fastest_sh = ish;
+//                }
+//            }
+//        }
+//        sstream << "[Ej: "<<"[l="<<fastest_l<<", sh="<<fastest_sh<<"]"
+//                << " Mom=" << string_format("%.2e",p_ej[fastest_l]->getBW(fastest_sh)->getVal(RadBlastWave::Q::imom,(int)it))
+//                << " R=" << string_format("%.2e",p_ej[fastest_l]->getBW(fastest_sh)->getVal(RadBlastWave::Q::iR,(int)it))
+//                << " Eint=" << string_format("%.2e",p_ej[fastest_l]->getBW(fastest_sh)->getVal(RadBlastWave::Q::iEint2,(int)it))
+//                << "] ";
+    }
+
+private:
+
+#if 0
     void setEjectaStructNumericUniformInTheta(Vector & dist_thetas0, Vector & dist_cthetas0, Vector & dist_moms,
                                               Vector & dist_ek, Vector & dist_mass, Vector & dist_ye, Vector & dist_s,
                                               size_t nlayers, double mfac, StrStrMap & opts){
-        run_ej_bws = getBoolOpt("run_ej_bws", opts, AT,p_log, false, true);
-        if (!run_ej_bws)
+        run_bws = getBoolOpt("run_bws", opts, AT,p_log, false, true);
+        if (!run_bws)
             return;
         std::string ej_eats_method = getStrOpt("method_eats",opts,AT,p_log,"", true);
         ejecta_eats_method = LatStruct::setEatsMethod(ej_eats_method);
@@ -2635,8 +2852,8 @@ public:
     }
     void setEjectaStructNumeric(Vector & dist_thetas0,Vector & dist_cthetas0, Vector & dist_moms, Vector & dist_ek, Vector & dist_mass,
                                 Vector & dist_ye, Vector & dist_s, StrStrMap & opts){
-        run_ej_bws = getBoolOpt("run_ej_bws", opts, AT,p_log, false, true);
-        if (!run_ej_bws)
+        run_bws = getBoolOpt("run_bws", opts, AT,p_log, false, true);
+        if (!run_bws)
             return;
         std::string ej_eats_method = getStrOpt("method_eats",opts,AT,p_log,"", true);
         ejecta_eats_method = LatStruct::setEatsMethod(ej_eats_method);
@@ -2646,8 +2863,8 @@ public:
     }
     void setEjectaStructNumeric(Vector & dist_thetas, Vector & dist_cthetas, Vector & dist_moms, VecVector & dist_ek, VecVector & dist_mass,
                                 VecVector & dist_ye, VecVector & dist_s, bool force_grid, StrStrMap & opts){
-        run_ej_bws = getBoolOpt("run_ej_bws", opts, AT,p_log,false, true);
-        if (!run_ej_bws)
+        run_bws = getBoolOpt("run_bws", opts, AT,p_log,false, true);
+        if (!run_bws)
             return;
         std::string ej_eats_method = getStrOpt("method_eats",opts,AT,p_log,"", true);
         ejecta_eats_method = LatStruct::setEatsMethod(ej_eats_method);
@@ -2655,10 +2872,38 @@ public:
                                  ej_eats_method, m_loglevel);
         is_ejecta_struct_set = true;
     }
+#endif
+    void setEjectaStructNumericUniformInTheta(EjectaID & id, size_t nlayers, double mfac, StrStrMap & opts){
+        run_bws = getBoolOpt("run_bws", opts, AT, p_log, false, true);
+        if (!run_bws)
+            return;
+        std::string ej_eats_method = getStrOpt("method_eats",opts,AT,p_log,"", true);
+        ejecta_eats_method = LatStruct::setEatsMethod(ej_eats_method);
+        ejectaStructs.initUniform(id, nlayers, mfac, ej_eats_method, m_loglevel);
+        is_ejecta_struct_set = true;
+    }
+    void setEjectaStructNumeric(EjectaID & id, StrStrMap & opts){
+        run_bws = getBoolOpt("run_bws", opts, AT, p_log, false, true);
+        if (!run_bws)
+            return;
+        std::string ej_eats_method = getStrOpt("method_eats",opts,AT,p_log,"", true);
+        ejecta_eats_method = LatStruct::setEatsMethod(ej_eats_method);
+        ejectaStructs.initCustom(id, ej_eats_method, m_loglevel);
+        is_ejecta_struct_set = true;
+    }
+    void setEjectaStructNumeric(EjectaID & id, bool force_grid, StrStrMap & opts){
+        run_bws = getBoolOpt("run_bws", opts, AT, p_log, false, true);
+        if (!run_bws)
+            return;
+        std::string ej_eats_method = getStrOpt("method_eats",opts,AT,p_log,"", true);
+        ejecta_eats_method = LatStruct::setEatsMethod(ej_eats_method);
+        ejectaStructs.initCustom(id, force_grid, ej_eats_method, m_loglevel);
+        is_ejecta_struct_set = true;
+    }
     void setEjectaBwPars(StrDbMap pars, StrStrMap opts, size_t ii_eq, size_t n_layers_jet){
 
-        run_ej_bws = getBoolOpt("run_ej_bws", opts, AT,p_log, false, true);
-        if (!run_ej_bws)
+        run_bws = getBoolOpt("run_bws", opts, AT, p_log, false, true);
+        if (!run_bws)
             return;
         bool is_within = false;
         std::vector<size_t> which_within{};
@@ -2715,10 +2960,10 @@ public:
                                          << "\n";
                     exit(1);
                 }
-                ii_eq += bw->getNeq();
+                ii_eq += SOL::neq;//bw->getNeq();
 
-                bw->setEatsPars(pars, opts);
-                bw->getSynchAnPtr()->setPars( pars, opts );
+//                bw->getRad()->setEatsPars(pars, opts);
+//                bw->getSynchAnPtr()->setPars( pars, opts );
 
 //                ii++;
             }
@@ -2821,108 +3066,501 @@ public:
         do_eninj_inside_rhs = getBoolOpt("do_eninj_inside_rhs", opts, AT, p_log, "no", false);
         (*p_log)(LOG_INFO,AT) << "finished initializing ejecta...\n";
     }
-    double ej_rtol = 1e-5;
-    void infoFastestShell(size_t it, const double * Ym1, const double * Y, logger sstream){
-        size_t n_active_min = std::numeric_limits<size_t>::max(); int il_with_min_nact = -1;
-        size_t n_active_max = 0; int il_with_max_nact = -1;
-        size_t n_accel_max = 0; int il_with_n_accel_max = -1;
-        size_t n_decel_max = 0; int il_with_n_decel_max = -1;
 
-        double Mom_max_over_Gamma0 = 0;
-        int il_wich_fastest = -1; int ish_with_fastest = -1;
-        double Eint2max = 0.;
-        int il_wich_energetic = -1; int ish_with_energetic = -1;
-        double Mom_min_over_Gamma0 = std::numeric_limits<double>::max();
-        int il_with_slowest = -1; int ish_with_slowest = -1;
-        /// collect info in active shells
-        for (size_t il = 0; il < nlayers(); il++ ){
-            if (p_ej[il]->getPars()->n_active_shells > n_active_max){
-                n_active_max = p_ej[il]->getPars()->n_active_shells;
-                il_with_min_nact = (int)il;
+    double ej_rtol = 1e-5;
+
+
+    /// OUTPUT
+    void saveEjectaBWsDynamics(std::string workingdir, std::string fname, size_t every_it,
+                               StrDbMap & main_pars, StrDbMap & ej_pars){
+        (*p_log)(LOG_INFO,AT) << "Saving Ejecta BW dynamics...\n";
+
+        if (every_it < 1){
+            std::cerr << " every_it must be > 1; Given every_it="<<every_it<<" \n Exiting...\n";
+            std::cerr << AT << "\n";
+            exit(1);
+        }
+
+//        size_t nshells = p_ej->nshells();
+//        size_t nlayers = p_ej->nlayers();
+//        size_t ncells =  (int)p_ej->ncells();
+
+        auto & models = getShells();
+
+        std::vector<std::string> table_names;
+        std::vector<std::vector<std::vector<double>>> tot_dyn_out ( nshells() * nlayers() );
+        size_t i = 0;
+        VecVector other_data;
+        std::vector<std::string> other_names;
+        auto & arr_names = BW::m_vnames;//models[0]->getBW(0)->m_vnames;//models[0][0].getBWdynPtr()->m_vnames;
+        std::vector<std::unordered_map<std::string,double>> group_attrs{};
+        for (size_t ishell = 0; ishell < nshells(); ishell++){
+            for(size_t ilayer = 0; ilayer < nlayers(); ilayer++){
+                table_names.push_back("shell="+std::to_string(ishell)+" layer="+std::to_string(ilayer));
+                tot_dyn_out[i].resize( arr_names.size() );
+                auto & bw = models[ilayer]->getBW(ishell);
+
+                std::unordered_map<std::string,double> group_attr{
+                        {"Gamma0",bw->getPars()->Gamma0},
+                        {"M0",bw->getPars()->M0},
+                        {"R0",bw->getPars()->R0},
+                        {"theta0",bw->getPars()->theta_b0},
+                        {"theta_max",bw->getPars()->theta_max},
+                        {"tb0",bw->getPars()->tb0},
+                        {"ijl",bw->getPars()->ijl},
+                        {"ncells",bw->getPars()->ncells},
+                        {"ilayer",bw->getPars()->ilayer},
+                        {"ishell",bw->getPars()->ishell},
+                        {"ctheta0",bw->getPars()->ctheta0},
+                        {"E0",bw->getPars()->E0},
+                        {"theta_c_l",bw->getPars()->theta_c_l},
+                        {"theta_c_h",bw->getPars()->theta_c_h},
+                        {"eps_rad",bw->getPars()->eps_rad},
+                        {"entry_time",bw->getPars()->entry_time},
+                        {"entry_r",bw->getPars()->entry_r},
+                        {"first_entry_r",bw->getPars()->first_entry_r},
+                        {"min_beta_terminate",bw->getPars()->min_beta_terminate}
+                };
+                group_attrs.emplace_back( group_attr );
+
+                for (size_t ivar = 0; ivar < arr_names.size(); ivar++) {
+                    for (size_t it = 0; it < bw->getTbGrid().size(); it = it + every_it)
+                        tot_dyn_out[i][ivar].emplace_back( (*bw)[ static_cast<BW::Q>(ivar) ][it] );
+                }
+                i++;
             }
-            if (p_ej[il]->getPars()->n_active_shells < n_active_min){
-                n_active_min = p_ej[il]->getPars()->n_active_shells;
-                il_with_max_nact = (int)il;
+        }
+        std::unordered_map<std::string, double> attrs{
+                {"nshells", nshells() },
+                {"nlayers", nlayers() }
+        };
+
+        for (auto& [key, value]: main_pars) { attrs[key] = value; }
+        for (auto& [key, value]: ej_pars) { attrs[key] = value; }
+        p_out->VecVectorOfVectorsAsGroupsH5(tot_dyn_out, table_names, arr_names,
+                                            workingdir+fname, attrs, group_attrs);
+    }
+private:
+    void computeEjectaSkyMapPieceWise( std::vector<Image> & images, double obs_time, double obs_freq ){
+
+//        size_t nshells = p_ej->nshells();
+//        size_t nlayers = p_ej->nlayers();
+//        size_t ncells =  (int)p_ej->ncells();
+
+//        std::vector<Image> images;
+//        images.resize(ejectaStructs.nshells);
+        if (images.empty()){
+            (*p_log)(LOG_ERR,AT) << " empty image passed. Exiting...\n";
+            exit(1);
+        }
+        if (images.size() != nshells()){
+            (*p_log)(LOG_ERR,AT) << " number of images does not equal to the number of shells. Exiting...\n";
+            exit(1);
+        }
+        // ejectaStructs.nshells);
+        size_t ii = 0;
+        size_t n_jet_empty_images = 0;
+//        std::vector<size_t> n_empty_images_layer;
+        std::vector<std::vector<size_t>> n_empty_images;
+        std::vector<size_t> n_empty_images_shells;
+        std::vector<Image> tmp (nlayers());
+        for (auto & _tmp : tmp)
+            _tmp.resize( ncells() );
+        Image tmp_pj( ncells()); // std::vector<Image> tmp_pj (ejectaStructs.structs[0].nlayers);
+        Image tmp_cj( ncells()); // std::vector<Image> tmp_cj (ejectaStructs.structs[0].nlayers);
+        for (size_t ishell = 0; ishell <  nshells(); ishell++){
+            for (auto & _tmp : tmp)
+                _tmp.clearData();
+//            tmp[].clearData();
+            tmp_pj.clearData(); tmp_cj.clearData();
+//            image_i.clearData();
+//            im_pj.clearData();
+//            im_cj.clearData();
+//            auto & ejectaStruct = ejectaStructs.structs[ishell];
+//            size_t n_layers_ej = ejectaStruct.nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStruct.nlayers_pw : ejectaStruct.nlayers_a ;
+//            std::vector<Image> tmp;
+//            std::vector<Image> tmp (n_layers_ej);
+            std::vector<size_t> n_empty_images_layer;
+            for (size_t ilayer = 0; ilayer < nlayers(); ilayer++){
+                auto & model = getShells()[ ilayer ];
+//                tmp.emplace_back( model->evalImagePW(obs_time, obs_freq) );
+                model->getBW(ishell)->getRad()->evalImagePW(tmp[ilayer], tmp_pj, tmp_cj, obs_time, obs_freq);
+                if (tmp[ilayer].m_f_tot == 0){
+                    n_jet_empty_images += 1;
+                    n_empty_images_layer.emplace_back(ilayer);
+                }
+                ii ++ ;
             }
-            /// find number of shells in each layer that (i) accelerating (ii) decelerating
-            size_t n_accel = 0;
-            size_t n_decel = 0;
-            for (size_t ish = 0; ish < p_ej[il]->getPars()->n_active_shells; ish++){
-                auto & bws = p_ej[il]->getBW(ish);
-                double MomIm1 = Ym1[bws->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom];
-                double MomI = Y[bws->getPars()->ii_eq + DynRadBlastWave::Q_SOL::imom];
-                double Eint2I = Y[bws->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2];
-                double Mom0 = bws->getPars()->mom0;
-                if (MomI > MomIm1){
-                    /// acceleration
-                    n_accel += 1;
-                }
-                else if (MomI < MomIm1){
-                    /// deceleration
-                    n_decel += 1;
-                }
-                /// find fastest
-                if (MomI/Mom0 > Mom_max_over_Gamma0){
-                    Mom_max_over_Gamma0 = MomI/Mom0;
-                    il_wich_fastest = (int)il;
-                    ish_with_fastest = (int)ish;
-                }
-                /// find slowest
-                if (MomI/Mom0 < Mom_min_over_Gamma0){
-                    Mom_min_over_Gamma0 = MomI/Mom0;
-                    il_with_slowest = (int)il;
-                    ish_with_slowest = (int)ish;
-                }
-                /// most energetic
-                if (Eint2max < Eint2I){
-                    Eint2max = Eint2I;
-                    il_wich_energetic= (int)il;
-                    ish_with_energetic = (int)ish;
-                }
+            if(!n_empty_images_layer.empty()){
+                n_empty_images_shells.emplace_back(ishell);
+                n_empty_images.emplace_back(n_empty_images_layer);
             }
-            /// record layer with the maximum number of accelerating and decelerating shells
-            if (n_accel > n_accel_max){
-                n_accel_max = n_accel;
-                il_with_n_accel_max = (int)il;
-                int x = 1;
-            }
-            if (n_decel > n_decel_max){
-                n_decel_max = n_decel;
-                il_with_n_decel_max = (int)il;
+
+//            images.emplace_back( combineImages(ejectaStruct,tmp) );
+            combineImages(images[ishell], ncells(), nlayers(), tmp) ;
+        }
+
+        /// print which layers/shells gave empty image
+        if (p_log->getLogLevel() == LOG_INFO) {
+            if (n_jet_empty_images > 0) {
+                auto &ccerr = std::cout;
+                ccerr << "Ejecta at tobs=" << obs_time << " freq=" << obs_freq << " gave an empty images for total n="
+                      << n_jet_empty_images << " layers. Specifically:\n";
+                for (size_t ish = 0; ish < n_empty_images_shells.size(); ish++) {
+//                auto & ejectaStruct = ejectaStructs.structs[n_empty_images_shells[ish]];
+//                size_t n_layers_ej = nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStruct.nlayers_pw : ejectaStruct.nlayers_a ;
+                    ccerr << "\t [ishell=" << n_empty_images_shells[ish] << " ilayer] = [ ";
+                    for (size_t il = 0; il < n_empty_images[ish].size(); il++) {
+                        ccerr << n_empty_images[ish][il] << " ";
+                    }
+                    ccerr << "] / (" << nlayers() << " total layers) \n";
+                }
             }
         }
 
-        sstream << "Ej:"
-                <<" [NActive max/min="<<n_active_max<<"/"<<n_active_min<<" (il="<<il_with_max_nact<<"/"<<il_with_min_nact<<")"
-                <<" MAX_Nacc/dec="<<n_accel_max<<"/"<<n_decel_max<<" (il="<<il_with_n_accel_max<<"/"<<il_with_n_decel_max<<")"
-                <<" Mmax/M0="<<Mom_max_over_Gamma0<<" (il="<<il_wich_fastest<<", ish="<<ish_with_fastest<<")"
-                <<" Mmin/M0="<<Mom_min_over_Gamma0<<" (il="<<il_with_slowest<<", ish="<<ish_with_slowest<<")"
-                <<" Eint2max="<<Eint2max<<" (il="<<il_wich_energetic<<", ish="<<ish_with_energetic<<")"
-                <<"]";
+//        return std::move( images );
+    }
 
+    std::vector<VecVector> evalEjectaLightCurves( Vector & obs_times, Vector & obs_freqs){
+        (*p_log)(LOG_INFO,AT)<<" starting ejecta light curve calculation\n";
+//        size_t nshells = p_ej->nshells();
+//        size_t nlayers = p_ej->nlayers();
+//        size_t ncells =  (int)p_ej->ncells();
+        std::vector<VecVector> light_curves(nshells()); // [ishell][i_layer][i_time]
+        for (auto & arr : light_curves){
+            size_t n_layers_ej = nlayers();//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStructs.structs[0].nlayers_pw : ejectaStructs.structs[0].nlayers_a ;
+            arr.resize(n_layers_ej);
+            for (auto & arrr : arr){
+                arrr.resize( obs_times.size(), 0. );
+            }
+        }
+        double flux_pj, flux_cj; size_t ii = 0;
+//        Image image;
+        double rtol = ej_rtol;
+        Image image_i ( ncells() );
+        Image im_pj ( ncells() );
+        Image im_cj ( ncells() );
+        for (size_t ishell = 0; ishell < nshells(); ishell++){
+            image_i.clearData();
+            im_pj.clearData();
+            im_cj.clearData();
+//            auto &struc = ejectaStructs.structs[ishell];
+//            size_t n_layers_ej = ejectaStructs.structs[ishell].nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? struc.nlayers_pw : struc.nlayers_a ;
+            for (size_t ilayer = 0; ilayer < nlayers(); ilayer++) {
+                auto & model = getShells()[ilayer];//ejectaModels[ishell][ilayer];
+//                model->setEatsPars( pars, opts );
+                (*p_log)(LOG_INFO,AT)
+                        << " EJECTA LC ntimes="<<obs_times.size()
+                        << " vel_shell="<<ishell<<"/"<<nshells()-1
+                        << " theta_layer="<<ilayer<<"/"<<nlayers()
+                        << " phi_cells="<<LatStruct::CellsInLayer(ilayer)<<"\n";
+                model->getBW(ishell)->getRad()->evalForwardShockLightCurve(
+                        ejecta_eats_method,
+                        image_i, im_pj, im_cj, light_curves[ishell][ilayer], obs_times, obs_freqs);
+                ii ++;
+            }
+        }
+        return std::move( light_curves );
+    }
+
+public:
+    /// electrons
+    void setPreComputeEjectaAnalyticElectronsPars(){//(StrDbMap pars, StrStrMap opts){
+        (*p_log)(LOG_INFO,AT) << "Computing Ejecta analytic electron pars...\n";
+
+        if (!run_bws){
+            std::cerr << " ejecta BWs were not evolved. Cannot compute electrons (analytic) exiting...\n";
+            std::cerr << AT << "\n";
+            exit(1);
+        }
+        auto & models = getShells();
+        for (auto & model : models) {
+            for (auto & bw : model->getBWs()) {
+                bw->getRad()->computeForwardShockElectronAnalyticVars();
+                bw->getRad()->computeForwardShockSynchrotronAnalyticSpectrum();
+            }
+        }
+        is_ejecta_anal_synch_computed = true;
+    }
+
+//    void computeSaveEjectaAnalyticSynchrotronSpectrum(std::string fpath, Vector & freq_array, size_t every_it){
 //
+//        (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta analytic synchrotron spectrum...\n";
 //
-//        size_t fastest_sh = 0;
-//        size_t fastest_l = 0;
-//        double mom = 0;
-//        double n_active_min = 0;
-//        double layer
-//        size_t n_acc = 0;
-//        for (size_t ish = 0; ish < ejectaStructs.nshells; ish++){
-//            for (size_t il = 0; il < ejectaStructs.structs[0].nlayers; il++){
-//                if (p_ej[il]->getBW(ish)->getVal(RadBlastWave::Q::imom,(int)it) > mom) {
-//                    mom = p_ej[il]->getBW(ish)->getVal(RadBlastWave::Q::imom,(int)it) > mom;
-//                    fastest_l = il;
-//                    fastest_sh = ish;
-//                }
+//        if (!is_ejecta_anal_synch_computed){
+//            std::cerr << " ejecta analytic electrons were not evolved. Cannot compute spectrum (analytic) \n Exiting...\n";
+//            std::cerr << AT << "\n";
+//            exit(1);
+//        }
+//        auto & models = getShells();
+//
+////        size_t nshells = nshells();
+////        size_t nlayers = nlayers();
+////        size_t ncells =  (int)p_ej->ncells();
+//
+//        std::vector< // layers
+//                std::vector< // options
+//                        std::vector< // freqs
+//                                std::vector<double>>>> // times
+//        out {};
+//        auto t_arr = models[0]->getBW(0)->getTbGrid(every_it);
+//        auto in_group_names = models[0]->getBW(0)->getRad()->m_names_;
+//        std::vector<std::string> group_names{};
+//        size_t ish_il = 0;
+//        for (size_t ishell = 0; ishell < nshells(); ishell++) {
+//            for (size_t ilayer = 0; ilayer < nlayers(); ilayer++) {
+//                group_names.emplace_back("shell=" + std::to_string(ishell) + " layer=" + std::to_string(ilayer));
+//                out.emplace_back(
+//                        models[ilayer]->getBW(ishell)->evalForwardShockComovingSynchrotron(freq_array, every_it) );
+//                ish_il++;
 //            }
 //        }
-//        sstream << "[Ej: "<<"[l="<<fastest_l<<", sh="<<fastest_sh<<"]"
-//                << " Mom=" << string_format("%.2e",p_ej[fastest_l]->getBW(fastest_sh)->getVal(RadBlastWave::Q::imom,(int)it))
-//                << " R=" << string_format("%.2e",p_ej[fastest_l]->getBW(fastest_sh)->getVal(RadBlastWave::Q::iR,(int)it))
-//                << " Eint=" << string_format("%.2e",p_ej[fastest_l]->getBW(fastest_sh)->getVal(RadBlastWave::Q::iEint2,(int)it))
-//                << "] ";
+//        VecVector other_data{
+//                t_arr,
+//                freq_array
+//        };
+//        std::vector<std::string> other_names { "times", "freqs" };
+//        std::unordered_map<std::string,double> attrs{
+//                {"nshells", nshells() },
+//                {"nlayers", nlayers() },
+//                {"eps_e", models[0]->getBW(0)->getSynchAnPtr()->getPars()->eps_e },
+//                {"eps_b", models[0]->getBW(0)->getSynchAnPtr()->getPars()->eps_b },
+//                {"eps_t", models[0]->getBW(0)->getSynchAnPtr()->getPars()->eps_t },
+//                {"p", models[0]->getBW(0)->getSynchAnPtr()->getPars()->p },
+//                {"ksi_n", models[0]->getBW(0)->getSynchAnPtr()->getPars()->ksi_n }
+//        };
+////    auto out = { emissivity, absorption, em_th, em_pl, abs_th, abs_pl };
+//        p_out->VectorOfTablesAsGroupsAndVectorOfVectorsH5(fpath,out,group_names,
+//                                                          in_group_names,
+//                                                          other_data,other_names,attrs);
+//    }
+
+    void updateEjectaObsPars(StrDbMap pars) {
+
+        auto & models = getShells();
+
+//        size_t nshells = nshells();
+//        size_t nlayers = p_ej->nlayers();
+//        size_t ncells =  (int)p_ej->ncells();
+
+        (*p_log)(LOG_ERR,AT) << "Updating Ejecta observer pars...\n";
+        size_t ii = 0;
+        for (size_t ishell = 0; ishell < nshells(); ishell++) {
+//            auto &struc = ejectaStructs.structs[ishell];
+//            size_t n_layers_ej = struc.nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? struc.nlayers_pw : struc.nlayers_a ;
+            for (size_t ilayer = 0; ilayer < nlayers(); ilayer++) {
+                auto & model = getShells()[ilayer]->getBW(ishell);//ejectaModels[ishell][ilayer];
+                model->getRad()->updateObsPars(pars);
+                ii++;
+            }
+        }
+//        p_pars->is_ejecta_obs_pars_set = true;
     }
+
+    void computeSaveEjectaSkyImagesAnalytic(std::string workingdir, std::string fname, Vector times, Vector freqs,
+                                            StrDbMap & main_pars, StrDbMap & ej_pars){
+        if (!run_bws)
+            return;
+
+        (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta sky image with analytic synchrotron...\n";
+
+        if (!is_ejecta_anal_synch_computed){
+            std::cerr  << "ejecta analytic electrons were not evolved. Cannot compute images (analytic) exiting...\n";
+            std::cerr << AT << " \n";
+            exit(1);
+        }
+        if (!is_ejecta_obs_pars_set){
+            std::cerr<< "ejecta observer parameters are not set. Cannot compute image (analytic) exiting...\n";
+            std::cerr << AT << " \n";
+            exit(1);
+        }
+
+//        size_t nshells = nshells();
+//        size_t nlayers = p_ej->nlayers();
+//        size_t ncells =  (int)p_ej->ncells();
+
+//        auto & ejectaStruct = ejectaStructs;
+//        size_t nshells = ejectaStruct.nshells;
+        Image dummy(1,0);
+
+        std::vector< // times & freqs
+                std::vector< // v_ns
+                        std::vector< // shells
+                                std::vector<double>>>> // data
+        out {};
+
+        size_t ii = 0;
+        out.resize(times.size() * freqs.size());
+        for (size_t ifreq = 0; ifreq < freqs.size(); ++ifreq){
+            for (size_t it = 0; it < times.size(); ++it){
+                out[ii].resize(dummy.m_names.size());
+                for (size_t i_vn = 0; i_vn < dummy.m_names.size(); ++i_vn) {
+                    out[ii][i_vn].resize(nshells());
+                }
+                ii++;
+            }
+        }
+
+        VecVector other_data{
+                times,
+                freqs
+        };
+        ii = 0;
+        std::vector<std::string> other_names { "times", "freqs" };
+        for (size_t ifreq = 0; ifreq < freqs.size(); ++ifreq){
+            Vector tota_flux(times.size(), 0.0);
+            VecVector total_flux_shell( nshells() );
+            for (auto & total_flux_shel : total_flux_shell)
+                total_flux_shel.resize( times.size(), 0.0 );
+            for (size_t it = 0; it < times.size(); ++it){
+//                auto images = computeEjectaSkyMapPieceWise( times[it],freqs[ifreq]);
+                std::vector<Image> images(nshells());
+                computeEjectaSkyMapPieceWise( images, times[it],freqs[ifreq]);
+                for (size_t i_vn = 0; i_vn < dummy.m_names.size(); i_vn++) {
+                    for (size_t ish = 0; ish < nshells(); ish++) {
+                        out[ii][i_vn][ish] = images[ish].m_data[i_vn];//arrToVec(images[ish].m_data[i_vn]);
+                    }
+                }
+                for (size_t ish = 0; ish < nshells(); ish++) {
+                    tota_flux[it] += images[ish].m_f_tot;
+                    total_flux_shell[ish][it] = images[ish].m_f_tot;
+                }
+                ii++;
+            }
+            other_data.emplace_back( tota_flux );
+            other_names.emplace_back( "totalflux at freq="+ string_format("%.4e", freqs[ifreq]) );
+
+            for (size_t ish = 0; ish < nshells(); ish++){
+                other_data.emplace_back( total_flux_shell[ish] );
+                other_names.emplace_back( "totalflux at freq="+ string_format("%.4e", freqs[ifreq]) +
+                                          " shell=" + string_format("%d", ish));
+            }
+
+        }
+
+        std::vector<std::string> group_names{};
+        for (size_t ifreq = 0; ifreq < freqs.size(); ifreq++){
+            for (size_t it = 0; it < times.size(); it++){
+                group_names.emplace_back("time=" +  string_format("%.4e",times[it])  //std::to_string(times[it])
+                                         + " freq=" + string_format("%.4e",freqs[ifreq])); //std::to_string(freqs[ifreq]));
+            }
+        }
+
+
+//        for (size_t it = 0; it < times.size(); it++){
+//            for (size_t ifreq = 0; ifreq < freqs.size(); ifreq++){
+//                group_names.emplace_back("time=" +  string_format("%.4e",times[it])  //std::to_string(times[it])
+//                                       + " freq=" + string_format("%.4e",freqs[ifreq])); //std::to_string(freqs[ifreq]));
+//            }
+//        }
+
+        auto in_group_names = dummy.m_names;
+
+        std::unordered_map<std::string,double> attrs{
+                {"nshells", nshells()},
+                {"nshells", nlayers()}
+        };
+//                {"thetaObs", p_ej->getShells()[0]->getBW(0)->getEatsPars()->theta_obs },
+//                {"d_L", p_ej->getShells()[0]->getBW(0)->getEatsPars()->d_l },
+//                {"z",  p_ej->getShells()[0]->getBW(0)->getEatsPars()->z },
+//                {"eps_e",  p_ej->getShells()[0]->getBW(0)->getSynchAnPtr()->getPars()->eps_e },
+//                {"eps_b",  p_ej->getShells()[0]->getBW(0)->getSynchAnPtr()->getPars()->eps_b },
+//                {"eps_t",  p_ej->getShells()[0]->getBW(0)->getSynchAnPtr()->getPars()->eps_t },
+//                {"p",  p_ej->getShells()[0]->getBW(0)->getSynchAnPtr()->getPars()->p },
+//                {"ksi_n",  p_ej->getShells()[0]->getBW(0)->getSynchAnPtr()->getPars()->ksi_n }
+//        };
+        for (auto& [key, value]: main_pars) { attrs[key] = value; }
+        for (auto& [key, value]: ej_pars) { attrs[key] = value; }
+
+        p_out->VectorOfTablesAsGroupsAndVectorOfVectorsH5(workingdir+fname,out,group_names,
+                                                          in_group_names,
+                                                          other_data,other_names,attrs);
+
+    }
+
+    void computeSaveEjectaLightCurveAnalytic(std::string workingdir,std::string fname, std::string fname_shells_layers,
+                                             Vector lc_times, Vector lc_freqs, StrDbMap & main_pars, StrDbMap & ej_pars,
+                                             bool lc_freq_to_time){
+
+        Vector _times, _freqs;
+        cast_times_freqs(lc_times,lc_freqs,_times,_freqs,lc_freq_to_time,p_log);
+
+        (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta light curve with analytic synchrotron...\n";
+
+//        size_t nshells = p_ej->nshells();
+//        size_t nlayers = p_ej->nlayers();
+//        size_t ncells =  (int)p_ej->ncells();
+
+        if (!is_ejecta_anal_synch_computed){
+            std::cerr << " ejecta analytic electrons were not evolved. Cannot compute light curve (analytic) exiting...\n";
+            std::cerr << AT << " \n";
+            exit(1);
+        }
+        if (!is_ejecta_obs_pars_set){
+            std::cerr << " ejecta observer parameters are not set. Cannot compute light curve (analytic) exiting...\n";
+            std::cerr << AT << " \n";
+            exit(1);
+        }
+
+//        auto & tmp = getShells()[0]->getBW(0)->getSynchAnPtr();
+
+        std::vector< // layers / shells
+                std::vector< // options
+                        std::vector<double>>> // freqs*times
+        out {};
+
+        /// evaluate light curve
+        auto light_curve = evalEjectaLightCurves( _times, _freqs);
+
+        /// save total lightcurve
+        size_t n = _times.size();
+        Vector total_fluxes (n, 0.0);
+        for (size_t itnu = 0; itnu < n; ++itnu) {
+            size_t ishil = 0;
+            for (size_t ishell = 0; ishell < nshells(); ++ishell) {
+                for (size_t ilayer = 0; ilayer < nlayers(); ++ilayer) {
+                    total_fluxes[itnu] += light_curve[ishell][ilayer][itnu];
+                    ishil++;
+                }
+            }
+        }
+        std::vector<std::string> other_names { "times", "freqs", "total_fluxes" };
+        VecVector out_data {_times, _freqs, total_fluxes};
+
+        std::unordered_map<std::string,double> attrs{ {"nshells", nshells()}, {"nlayers", nlayers()} };
+        for (auto& [key, value]: main_pars) { attrs[key] = value; }
+        for (auto& [key, value]: ej_pars) { attrs[key] = value; }
+        p_out->VectorOfVectorsH5(out_data, other_names, workingdir+fname,  attrs);
+
+
+        /// save light curve for each shell and layer
+        if (fname_shells_layers == "none")
+            return;
+        std::vector<std::string> group_names;
+        VecVector total_fluxes_shell_layer(nshells()*nlayers());
+        size_t ii = 0;
+        for (size_t ishell = 0; ishell < nshells(); ++ishell) {
+            for (size_t ilayer = 0; ilayer < nlayers(); ++ilayer) {
+                group_names.emplace_back("shell=" + std::to_string(ishell) + " layer=" + std::to_string(ilayer));
+                total_fluxes_shell_layer[ii].resize(n,0.);
+                for (size_t ifnu = 0; ifnu < n; ifnu++){
+                    total_fluxes_shell_layer[ii][ifnu] = light_curve[ishell][ilayer][ifnu];
+                }
+                ii++;
+            }
+        }
+        total_fluxes_shell_layer.emplace_back(_times);
+        total_fluxes_shell_layer.emplace_back(_freqs);
+        total_fluxes_shell_layer.emplace_back(total_fluxes);
+
+        group_names.emplace_back("times");
+        group_names.emplace_back("freqs");
+        group_names.emplace_back("total_fluxes");
+        p_out->VectorOfVectorsH5(total_fluxes_shell_layer, group_names, workingdir+fname,  attrs);
+    }
+
+
+
 };
 
 

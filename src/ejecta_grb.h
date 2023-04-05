@@ -18,9 +18,10 @@
 #include "magnetar.h"
 //#include "pulsar_wind_nebula.h"
 #include "blastwave_base.h"
-#include "blastwave_rad.h"
+//#include "blastwave_rad.h"
 #include "blastwave_dyn.h"
 
+#if 0
 class GRB{
     std::unique_ptr<logger> p_log;
 //    bool run_jet_bws = false;
@@ -108,5 +109,5 @@ public:
                 << "] ";
     }
 };
-
+#endif
 #endif //SRC_EJECTA_GRB_H

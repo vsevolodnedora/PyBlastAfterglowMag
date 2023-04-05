@@ -12,36 +12,7 @@
 #include "synchrotron_an.h"
 
 
-void cast_times_freqs(Vector& lc_times, Vector& lc_freqs,
-                      Vector& _times, Vector& _freqs,
-                      bool is_one_to_one_already, std::unique_ptr<logger> & p_log){
-    if (lc_times.empty() || lc_freqs.empty()){
-        (*p_log)(LOG_ERR,AT)<<" empty time or freq arr.\n";
-        exit(1);
-    }
-    if (is_one_to_one_already){
-        if (lc_times.size()!=lc_freqs.size()){
-            (*p_log)(LOG_ERR,AT)<<" size mismatch between arrays time and freq (for one-to-one freq-to-time)\n";
-            exit(1);
-        }
 
-        _times = lc_times;
-        _freqs = lc_freqs;
-
-    }
-    else {
-        _times.resize(lc_freqs.size() * lc_times.size(), 0.0);
-        _freqs.resize(lc_freqs.size() * lc_times.size(), 0.0);
-        size_t ii = 0;
-        for (double freq: lc_freqs) {
-            for (double time: lc_times) {
-                _times[ii] = time;
-                _freqs[ii] = freq;
-                ii++;
-            }
-        }
-    }
-}
 
 class PyBlastAfterglow{
     struct Pars{
@@ -86,7 +57,7 @@ class PyBlastAfterglow{
 //    VelocityAngularStruct ejectaStructs{};
     std::unique_ptr<Output> p_out;
     std::unique_ptr<Magnetar> p_mag;
-    std::unique_ptr<GRB> p_grb;
+    std::unique_ptr<Ejecta> p_grb;
     std::unique_ptr<Ejecta> p_ej;
     std::unique_ptr<PWNset> p_ej_pwn;
     Vector _t_grid;
@@ -95,21 +66,18 @@ class PyBlastAfterglow{
 public:
     std::unique_ptr<Magnetar> & getMag(){return p_mag;}
     std::unique_ptr<PWNset> & getEjPWN(){return p_ej_pwn;}
-    std::unique_ptr<GRB> & getGRB(){return p_grb;}
+    std::unique_ptr<Ejecta> & getGRB(){return p_grb;}
     std::unique_ptr<Ejecta> & getEj(){return p_ej;}
     Vector & getTburst(){return t_grid;}
     PyBlastAfterglow(int loglevel){
         m_loglevel = loglevel;
         p_pars = new Pars;
-//        p_pars->loglevel = loglevel;
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "PyBlastAfterglow");
-//        p_out = std::make_unique<Output>(loglevel);
         p_mag = std::make_unique<Magnetar>(loglevel);
         p_ej_pwn = std::make_unique<PWNset>(loglevel);
-        p_grb = std::make_unique<GRB>(t_grid, loglevel);
+        p_grb = std::make_unique<Ejecta>(t_grid, loglevel);
         p_ej  = std::make_unique<Ejecta>(t_grid, loglevel);
         p_out = std::make_unique<Output>(loglevel);
-
     }
     ~PyBlastAfterglow() {
         (*p_log)(LOG_INFO,AT) << "Deleting PyBlastAfterglow instance...\n";
@@ -191,8 +159,6 @@ public:
         //std::cout << pars << "\n";
     }
 
-//    void load
-
     /// run the time-evolution
     void run(){
         p_model = std::make_unique<EvolveODEsystem>( p_mag, p_grb, p_ej, p_ej_pwn,
@@ -218,6 +184,10 @@ public:
         (*p_log)(LOG_INFO, AT) << "evolution is completed\n";
     }
 
+
+
+
+#if 0
     /// save magnetar evolution
     void saveMagnetarEvolution(std::string workingdir, std::string fname, size_t every_it){
         (*p_log)(LOG_INFO,AT) << "Saving magnetar evolution...\n";
@@ -247,7 +217,8 @@ public:
 
         p_out->VectorOfVectorsH5(tot_mag_out, mag_v_ns, workingdir+fname, attrs);
     }
-
+#endif
+#if 0
     /// save magnetar evolution
     void savePWNEvolution(std::string workingdir, std::string fname, size_t every_it, StrDbMap & main_pars, StrDbMap & pwn_pars){
 
@@ -296,7 +267,8 @@ public:
                                             workingdir+fname, attrs, group_attrs);
 
     }
-
+#endif
+#if 0
     /// save dynamical evolution of the jet blast-waves
     void saveJetBWsDynamics(std::string workingdir, std::string fname, size_t every_it, StrDbMap & main_pars, StrDbMap & grb_pars){
         (*p_log)(LOG_INFO,AT) << "Saving jet BW dynamics...\n";
@@ -320,7 +292,7 @@ public:
             tot_dyn_out[i].resize( dyn_v_ns.size() );
             for (size_t ivar = 0; ivar < dyn_v_ns.size(); ivar++){
                 for (size_t it = 0; it < models[i]->getTbGrid().size(); it = it + every_it)
-                    tot_dyn_out[i][ivar].emplace_back( (*models[i])[ static_cast<BlastWaveBase::Q>(ivar) ][it] );
+                    tot_dyn_out[i][ivar].emplace_back( (*models[i])[ static_cast<BW::Q>(ivar) ][it] );
             }
             ///write attributes
             auto & model = models[i];
@@ -416,7 +388,7 @@ public:
 
                 for (size_t ivar = 0; ivar < arr_names.size(); ivar++) {
                     for (size_t it = 0; it < bw->getTbGrid().size(); it = it + every_it)
-                        tot_dyn_out[i][ivar].emplace_back( (*bw)[ static_cast<BlastWaveBase::Q>(ivar) ][it] );
+                        tot_dyn_out[i][ivar].emplace_back( (*bw)[ static_cast<BW::Q>(ivar) ][it] );
                 }
                 i++;
             }
@@ -433,7 +405,8 @@ public:
 //    OutputVecVectorOfVectorsAsGroupsAndVectorOfVectorsH5(fpath,tot_dyn_out, table_names,
 //                                                         arr_names,other_data,other_names,attrs);
     }
-
+#endif
+#if 0
     /// set parameters for analytical electron/synchrotron calculations
     void setPreComputeJetAnalyticElectronsPars(){//(StrDbMap pars, StrStrMap opts){
         (*p_log)(LOG_INFO,AT) << "Computing Jet analytic electron pars...\n";
@@ -455,7 +428,7 @@ public:
     void setPreComputeEjectaAnalyticElectronsPars(){//(StrDbMap pars, StrStrMap opts){
         (*p_log)(LOG_INFO,AT) << "Computing Ejecta analytic electron pars...\n";
 
-        if (!p_ej->run_ej_bws){
+        if (!p_ej->run_bws){
             std::cerr << " ejecta BWs were not evolved. Cannot compute electrons (analytic) exiting...\n";
             std::cerr << AT << "\n";
             exit(1);
@@ -471,7 +444,9 @@ public:
         }
         p_ej->is_ejecta_anal_synch_computed = true;
     }
+#endif
 
+#if 0
     /// compute and save comoving spectrum for all layers of the jet blast wave
     void computeSaveJetAnalyticSynchrotronSpectrum(std::string fpath, Vector & freq_array, size_t every_it){
         (*p_log)(LOG_INFO,AT) << "Computing and saving Jet analytic synchrotron spectrum...\n";
@@ -596,7 +571,8 @@ public:
         }
 //        p_pars->is_ejecta_obs_pars_set = true;
     }
-
+#endif
+#if 0
     void computeSaveJetSkyImagesAnalytic(std::string workingdir,std::string fname, Vector times, Vector freqs,
                                          StrDbMap & main_pars, StrDbMap & grb_pars){
         (*p_log)(LOG_INFO,AT) << "Computing and saving Jet sky image with analytic synchrotron...\n";
@@ -1180,6 +1156,7 @@ private:
         return std::move( light_curves );
     }
 private:
+#endif
 };
 
 
@@ -1715,7 +1692,7 @@ public:
             tot_dyn_out[i].resize( dyn_v_ns.size() );
             for (size_t ivar = 0; ivar < dyn_v_ns.size(); ivar++){
                 for (size_t it = 0; it < models[i]->getTbGrid().size(); it = it + every_it)
-                    tot_dyn_out[i][ivar].emplace_back( (*models[i])[ static_cast<BlastWaveBase::Q>(ivar) ][it] );
+                    tot_dyn_out[i][ivar].emplace_back( (*models[i])[ static_cast<BW::Q>(ivar) ][it] );
             }
             ///write attributes
             auto & model = models[i];
@@ -1808,7 +1785,7 @@ public:
 
                 for (size_t ivar = 0; ivar < arr_names.size(); ivar++) {
                     for (size_t it = 0; it < bw->getTbGrid().size(); it = it + every_it)
-                        tot_dyn_out[i][ivar].emplace_back( (*bw)[ static_cast<BlastWaveBase::Q>(ivar) ][it] );
+                        tot_dyn_out[i][ivar].emplace_back( (*bw)[ static_cast<BW::Q>(ivar) ][it] );
                 }
                 i++;
             }
@@ -1849,7 +1826,7 @@ public:
     void setPreComputeEjectaAnalyticElectronsPars(){//(StrDbMap pars, StrStrMap opts){
         (*p_log)(LOG_INFO,AT) << "Computing Ejecta analytic electron pars...\n";
 
-        if (!p_ej->run_ej_bws){
+        if (!p_ej->run_bws){
             std::cerr << " ejecta BWs were not evolved. Cannot compute electrons (analytic) exiting...\n";
             std::cerr << AT << "\n";
             exit(1);
@@ -2751,8 +2728,8 @@ private:
             for (size_t ilayer = 0; ilayer < n_layers_j; ilayer++){
                 auto & model = p_bws_jet[ilayer];
                 /// check if blast wave for this layer was evolved
-                if ((model->getVal(BlastWaveBase::Q::iR,0) == 0.0)
-                    && (model->getVal(BlastWaveBase::Q::iR,-1) == 0.0)){
+                if ((model->getVal(BW::Q::iR,0) == 0.0)
+                    && (model->getVal(BW::Q::iR,-1) == 0.0)){
                     (*p_log)(LOG_WARN, AT)
                             << " blast wave not evolved, flux=0 [ishell="
                             << model->getPars()->ishell<<", ilayer="<<model->getPars()->ilayer<<"]\n";

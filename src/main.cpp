@@ -59,165 +59,126 @@ struct {
 
 /// -------------- Read H5 table with ID ------------------
 
-
-/// ----------- Read H5 file with magnetar table -------
-class ReadMagnetarEvolutionFile{
-    std::unique_ptr<logger> p_log;
-    LoadH5 m_ldata;
-    size_t data_size = 0; // track the size of arrays to avoid mismatching
-public:
-    ReadMagnetarEvolutionFile(std::string fapth, int loglevel) {
-        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "ReadMagnetarEvolutionFile");
-//        auto path_to_table = pars.m_path_to_ejecta_id;
-//        path_to_table = "../../tst/dynamics/corr_vel_inf_theta.h5";
-        if (!std::experimental::filesystem::exists(fapth))
-            throw std::runtime_error("File not found. " + fapth);
-        /// loading the datafile
-        m_ldata.setFileName(fapth);
-        (*p_log)(LOG_INFO, AT) << "Ejecta ID loaded\n";
+int main(int argc, char** argv) {
+    int loglevel;
+    std::string working_dir; std::string parfilename;
+    /// ------------------------------------------------------
+    if (argc<4){
+//        working_dir = "../tst/grbafg_gauss_offaxis/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/grbafg_gauss_offaxis_io/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../tst/grbafg_skymap_io/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../../tst/grbafg_tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/knafg_nrinformed/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/magnetar/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../../tst/grbafg_tophat_wind/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../../tst/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../../tst/knafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../../projects/grbtophat_parallel/"; parfilename="tophat_EisoC500_Gamma0c1000_thetaC50_thetaW50_theta00_nism10_p22_epse05_epsb05_parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../../projects/grbgauss_mcmc/working/"; parfilename="tophat_7549a8d74ce86fc502b087d8eb0e341656ee536a.par"; loglevel=LOG_INFO;
+//        working_dir = "../../tst/problems/"; parfilename="tst.par"; loglevel=LOG_INFO;
+//        working_dir = "../../tst/problems/"; parfilename="failed_tophat_4d4f9670289d90ea734b93aeb3ba05795defeca9.par"; loglevel=LOG_INFO;
+        std::cerr << " working directory and parfile are not given. Using default: "
+                  << " workdir=" << working_dir << " parfile="<<parfilename << " loglevel="<< loglevel<<"\n";
     }
-
-    Vector get(std::string varname) {
-        m_ldata.setVarName(varname);
-        Vector data = m_ldata.getData();
-        if (data_size == 0)
-            data_size =  m_ldata.getSize();
-        if (m_ldata.getSize() != data_size){
-            (*p_log)(LOG_ERR,AT)<<"Input data size mismatch. All arrays should be the same size."
-                                <<" Given array v_n="<<varname<<" has size="<<m_ldata.getSize()
-                                <<" Expected size="<<data_size<<"\n";
-            exit(1);
-        }
-        else
-            data_size = m_ldata.getSize();
-        return std::move(data);
-    }
-};
-
-
-void readParFile2(std::unordered_map<std::string, double> & pars,
-                 std::unordered_map<std::string, std::string> & opts,
-                 std::unique_ptr<logger> & p_log,
-                 std::string parfile_path,
-                 std::string from_line, std::string until_line
-                 ){
-
-    /// settings for reading the parfile
-    std::string key_after_which_to_look_for_parameters = "* Parameters";
-    std::string key_after_which_to_look_for_settings = "* Settings";
-    char char_that_separaters_name_and_value = '=';
-    char char_that_separaters_value_and_comment = '#';
-    std::vector<std::string> leave_spaces_for = {
-            "lc_freqs", "lc_times", "skymap_freqs", "skymap_times"
-    };
-
-//    std::unique_ptr<logger> p_log;
-//    p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "readParFile2");
-    if (!std::experimental::filesystem::exists(parfile_path)) {
-        (*p_log)(LOG_ERR, AT) << " Parfile not found. " + parfile_path << "\n";
+    else if (argc>4){
+        std::cerr << "args="<<argc<<"\n";
+        std::cerr << argv[0] << " " << argv[1] << " "<< argv[2] << " " << argv[3] <<"\n";
+        std::cerr << "Code requires 3 argument (path to working dir, name of the parfile, and loglevel). Given: " << argc << " \n";
         exit(1);
-
-    }
-    std::ifstream fin(parfile_path);
-    std::string line;
-
-    bool is_in_the_reqired_block = false;
-    bool reading_pars = false;
-    bool reading_opts = false;
-    while (std::getline(fin, line)) {
-        /// check if reading the required block of parfile
-        if (line == from_line)
-            is_in_the_reqired_block = true;
-        if (line == until_line)
-            is_in_the_reqired_block = false;
-        if (!is_in_the_reqired_block)
-            continue;
-
-        /// read parameters (double) and settings (str) separately
-        if (line == key_after_which_to_look_for_parameters) {
-            reading_pars = true; reading_opts = false;
-        }
-        if (line == key_after_which_to_look_for_settings) {
-            reading_pars = false; reading_opts = true;
-        }
-        if (line[0] == char_that_separaters_value_and_comment)
-            continue;
-
-        /// read pars (str, double)
-        if (reading_pars and (line.length() > 1) and (line != key_after_which_to_look_for_parameters)) {
-            unsigned long pos = line.find_first_of(char_that_separaters_name_and_value);
-            std::string val = line.substr(pos + 1), par = line.substr(0, pos);
-            par.erase(std::remove_if(par.begin(), par.end(), ::isspace), par.end());
-//            val.erase(std::remove_if(val.begin(), val.end(), ::isspace), val.end());
-            if (val.find(char_that_separaters_value_and_comment) != std::string::npos){
-                unsigned long _pos = val.find_first_of(char_that_separaters_value_and_comment);
-                std::string _comment = val.substr(_pos + 1), _val = val.substr(0, _pos);
-                val = _val;
-            }
-            val.erase(std::remove_if(val.begin(), val.end(), ::isspace), val.end());
-            double value = std::stod(val);
-            pars.insert(std::pair<std::string, double>(par, value));
-        }
-        /// read opts (str, str)
-        if (reading_opts and (line.length() > 1) and (line != key_after_which_to_look_for_settings)) {
-            unsigned long pos = line.find_first_of(char_that_separaters_name_and_value);
-            std::string val = line.substr(pos + 1),
-                    par = line.substr(0, pos);
-            par.erase(std::remove_if(par.begin(), par.end(), ::isspace), par.end());
-//            val.erase(std::remove_if(val.begin(), val.end(), ::isspace), val.end());
-            if (val.find(char_that_separaters_value_and_comment) != std::string::npos){
-                unsigned long _pos = val.find_first_of(char_that_separaters_value_and_comment);
-                std::string _comment = val.substr(_pos + 1), _val = val.substr(0, _pos);
-                val = _val;
-            }
-            if (std::find(leave_spaces_for.begin(), leave_spaces_for.end(), par) == leave_spaces_for.end())
-                val.erase(std::remove_if(val.begin(), val.end(), ::isspace), val.end());
-//            double value = std::stod(val);
-            opts.insert(std::pair<std::string, std::string>(par, val));
-        }
-    }
-
-}
-
-Vector makeVecFromString(std::string line, std::unique_ptr<logger> & p_log){
-    char space_char = ' ';
-//    char end_char = '#';
-    std::vector<std::string> words{};
-    std::stringstream sstream(line);
-    std::string word;
-    while (std::getline(sstream, word, space_char)){
-        word.erase(std::remove_if(word.begin(), word.end(), ispunct), word.end());
-        words.push_back(word);
-    }
-    /// remove first emtpy element left after '= ' this
-    if ((words[0].empty())or(words[0] == " ")){
-        words.erase(words.begin());
-    }
-
-    /// construct the vector
-    Vector res;
-    if (words[0] == "array"){
-        if (words[1] == "logspace"){
-            const double val1 = std::log10( std::stod(words[2]) );
-            const double val2 = std::log10( std::stod(words[3]) );
-            const int nvals = (int)std::stod(words[4]);
-            res = TOOLS::MakeLogspaceVec(val1,val2,nvals,10);
-        }
-        else{
-            words.erase(words.begin());
-            for (const auto &str : words){
-                res.push_back(std::stod(str));
-            }
-        }
+//        throw std::invalid_argument("Code requires 1 argument (path to parfile)");
     }
     else{
-        (*p_log)(LOG_ERR, AT) << "incorrect first word in array line. Expected 'array' found " << words[0] << '\n';
+        working_dir = argv[1];
+        parfilename = argv[2]; // "../../tst/dynamics/parfile.par"
+        std::string _loglevel = argv[3]; // "../../tst/dynamics/parfile.par"
+        if (_loglevel=="debug"){
+            loglevel = LOG_DEBUG;
+        }
+        else if (_loglevel == "info"){
+            loglevel = LOG_INFO;
+        }
+        else if (_loglevel == "warn"){
+            loglevel = LOG_WARN;
+        }
+        else if (_loglevel == "err"){
+            loglevel = LOG_ERR;
+        }
+        else if (_loglevel == "silent"){
+            loglevel = LOG_SILENT;
+        }
+        else {
+            std::cerr << " loglevel is not recognzed. Use one of: 'debug' 'info' 'warn' 'err' 'silent' \n";
+            exit(1);
+        }
+//        parfile_arrs_path = argv[2]; // "../../tst/dynamics/parfile_arrs.par"
+    }
+    /// ------------------------------------------------------
+    std::unique_ptr<logger>(p_log);
+    p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "main");
+    Timer timer;
+    /// ------------------------------------------------------
+    PyBlastAfterglow pba(loglevel);
+    /// read main parameters of the model
+    StrDbMap main_pars; StrStrMap main_opts;
+    readParFile2(main_pars, main_opts, p_log, working_dir + parfilename,
+                 "# -------------------------- main ---------------------------",
+                 "# --------------------------- END ---------------------------");
+    pba.setModelPars(main_pars, main_opts);
+
+
+    StrDbMap mag_pars; StrStrMap mag_opts;
+    readParFile2(mag_pars, mag_opts, p_log, working_dir + parfilename,
+                 "# ------------------------ Magnetar -------------------------",
+                 "# --------------------------- END ---------------------------");
+    pba.getMag()->setPars(mag_pars,mag_opts,working_dir,parfilename,pba.getTburst());
+
+
+    StrDbMap grb_pars; StrStrMap grb_opts;
+    readParFile2(grb_pars, grb_opts, p_log, working_dir + parfilename,
+                 "# ---------------------- GRB afterglow ----------------------",
+                 "# --------------------------- END ---------------------------");
+    pba.getGRB()->setPars(grb_pars,grb_opts,working_dir,
+                          parfilename,main_pars,pba.getMag()->getNeq(),0);
+
+
+    StrDbMap kn_pars; StrStrMap kn_opts;
+    readParFile2(kn_pars, kn_opts, p_log, working_dir + parfilename,
+                 "# ----------------------- kN afterglow ----------------------",
+                 "# --------------------------- END ---------------------------");
+    size_t ii_eq = pba.getMag()->getNeq() + pba.getGRB()->getNeq();
+    if (pba.getGRB()->nshells() > 1){
+        (*p_log)(LOG_ERR,AT)<<"not implemented\n";
         exit(1);
     }
-//    std::cout << res << "\n";
-    return std::move( res );
+    size_t nlayers_jet =pba.getGRB()->nlayers();
+    pba.getEj()->setPars(kn_pars,kn_opts,working_dir,parfilename,main_pars,ii_eq,nlayers_jet);
+
+
+    StrDbMap pwn_pars; StrStrMap pwn_opts;
+    readParFile2(pwn_pars, pwn_opts, p_log, working_dir + parfilename,
+                 "# --------------------------- PWN ---------------------------",
+                 "# --------------------------- END ---------------------------");
+    size_t ii_eq_ = pba.getMag()->getNeq() + pba.getGRB()->getNeq() + pba.getEj()->getNeq();
+    pba.getEjPWN()->setPars(pwn_pars,pwn_opts,working_dir,parfilename,
+                            pba.getTburst(),ii_eq_,pba.getEj()->nlayers());
+
+    (*p_log)(LOG_INFO, AT) << "Initialization finished [" << timer.checkPoint() << " s]" << "\n";
+
+    pba.run();
+
+    (*p_log)(LOG_INFO, AT) << "evolution finished [" << timer.checkPoint() << " s]" << "\n";
+
+    pba.getMag()->saveMagnetarEvolution();
+
+    pba.getEjPWN()->savePWNEvolution(main_pars);
+
+    pba.getGRB()->computeAndOutputObservables(main_pars, main_opts);
+
+    pba.getEj()->computeAndOutputObservables(main_pars, main_opts);
+
 }
 
+#if 0
 
 // driver function
 int main(int argc, char** argv) {
@@ -346,8 +307,6 @@ int main(int argc, char** argv) {
         (*p_log)(LOG_INFO, AT) << "Magnetar is not initialized and will not be considered.\n";
     }
 
-
-
     /// read pwn parameters of the pwn
     StrDbMap pwn_pars; StrStrMap pwn_opts;
     bool run_pwn = false, save_pwn = false;
@@ -361,7 +320,7 @@ int main(int argc, char** argv) {
     else {
         (*p_log)(LOG_INFO, AT) << "PWN is not initialized and will not be considered.\n";
     }
-
+#if 0
     /// read grb afterglow parameters
     StrDbMap grb_pars; StrStrMap grb_opts;
     bool run_jet_bws=false, save_j_dynamics=false, do_j_ele=false, do_j_spec=false, do_j_lc=false, do_j_skymap=false;
@@ -391,6 +350,72 @@ int main(int argc, char** argv) {
     else {
         (*p_log)(LOG_INFO, AT) << "GRB is not initialized and will not be considered.\n";
     }
+#endif
+
+    /// read GRB afterglow parameters
+    StrDbMap grb_pars; StrStrMap grb_opts;
+    bool run_bws=false,save_dyn=false, do_ele=false, do_spec=false, do_lc=false, do_skymap=false;
+    readParFile2(grb_pars, grb_opts, p_log, working_dir + parfilename,
+                 "# ---------------------- GRB afterglow ----------------------",
+                 "# --------------------------- END ---------------------------");
+    if ((!grb_pars.empty()) || (!grb_opts.empty())) {
+        run_bws = getBoolOpt("run_bws", grb_opts, AT, p_log, false, true);
+        save_dyn = getBoolOpt("save_dynamics", grb_opts, AT, p_log, false, true);
+        do_ele = getBoolOpt("do_ele", grb_opts, AT, p_log, false, true);
+        do_spec = getBoolOpt("do_spec", grb_opts, AT, p_log, false, true);
+        do_lc = getBoolOpt("do_lc", grb_opts, AT, p_log, false, true);
+        do_skymap = getBoolOpt("do_skymap", grb_opts, AT, p_log, false, true);
+        for (auto &key: {"n_ism", "d_l", "z", "theta_obs", "A0", "s", "r_ej", "r_ism"}) {
+            if (main_pars.find(key) == main_pars.end()) {
+                (*p_log)(LOG_ERR, AT) << " keyword '" << key << "' is not found in main parameters. \n";
+                exit(1);
+            }
+            grb_pars[key] = main_pars.at(key);
+        }
+        grb_opts["workingdir"] = working_dir; // For loading Nuclear Heating table
+        if (run_bws) {
+            std::string fname_ejecta_id = getStrOpt("fname_ejecta_id", grb_opts, AT, p_log, "", true);
+            bool use_1d_id = getBoolOpt("use_1d_id", grb_opts, AT, p_log, false, true);
+            if (!std::experimental::filesystem::exists(working_dir + fname_ejecta_id)) {
+                (*p_log)(LOG_ERR, AT) << " File not found. " + working_dir + fname_ejecta_id << "\n";
+                exit(1);
+            }
+            EjectaID ID(working_dir + fname_ejecta_id, loglevel);
+            if (ID.idtype == EjectaID::IDTYPE::i_id_corr && (!use_1d_id))
+                pba.getEj()->setEjectaStructNumeric(
+                        ID,
+                        getBoolOpt("enforce_angular_grid", grb_opts, AT, p_log, false, true),
+                        grb_opts);
+            else if (ID.idtype == EjectaID::IDTYPE::i_id_hist && (use_1d_id))
+                pba.getEj()->setEjectaStructNumeric(ID, grb_opts);
+            else if (ID.idtype == EjectaID::IDTYPE::i_id_hist && (!use_1d_id))
+                pba.getEj()->setEjectaStructNumericUniformInTheta(
+                        ID,
+                        (size_t) getDoublePar("nlayers", grb_pars, AT, p_log, 30, true),
+                        getDoublePar("mfac", grb_pars, AT, p_log, 1.0, true),
+                        grb_opts);
+            else {
+                (*p_log)(LOG_ERR, AT) << " no valid grb ejecta structure given\n";
+                exit(1);
+            }
+            size_t ii_eq = pba.getMag()->getNeq();
+//            size_t nlayers_jet = pba.getGRB()->getBWs().size();
+            pba.getEj()->setEjectaBwPars(grb_pars, grb_opts, ii_eq, 0);
+
+            /// initialize Ejecta Bound PWN
+            if (run_pwn) {
+                (*p_log)(LOG_ERR,AT) << " not implemented\n";
+                exit(1);
+//                size_t ii_eq_ = pba.getMag()->getNeq() + pba.getGRB()->getNeq() + pba.getEj()->getNeq();
+                /// init ejecta-bound PWN
+//                pba.getEjPWN()->setPWNpars(pba.getTburst(), pwn_pars, pwn_opts, ii_eq_,
+//                                           pba.getEj()->getShells().size());
+            }
+        }
+    }
+    else{
+        (*p_log)(LOG_INFO, AT) << "kN is not initialized and will not be considered.\n";
+    }
 
     /// read kn afterglow parameters
     StrDbMap kn_pars; StrStrMap kn_opts;
@@ -399,12 +424,12 @@ int main(int argc, char** argv) {
                  "# ----------------------- kN afterglow ----------------------",
                  "# --------------------------- END ---------------------------");
     if ((!kn_pars.empty()) || (!kn_opts.empty())) {
-        run_ejecta_bws = getBoolOpt("run_ej_bws", kn_opts, AT, p_log, false, true);
-        save_ej_dynamics = getBoolOpt("save_ej_dynamics", kn_opts, AT, p_log, false, true);
-        do_ej_ele = getBoolOpt("do_ej_ele", kn_opts, AT, p_log, false, true);
-        do_ej_spec = getBoolOpt("do_ej_spec", kn_opts, AT, p_log, false, true);
-        do_ej_lc = getBoolOpt("do_ej_lc", kn_opts, AT, p_log, false, true);
-        do_ej_skymap = getBoolOpt("do_ej_skymap", kn_opts, AT, p_log, false, true);
+        run_bws = getBoolOpt("run_bws", kn_opts, AT, p_log, false, true);
+        save_dyn = getBoolOpt("save_dyn", kn_opts, AT, p_log, false, true);
+        do_ele = getBoolOpt("do_ele", kn_opts, AT, p_log, false, true);
+        do_spec = getBoolOpt("do_spec", kn_opts, AT, p_log, false, true);
+        do_lc = getBoolOpt("do_lc", kn_opts, AT, p_log, false, true);
+        do_skymap = getBoolOpt("do_skymap", kn_opts, AT, p_log, false, true);
         for (auto &key: {"n_ism", "d_l", "z", "theta_obs", "A0", "s", "r_ej", "r_ism"}) {
             if (main_pars.find(key) == main_pars.end()) {
                 (*p_log)(LOG_ERR, AT) << " keyword '" << key << "' is not found in main parameters. \n";
@@ -413,7 +438,7 @@ int main(int argc, char** argv) {
             kn_pars[key] = main_pars.at(key);
         }
         kn_opts["workingdir"] = working_dir; // For loading Nuclear Heating table
-        if (run_ejecta_bws) {
+        if (run_bws) {
             std::string fname_ejecta_id = getStrOpt("fname_ejecta_id", kn_opts, AT, p_log, "", true);
             bool use_1d_id = getBoolOpt("use_1d_id", kn_opts, AT, p_log, false, true);
             if (!std::experimental::filesystem::exists(working_dir + fname_ejecta_id)) {
@@ -421,29 +446,29 @@ int main(int argc, char** argv) {
                 exit(1);
             }
             EjectaID ID(working_dir + fname_ejecta_id, loglevel);
-//        dfile.loadTable(working_dir+fname_ejecta_id, loglevel);
             if (ID.idtype == EjectaID::IDTYPE::i_id_corr && (!use_1d_id))
-                pba.getEj()->setEjectaStructNumeric(ID.getTheta0(), ID.getCtheta0(), ID.getMome(),
-                                                    ID.getEkCorr(), ID.getMassCorr(), ID.getYeCorr(), ID.getEntropyCorr(),
-                                                    getBoolOpt("enforce_angular_grid", kn_opts, AT, p_log, false, true),
-                                                    kn_opts);
+                pba.getEj()->setEjectaStructNumeric(
+                        ID,
+                        getBoolOpt("enforce_angular_grid", kn_opts, AT, p_log, false, true),
+                        kn_opts);
+            else if (ID.idtype == EjectaID::IDTYPE::i_id_hist && (use_1d_id))
+                pba.getEj()->setEjectaStructNumeric(ID, kn_opts);
             else if (ID.idtype == EjectaID::IDTYPE::i_id_hist && (!use_1d_id))
-                pba.getEj()->setEjectaStructNumericUniformInTheta(ID.getTheta0(), ID.getCtheta0(), ID.getMome(),
-                                                                  ID.getEkHist(), ID.getMassHist(),  ID.getYeHist(), ID.getEntropyHist(),
-                                                                  (size_t) getDoublePar("nlayers", kn_pars, AT, p_log, 30, true),
-                                                                  getDoublePar("mfac", kn_pars, AT, p_log, 1.0, true),
-                                                                  kn_opts);
-            else if (ID.idtype == EjectaID::IDTYPE::i_id_hist && (use_1d_id)){
-                pba.getEj()->setEjectaStructNumeric(ID.getTheta0(), ID.getCtheta0(), ID.getMome(),
-                                                    ID.getEkHist(), ID.getMassHist(),  ID.getYeHist(), ID.getEntropyHist(),
-                                                    kn_opts);
-            }
+                pba.getEj()->setEjectaStructNumericUniformInTheta(
+                        ID,
+                        (size_t) getDoublePar("nlayers", kn_pars, AT, p_log, 30, true),
+                        getDoublePar("mfac", kn_pars, AT, p_log, 1.0, true),
+                        kn_opts);
             else {
                 (*p_log)(LOG_ERR, AT) << " no valid ejecta structure given\n";
                 exit(1);
             }
             size_t ii_eq = pba.getMag()->getNeq() + pba.getGRB()->getNeq();
-            size_t nlayers_jet = pba.getGRB()->getBWs().size();
+            if (pba.getGRB()->nshells() > 1){
+                (*p_log)(LOG_ERR,AT)<<"not implemented\n";
+                exit(1);
+            }
+            size_t nlayers_jet =pba.getGRB()->nlayers();
             pba.getEj()->setEjectaBwPars(kn_pars, kn_opts, ii_eq, nlayers_jet);
 
             /// initialize Ejecta Bound PWN
@@ -469,15 +494,15 @@ int main(int argc, char** argv) {
 
     /// save Magnetar data
     if (run_magnetar and save_magnetar){
-        pba.saveMagnetarEvolution(
+        pba.getMag()->saveMagnetarEvolution(
                 working_dir,
                 getStrOpt("fname_mag", mag_opts, AT, p_log, "", true),
-                (int)getDoublePar("save_mag_every_it", mag_pars, AT, p_log, 1, true) );
+                (int)getDoublePar("save_mag_every_it", mag_pars, AT, p_log, 1, true));
     }
 
     /// save PWN
     if (run_pwn and save_pwn){
-        pba.savePWNEvolution(
+        pba.getEjPWN()->savePWNEvolution(
                 working_dir,
                 getStrOpt("fname_pwn", pwn_opts, AT, p_log, "", true),
                 (int)getDoublePar("save_pwn_every_it", pwn_pars, AT, p_log, 1, true),
@@ -485,62 +510,60 @@ int main(int argc, char** argv) {
     }
 
     /// work on GRB afterglow
-    if (run_jet_bws){
-        if (save_j_dynamics)
-            pba.saveJetBWsDynamics(
+    if (run_bws){
+        if (save_dyn)
+            pba.getGRB()->saveEjectaBWsDynamics(
                     working_dir,
                     getStrOpt("fname_dyn", grb_opts, AT, p_log, "", true),
                     (int)getDoublePar("save_dyn_every_it", grb_pars, AT, p_log, 1, true),
                     main_pars, grb_pars);
-        if (do_j_ele) {
-            pba.setPreComputeJetAnalyticElectronsPars();
+        if (do_ele) {
+            pba.getGRB()->setPreComputeEjectaAnalyticElectronsPars();
             (*p_log)(LOG_INFO, AT) << "jet analytic synch. electrons finished [" << timer.checkPoint() << " s]" << "\n";
         }
-        if (do_j_lc or do_j_skymap) {
-            if (do_j_lc) {
-                pba.computeSaveJetLightCurveAnalytic(
+        if (do_lc or do_skymap) {
+            if (do_lc) {
+                pba.getGRB()->computeSaveEjectaLightCurveAnalytic(
                         working_dir,
                         getStrOpt("fname_light_curve", grb_opts, AT, p_log, "", true),
                         getStrOpt("fname_light_curve_layers", grb_opts, AT, p_log, "", true),
                         lc_times, lc_freqs, main_pars, grb_pars, lc_freq_to_time);
                 (*p_log)(LOG_INFO, AT) << "jet analytic synch. light curve finished [" << timer.checkPoint() << " s]" << "\n";
             }
-            if (do_j_skymap) {
-                pba.computeSaveJetSkyImagesAnalytic(
+            if (do_skymap) {
+                pba.getGRB()->computeSaveEjectaSkyImagesAnalytic(
                         working_dir,
                         getStrOpt("fname_sky_map", grb_opts, AT, p_log, "", true),
                         skymap_times, skymap_freqs, main_pars, grb_pars);
                 (*p_log)(LOG_INFO, AT) << "jet analytic synch. sky map finished [" << timer.checkPoint() << " s]" << "\n";
             }
         }
-        ///
-
     }
 
     /// work on kN afterglow
-    if (run_ejecta_bws){
-        if (save_ej_dynamics)
-            pba.saveEjectaBWsDynamics(
+    if (run_bws){
+        if (save_dyn)
+            pba.getEj()->saveEjectaBWsDynamics(
                     working_dir,
                     getStrOpt("fname_dyn", kn_opts, AT, p_log, "", true),
                     (int) getDoublePar("save_dyn_every_it", kn_pars, AT, p_log, 1, true),
                     main_pars, grb_pars);
-        if (do_ej_ele) {
-            pba.setPreComputeEjectaAnalyticElectronsPars();
+        if (do_ele) {
+            pba.getEj()->setPreComputeEjectaAnalyticElectronsPars();
             (*p_log)(LOG_INFO, AT) << "ejecta analytic synch. electrons finished [" << timer.checkPoint() << " s]" << "\n";
 
         }
-        if (do_ej_lc or do_ej_skymap) {
-            if (do_ej_lc) {
-                pba.computeSaveEjectaLightCurveAnalytic(
+        if (do_lc or do_skymap) {
+            if (do_lc) {
+                pba.getEj()->computeSaveEjectaLightCurveAnalytic(
                         working_dir,
                         getStrOpt("fname_light_curve", kn_opts, AT, p_log, "", true),
                         getStrOpt("fname_light_curve_layers", kn_opts, AT, p_log, "", true),
                         lc_times, lc_freqs, main_pars, grb_pars, lc_freq_to_time);
                 (*p_log)(LOG_INFO, AT) << "ejecta analytic synch. light curve finished [" << timer.checkPoint() << " s]" << "\n";
             }
-            if (do_ej_skymap) {
-                pba.computeSaveEjectaSkyImagesAnalytic(
+            if (do_skymap) {
+                pba.getEj()->computeSaveEjectaSkyImagesAnalytic(
                         working_dir,
                         getStrOpt("fname_sky_map", kn_opts, AT, p_log, "", true),
                         skymap_times, skymap_freqs, main_pars, grb_pars);
@@ -550,7 +573,7 @@ int main(int argc, char** argv) {
         }
     }
 }
-
+#endif
 
 //
 //    std::unordered_map<std::string, double> pars;

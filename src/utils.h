@@ -1045,4 +1045,158 @@ void print_map(std::unordered_map<K, V> const &m)
     // std::for_each(m.begin(), m.end(), print<K, V>);
 }
 
+void cast_times_freqs(Vector& lc_times, Vector& lc_freqs,
+                      Vector& _times, Vector& _freqs,
+                      bool is_one_to_one_already, std::unique_ptr<logger> & p_log){
+    if (lc_times.empty() || lc_freqs.empty()){
+        (*p_log)(LOG_ERR,AT)<<" empty time or freq arr.\n";
+        exit(1);
+    }
+    if (is_one_to_one_already){
+        if (lc_times.size()!=lc_freqs.size()){
+            (*p_log)(LOG_ERR,AT)<<" size mismatch between arrays time and freq (for one-to-one freq-to-time)\n";
+            exit(1);
+        }
+
+        _times = lc_times;
+        _freqs = lc_freqs;
+
+    }
+    else {
+        _times.resize(lc_freqs.size() * lc_times.size(), 0.0);
+        _freqs.resize(lc_freqs.size() * lc_times.size(), 0.0);
+        size_t ii = 0;
+        for (double freq: lc_freqs) {
+            for (double time: lc_times) {
+                _times[ii] = time;
+                _freqs[ii] = freq;
+                ii++;
+            }
+        }
+    }
+}
+
+void readParFile2(std::unordered_map<std::string, double> & pars,
+                  std::unordered_map<std::string, std::string> & opts,
+                  std::unique_ptr<logger> & p_log,
+                  std::string parfile_path,
+                  std::string from_line, std::string until_line
+){
+
+    /// settings for reading the parfile
+    std::string key_after_which_to_look_for_parameters = "* Parameters";
+    std::string key_after_which_to_look_for_settings = "* Settings";
+    char char_that_separaters_name_and_value = '=';
+    char char_that_separaters_value_and_comment = '#';
+    std::vector<std::string> leave_spaces_for = {
+            "lc_freqs", "lc_times", "skymap_freqs", "skymap_times"
+    };
+
+//    std::unique_ptr<logger> p_log;
+//    p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "readParFile2");
+    if (!std::experimental::filesystem::exists(parfile_path)) {
+        (*p_log)(LOG_ERR, AT) << " Parfile not found. " + parfile_path << "\n";
+        exit(1);
+
+    }
+    std::ifstream fin(parfile_path);
+    std::string line;
+
+    bool is_in_the_reqired_block = false;
+    bool reading_pars = false;
+    bool reading_opts = false;
+    while (std::getline(fin, line)) {
+        /// check if reading the required block of parfile
+        if (line == from_line)
+            is_in_the_reqired_block = true;
+        if (line == until_line)
+            is_in_the_reqired_block = false;
+        if (!is_in_the_reqired_block)
+            continue;
+
+        /// read parameters (double) and settings (str) separately
+        if (line == key_after_which_to_look_for_parameters) {
+            reading_pars = true; reading_opts = false;
+        }
+        if (line == key_after_which_to_look_for_settings) {
+            reading_pars = false; reading_opts = true;
+        }
+        if (line[0] == char_that_separaters_value_and_comment)
+            continue;
+
+        /// read pars (str, double)
+        if (reading_pars and (line.length() > 1) and (line != key_after_which_to_look_for_parameters)) {
+            unsigned long pos = line.find_first_of(char_that_separaters_name_and_value);
+            std::string val = line.substr(pos + 1), par = line.substr(0, pos);
+            par.erase(std::remove_if(par.begin(), par.end(), ::isspace), par.end());
+//            val.erase(std::remove_if(val.begin(), val.end(), ::isspace), val.end());
+            if (val.find(char_that_separaters_value_and_comment) != std::string::npos){
+                unsigned long _pos = val.find_first_of(char_that_separaters_value_and_comment);
+                std::string _comment = val.substr(_pos + 1), _val = val.substr(0, _pos);
+                val = _val;
+            }
+            val.erase(std::remove_if(val.begin(), val.end(), ::isspace), val.end());
+            double value = std::stod(val);
+            pars.insert(std::pair<std::string, double>(par, value));
+        }
+        /// read opts (str, str)
+        if (reading_opts and (line.length() > 1) and (line != key_after_which_to_look_for_settings)) {
+            unsigned long pos = line.find_first_of(char_that_separaters_name_and_value);
+            std::string val = line.substr(pos + 1),
+                    par = line.substr(0, pos);
+            par.erase(std::remove_if(par.begin(), par.end(), ::isspace), par.end());
+//            val.erase(std::remove_if(val.begin(), val.end(), ::isspace), val.end());
+            if (val.find(char_that_separaters_value_and_comment) != std::string::npos){
+                unsigned long _pos = val.find_first_of(char_that_separaters_value_and_comment);
+                std::string _comment = val.substr(_pos + 1), _val = val.substr(0, _pos);
+                val = _val;
+            }
+            if (std::find(leave_spaces_for.begin(), leave_spaces_for.end(), par) == leave_spaces_for.end())
+                val.erase(std::remove_if(val.begin(), val.end(), ::isspace), val.end());
+//            double value = std::stod(val);
+            opts.insert(std::pair<std::string, std::string>(par, val));
+        }
+    }
+
+}
+
+Vector makeVecFromString(std::string line, std::unique_ptr<logger> & p_log){
+    char space_char = ' ';
+//    char end_char = '#';
+    std::vector<std::string> words{};
+    std::stringstream sstream(line);
+    std::string word;
+    while (std::getline(sstream, word, space_char)){
+        word.erase(std::remove_if(word.begin(), word.end(), ispunct), word.end());
+        words.push_back(word);
+    }
+    /// remove first emtpy element left after '= ' this
+    if ((words[0].empty())or(words[0] == " ")){
+        words.erase(words.begin());
+    }
+
+    /// construct the vector
+    Vector res;
+    if (words[0] == "array"){
+        if (words[1] == "logspace"){
+            const double val1 = std::log10( std::stod(words[2]) );
+            const double val2 = std::log10( std::stod(words[3]) );
+            const int nvals = (int)std::stod(words[4]);
+            res = TOOLS::MakeLogspaceVec(val1,val2,nvals,10);
+        }
+        else{
+            words.erase(words.begin());
+            for (const auto &str : words){
+                res.push_back(std::stod(str));
+            }
+        }
+    }
+    else{
+        (*p_log)(LOG_ERR, AT) << "incorrect first word in array line. Expected 'array' found " << words[0] << '\n';
+        exit(1);
+    }
+//    std::cout << res << "\n";
+    return std::move( res );
+}
+
 #endif //SRC_UTILS_H

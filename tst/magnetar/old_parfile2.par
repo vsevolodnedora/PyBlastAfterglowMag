@@ -128,7 +128,7 @@ save_dyn_every_it = 1
 
 * Settings
 
-run_ej_bws = yes
+run_bws = yes
 save_ej_dynamics = yes
 do_ej_ele = no
 do_ej_spec = no

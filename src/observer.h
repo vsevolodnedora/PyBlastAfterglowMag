@@ -9,6 +9,7 @@
 #include "utils.h"
 #include "interpolators.h"
 #include "base_equations.h"
+#include "initial_data.h"
 //#include "blastwave.h"
 
 
@@ -713,9 +714,15 @@ public:
 //    static std::vector<std::string> list_arr_v_ns() { return {"dist_thetas", "dist_EEs", "dist_Gam0s", "dist_MM0s"}; }
 //    static std::vector<std::string> list_pars_v_ns() { return {"nlayers", "mfac"}; };
 //    static std::vector<std::string> list_opts_v_ns() { return {"force_grid"}; }
-    void initUniform(Vector & dist_thetas0, Vector & dist_cthetas0, Vector & dist_moms,
-                     Vector & dist_ek, Vector & dist_mass, Vector & dist_ye, Vector & dist_s,
-                     size_t nlayers, double mfac, std::string eats_method, unsigned loglevel){
+    void initUniform(EjectaID & id, size_t nlayers, double mfac, std::string eats_method, unsigned loglevel){
+
+        Vector & dist_thetas0 = id.getTheta0();
+        Vector & dist_cthetas0 = id.getCtheta0();
+        Vector & dist_moms = id.getMome();
+        Vector & dist_ek = id.getEkHist();
+        Vector & dist_mass = id.getMassHist();
+        Vector & dist_ye = id.getYeHist();
+        Vector & dist_s = id.getEntropyHist();
 
 //        p_log = new logger(std::cout, CurrLogLevel, "LatStruct");
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "LatStruct");
@@ -780,9 +787,15 @@ public:
     }
 
     /// Assuming that each shells has one layer
-    void initCustom(Vector & dist_thetas, Vector & dist_cthetas, Vector & dist_moms,
-                    Vector & dist_ek, Vector & dist_mass, Vector & dist_ye, Vector & dist_s,
-                    std::string method_eats, unsigned loglevel){
+    void initCustom(EjectaID & id, std::string method_eats, unsigned loglevel){
+
+        Vector & dist_thetas = id.getTheta0();
+        Vector & dist_cthetas = id.getCtheta0();
+        Vector & dist_moms = id.getMome();
+        Vector & dist_ek = id.getEkHist();
+        Vector & dist_mass = id.getMassHist();
+        Vector & dist_ye = id.getYeHist();
+        Vector & dist_s = id.getEntropyHist();
 
 //        p_log = new logger(std::cout, CurrLogLevel, "LatStruct");
 //        p_log = std::make_unique<logger>(std::cout, CurrLogLevel, "LatStruct");
@@ -834,9 +847,20 @@ public:
      * @param dist_ek      VecVec[n_betas][n_thetas]
      * @param mfac
      */
-    void initCustom(Vector & dist_thetas, Vector & dist_cthetas, Vector & dist_moms, VecVector & dist_ek, VecVector & dist_mass,
-                    VecVector & dist_ye, VecVector & dist_s,
-                    bool force_grid, std::string method_eats, unsigned loglevel){
+    void initCustom(EjectaID & id, bool force_grid, std::string method_eats, unsigned loglevel){
+
+//        ID.getTheta0(), ID.getCtheta0(), ID.getMome(),
+//                ID.getEkHist(), ID.getMassHist(),  ID.getYeHist(), ID.getEntropyHist(),
+//        id.getTheta0(), id.getCtheta0(), id.getMome(),
+//                id.getEkCorr(), id.getMassCorr(), id.getYeCorr(), id.getEntropyCorr(),
+
+        Vector & dist_thetas = id.getTheta0();
+        Vector & dist_cthetas = id.getCtheta0();
+        Vector & dist_moms = id.getMome();
+        VecVector & dist_ek = id.getEkCorr();
+        VecVector & dist_mass = id.getMassCorr();
+        VecVector & dist_ye = id.getYeCorr();
+        VecVector & dist_s = id.getEntropyCorr();
 
 //        p_log = new logger(std::cout, CurrLogLevel, "LatStruct");
 //        p_log = std::make_unique<logger>(std::cout, CurrLogLevel, "LatStruct");

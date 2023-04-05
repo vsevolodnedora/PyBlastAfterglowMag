@@ -5,8 +5,18 @@
 #ifndef SRC_EJECTA_RADIATION_H
 #define SRC_EJECTA_RADIATION_H
 
-#include "ejecta_kn.h"
+#include "pch.h"
+#include "utils.h"
+#include "base_equations.h"
+#include "interpolators.h"
+#include "ode_solvers.h"
+#include "quadratures.h"
+#include "rootfinders.h"
+#include "observer.h"
+#include "synchrotron_an.h"
 
+
+#if 0
 static double check_emission_time( double t_e, double mu, double t_obs, Array & mu_arr, int N ) {
     if(mu > mu_arr[N - 1]) {
 
@@ -209,7 +219,7 @@ static double integrand( double i_cos_theta, double i_phi, void* params ){
         }
         /// interpolate the exact radial position of the blast that corresponds to the req. obs time
         double r = interpSegLog(ia, ib, t_e, tburst, m_data[BlastWaveBase::Q::iR]);
-        //  double r = ( Interp1d(ttobs, m_data[BlastWaveBase::Q::iR] ) ).Interpolate(t_obs, mth );
+        //  double r = ( Interp1d(ttobs, m_data[BW::Q::iR] ) ).Interpolate(t_obs, mth );
         if ((r <= 0.0) || !std::isfinite(r)) {
             (*p_pars->p_log)(LOG_ERR,AT) << " R <= 0. Extend R grid (increasing R0, R1). "
                                          << " Current R grid us ["
@@ -224,7 +234,7 @@ static double integrand( double i_cos_theta, double i_phi, void* params ){
         }
         double Gamma = interpSegLog(ia, ib, t_e, tburst, m_data[BlastWaveBase::Q::iGamma]);
         double beta = interpSegLog(ia, ib, t_e, tburst, m_data[BlastWaveBase::Q::ibeta]);
-        // double GammaSh = ( Interp1d(m_data[BlastWaveBase::Q::iR], m_data[BlastWaveBase::Q::iGammaFsh] ) ).Interpolate(r, mth );
+        // double GammaSh = ( Interp1d(m_data[BW::Q::iR], m_data[BW::Q::iGammaFsh] ) ).Interpolate(r, mth );
         /// compute Doppler factor
         double a = 1.0 - beta * mu; // beaming factor
         double delta_D = Gamma * a; // doppler factor
@@ -311,8 +321,8 @@ static double integrand( double i_cos_theta, double i_phi, void* params ){
             (*p_pars->p_log)(LOG_ERR,AT) << " R is NAN in integrand for radiation" << "\n";
             // REMOVING LOGGER
 //            std::cerr  << "R = " << R << "\n";
-//            std::cout << " R = " << m_data[BlastWaveBase::Q::iR] << "\n";
-//            std::cout << " Gamma= " << m_data[BlastWaveBase::Q::iGamma] << "\n";
+//            std::cout << " R = " << m_data[BW::Q::iR] << "\n";
+//            std::cout << " Gamma= " << m_data[BW::Q::iGamma] << "\n";
 //            std::cerr << AT << "\n";
             return 0.;
         }
@@ -964,7 +974,7 @@ class Radiation{
         Vector mu_arr (cphis.size(),0.0);
         for (size_t k = 0; k < cphis.size(); k++) {
             double _phi_cell = cphis[k];
-            double _ctheta_cell = ctheta0;//p_pars->ctheta0;//m_data[BlastWaveBase::Q::ictheta][0]; //cthetas[0];
+            double _ctheta_cell = ctheta0;//p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
             mu_arr[k] = obs_angle(_ctheta_cell, _phi_cell, p_pars->theta_obs);
         }
 
@@ -978,7 +988,7 @@ class Radiation{
             Interp1d::METHODS mth = Interp1d::iLagrangeLinear;
             for (size_t i = 0; i < cphis.size(); i++){
                 double phi_cell = cphis[i];
-                double ctheta_cell = ctheta0;//p_pars->ctheta0;//m_data[BlastWaveBase::Q::ictheta][0]; //cthetas[0];
+                double ctheta_cell = ctheta0;//p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
 //                double mu = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
                 for (size_t i_ = 0; i_ < i_end_r; i_++) {
                     ttobs[i_] = m_data[BlastWaveBase::Q::itt][i_] + m_data[BlastWaveBase::Q::iR][i_] / CGS::c * (1.0 - mu_arr[i]);
@@ -1011,7 +1021,7 @@ class Radiation{
                 size_t ib = ia + 1;
                 /// interpolate the exact radial position of the blast that corresponds to the req. obs time
                 double r = interpSegLog(ia, ib, t_obs, ttobs, m_data[BlastWaveBase::Q::iR]);
-                //  double r = ( Interp1d(ttobs, m_data[BlastWaveBase::Q::iR] ) ).Interpolate(t_obs, mth );
+                //  double r = ( Interp1d(ttobs, m_data[BW::Q::iR] ) ).Interpolate(t_obs, mth );
                 if ((r <= 0.0) || !std::isfinite(r)) {
                     (*p_log)(LOG_ERR,AT) << " R <= 0. Extend R grid (increasing R0, R1). "
                                          << " Current R grid us ["
@@ -1025,7 +1035,7 @@ class Radiation{
                 }
                 double Gamma = interpSegLog(ia, ib, t_obs, ttobs, m_data[BlastWaveBase::Q::iGamma]);
                 double beta = interpSegLog(ia, ib, t_obs, ttobs, m_data[BlastWaveBase::Q::ibeta]);
-                // double GammaSh = ( Interp1d(m_data[BlastWaveBase::Q::iR], m_data[BlastWaveBase::Q::iGammaFsh] ) ).Interpolate(r, mth );
+                // double GammaSh = ( Interp1d(m_data[BW::Q::iR], m_data[BW::Q::iGammaFsh] ) ).Interpolate(r, mth );
                 /// compute Doppler factor
                 double a = 1.0 - beta * mu_arr[i]; // beaming factor
                 double delta_D = Gamma * a; // doppler factor
@@ -1069,7 +1079,7 @@ class Radiation{
                 flux+=flux_dens;
                 /// save the result in image
                 double ctheta = interpSegLin(ia, ib, t_obs, ttobs, m_data[BlastWaveBase::Q::ictheta]);
-                //  double ctheta = ( Interp1d(m_data[BlastWaveBase::Q::iR], m_data[BlastWaveBase::Q::ictheta] ) ).Interpolate(r, mth );
+                //  double ctheta = ( Interp1d(m_data[BW::Q::iR], m_data[BW::Q::ictheta] ) ).Interpolate(r, mth );
                 image(Image::iintens, i) =
                         flux_dens / (r * r * std::abs(mu_arr[i])) * CGS::cgs2mJy; //(obs_flux / (delta_D * delta_D * delta_D)); //* tmp;
                 image(Image::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
@@ -1082,7 +1092,7 @@ class Radiation{
             Interp1d::METHODS mth = Interp1d::iLagrangeLinear;
             for (size_t i = 0; i < cphis.size(); i++){
                 double phi_cell = cphis[i];
-                double ctheta_cell = ctheta0;//p_pars->ctheta0;//m_data[BlastWaveBase::Q::ictheta][0]; //cthetas[0];
+                double ctheta_cell = ctheta0;//p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
 //                double mu = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
                 for (size_t i_ = 0; i_ < i_end_r; i_++) {
                     ttobs[i_] = m_data[BlastWaveBase::Q::itt][i_] + m_data[BlastWaveBase::Q::iR][i_] / CGS::c * (1.0 - mu_arr[i]);
@@ -1523,5 +1533,5 @@ class Radiation{
 
 };
 
-
+#endif
 #endif //SRC_EJECTA_RADIATION_H

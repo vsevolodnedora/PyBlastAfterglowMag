@@ -28,132 +28,46 @@ class EvolveODEsystem{
     struct Pars{
         Pars(
                 std::unique_ptr<Magnetar> & p_magnetar,
-                std::unique_ptr<GRB> & p_grb,
+                std::unique_ptr<Ejecta> & p_grb,
                 std::unique_ptr<Ejecta> & p_ej,
                 std::unique_ptr<PWNset> & p_ej_pwn,
-//                std::vector<std::unique_ptr<RadBlastWave>> & p_bws_jet,
-//                std::vector<std::unique_ptr<CumulativeShell>> & p_ej,
-//                bool run_magnetar, bool run_jet_bws, bool run_ej_bws,
                 Vector & t_grid,
                 Vector & _t_grid
         ) :
         p_magnetar(p_magnetar), p_grb(p_grb), p_ej(p_ej), p_ej_pwn(p_ej_pwn),
-//            run_magnetar(run_magnetar), run_jet_bws(run_jet_bws), run_ej_bws(run_ej_bws),
             t_grid(t_grid), _t_grid(_t_grid){
-//            if (!p_bws_jet.empty()) {
-//                n_j_bws = p_bws_jet.size();
-//                n_eq_j_bws = p_bws_jet[0]->getNeq();
-//            }
-//            else {
-//                n_j_bws = 0;
-//                n_eq_j_bws = 0;
-//            }
-//            if(!p_ej.empty()) {
-//                n_ej_bws = p_ej.size()*p_ej[0]->nBWs();//p_bws_ej.size();
-//                n_eq_ej_bws= p_ej[0]->getBW(0)->getNeq();//p_bws_ej[0]->getNeq();
-//            }
-//            else {
-//                n_ej_bws = 0;
-//                n_eq_ej_bws = 0;
-//            }
-//            if (run_magnetar){
-//                n_magnetar_eqs = p_magnetar->getNeq();
-//            }
-//            else{
-//                n_magnetar_eqs = 0;
-//            }
-////            n_eq_j_bws = p_bws_jet[0]->getNeq();
-////            n_eq_ej_bws= p_bws_ej[0]->getNeq();
-//            n_tot_eqs  = n_magnetar_eqs
-//                       + n_j_bws // number of 'jet' blast waves
-//                       * n_eq_j_bws // number of equations in each
-//                       + n_ej_bws // number of 'ejecta' blast waves
-//                       * n_eq_ej_bws; // number of equations in each;
-//            if (n_tot_eqs < 1){
-//                std::cerr << AT << "\n No equations to evolve; Both, jet and ejecta seems to be not given. Exiting...\n";
-//                exit(1);
-//            }
         }
         Vector & t_grid;
         Vector & _t_grid;
         std::unique_ptr<Magnetar> & p_magnetar;
         std::unique_ptr<PWNset> & p_ej_pwn;
-//        std::vector<std::unique_ptr<RadBlastWave>> & p_bws_jet;
-//        std::vector<std::unique_ptr<CumulativeShell>> & p_ej;
-        std::unique_ptr<GRB> & p_grb;
-        std::unique_ptr<Ejecta> & p_ej;
-//        bool run_magnetar{};
-//        bool run_jet_bws{};
-//        bool run_ej_bws{};
-//        size_t n_magnetar_eqs = 0;
-//        size_t n_j_bws = 0;
-//        size_t n_ej_bws = 0;
-//        size_t n_eq_j_bws = 0;
-//        size_t n_eq_ej_bws = 0;
-//        size_t n_tot_eqs = 0;
-//        // ---
-//        size_t n_layers_j = 0;
-//        size_t n_layers_ej = 0;
-//        size_t n_shells_j = 0;
-//        size_t n_shells_ej = 0;
-        // ---
-//        bool use_cthetajet_lim_for_rho = false;
-//        bool use_rjet_lim_for_rho = false;
-        // ---
-//        bool is_entered = false;
-//        double r_ej_ent = -1;
-        // ----
 
-//        inline size_t idx_j(const size_t i){
-////            auto * p_pars = (struct Pars *) pars;
-//            auto & bwPtr = p_bws_jet[i];
-//            return bwPtr->getNeq() * (bwPtr->getPars()->ilayer + n_layers_j * bwPtr->getPars()->ishell);
-//        }
-//        inline size_t idx_ej(const size_t i){
-////            auto * p_pars = (struct Pars *) pars;
-//            auto & bwPtr = p_bws_ej[i];
-//            size_t _idx_j = n_eq_j_bws * n_j_bws;
-//            return _idx_j + bwPtr->getNeq() * (bwPtr->getPars()->ilayer + n_layers_ej * bwPtr->getPars()->ishell);
-//        }
+        std::unique_ptr<Ejecta> & p_grb;
+        std::unique_ptr<Ejecta> & p_ej;
         // ---
         size_t ix = 0;  // index latest solution
         double dx = 0;
         double x = 0;
-//        void collision(double const * Y, size_t ij, size_t iej){
-//            double gJ=Y[idx_j(ij)+DynRadBlastWave::Q_SOL::iGamma];
-//            mJ=M2*M0 + M0; eJ=Eint2*M0; gAdiJ=gammaAdi
-//            gEJ=Gamma_ej; mEJ=M2_ej*M0_ej+M0_ej; eEJ=Eint2_ej*M0_ej; gAdiEJ=gammaAdi_ej
-//            i_gM=Gamma_ej; i_mM=M2_ej*M0_ej+M2*M0; i_eM=Eint2_ej*M0_ej
-//        }
+
         size_t i_restarts = 0;
         int n_tot_eqs = 0;
-//        int n_j_bws = 0;
-//        int n_ej_bws = 0;
     };
     Pars * p_pars;
     std::unique_ptr<logger> p_log;
 public:
     EvolveODEsystem(std::unique_ptr<Magnetar> & p_mag,
-                    std::unique_ptr<GRB> & p_grb,//std::vector<std::unique_ptr<RadBlastWave>> & p_bws_jet,
-                    std::unique_ptr<Ejecta> & p_ej,//std::vector<std::unique_ptr<CumulativeShell>> & p_ej,
+                    std::unique_ptr<Ejecta> & p_grb,
+                    std::unique_ptr<Ejecta> & p_ej,
                     std::unique_ptr<PWNset> & p_ej_pwn,
 //                    bool run_magnetar,
                     Vector & t_grid,
                     Vector & _t_grid,
-//                  size_t n_shells_j, size_t n_shells_ej, size_t n_layers_j, size_t n_layers_ej,
                     const Integrators::METHODS integrator,
                     int loglevel
     ){
         p_pars = new Pars(p_mag, p_grb, p_ej, p_ej_pwn, t_grid, _t_grid);
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "EvolveODEsystem");
-//        p_pars->n_layers_j  = run_jet_bws ? n_layers_j : 0;
-//        p_pars->n_layers_ej = run_ej_bws ? n_layers_ej : 0;
-//        p_pars->n_shells_j  = run_jet_bws ? n_shells_j : 0;
-//        p_pars->n_shells_ej = run_ej_bws ? n_shells_ej : 0;
-        // ----
-
-        // allocate memory for the IC and solution
-//        p_pars->n_j_bws =
+        /// ---------------------------------------------------------------------------------------------
         p_pars->n_tot_eqs = (int)p_mag->getNeq() + (int)p_grb->getNeq() + (int)p_ej->getNeq() + (int)p_ej_pwn->getNeq();
         (*p_log)(LOG_INFO,AT) << " ODE will solve"
                                         << " N_mag="<<p_mag->getNeq()
@@ -212,8 +126,16 @@ public:
 
     void setRelativePositions(){
 
-        auto & jet_bws = p_pars->p_grb->getBWs();
+
         auto & ej_bws = p_pars->p_ej->getShells();
+
+        if (p_pars->p_grb->nshells() > 1){
+            (*p_log)(LOG_ERR,AT)<<"not implemented\n";
+            exit(1);
+        }
+
+        auto & jet_bws = p_pars->p_grb->getShells()[0]->getBWs();
+
 
         size_t i_j_l;// = which_layer_to_use;//jet_bws.size() - 1;
 
@@ -251,9 +173,15 @@ public:
             magnetar->setInitConditions(m_InitData, ii);
             ii += magnetar->getNeq();
         }
+#if 0
         // ***********| G R B |********
-        if (p_pars->p_grb->run_jet_bws) {
-            auto & jet_bws = p_pars->p_grb->getBWs();
+        if (p_pars->p_grb->run_bws) {
+            if (p_pars->p_grb->nshells() > 1){
+                (*p_log)(LOG_ERR,AT)<<"not implemented\n";
+                exit(1);
+            }
+            auto & jet_bws = p_pars->p_grb->getShells()[0]->getBWs();
+//            auto & jet_bws = p_pars->p_grb->getBWs();
             for (size_t il = 0; il < jet_bws.size(); il++) {
 //                auto &j_pars = jet_bws[il]->getPars();
 //            double beta0 = EQS::Beta(j_pars->Gamma0);
@@ -265,90 +193,36 @@ public:
             }
             double jet_extend = jet_bws[jet_bws.size()-1]->getPars()->ctheta0; // UNUSED
         }
+#endif
+        // ***********| G R B |***********
+        if (p_pars->p_grb->run_bws) {
+            auto &ej_bws = p_pars->p_grb->getShells();
+            for (size_t il = 0; il < ej_bws.size(); il++) {
+                for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
+                    ej_bws[il]->getBW(ish)->setInitConditions(m_InitData, ii);
+//                    ej_bws[il]->getBW(ish)->updateNucAtomic( m_InitData, tb0 );
+                    ii += SOL::neq;//ej_bws[il]->getBW(ish)->getNeq();
+                }
+            }
+        }
+
         // ***********| ????? |********
         /// get indexes of sorted (with respect to the radius) shells
-        if ((p_pars->p_grb->run_jet_bws)&&(p_pars->p_ej->run_ej_bws))
+        if ((p_pars->p_grb->run_bws)&&(p_pars->p_ej->run_bws))
             setRelativePositions();
 
 
         // ***********| E J E C T A |***********
-        if (p_pars->p_ej->run_ej_bws) {
+        if (p_pars->p_ej->run_bws) {
             auto &ej_bws = p_pars->p_ej->getShells();
             for (size_t il = 0; il < ej_bws.size(); il++) {
                 for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
                     ej_bws[il]->getBW(ish)->setInitConditions(m_InitData, ii);
 //                    ej_bws[il]->getBW(ish)->updateNucAtomic( m_InitData, tb0 );
-                    ii += ej_bws[il]->getBW(ish)->getNeq();
+                    ii += SOL::neq;//ii += ej_bws[il]->getBW(ish)->getNeq();
                 }
             }
-
-#if 0
-            /// optical depth of the shell system
-            for (auto &cumShell: p_pars->p_ej->getShells()) {
-                size_t _i, _j;
-                cumShell->updateActiveShells();
-                if (!cumShell->checkIfActiveShellsOrdered(m_InitData, _i, _j)) {
-                    (*p_log)(LOG_ERR, AT) << " shells are initially not radially ordered: "
-                                          << " shell idx=" << _i << "overruns shell idx=" << _j << "\n";
-                    exit(1);
-//                    cumShell->updateSortActiveShells(m_InitData);
-                }
-                cumShell->updateSortedShellWidth( m_InitData );
-                cumShell->updateSortedShellProperties( m_InitData );
-            }
-            // PWN bound by ejecta
-            if (p_pars->p_ej_pwn->run_pwn){
-                auto & pwn = p_pars->p_ej_pwn;
-                auto & ej_pwns = p_pars->p_ej_pwn->getPWNs();
-                for (size_t il=0; il<pwn->m_nlayers; il++){
-                    auto & cumShell = p_pars->p_ej->getShells()[il];
-                    auto & ej_pwn = p_pars->p_ej_pwn->getPWNs()[il];
-                    /// update the properties of the outer boundary that PWN faces
-                    ej_pwn->updateOuterBoundary(
-                            cumShell->getRvec(),
-                            cumShell->getBetaVec(),
-                            cumShell->getRhoVec(),
-                            cumShell->getTauVec(),
-                            cumShell->getTempVec()
-                            );
-                    /// Set PWN ODE ICs
-                    double ldip = -1;
-                    double lacc = -1;
-                    if (p_pars->p_magnetar->run_magnetar) {
-                        (*p_log)(LOG_ERR,AT) << " not implemented\n";
-                        exit(1);
-                    }
-                    else if (p_pars->p_magnetar->load_magnetar){
-                        ldip = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ildip, tb0);
-                        lacc = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ilacc, tb0);
-                    }
-                    else{
-                        (*p_log)(LOG_ERR,AT) << " magnetar is neither loaded nor computed.\n";
-                        exit(1);
-                    }
-                    ej_pwns[il]->updateMagnetar(ldip, lacc);
-                    ej_pwns[il]->setInitConditions(m_InitData, ii);
-                    ej_pwns[il]->evalCurrBpwn(m_InitData);
-                    ii += ej_pwns[il]->getNeq();
-                    double total_sd = ej_pwns[il]->getAbsobedMagnetarLum(ldip, lacc, 1.);
-                    for (size_t ish = 0; ish < cumShell->getPars()->nshells; ++ish) {
-                        cumShell->getBW(ish)->getPars()->dEinjdt = 0.;
-                        if ((total_sd > 0.)){//and(ish<10)
-                            double fac_psr_dep_tmp = ej_pwns[il]->getFacPWNdep( // double rho_ej, double delta_ej, double T_ej, double Ye
-                                    cumShell->getRhoVec()[cumShell->getIdx()[ish]],
-                                    cumShell->getDeltaVec()[cumShell->getIdx()[ish]],
-                                    cumShell->getTempVec()[cumShell->getIdx()[ish]],
-                                    cumShell->getBW(ish)->getPars()->Ye0
-                            );
-                            cumShell->getBW(ish)->getPars()->dEinjdt = fac_psr_dep_tmp * total_sd;
-                            total_sd = total_sd - fac_psr_dep_tmp * total_sd;
-                        }
-                    }
-                }
-            }
-#endif
             ejectaUpdate(tb0, m_InitData);
-
         }
 
 
@@ -416,32 +290,50 @@ private:
             magnetar->applyUnits(m_CurSol, ii);
             ii += magnetar->getNeq();
         }
-        if (p_pars->p_grb->run_jet_bws) {
-            auto & jet_bws = p_pars->p_grb->getBWs();
+#if 0
+        if (p_pars->p_grb->run_bws) {
+            if (p_pars->p_grb->nshells() > 1){
+                (*p_log)(LOG_ERR,AT)<<"not implemented\n";
+                exit(1);
+            }
+            auto & jet_bws = p_pars->p_grb->getShells()[0]->getBWs();
+//            auto & jet_bws = p_pars->p_grb->getBWs();
             for (size_t i = 0; i < jet_bws.size(); i++) {
                 jet_bws[i]->applyUnits(m_CurSol, ii);
                 ii += jet_bws[i]->getNeq();
             }
         }
-        if (p_pars->p_ej->run_ej_bws) {
+#endif
+        if (p_pars->p_grb->run_bws) {
+            auto &ej_bws = p_pars->p_grb->getShells();
+            for (size_t il = 0; il < ej_bws.size(); il++) {
+                for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
+                    ej_bws[il]->getBW(ish)->applyUnits(m_CurSol, ii);
+                    ii += SOL::neq;;//ii += ej_bws[il]->getBW(ish)->getNeq();
+                }
+            }
+        }
+        if (p_pars->p_ej->run_bws) {
             auto &ej_bws = p_pars->p_ej->getShells();
             for (size_t il = 0; il < ej_bws.size(); il++) {
                 for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
                     ej_bws[il]->getBW(ish)->applyUnits(m_CurSol, ii);
-                    ii += ej_bws[il]->getBW(ish)->getNeq();
+                    ii += SOL::neq;//ii += ej_bws[il]->getBW(ish)->getNeq();
                 }
             }
         }
-//        for(size_t i = 0; i < p_pars->n_ej_bws; i++){
-//            ej_bws[i]->applyUnits( m_CurSol, ii);
-//            ii += p_pars->n_eq_ej_bws;
-//        }
     }
     bool isThereATermination(){
 //        auto & magnetar = p_pars->p_magnetar;
         size_t ii = 0; bool is_ok = true;
-        if (p_pars->p_grb->run_jet_bws) {
-            auto & jet_bws = p_pars->p_grb->getBWs();
+#if 0
+        if (p_pars->p_grb->run_bws) {
+            if (p_pars->p_grb->nshells() > 1){
+                (*p_log)(LOG_ERR,AT)<<"not implemented\n";
+                exit(1);
+            }
+            auto & jet_bws = p_pars->p_grb->getShells()[0]->getBWs();
+//            auto & jet_bws = p_pars->p_grb->getBWs();
             for (size_t i = 0; i < jet_bws.size(); i++) {
                 if (jet_bws[i]->isToTerminate(m_CurSol, ii)) {
                     is_ok = false;
@@ -455,7 +347,24 @@ private:
                 ii += jet_bws[i]->getNeq();
             }
         }
-        if (p_pars->p_ej->run_ej_bws) {
+#endif
+        if (p_pars->p_grb->run_bws) {
+            auto & ej_bws = p_pars->p_grb->getShells();
+            for (size_t il=0; il<ej_bws.size(); il++){
+                for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
+                    auto & bw = ej_bws[il]->getBW(ish);
+                    if (bw->isToTerminate(m_CurSol, ii)) {
+                        is_ok = false;
+                        bw->getPars()->end_evolution = true; // SET TO END
+                        (*p_log)(LOG_ERR,AT) << " Terminating grb BW [ish=" << ish << " il=" << il << " "
+                                             << " ii_eq=" << bw->getPars()->ii_eq
+                                             << " ] \n";
+                    }
+                    ii += SOL::neq;;//ii += bw->getNeq();//p_pars->n_eq_ej_bws;
+                }
+            }
+        }
+        if (p_pars->p_ej->run_bws) {
             auto & ej_bws = p_pars->p_ej->getShells();
             for (size_t il=0; il<ej_bws.size(); il++){
                 for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
@@ -467,7 +376,7 @@ private:
                                   << " ii_eq=" << bw->getPars()->ii_eq
                                   << " ] \n";
                     }
-                    ii += bw->getNeq();//p_pars->n_eq_ej_bws;
+                    ii += SOL::neq;;//ii += bw->getNeq();//p_pars->n_eq_ej_bws;
                 }
             }
         }
@@ -476,9 +385,15 @@ private:
     bool isThereLateralExpansionTermiantion(){
 //        auto & jet_bws = p_pars->p_bws_jet;
 //        auto & ej_bws = p_pars->p_bws_ej;
+#if 0
         size_t ii = 0; bool is_ok = true;
-        if (p_pars->p_grb->run_jet_bws) {
-            auto & jet_bws = p_pars->p_grb->getBWs();
+        if (p_pars->p_grb->run_bws) {
+            if (p_pars->p_grb->nshells() > 1){
+                (*p_log)(LOG_ERR,AT)<<"not implemented\n";
+                exit(1);
+            }
+            auto & jet_bws = p_pars->p_grb->getShells()[0]->getBWs();
+//            auto & jet_bws = p_pars->p_grb->getBWs();
             for (size_t i = 0; i < jet_bws.size(); i++) {
                 if (jet_bws[i]->isToStopLateralExpansion(m_CurSol, ii)) {
                     is_ok = false;
@@ -488,6 +403,21 @@ private:
             }
         }
         return is_ok;
+#endif
+        size_t ii = 0; bool is_ok = true;
+        auto & ej_bws = p_pars->p_ej->getShells();
+        for (size_t il=0; il<ej_bws.size(); il++){
+            for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
+                auto & bw = ej_bws[il]->getBW(ish);
+                if (bw->isToStopLateralExpansion(m_CurSol, ii)) {
+                    is_ok = false;
+                    bw->getPars()->end_spreading = true; // SET TO END
+                }
+                ii += SOL::neq;//ii += bw->getNeq();
+            }
+        }
+        return is_ok;
+
     }
     bool isSolutionOk(){
 //        auto & magnetar = p_pars->p_magnetar;
@@ -506,8 +436,14 @@ private:
             }
             ii += magnetar->getNeq();
         }
-        if (p_pars->p_grb->run_jet_bws) {
-            auto & jet_bws = p_pars->p_grb->getBWs();
+#if 0
+        if (p_pars->p_grb->run_bws) {
+            if (p_pars->p_grb->nshells() > 1){
+                (*p_log)(LOG_ERR,AT)<<"not implemented\n";
+                exit(1);
+            }
+            auto & jet_bws = p_pars->p_grb->getShells()[0]->getBWs();
+//            auto & jet_bws = p_pars->p_grb->getBWs();
             for (size_t i = 0; i < jet_bws.size(); i++) {
                 if (( !jet_bws[i]->getPars()->end_evolution ) && (!jet_bws[i]->isSolutionOk(m_CurSol, ii))) {
                     is_ok = false;
@@ -520,7 +456,25 @@ private:
                 ii += jet_bws[i]->getNeq();
             }
         }
-        if (p_pars->p_ej->run_ej_bws) {
+#endif
+        if (p_pars->p_grb->run_bws) {
+            auto &ej_bws = p_pars->p_grb->getShells();
+            for (size_t il=0; il<ej_bws.size(); il++){
+                for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
+                    auto & bw = ej_bws[il]->getBW(ish);
+                    if ((!bw->getPars()->end_evolution) && (!bw->isSolutionOk(m_CurSol, ii))) {
+                        is_ok = false;
+                        (*p_log)(LOG_ERR,AT)  << " Dyn. evol. of GRB BW failed "
+                                              << " [ishell=" << ish
+                                              << " ilayer=" << il
+                                              << " ii_eq=" << bw->getPars()->ii_eq
+                                              << " ] \n";
+                    }
+                    ii += SOL::neq;//ii += bw->getNeq();
+                }
+            }
+        }
+        if (p_pars->p_ej->run_bws) {
             auto &ej_bws = p_pars->p_ej->getShells();
             for (size_t il=0; il<ej_bws.size(); il++){
                 for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
@@ -533,20 +487,9 @@ private:
                                    << " ii_eq=" << bw->getPars()->ii_eq
                                    << " ] \n";
                     }
-                    ii += bw->getNeq();
+                    ii += SOL::neq;//ii += bw->getNeq();
                 }
             }
-//            for (size_t i = 0; i < p_pars->n_ej_bws; i++) {
-//                if ((!ej_bws[i]->getPars()->end_evolution) && (!ej_bws[i]->isSolutionOk(m_CurSol, ii))) {
-//                    is_ok = false;
-//                    std::cerr  << " Dyn. evol. of ejecta BW layer=" << i << " (of all) failed "
-//                               << " [ishell=" << ej_bws[i]->getPars()->ishell
-//                               << " ilayer=" << ej_bws[i]->getPars()->ilayer
-//                               << " ii_eq=" << ej_bws[i]->getPars()->ii_eq
-//                               << " ] \n";
-//                }
-//                ii += p_pars->n_eq_ej_bws;
-//            }
         }
         if (p_pars->p_ej_pwn->run_pwn) {
             auto & pwns = p_pars->p_ej_pwn->getPWNs();
@@ -574,20 +517,41 @@ private:
             magnetar->insertSolution(m_CurSol, it, ii);
             ii += magnetar->getNeq();
         }
-        if (p_pars->p_grb->run_jet_bws) {
-            auto & jet_bws = p_pars->p_grb->getBWs();
+#if 0
+        if (p_pars->p_grb->run_bws) {
+            if (p_pars->p_grb->nshells() > 1){
+                (*p_log)(LOG_ERR,AT)<<"not implemented\n";
+                exit(1);
+            }
+            auto & jet_bws = p_pars->p_grb->getShells()[0]->getBWs();
+//            auto & jet_bws = p_pars->p_grb->getBWs();
             for (size_t i = 0; i < jet_bws.size(); i++) {
                 jet_bws[i]->insertSolution(m_CurSol, it, ii);
                 ii += jet_bws[i]->getNeq();
             }
         }
-        if (p_pars->p_ej->run_ej_bws) {
+#endif
+        if (p_pars->p_grb->run_bws) {
+            auto &ej_bws = p_pars->p_grb->getShells();
+            for (size_t il=0; il<ej_bws.size(); il++){
+                for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
+                    auto &bw = ej_bws[il]->getBW(ish);
+                    bw->insertSolution(m_CurSol, it, ii);
+                    ii += SOL::neq;//ii += bw->getNeq();
+                }
+            }
+//            for (size_t i = 0; i < p_pars->n_ej_bws; i++) {
+//                ej_bws[i]->insertSolution(m_CurSol, it, ii);
+//                ii += p_pars->n_eq_ej_bws;
+//            }
+        }
+        if (p_pars->p_ej->run_bws) {
             auto &ej_bws = p_pars->p_ej->getShells();
             for (size_t il=0; il<ej_bws.size(); il++){
                 for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
                     auto &bw = ej_bws[il]->getBW(ish);
                     bw->insertSolution(m_CurSol, it, ii);
-                    ii += bw->getNeq();
+                    ii += SOL::neq;//ii += bw->getNeq();
                 }
             }
 //            for (size_t i = 0; i < p_pars->n_ej_bws; i++) {
@@ -607,14 +571,28 @@ private:
         if (p_pars->p_magnetar->run_magnetar) {
             p_pars->p_magnetar->addOtherVariables(it);
         }
-        if (p_pars->p_grb->run_jet_bws) {
-            auto & jet_bws = p_pars->p_grb->getBWs();
+#if 0
+        if (p_pars->p_grb->run_bws) {
+            if (p_pars->p_grb->nshells() > 1){
+                (*p_log)(LOG_ERR,AT)<<"not implemented\n";
+                exit(1);
+            }
+            auto & jet_bws = p_pars->p_grb->getShells()[0]->getBWs();
+//            auto & jet_bws = p_pars->p_grb->getBWs();
             for (size_t i = 0; i < jet_bws.size(); i++) {
                 jet_bws[i]->addOtherVars( it );
             }
         }
-        auto & ej_bws = p_pars->p_ej;
-        if (p_pars->p_ej->run_ej_bws) {
+#endif
+        if (p_pars->p_grb->run_bws) {
+            auto &ej_bws = p_pars->p_grb->getShells();
+            for (size_t il = 0; il < ej_bws.size(); il++) {
+                for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
+                    ej_bws[il]->getBW(ish)->addOtherVars(it);
+                }
+            }
+        }
+        if (p_pars->p_ej->run_bws) {
             auto &ej_bws = p_pars->p_ej->getShells();
             for (size_t il = 0; il < ej_bws.size(); il++) {
                 for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
@@ -637,7 +615,7 @@ private:
 private:
     static void updateEnergyInjectionToEjectaBWs(double ldip, double lacc, double * Y, void * pars){
         auto * p_pars = (struct Pars *) pars;
-        if (!p_pars->p_ej->run_ej_bws) {
+        if (!p_pars->p_ej->run_bws) {
             return;
         }
         /// ********************| Ejecta Energy Injection |****************
@@ -711,7 +689,7 @@ private:
 
 
             while (!are_shells_sorted) {
-//                    std::cout << m_CurSol[p_pars->p_ej->getShells()[0]->getBW(0)->getPars()->ii_eq + DynRadBlastWave::Q_SOL::iEint2]<<"\n";
+//                    std::cout << m_CurSol[p_pars->p_ej->getShells()[0]->getBW(0)->getPars()->ii_eq + DynRadBlastWave::QS::iEint2]<<"\n";
                 i_substeps += 1;
                 /// check if there is anything left to collide
                 if (i_substeps > p_pars->p_ej->nshells()-2){
@@ -863,7 +841,7 @@ private:
                     auto &cumShell = p_pars->p_ej->getShells()[il];
                     for (size_t ish = 0; ish < cumShell->getPars()->n_active_shells; ish++){
                         size_t _ieq0 = cumShell->getBW(ish)->getPars()->ii_eq;
-                        size_t _ieq1 = cumShell->getBW(ish)->getNeq();
+                        size_t _ieq1 = SOL::neq;//cumShell->getBW(ish)->getNeq();
                         for (size_t ii = _ieq0; ii < _ieq0 + _ieq1; ++ii){
                             if (!std::isfinite(m_CurSol[ii])||(m_CurSol[ii]>1e60)){
 
@@ -970,7 +948,7 @@ private:
                     auto &cumShell = p_pars->p_ej->getShells()[il];
                     for (size_t ish = 0; ish < cumShell->getPars()->n_active_shells; ish++){
                         size_t _ieq0 = cumShell->getBW(ish)->getPars()->ii_eq;
-                        size_t _ieq1 = cumShell->getBW(ish)->getNeq();
+                        size_t _ieq1 = SOL::neq;//cumShell->getBW(ish)->getNeq();
                         for (size_t ii = _ieq0; ii < _ieq0 + _ieq1; ++ii){
                             if (!std::isfinite(m_CurSol[ii])||(m_CurSol[ii]>1e60)){
 
@@ -992,7 +970,7 @@ private:
     void ejectaUpdate(double time, double * sol){
 
         /// update cumulative shell properties
-        if ((p_pars->p_ej->run_ej_bws)&&(p_pars->p_ej->do_collision)) {
+        if ((p_pars->p_ej->run_bws) && (p_pars->p_ej->do_collision)) {
             for (auto &cumShell: p_pars->p_ej->getShells()) {
                 size_t _i, _j;
                 cumShell->updateActiveShells();
@@ -1006,7 +984,7 @@ private:
         }
 
         /// update ejecta opacity and nuclear heating
-        if ((p_pars->p_ej->run_ej_bws)&&(p_pars->p_ej->do_collision)) {
+        if ((p_pars->p_ej->run_bws) && (p_pars->p_ej->do_collision)) {
             auto &ej_bws = p_pars->p_ej->getShells();
             for (auto &cumShell: p_pars->p_ej->getShells()) {
                 for (auto & bw : cumShell->getBWs()) {
@@ -1016,7 +994,7 @@ private:
         }
 
         /// udate shell width, density, nuclear heating
-        if ((p_pars->p_ej->run_ej_bws)&&(p_pars->p_ej->do_collision)) {
+        if ((p_pars->p_ej->run_bws) && (p_pars->p_ej->do_collision)) {
             for (auto &cumShell: p_pars->p_ej->getShells()) {
                 cumShell->updateSortedShellWidth(sol);
                 cumShell->updateSortedShellProperties(sol);
@@ -1024,7 +1002,7 @@ private:
         }
 
         /// update outer boundary for PWN from ejecta (Shells SHOULD be updated)
-        if ((p_pars->p_ej->run_ej_bws) && (p_pars->p_ej_pwn->run_pwn)){
+        if ((p_pars->p_ej->run_bws) && (p_pars->p_ej_pwn->run_pwn)){
             if (!(p_pars->p_ej->do_collision)){
                 (*p_log)(LOG_ERR,AT)<<" not supported\n";
                 exit(1);
@@ -1061,7 +1039,7 @@ private:
         Vector & t_grid = p_pars->_t_grid;
 
         /// update cumulative shell properties
-        if ((p_pars->p_ej->run_ej_bws)&&(p_pars->p_ej->do_collision)) {
+        if ((p_pars->p_ej->run_bws) && (p_pars->p_ej->do_collision)) {
             for (auto &cumShell: p_pars->p_ej->getShells()) {
                 size_t _i, _j;
                 cumShell->updateActiveShells();
@@ -1094,10 +1072,10 @@ private:
 
         /// if blastwave collide, substuep through collision
         bool is_updated = false;
-        if ( (p_pars->p_ej->run_ej_bws) && (p_pars->p_ej->do_collision) && (p_pars->p_ej->nMaxActiveShells()>1))
+        if ((p_pars->p_ej->run_bws) && (p_pars->p_ej->do_collision) && (p_pars->p_ej->nMaxActiveShells() > 1))
             is_updated = doCollisionSubSteps( ix );
 
-        if (p_pars->p_ej->run_ej_bws && (!is_updated))
+        if (p_pars->p_ej->run_bws && (!is_updated))
             ejectaUpdate(t_grid[ix], m_CurSol);
 
 
@@ -1115,7 +1093,7 @@ private:
 //                if (p_pars->p_grb->run_jet_bws){
 //                    p_pars->p_grb->infoFastestLayer(ix, sstream);
 //                }
-                if (p_pars->p_ej->run_ej_bws){
+                if (p_pars->p_ej->run_bws){
                     p_pars->p_ej->infoFastestShell(ix, m_TmpSol, m_CurSol, sstream);
                 }
                 sstream << "\n";
@@ -1191,11 +1169,15 @@ private:
         }
 
         /// ***************************| G R B |**************************
-        if (p_pars->p_grb->run_jet_bws) {
-            auto & jet_bws = p_pars->p_grb->getBWs();
-            for (size_t i = 0; i < jet_bws.size(); ++i) {
-                jet_bws[i]->evaluateRhs(out_Y, ii, x, Y);
-                ii += jet_bws[i]->getNeq();//n_eq_j_bws;
+        if (p_pars->p_grb->run_bws) {
+            auto &ej_layers = p_pars->p_grb->getShells();
+            for (size_t il = 0; il < ej_layers.size(); il++) {
+                /// evaluate ejecta blast waves rhs
+                for (size_t ish = 0; ish < ej_layers[il]->nBWs(); ish++) {
+                    auto &ej_bw = ej_layers[il]->getBW(ish);
+                    ej_bw->evaluateRhs(out_Y, ii, x, Y);
+                    ii += SOL::neq;//ii += ej_bw->getNeq();
+                }
             }
         }
 
@@ -1204,23 +1186,28 @@ private:
             updateEnergyInjectionToEjectaBWs(ldip, lacc, const_cast<double *>(Y), pars);
 
         /// *************************| E J E C T A |***********************
-        if (p_pars->p_ej->run_ej_bws) {
+        if (p_pars->p_ej->run_bws) {
             auto &ej_layers = p_pars->p_ej->getShells();
             for (size_t il=0; il < ej_layers.size(); il++){
                 /// evaluate ejecta blast waves rhs
                 for(size_t ish=0; ish < ej_layers[il]->nBWs(); ish++) {
                     auto & ej_bw = ej_layers[il]->getBW(ish);
-                    if (p_pars->p_grb->run_jet_bws) {
-                        auto & jet_bws = p_pars->p_grb->getBWs();
+                    if (p_pars->p_grb->run_bws) {
+                        if (p_pars->p_grb->nshells() > 1){
+                            std::cerr <<AT << " not implemented\n";
+                            exit(1);
+                        }
+                        auto & jet_bws = p_pars->p_grb->getShells()[0]->getBWs();
+//                        auto & jet_bws = p_pars->p_grb->getBWs();
                         ej_bw->evaluateRhsDensModel2(out_Y, ii, x, Y,
-                                                     & reinterpret_cast<std::vector<std::unique_ptr<BlastWaveBase>> &>(jet_bws),
+                                                     & reinterpret_cast<std::vector<std::unique_ptr<BlastWave>> &>(jet_bws),
                                                      p_pars->ix);
                     }
                     else
                         ej_bw->evaluateRhsDensModel2(out_Y, ii, x, Y,
                                                      NULL,
                                                      p_pars->ix);
-                    ii += ej_bw->getNeq();
+                    ii += SOL::neq;//ii += ej_bw->getNeq();
                 }
             }
 

@@ -367,6 +367,39 @@ public:
     }
 };
 
+/// ----------- Read H5 file with magnetar table -------
+class ReadMagnetarEvolutionFile{
+    std::unique_ptr<logger> p_log;
+    LoadH5 m_ldata;
+    size_t data_size = 0; // track the size of arrays to avoid mismatching
+public:
+    ReadMagnetarEvolutionFile(std::string fapth, int loglevel) {
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "ReadMagnetarEvolutionFile");
+//        auto path_to_table = pars.m_path_to_ejecta_id;
+//        path_to_table = "../../tst/dynamics/corr_vel_inf_theta.h5";
+        if (!std::experimental::filesystem::exists(fapth))
+            throw std::runtime_error("File not found. " + fapth);
+        /// loading the datafile
+        m_ldata.setFileName(fapth);
+        (*p_log)(LOG_INFO, AT) << "Ejecta ID loaded\n";
+    }
+
+    Vector get(std::string varname) {
+        m_ldata.setVarName(varname);
+        Vector data = m_ldata.getData();
+        if (data_size == 0)
+            data_size =  m_ldata.getSize();
+        if (m_ldata.getSize() != data_size){
+            (*p_log)(LOG_ERR,AT)<<"Input data size mismatch. All arrays should be the same size."
+                                <<" Given array v_n="<<varname<<" has size="<<m_ldata.getSize()
+                                <<" Expected size="<<data_size<<"\n";
+            exit(1);
+        }
+        else
+            data_size = m_ldata.getSize();
+        return std::move(data);
+    }
+};
 
 class Magnetar{
     struct Pars{
@@ -378,9 +411,10 @@ class Magnetar{
     std::unique_ptr<Pars> p_pars;
     bool is_mag_pars_set = false;
     Interp1d::METHODS mth;
+    int m_loglevel{};
 public:
-    bool run_magnetar = false;
-    bool load_magnetar = false;
+    StrDbMap mag_pars; StrStrMap mag_opts;
+    bool run_magnetar = false, load_magnetar = false, save_magnetar = false;
     /// RHS pars
     const static int neq = 1;
     std::vector<std::string> vars {  };
@@ -408,6 +442,7 @@ public:
     inline double & operator()(size_t ivn, size_t ir){ return m_data[ivn][ir]; }
 
     Magnetar( int loglevel ){// : m_mag_time(t_grid) {
+        m_loglevel = loglevel;
         p_pars = std::make_unique<Pars>();
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "Magnetar");
     }
@@ -484,9 +519,46 @@ public:
     }
 
     /// ------- EVOLVE MAGNETAR -------------
-    void setPars(StrDbMap & pars, StrStrMap & opts){
-        (*p_log)(LOG_ERR,AT) << " not implemented\n";
-        exit(1);
+    void setPars(StrDbMap & pars, StrStrMap & opts, std::string working_dir, std::string parfilename, Vector ej_tarr){
+        mag_pars = pars;
+        mag_opts = opts;
+
+        if ((!mag_pars.empty()) || (!mag_opts.empty())) {
+            run_magnetar = getBoolOpt("run_magnetar", mag_opts, AT, p_log, false, true);
+            load_magnetar = getBoolOpt("load_magnetar", mag_opts, AT, p_log, false, true);
+            save_magnetar = getBoolOpt("save_magnetar", mag_opts, AT, p_log, false, true);
+            if (load_magnetar && run_magnetar) {
+                (*p_log)(LOG_ERR, AT) << "Cannot run and load magnetar evolution at the same time. Chose one.\n";
+                exit(1);
+            }
+            if (load_magnetar) {
+                std::string fname_magnetar_ev = getStrOpt("fname_magnetar_evol", mag_opts, AT, p_log, "", true);
+                if (!std::experimental::filesystem::exists(working_dir + fname_magnetar_ev)) {
+                    (*p_log)(LOG_ERR, AT) << " File not found. " + working_dir + fname_magnetar_ev << "\n";
+                    exit(1);
+                }
+                /// load the magnetar evolution h5 file and parse the key quantity to magnetar class
+                ReadMagnetarEvolutionFile dfile(working_dir + fname_magnetar_ev, m_loglevel);
+                loadMagnetarEvolution(Magnetar::Q::itb, dfile.get("time"));
+                loadMagnetarEvolution(Magnetar::Q::ildip, dfile.get("ldip"));
+                loadMagnetarEvolution(Magnetar::Q::ilacc, dfile.get("lacc"));
+                /// check if time grids mismatch
+                if (getTbGrid()[0] > ej_tarr[0]) {
+                    (*p_log)(LOG_ERR, AT)
+                            << "Magnetar timegrid is starts too late. Loaded magnetar times[0] > the one set in parfile "
+                            << "(" << getTbGrid()[0] << " > " << ej_tarr[0] << ")\n";
+                    exit(1);
+                }
+            }
+            if (run_magnetar) {
+                /// pass the t_array manually as when loaded, the time grid may be different
+//                setPars(mag_pars, mag_opts, ej_tarr);
+
+            }
+        }
+        else {
+            (*p_log)(LOG_INFO, AT) << "Magnetar is not initialized and will not be considered.\n";
+        }
     }
 #if 0
     void setPars(StrDbMap & pars, StrStrMap & opts){
@@ -648,6 +720,39 @@ public:
 
     void applyUnits( double * sol, size_t i ){
 
+    }
+
+    void saveMagnetarEvolution(){
+        if (!run_magnetar)
+            return;
+
+        (*p_log)(LOG_ERR,AT) << "Not implemented\n";
+        exit(1);
+
+//        if (every_it < 1){
+//            std::cerr << " every_it must be > 1; Given every_it="<<every_it<<"\n Exiting...";
+//            std::cerr << AT << "\n";
+//            exit(1);
+//        }
+
+//        auto & magnetar = p_mag;
+//
+//        std::vector<std::vector<double>>  tot_mag_out{};
+//        std::vector<std::string> tot_names {};
+//        std::unordered_map<std::string,double> group_attrs{};
+//
+//        auto & mag_v_ns = magnetar->m_vnames;
+//        auto t_arr = magnetar->getTbGrid(every_it);
+//
+//        tot_mag_out.resize( mag_v_ns.size() );
+//        for (size_t ivar = 0; ivar < mag_v_ns.size(); ivar++){
+//            for (size_t it = 0; it < magnetar->getTbGrid().size(); it = it + every_it)
+//                tot_mag_out[ivar].emplace_back( (*magnetar)[ static_cast<Magnetar::Q>(ivar) ][it] );
+//        }
+//
+//        std::unordered_map<std::string,double> attrs {};
+//
+//        p_out->VectorOfVectorsH5(tot_mag_out, mag_v_ns, workingdir+fname, attrs);
     }
 
 };
@@ -1359,11 +1464,19 @@ private:
 
 /// Container for independent layers of PWN model
 class PWNset{
+    std::unique_ptr<Output> p_out = nullptr;
     std::vector<std::unique_ptr<PWNmodel>> p_pwns{};
     std::unique_ptr<logger> p_log;
     int loglevel;
 public:
-    bool run_pwn = false;
+    PWNset(int loglevel) : loglevel(loglevel){
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "PWNset");
+        p_out = std::make_unique<Output>(loglevel);
+
+    }
+    StrDbMap pwn_pars{}; StrStrMap pwn_opts{};
+    std::string workingdir{};
+    bool run_pwn = false, save_pwn = false;
     std::vector<std::unique_ptr<PWNmodel>> & getPWNs(){return p_pwns;}
     std::unique_ptr<PWNmodel> & getPWN(size_t i){return p_pwns[i];}
     size_t m_nlayers = 0;
@@ -1378,8 +1491,19 @@ public:
         size_t neq = m_nlayers * p_pwns[0]->getNeq();
         return neq;
     };
-    void setPWNpars(Vector & tarr, StrDbMap pars, StrStrMap opts, size_t ii_eq, size_t n_layers){
-        run_pwn = getBoolOpt("run_pwn", opts, AT,p_log, false, true);
+    void setPars(StrDbMap & pars, StrStrMap & opts, std::string & working_dir, std::string parfilename,
+                 Vector & tarr, size_t ii_eq, size_t n_layers){
+        /// read pwn parameters of the pwn
+        pwn_pars = pars;
+        pwn_opts = opts;
+        workingdir = working_dir;
+        if ((!pwn_pars.empty()) || (!pwn_pars.empty())) {
+            run_pwn = getBoolOpt("run_pwn", pwn_opts, AT, p_log, false, true);
+            save_pwn = getBoolOpt("save_pwn", pwn_opts, AT, p_log, false, true);
+        }
+        else {
+            (*p_log)(LOG_INFO, AT) << "PWN is not initialized and will not be considered.\n";
+        }
         if (!run_pwn)
             return;
         m_nlayers = n_layers;
@@ -1389,16 +1513,79 @@ public:
             ii_eq += p_pwns[il]->getNeq();
         }
     }
-    PWNset(int loglevel) : loglevel(loglevel){
-        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "PWNset");
-
-    }
+//    void setPWNpars(Vector & tarr, StrDbMap pars, StrStrMap opts, size_t ii_eq, size_t n_layers){
+//        run_pwn = getBoolOpt("run_pwn", opts, AT,p_log, false, true);
+//        if (!run_pwn)
+//            return;
+//        m_nlayers = n_layers;
+//        for(size_t il = 0; il < n_layers; il++) {
+//            p_pwns.push_back( std::make_unique<PWNmodel>( tarr, loglevel ) );
+//            p_pwns[il]->setPars(pars, opts, ii_eq);
+//            ii_eq += p_pwns[il]->getNeq();
+//        }
+//    }
     void setInitConditions(double * m_InitData){
         for (size_t il=0; il<m_nlayers; il++) {
             auto &ej_pwn = getPWNs()[il];
             ej_pwn->setInitConditions(m_InitData, ej_pwn->getPars()->iieq);
         }
     }
+
+    void savePWNEvolution(StrDbMap & main_pars){
+        if (!run_pwn)
+            return;
+
+//        auto workingdir = ;
+        auto fname = getStrOpt("fname_pwn", pwn_opts, AT, p_log, "", true);
+        size_t every_it = (int)getDoublePar("save_pwn_every_it", pwn_pars, AT, p_log, 1, true);
+
+        (*p_log)(LOG_INFO,AT) << "Saving PWN ...\n";
+
+        if (every_it < 1){
+            std::cerr << " every_it must be > 1; Given every_it="<<every_it<<"Exiting...";
+            std::cerr << AT << "\n";
+            exit(1);
+        }
+
+        auto & pwn = getPWNs();
+        std::vector<
+                std::vector<
+                        std::vector<double>>> tot_mag_out (pwn.size() );
+        std::vector<std::string> tot_names {};
+        std::vector<std::unordered_map<std::string,double>> group_attrs{};
+        auto & dyn_v_ns = pwn[0]->m_vnames;
+        auto t_arr = pwn[0]->getTbGrid(every_it);
+        for (size_t i = 0; i < pwn.size(); i++) {
+            tot_names.push_back("layer="+std::to_string(i));
+            tot_mag_out[i].resize(dyn_v_ns.size() );
+            for (size_t ivar = 0; ivar < dyn_v_ns.size(); ivar++){
+                for (size_t it = 0; it < pwn[i]->getTbGrid().size(); it = it + every_it)
+                    tot_mag_out[i][ivar].emplace_back((*pwn[i])[ static_cast<PWNmodel::Q>(ivar) ][it] );
+            }
+            ///write attributes
+            auto & model = pwn[i];
+            std::unordered_map<std::string,double> group_attr{
+                    {"radius_w0",model->getPars()->radius_w0},
+                    {"every_it",every_it}
+            };
+            group_attrs.emplace_back( group_attr );
+        }
+//    VecVector other_data { latStruct.cthetas0 };
+//    std::vector<std::string> other_names { "cthetas0" };
+
+        std::unordered_map<std::string, double> attrs{
+                {"nlayers", pwn.size()}
+        };
+        for (auto& [key, value]: main_pars) { attrs[key] = value; }
+        for (auto& [key, value]: pwn_pars) { attrs[key] = value; }
+
+
+        p_out->VecVectorOfVectorsAsGroupsH5(tot_mag_out, tot_names, dyn_v_ns,
+                                            workingdir+fname, attrs, group_attrs);
+
+    }
+
+
 };
 
 #endif //SRC_MAGNETAR_H

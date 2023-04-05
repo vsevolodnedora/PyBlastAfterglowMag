@@ -14,8 +14,8 @@
 
 tb0 = 1.e3
 tb1 = 1.e11
-ntb = 10000
-iout = 10
+ntb = 1000
+iout = 1
 rtol = 1e-12
 nmax = 1000
 
@@ -31,13 +31,13 @@ theta_obs = 0.3752
 * Settings
 
 lc_freqs = array 3.e9
-lc_times = array logspace 1.e4 1.e10 150
-lc_use_freq_to_time = no      # one-to-one for freq and times
+lc_times = array logspace 1.e4 1.e10 50
+lc_use_freq_to_time = no
 
-skymap_freqs = array 9.9e8 1.e9 1.1e9 3.e9 4.5e9
-skymap_times = array logspace 8.e5 2e9 50
+skymap_freqs = array 1e9
+skymap_times = array 20736000
 
-integrator = DOP853
+integrator = DOP853E
 
 # --------------------------- END ---------------------------
 #
@@ -58,7 +58,7 @@ freq1 = 1.e5
 freq2 = 1.e22
 nfreq = 200
 
-save_dyn_every_it = 10
+save_dyn_every_it = 1
 rtol_adapt = 1e-5
 fnu_min_frac = 1e-4
 
@@ -68,8 +68,8 @@ run_bws = yes
 save_dynamics = no
 do_ele = yes
 do_spec = no
-do_lc = yes
-do_skymap = no
+do_lc = no
+do_skymap = yes
 
 method_collision = none # none
 method_eats = piece-wise # adaptive # piece-wise
@@ -78,8 +78,8 @@ do_thermrad_loss = no
 
 use_1d_id = yes
 fname_dyn = dyn_grb_gauss.h5
-fname_light_curve = lc_grb_gauss_total.h5
-fname_light_curve_layers = lc_grb_gauss.h5
+fname_light_curve = lc_grb_gauss.h5
+fname_light_curve_layers = none
 fname_sky_map = skymap_grb_gauss.h5
 
 do_nucinj = no

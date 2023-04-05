@@ -1087,6 +1087,9 @@ public:
 //    }
 };
 
+namespace Rad {
+    std::vector<std::string> m_names_{"em_pl", "em_th", "abs_pl", "abs_th", "em", "abs", "tau", "int"};
+}
 /// evaluate comoving emissivity and absorption for synchrotron mech.
 class SynchrotronAnalytic : public RadiationBase{
 /// methods
@@ -1127,24 +1130,25 @@ class SynchrotronAnalytic : public RadiationBase{
 //        double freq2 = -1;
 //        size_t nfreq = 0;
     };
-    Pars * p_pars;
-    std::unique_ptr<logger> p_log;
+    std::unique_ptr<Pars> p_pars = nullptr;
+    std::unique_ptr<logger> p_log = nullptr;
     Array m_data{};
-    Vector m_gamma_arr;
-    Vector m_freq_arr_syn;
+    Vector m_gamma_arr{};
+    Vector m_freq_arr_syn{};
     Vector m_tmp_arr1{};
     Vector m_tmp_arr2{};
 public:
     ///
     SynchrotronAnalytic( int loglevel ){
-
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "SynchrotronAnalytic");
-        p_pars = new Pars();
+//        p_pars = new Pars();
+        p_pars = std::make_unique<Pars>();
         p_pars->lim_gm_to_1 = false;
-        m_data.resize( m_names_.size(), -1. );
+        m_data.resize( Rad::m_names_.size(), -1. );
     }
-    ~SynchrotronAnalytic(){ delete p_pars; }
-    Pars *& getPars(){ return p_pars; }
+    ~SynchrotronAnalytic(){ }
+//    Pars *& getPars(){ return p_pars; }
+    std::unique_ptr<Pars> & getPars(){ return p_pars; }
     /// set model parameters
     static auto listPars(){ return Pars::listPars(); }
     static auto listOpts(){ return Pars::listOpts(); }
@@ -1792,7 +1796,7 @@ public:
     inline double getIntensity(){ return m_data[QQ::i_int]; }
 //    inline Array & getSpectrum(){ return m_spectrum; }
 //    inline Array & getFreqArr(){ return m_freq_grid; }
-    std::vector<std::string> m_names_ { "em_pl", "em_th", "abs_pl", "abs_th", "em", "abs", "tau", "int" };
+
 };
 
 

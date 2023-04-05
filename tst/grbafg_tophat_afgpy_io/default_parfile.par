@@ -66,7 +66,7 @@ fnu_min_frac = 1e-5
 
 method_eats = piece-wise # adaptive # piece-wise
 
-run_ej_bws = yes
+run_bws = yes
 save_ej_dynamics = no
 do_ej_ele = yes
 do_ej_spec = no
