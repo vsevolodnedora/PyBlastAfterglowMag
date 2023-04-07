@@ -5,12 +5,12 @@
 #ifndef SRC_SYNCHROTRON_AN_H
 #define SRC_SYNCHROTRON_AN_H
 
-#include "pch.h"
-#include "logger.h"
-#include "utils.h"
-#include "interpolators.h"
-#include "quadratures.h"
-#include "base_equations.h"
+#include "utilitites/pch.h"
+#include "utilitites/logger.h"
+#include "utilitites/utils.h"
+#include "utilitites/interpolators.h"
+#include "utilitites/quadratures.h"
+#include "blastwave_components.h"
 
 class RadiationBase{
 public:

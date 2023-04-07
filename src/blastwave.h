@@ -5,14 +5,14 @@
 #ifndef SRC_BLASTWAVE_H
 #define SRC_BLASTWAVE_H
 
-#include "pch.h"
-#include "utils.h"
-#include "base_equations.h"
-#include "interpolators.h"
-#include "ode_solvers.h"
-#include "quadratures.h"
-#include "rootfinders.h"
-#include "observer.h"
+#include "utilitites/pch.h"
+#include "utilitites/utils.h"
+#include "blastwave_components.h"
+#include "utilitites/interpolators.h"
+#include "utilitites/ode_solvers.h"
+#include "utilitites/quadratures.h"
+#include "utilitites/rootfinders.h"
+#include "image.h"
 #include "synchrotron_an.h"
 #include "composition.h"
 
@@ -39,9 +39,9 @@ public:
 };
 
 // -----------------| PARAMETERS |-------------------
-struct Pars{
+struct ParsOld{
     // set a reference to the data container
-    explicit Pars(VecArray & m_data, std::unique_ptr<logger> & p_log)
+    explicit ParsOld(VecArray & m_data, std::unique_ptr<logger> & p_log)
             : m_data(m_data), p_log(p_log) {
 
     }
@@ -209,13 +209,99 @@ struct Pars{
 //    std::unique_ptr<logger> p_log;
 
 };
-// --------------------------------------------------
 
-//namespace ODE{
-//    enum QS { iR, iRsh, itt, itcomov, imom, iEint2, itheta, iErad2, iEsh2, iEad2, iM2 };
-//    std::vector<std::string> vars { "R", "Rsh", "tt", "tcomov", "mom", "Eint2", "theta", "Erad2", "Esh2", "Ead2", "M2" };
-//}
+struct Pars{
+    // set a reference to the data container
+    // *************************************** //
 
+    // initial conditions (settings)
+    bool is_init = false;
+    METHODS_Up m_method_up{};
+    METHOD_Delta m_method_Delta{};
+    METHOD_GammaSh m_method_gamma_sh{};
+    METHOD_RSh m_method_r_sh{};
+    METHOD_dmdr m_method_dmdr{};
+    METHOD_dgdr m_method_dgdr{};
+    LatStruct::METHOD_eats m_method_eats{};
+
+    /// blast wave initial conditions
+    double M0 = -1.;
+    double R0 = -1.;
+    double tb0 = -1.;
+    double Gamma0 = -1.;
+    double mom0 = -1.;
+    double E0 = -1.;
+    double Ye0 = -1.;
+    double s0 = -1.;
+    double theta_a = -1.;
+    double theta_b0 = -1.;
+    double ncells = -1.;
+    double ctheta0 = -1.;
+//        double theta_h0 = -1;
+    double theta_c_l = -1.;
+    double theta_c_h = -1.;
+    double theta_w = -1.;
+    double theta_max=-1.;
+    /// deceleration radius
+    double Rd = -1;
+
+    double eps_rad = 0.;
+    double dEinjdt = 0.;
+    double dEnuc = 0.;
+    double dElum = 0.;
+    double kappa = 0.;
+    // ---
+    bool adiabLoss = true;
+    // ---
+    size_t comp_ix = 0;
+    size_t nr = -1;
+    size_t ilayer = 0;
+    size_t nlayers = 0;
+    size_t ishell = 0;
+    size_t ii_eq = 0;
+
+
+    // --- PARS FOR INTERACTION WITH OTHER MODELS
+    bool entry = false; // has this BW entered the 'void' left by another
+    double entry_time = -1; // time when this BW entered the 'void' left by another
+    double entry_r = -1; // same for radius
+    // --
+    double x=-1;
+    // ---
+    size_t ijl = 123456;
+    size_t prev_ijl = 123456;
+    double first_entry_r = -1;
+    double r_dist = -1;
+    bool is_within = false;
+    bool is_within0 = false;
+    bool is_using_st_prof = false;
+
+    bool end_evolution = false;
+    bool end_spreading = false;
+    double min_beta_terminate = 1.e-8;
+    // ---
+    double fraction_of_Gamma0_when_spread = -1.;
+
+    /// main switch
+    bool use_dens_prof_behind_jet_for_ejecta = false;
+    int which_jet_layer_to_use = 0;
+
+    /// exp decay && floor behaviour
+    bool use_exp_rho_decay_as_floor = true;
+    bool use_flat_dens_floor = false;
+    double steepnes_of_exp_decay = 1.;
+//    double dens_floor_frac = 1e-20;
+
+    /// ST profile
+    bool use_st_dens_profile = true;
+    double Gamma_when_st_starts = 2.;
+
+    /// BM profile
+    bool use_bm_dens_profile = false;
+    double fraction_of_Gamma0_when_bm_for_bm = 1.98; // if > 1 -- BM also in free coasting
+};
+
+/// Each BlastWave collects the following data
 namespace BW{
     enum Q {
         // --- properties of the ejecta element
@@ -245,36 +331,38 @@ namespace BW{
             // ---
             "ijl", "r_dist"
     };
+    static constexpr size_t NVALS = 47; // number of variables to save
 }
 
+/// Each blastwave evolution computes the following data
 namespace SOL{
     enum QS { iR, iRsh, itt, itcomov, imom, iEint2, itheta, iErad2, iEsh2, iEad2, iM2 };
     std::vector<std::string> vars { "R", "Rsh", "tt", "tcomov", "mom", "Eint2", "theta", "Erad2", "Esh2", "Ead2", "M2" };
     const static int neq = 11;
 }
 
+/// methods to compute radiation from a Blastwave
 class BlastWaveRadiation{
     struct Pars{
         std::unique_ptr<logger> p_log = nullptr;
         std::unique_ptr<SynchrotronAnalytic> p_syna = nullptr;
-        Pars(VecArray & m_data, Vector & tb_arr, size_t ish, size_t il, int loglevel)
-                : m_data(m_data), tb_arr(tb_arr) {
+        Pars(VecArray & m_data, size_t ish, size_t il, int loglevel) : m_data(m_data){
             ishell = ish;
             ilayer= il;
-            nr = tb_arr.size();
+            nr = m_data[BW::Q::itburst].size();
             p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BlastWaveRadiation");
             p_syna = std::make_unique<SynchrotronAnalytic>(loglevel);
         }
         VecArray & m_data;
-        Vector & tb_arr;
+//        Vector & tb_arr;
         double ctheta0 = -1.;
         inline Array & operator[](BW::Q ivn){ return this->m_data[ivn]; }
         inline double & operator()(BW::Q ivn, size_t ir){ return this->m_data[ivn][ir]; }
         Vector getTbGrid(size_t every_it) {
-            if ((every_it == 1)||(every_it==0)) return tb_arr;
+            if ((every_it == 1)||(every_it==0)) return arrToVec( m_data[BW::Q::itburst] );
             Vector tmp{};
-            for (size_t it = 0; it < tb_arr.size(); it = it + every_it){
-                tmp.push_back(tb_arr[it]);
+            for (size_t it = 0; it < nr; it = it + every_it){
+                tmp.push_back(m_data[BW::Q::itburst][it]);
             }
             return std::move(tmp);
         }
@@ -326,7 +414,7 @@ class BlastWaveRadiation{
 
         }
         void check_pars() const {
-            if ((nu_obs <= 0.) || (z < 0) || (z > 10) || (d_l < 1) || (t_obs < 1)){
+            if ((nu_obs <= 0.) || (z < 0) || (z > 10) || (d_l < 1) || (t_obs < 1) || (theta_c_h < 0) || (theta_c_l < 0)){
                 (*p_log)(LOG_ERR,AT) << " error in input parameters"
                                      << " nu_obs="<<nu_obs
                                      << " z="<<z
@@ -337,13 +425,20 @@ class BlastWaveRadiation{
                                      << " theta_cone_hi="<<current_theta_cone_hi
                                      << " phi_low="<<current_phi_low
                                      << " phi_hi="<<current_phi_hi
+                                     << " theta_c_h="<<theta_c_h
+                                     << " theta_c_l="<<theta_c_l
                                      << "\n Exiting... \n";
                 exit(1);
             }
         }
-        void setEatsPars(StrDbMap & pars, StrStrMap & opts, size_t n_layers, double ctheta_0){
+        void setEatsPars(StrDbMap & pars, StrStrMap & opts, size_t n_layers, double ctheta_0,
+                         double theta_c_l_, double theta_c_h_, double theta_w_, double theta_max_){
             nlayers=n_layers;
             ctheta0=ctheta_0;
+            theta_c_l=theta_c_l_;
+            theta_c_h=theta_c_h_;
+            theta_w=theta_w_;
+            theta_max=theta_max_;
 
             // set parameters
             nmax_phi = (int)getDoublePar("nmax_phi", pars, AT, p_log,1000, false);//pars.at("nmax_phi");
@@ -479,7 +574,7 @@ class BlastWaveRadiation{
         void addComputeForwardShockMicrophysics(size_t it){
             if (it > m_data[BW::Q::itburst].size()){
                 (*p_log)(LOG_ERR,AT)<< " it="<<it<<" out of range=m_data[BW::Q::itburst].size()="
-                <<m_data[BW::Q::itburst].size()<<" mtburst.size()="<<tb_arr.size()<<"\n";
+                <<m_data[BW::Q::itburst].size()<<" mtburst.size()="<<nr<<"\n";
                 exit(1);
             }
 //        auto & p_eats = p_pars; // removing EATS_pars for simplicity
@@ -556,11 +651,12 @@ class BlastWaveRadiation{
             }
         }
         void computeForwardShockElectronAnalyticVars(){
-            for (size_t it = 0; it < tb_arr.size(); ++it){
+            for (size_t it = 0; it < nr; it++){
+//                std::cout << nr<<"\n";
                 addComputeForwardShockMicrophysics(it);
             }
 
-            if (n_fialed_electrons == tb_arr.size()-1){
+            if (n_fialed_electrons == nr-1){
                 (*p_log)(LOG_ERR,AT) << " Electron calculation failed for all iterations. Exiting...\n";
                 exit(1);
             }
@@ -625,7 +721,7 @@ class BlastWaveRadiation{
         void computeForwardShockSynchrotronAnalyticSpectrum(){
             if (m_method_rad==METHODS_RAD::icomovspec) {
                 (*p_log)(LOG_INFO,AT) << " computing analytic comoving spectrum\n";
-                for (size_t it = 0; it < tb_arr.size(); ++it) {
+                for (size_t it = 0; it < nr; ++it) {
                     computeForwardShockComovingEmissivityAndAbsorption(it);
                 }
             }
@@ -634,7 +730,8 @@ class BlastWaveRadiation{
         // TODO remove and use previous (above) functions for it!!
         auto evalForwardShockComovingSynchrotron(Vector & freq_arr, size_t every_it ){
 //        auto & p_eats = p_pars; // removing EATS_pars for simplicity
-            Vector t_arr{};
+//            Vector t_arr{};
+            size_t nt;
             if (every_it == 0){
                 (*p_log)(LOG_ERR,AT) << " comov spectrum at every_it="<<every_it<<" cannot be evaluated.\n Exiting...\n";
 //            std::cerr << AT << " \n";
@@ -644,14 +741,16 @@ class BlastWaveRadiation{
 //            t_arr = getTbGrid();
 //            out_em.resize(m_mag_time.size());
 //            out_abs.resize(m_mag_time.size());
-                t_arr = tb_arr;
+                auto & t_arr = m_data[BW::Q::itburst];
                 for(auto & arr : Rad::m_names_)
-                    arr.resize( tb_arr.size() );
+                    arr.resize( t_arr.size() );
+                nt = t_arr.size();
             }
             else{
-                t_arr = getTbGrid(every_it);
+                auto t_arr = getTbGrid(every_it);
                 for(auto & arr : Rad::m_names_)
-                    arr.resize( tb_arr.size() );
+                    arr.resize( t_arr.size() );
+                nt = t_arr.size();
             }
 
             /// allocate momory for data
@@ -662,13 +761,13 @@ class BlastWaveRadiation{
             for (auto & arr : data) {
                 arr.resize(freq_arr.size());
                 for (auto & arrr : arr){
-                    arrr.resize( t_arr.size() );
+                    arrr.resize( nt );
                 }
             }
 
             /// compute spectra and fill storage
             size_t iit = 0;
-            for (size_t it = 0; it < tb_arr.size(); it = it + every_it){
+            for (size_t it = 0; it < nr; it = it + every_it){
                 /// -- check if there are any data first
                 double beta_;
                 if (m_data[BW::Q::iGammaREL][it] > 0.)
@@ -799,16 +898,18 @@ private:
 
 public:
     /// ----------------------------------------------------------------------------------------------
-    BlastWaveRadiation(VecArray & m_data, Vector & tb_arr, size_t ish, size_t il, int loglevel){
-        p_pars = new Pars(m_data, tb_arr, ish, il, loglevel);
+    BlastWaveRadiation(VecArray & m_data, size_t ish, size_t il, int loglevel){
+        p_pars = new Pars(m_data, ish, il, loglevel);
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "RadBlastWave");
     }
     ~BlastWaveRadiation(){
         delete p_pars;
     }
     /// ----------------------------------------------------------------------------------------------
-    void setEatsPars(StrDbMap & pars, StrStrMap & opts, size_t nlayers, double ctheta0){
-        p_pars->setEatsPars(pars,opts,nlayers,ctheta0);
+    void setEatsPars(StrDbMap & pars, StrStrMap & opts, size_t nlayers, double ctheta0,
+                     double theta_c_l, double theta_c_h, double theta_w, double theta_max){
+        p_pars->setEatsPars(pars,opts,nlayers,ctheta0,
+                            theta_c_l,theta_c_h,theta_w,theta_max);
     }
     void updateObsPars(StrDbMap & pars){p_pars->updateObsPars(pars);}
     /// evaluate flux density using adaptive integrator
@@ -844,6 +945,8 @@ public:
                 image(ivn,phi_grid.size()+icell) = im_cj(ivn,icell);
         }
         image.m_f_tot = (im_pj.m_f_tot + im_cj.m_f_tot);
+//        std::cout<<image.m_f_tot<<"\n";
+
     }
 
 
@@ -870,7 +973,7 @@ public:
 //                    << " Evolution was terminated at ix="<<p_pars->comp_ix<<" "
 //                    << " Error might occure here... [TODO] Check if limited calcs to this ix works..\n";
 //        }
-        Array ttobs( std::numeric_limits<double>::max(), m_data[BW::Q::iR].size()  );
+        Array ttobs( 1e200, m_data[BW::Q::iR].size()  );
         Array cphis = LatStruct::getCphiGridPW(p_pars->ilayer);
 
         /// limit the evaluation to the latest 'R' that is not 0 (before termination)
@@ -1133,18 +1236,28 @@ public:
                 image(Image::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
                 image(Image::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
                 image(Image::imu, i) = mu_arr[i];
+//                image(Image::ir, i) = r;
+//                image(Image::igam, i) = Gamma;
+//                image(Image::itheta, i) = ctheta_cell;
+//                image(Image::itheta0, i) = theta;
+//                image(Image::itt, i) = tt;
+//                image(Image::iB, i) = B;
+//                image(Image::itb, i) = tb;
+//                image(Image::igc, i) = gc;
+//                image(Image::igm, i) = gm;
             }
             image.m_f_tot = flux * CGS::cgs2mJy; /// flux in mJy
         }
     }
     /// get the observed flux density distrib 'image' for 2 projections for given time, freq, angle, distance, red shift
     void computeImagePW(Image & im_pj, Image & im_cj, double obs_time, double obs_freq){
-        auto & p_eats = p_pars; // removing EATS_pars for simplicity
         size_t cells_in_layer = LatStruct::CellsInLayer(p_pars->ilayer);
         /// compute image for primary jet and counter jet
         evalImageFromPW(im_pj, obs_time, obs_freq, obsAngle, imageXXs, imageYYs);
-        if (p_eats->counter_jet) // p_eats->counter_jet
+        if (p_pars->counter_jet) // p_eats->counter_jet
             evalImageFromPW(im_cj, obs_time, obs_freq, obsAngleCJ, imageXXsCJ, imageYYsCJ);
+//        auto x = im_pj.m_f_tot+im_pj.m_f_tot;
+//        std::cout<<x<<"\n";
     }
 
     void addComputeForwardShockMicrophysics(size_t it){ p_pars->addComputeForwardShockMicrophysics(it); }
@@ -1813,6 +1926,7 @@ private:
     }
 };
 
+/// Main Blastwave class
 class BlastWave{
     std::unique_ptr<logger> p_log;
 protected:
@@ -1825,8 +1939,8 @@ protected:
     std::unique_ptr<BlandfordMcKee2> p_bm = nullptr;
     std::unique_ptr<NuclearAtomic> p_nuc = nullptr;
     std::unique_ptr<BlastWaveRadiation> p_rad = nullptr;
+    std::unique_ptr<Pars> p_pars = nullptr;
     int m_loglevel;
-    Pars * p_pars;
 public:
     // RHS settings
 //    const static int neq = 11;
@@ -1838,14 +1952,14 @@ public:
             : m_tb_arr(tb_arr), m_loglevel(loglevel) {
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BW");
         // allocate the space for the the entire solution of a given blast wave
-        if (m_tb_arr.size() < 1){
+        if (m_tb_arr.empty()){
             // REMOVING LOGGER
             (*p_log)(LOG_ERR,AT) << " Time grid is not initialized\n";
 //            std::cerr << AT  << "\n";
             exit(1);
         }
         if (m_data.empty()){
-            m_data.resize( NVALS );
+            m_data.resize( BW::NVALS );
         }
         if (m_data[BW::Q::itburst].size() < 1) {
             for (auto & arr : m_data) {
@@ -1857,23 +1971,450 @@ public:
 //        p_fs = std::make_unique<ShockMicrophysics>(loglevel);
 //        p_rs = std::make_unique<ShockMicrophysics>(loglevel);
 //        p_pars->p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "pars");
-        p_pars = new Pars(m_data, p_log); // TODO replace 'new' with std::unique_ptr<>
+        p_pars = std::make_unique<Pars>(); // TODO replace 'new' with std::unique_ptr<>
         p_spread = std::make_unique<LatSpread>();
         p_eos = std::make_unique<EOSadi>();
         p_dens = std::make_unique<RhoISM>(loglevel);
         p_sedov = std::make_unique<SedovTaylor>();
         p_bm = std::make_unique< BlandfordMcKee2>();
         p_nuc = std::make_unique<NuclearAtomic>(loglevel);
-        p_rad = std::make_unique<BlastWaveRadiation>(m_data, tb_arr, ishell, ilayer, loglevel);
+        p_rad = std::make_unique<BlastWaveRadiation>(m_data, ishell, ilayer, loglevel);
         // ----------------------
         p_pars->nr = m_tb_arr.size();
         p_pars->ilayer = ilayer;
         p_pars->ishell = ishell;
         // ----------------------
     }
-    ~BlastWave(){ delete p_pars; }
+    void setAllParametersForOneLayer(LatStruct & latStruct, StrDbMap & pars, StrStrMap & opts,
+                                     size_t ilayer, size_t ii_eq){
+
+        double nism, A0, s, r_ej, r_ism,  a, theta_max, epsilon_e_rad;
+
+        // set parameters for ISM density
+        nism = getDoublePar("n_ism", pars, AT, p_log, -1, true);//pars.at("nism");
+        A0 = getDoublePar("A0", pars, AT,p_log,-1,false);//pars.at("A0");
+        s = getDoublePar("s", pars, AT,p_log,-1,false);//pars.at("s");
+        r_ej = getDoublePar("r_ej", pars, AT,p_log,-1,false);//pars.at("r_ej");
+        r_ism = getDoublePar("r_ism", pars, AT,p_log,-1,false);//pars.at("r_ism");
+        p_dens->setPars(nism, A0, s, r_ej, r_ism, true);
+
+        // spreading
+        a = getDoublePar("a", pars, AT,p_log,-1,false);//pars.at("a");
+        theta_max = getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false);//pars.at("theta_max");
+
+        // radiative losses
+        epsilon_e_rad = getDoublePar("epsilon_e_rad", pars, AT,p_log,0.,false);// pars.at("epsilon_e_rad");
+
+        // interaction parameters
+        p_pars->which_jet_layer_to_use =
+                (int)getDoublePar("which_jet_layer_to_use",pars,AT,p_log,1.e5,false);
+        p_pars->steepnes_of_exp_decay =
+                (double)getDoublePar("steepnes_of_exp_decay",pars,AT,p_log,1.,false);
+        p_pars->Gamma_when_st_starts =
+                (double)getDoublePar("Gamma_when_st_starts",pars,AT,p_log,2.,false);
+        p_pars->fraction_of_Gamma0_when_bm_for_bm =
+                (double)getDoublePar("fraction_of_Gamma0_when_bm_for_bm",pars, AT,p_log,1.98,false);
+        p_pars->fraction_of_Gamma0_when_spread =
+                (double)getDoublePar("fraction_of_Gamma0_when_spread",pars, AT,p_log,.75,false);
+
+
+        // check if unknown option is given
+//        check_for_unexpected_opt(opts, listBwOpts(), "listBwOpts()");
+
+        // set options
+        std::string opt;
+
+        // mass accretion from ISM
+        opt = "method_dmdr";
+        METHOD_dmdr method_dmdr;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            method_dmdr = METHOD_dmdr::iusingdthdR;
+        }
+        else{
+            if(opts.at(opt) == "usingA")
+                method_dmdr = METHOD_dmdr::iusingA;
+            else if(opts.at(opt) == "usingdthdr")
+                method_dmdr = METHOD_dmdr::iusingdthdR;
+            else{
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                                      << " given: " << opts.at(opt)
+                                      << " is not recognized \n"
+                                      << " Possible options: "
+                                      << " usingA " <<" usingdthdr " << "\n"
+                                      << " Exiting...\n";
+//                std::cerr << AT << "\n";
+                exit(1);
+            }
+        }
+        p_pars->m_method_dmdr = method_dmdr;
+
+        // evolution eq
+        opt = "method_dgdr";
+        METHOD_dgdr method_dgdr;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            method_dgdr = METHOD_dgdr::iour;
+        }
+        else{
+            if(opts.at(opt) == "our")
+                method_dgdr = METHOD_dgdr::iour;
+            else if(opts.at(opt) == "peer")
+                method_dgdr = METHOD_dgdr::ipeer;
+            else{
+                (*p_log)(LOG_WARN,AT) << AT << " option for: " << opt
+                                      << " given: " << opts.at(opt)
+                                      << " is not recognized \n"
+                                      << " Possible options: "
+                                      << " our " <<" peer " << "\n"
+                                      << " Exiting...\n";
+//                std::cerr << AT << "\n";
+                exit(1);
+            }
+        }
+        p_pars->m_method_dgdr = method_dgdr;
+
+        // set parameters for lateral expanding
+        opt = "method_spread";
+        LatSpread::METHODS method_spread;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            method_spread = LatSpread::iNULL;
+        }
+        else{
+            if(opts.at(opt) == "None")
+                method_spread = LatSpread::iNULL;
+            else if(opts.at(opt) == "AFGPY")
+                method_spread = LatSpread::iAFGPY;
+            else if(opts.at(opt) == "Adi")
+                method_spread = LatSpread::iAdi;
+            else if(opts.at(opt) == "AA")
+                method_spread = LatSpread::iAA;
+            else{
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                                      <<" given: " << opts.at(opt)
+                                      << " is not recognized \n"
+                                      << " Possible options: "
+                                      << " None " <<" AFGPY " << " Adi " << " AA " << "\n"
+                                      << " Exiting...\n";
+//                std::cerr << AT << "\n";
+                exit(1);
+            }
+        }
+        p_spread->setPars(a,theta_max,latStruct.m_theta_c,
+                          latStruct.m_theta_w, method_spread);
+
+
+        // set parameters for EOS
+        opt = "method_eos";
+        EOSadi::METHODS method_eos;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            method_eos = EOSadi::iNava13;
+        }
+        else{
+            if(opts.at(opt) == "Nava13")
+                method_eos = EOSadi::iNava13;
+            else if(opts.at(opt) == "Peer12")
+                method_eos = EOSadi::iPeer12;
+            else{
+                (*p_log)(LOG_WARN,AT)<< " option for: " << opt
+                                     <<" given: " << opts.at(opt)
+                                     << " is not recognized \n"
+                                     << " Possible options: "
+                                     << " Nava13 " << " Peer12 " << "\n"
+                                     << " Exiting...\n";
+//                std::cerr << AT << "\n";
+                exit(1);
+            }
+        }
+        p_eos->setPars(method_eos);
+
+        // set Nuclear Atomic pars
+        p_nuc->setPars(pars, opts);
+
+        /// method for shock radius
+        opt = "method_Rsh";
+        METHOD_RSh m_method_r_sh;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            m_method_r_sh = METHOD_RSh::isameAsR;
+        }
+        else{
+            if(opts.at(opt) == "sameAsR")
+                m_method_r_sh = METHOD_RSh::isameAsR;
+            else if(opts.at(opt) == "useGammaSh")
+                m_method_r_sh = METHOD_RSh::iuseGammaSh;
+            else{
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                                      <<" given: " << opts.at(opt)
+                                      << " is not recognized \n"
+                                      << " Possible options: "
+                                      << " sameAsR " << " useGammaSh " << "\n"
+                                      << " Exiting...\n";
+//                std::cerr << AT << "\n";
+                exit(1);
+            }
+        }
+        p_pars->m_method_r_sh = m_method_r_sh;
+
+        /// method for shock velocity
+        opt = "method_GammaSh";
+        METHOD_GammaSh m_method_gamma_sh;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            m_method_gamma_sh = METHOD_GammaSh::isameAsGamma;
+        }
+        else{
+            if(opts.at(opt) == "useGamma")
+                m_method_gamma_sh = METHOD_GammaSh::isameAsGamma;
+            else if(opts.at(opt) == "useGammaRel")
+                m_method_gamma_sh = METHOD_GammaSh::iuseGammaRel;
+            else if(opts.at(opt) == "useJK")
+                m_method_gamma_sh = METHOD_GammaSh::iuseJK;
+            else if(opts.at(opt) == "useJKwithGammaRel")
+                m_method_gamma_sh = METHOD_GammaSh::iuseJKwithGammaRel;
+            else{
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                                      <<" given: " << opts.at(opt)
+                                      << " is not recognized \n"
+                                      << " Possible options: "
+                                      << " useGamma " << " useGammaRel " << " useJK "<< " useJKwithGammaRel " << "\n"
+                                      << " Exiting...\n";
+//                std::cerr << AT << "\n";
+                exit(1);
+            }
+        }
+        p_pars->m_method_gamma_sh = m_method_gamma_sh;
+
+        /// method for energy density behind shock
+        opt = "method_Up";
+        METHODS_Up m_method_up;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            m_method_up = METHODS_Up::iuseEint2;
+        }
+        else{
+            if(opts.at(opt) == "useEint2")
+                m_method_up = METHODS_Up::iuseEint2;
+            else if(opts.at(opt) == "useGamma")
+                m_method_up = METHODS_Up::iuseGamma;
+            else{
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                                      <<" given: " << opts.at(opt)
+                                      << " is not recognized \n"
+                                      << " Possible options: "
+                                      << " useEint2 " << " useGamma " << "\n"
+                                      << " Exiting...\n";
+//                std::cerr << AT << "\n";
+                exit(1);
+            }
+        }
+        p_pars->m_method_up = m_method_up;
+
+        /// method for shock thickness
+        opt = "method_Delta";
+        METHOD_Delta m_method_delta;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            m_method_delta = METHOD_Delta::iuseJoh06;
+        }
+        else{
+            if(opts.at(opt) == "useJoh06")
+                m_method_delta = METHOD_Delta::iuseJoh06;
+            else if(opts.at(opt) == "useVE12")
+                m_method_delta = METHOD_Delta::iuseVE12;
+            else if(opts.at(opt) == "None")
+                m_method_delta = METHOD_Delta::iNoDelta;
+            else{
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                                      <<" given: " << opts.at(opt)
+                                      << " is not recognized \n"
+                                      << " Possible options: "
+                                      << " useJoh06 " << " useVE12 " << "None" << "\n"
+                                      << " Exiting...\n";
+//                std::cerr << AT << "\n";
+                exit(1);
+            }
+        }
+        p_pars->m_method_Delta = m_method_delta;
+
+        /// EATS method guverns the BW discretization (piece-wise versus adaptive)
+        p_pars->m_method_eats = latStruct.m_method_eats;
+        p_pars->nlayers = latStruct.nlayers;
+
+        /// set boolean pars
+        p_pars->use_dens_prof_behind_jet_for_ejecta =
+                getBoolOpt("use_dens_prof_behind_jet_for_ejecta", opts, AT,p_log,false, false);
+
+        p_pars->use_exp_rho_decay_as_floor =
+                getBoolOpt("use_exp_rho_decay_as_floor", opts, AT,p_log,false, false);
+
+        p_pars->use_flat_dens_floor =
+                getBoolOpt("use_flat_dens_floor", opts, AT,p_log,false, false);
+
+        p_pars->use_st_dens_profile =
+                getBoolOpt("use_st_dens_profile", opts, AT,p_log,false, false);
+
+        p_pars->use_bm_dens_profile =
+                getBoolOpt("use_bm_dens_profile", opts, AT,p_log,false, false);
+
+        p_pars->adiabLoss =
+                getBoolOpt("use_adiabLoss", opts, AT,p_log,true, false);
+
+        /// set sedov-taylor profile (for jet to be seen by ejecta as it moves behind)
+        if (p_pars->use_st_dens_profile) {
+            p_sedov->setPars(1.5, 3, 0.); // TODO this should not be here and evaluated for EVERY bw...
+            p_sedov->evaluate();
+        }
+
+        /// set parameters for computing observed emission
+
+        // set initials and costants for the blast wave
+        switch (latStruct.m_method_eats) {
+
+            case LatStruct::i_pw:
+                if ( latStruct.dist_E0_pw.empty() || latStruct.dist_M0_pw.empty() || latStruct.dist_Mom0_pw.empty()
+                     || latStruct.dist_Ye_pw.empty() || latStruct.theta_pw.empty()){
+                    (*p_log)(LOG_ERR, AT) << "one of the blast-wave initial data arrays is empty. \n";
+                    exit(1);
+                }
+                (*p_log)(LOG_INFO,AT) << " Init. [pw] "
+                                      << " E0="<<latStruct.dist_E0_pw[ilayer]
+                                      << " Ye="<<latStruct.dist_Ye_pw[ilayer]
+                                      << " s="<<latStruct.dist_s_pw[ilayer]
+                                      << " M0="<<latStruct.dist_M0_pw[ilayer]
+                                      << " M0m0="<<latStruct.dist_Mom0_pw[ilayer]
+                                      << " beta0="<<EQS::BetFromMom(latStruct.dist_Mom0_pw[ilayer])
+                                      << " tb0="<<m_tb_arr[0]
+                                      << " thetab0="<<latStruct.m_theta_w
+                                      << " theta0="<<latStruct.theta_pw[ilayer]
+                                      << " theta1="<<latStruct.theta_pw[ilayer]
+                                      << " theta_w="<<latStruct.m_theta_w
+                                      << " ii_eq="<<ii_eq
+                                      << " ncells="<<latStruct.ncells
+                                      << "\n";
+
+                if (latStruct.m_theta_w > theta_max){
+                    (*p_log)(LOG_ERR,AT) << " theta_b0="<<latStruct.m_theta_w<<" exceeds theta_max="<<theta_max<<" \n Exiting... \n";
+//                    std::cerr << AT << "\n";
+                    exit(1);
+                }
+//
+                p_pars->E0        = latStruct.dist_E0_pw[ilayer];
+                p_pars->Ye0       = latStruct.dist_Ye_pw[ilayer];
+                p_pars->s0        = latStruct.dist_s_pw[ilayer];
+                p_pars->M0        = latStruct.dist_M0_pw[ilayer];
+                p_pars->mom0      = latStruct.dist_Mom0_pw[ilayer];
+                p_pars->tb0       = m_tb_arr[0];
+                p_pars->theta_a   = 0.; // theta_a
+                p_pars->theta_b0  = latStruct.m_theta_w; // theta_b0
+                p_pars->ctheta0   = 0.5 * (latStruct.theta_pw[ilayer] + latStruct.theta_pw[ilayer]);
+//        p_pars->theta_h0= theta_c_h;
+                p_pars->theta_c_l = latStruct.theta_pw[ilayer];//theta_c_l;
+                p_pars->theta_c_h = latStruct.theta_pw[ilayer];
+                p_pars->theta_w   = latStruct.m_theta_w; //
+                p_pars->theta_max = theta_max;
+                p_pars->ncells    = (double) latStruct.ncells;
+                p_pars->eps_rad   = epsilon_e_rad;
+
+                p_spread->m_theta_b0 = p_pars->theta_b0;
+                p_pars->x = p_pars->tb0;
+
+                p_pars->ii_eq  = ii_eq;
+
+                /// initialize non-thermal radiation module
+                p_rad->setEatsPars(pars,opts,p_pars->nlayers,p_pars->ctheta0,
+                                   p_pars->theta_c_l,p_pars->theta_c_h,p_pars->theta_w,p_pars->theta_max);
+
+                break;
+            case LatStruct::i_adap:
+                if ( latStruct.dist_E0_a.empty() || latStruct.dist_M0_a.empty() || latStruct.dist_Mom0_a.empty()
+                     || latStruct.dist_Ye_a.empty() || latStruct.thetas_c_h.empty()){
+                    (*p_log)(LOG_ERR, AT) << "one of the blast-wave initial data arrays is empty. \n";
+                    exit(1);
+                }
+                (*p_log)(LOG_INFO,AT)<<"Init. [a] "
+                                     << " E0="<<latStruct.dist_E0_a[ilayer]
+                                     << " Ye="<<latStruct.dist_Ye_a[ilayer]
+                                     << " s="<<latStruct.dist_s_a[ilayer]
+                                     << " M0="<<latStruct.dist_M0_a[ilayer]
+                                     << " G0="<<latStruct.dist_Mom0_a[ilayer]
+                                     << " beta0="<<EQS::BetFromMom(latStruct.dist_Mom0_a[ilayer])
+                                     << " tb0="<<m_tb_arr[0]
+                                     << " thetab0="<<latStruct.thetas_c_h[ilayer]
+                                     << " theta0="<<latStruct.thetas_c_l[ilayer]
+                                     << " theta1="<<latStruct.thetas_c_h[ilayer]
+                                     << " theta_w="<<latStruct.m_theta_w
+                                     << " ii_eq="<<ii_eq
+                                     << " ncells="<<1.
+                                     << "\n";
+                double fac = 2 * std::sin(0.5 * latStruct.thetas_c_h[ilayer]) * std::sin(0.5 * latStruct.thetas_c_h[ilayer]);
+                if (latStruct.thetas_c_h[ilayer] > theta_max){
+                    (*p_log)(LOG_ERR,AT) << " theta_b0="<<latStruct.thetas_c_h[ilayer]<<" exceeds theta_max="<<theta_max<<" \n Exiting... \n";
+//                    std::cerr << AT << "\n";
+                    exit(1);
+                }
+
+                p_pars->E0      = latStruct.dist_E0_a[ilayer];
+                p_pars->Ye0     = latStruct.dist_Ye_a[ilayer];
+                p_pars->s0      = latStruct.dist_s_a[ilayer];
+                p_pars->M0      = latStruct.dist_M0_a[ilayer];
+                p_pars->mom0    = latStruct.dist_Mom0_a[ilayer];
+                p_pars->tb0     = m_tb_arr[0];
+                p_pars->theta_a = 0.;
+                p_pars->theta_b0= latStruct.thetas_c_h[ilayer];
+                p_pars->ctheta0 = 0.5 * (latStruct.thetas_c_l[ilayer] + latStruct.thetas_c_h[ilayer]);
+//        p_pars->theta_h0= theta_c_h;
+                p_pars->theta_c_l = latStruct.thetas_c_l[ilayer];
+                p_pars->theta_c_h = latStruct.thetas_c_h[ilayer];
+                p_pars->theta_w = 0.; //
+                p_pars->theta_max = theta_max;
+                p_pars->ncells  = 1.;
+                p_pars->eps_rad = epsilon_e_rad;
+
+                p_spread->m_theta_b0 = p_pars->theta_b0;
+                p_pars->x = p_pars->tb0;
+
+                p_pars->ii_eq  = ii_eq;
+
+                /// initialize non-thermal radiation module
+                p_rad->setEatsPars(pars,opts,p_pars->nlayers,p_pars->ctheta0,
+                                   p_pars->theta_c_l,p_pars->theta_c_h,p_pars->theta_w,p_pars->theta_max);
+
+                // double E0, double M0, double Gamma0, double tb0, double theta_a, double theta_b0,
+                // double theta_c_l, double theta_c_h, double theta_w, double theta_max, double epsilon_e_rad,
+                // size_t ii_eq,
+                // double ncells
+//                bw_obj.setMagPars(latStruct.dist_E0_a[ilayer], = double E0,
+//                               latStruct.dist_M0_a[ilayer], = double M0,
+//                               latStruct.dist_G0_a[ilayer], = double Gamma0,
+//                               t_grid[0],                   = double tb0,
+//                               0.,                          = double theta_a,
+//                               latStruct.thetas_c_h[ilayer],= double theta_b0,
+//                               latStruct.thetas_c_l[ilayer],= double theta_c_l,
+//                               latStruct.thetas_c_h[ilayer],= double theta_c_h,
+//                               0.,                          = double theta_w,
+//                               theta_max,                   = double theta_max,
+////                             latStruct.cthetas0[ilayer],  = double epsilon_e_rad,
+//                               epsilon_e_rad,               = size_t ii_eq,
+//                               ii_eq,
+//                               1.);
+                break;
+        }
+
+
+
+
+//        std::cout << " ["<<bw_obj.getPars()->ishell<<", "<<bw_obj.getPars()->ilayer<<"] "
+//                  <<" G0="<<bw_obj.getPars()->Gamma0
+//                  <<" E0="<<bw_obj.getPars()->E0
+//                  <<" M0="<<bw_obj.getPars()->M0
+//                  <<" ctheta0="<<bw_obj.getPars()->ctheta0
+//                  <<"\n";
+    }
     // ------------------------------------------------------
-    Pars *& getPars(){ return p_pars; }
+    std::unique_ptr<Pars> & getPars(){ return p_pars; }
     std::unique_ptr<EOSadi> & getEos(){ return p_eos; }
     std::unique_ptr<LatSpread> & getSpread(){ return p_spread; }
     std::unique_ptr<RhoISM> & getDensIsm(){ return p_dens; }
@@ -2872,474 +3413,9 @@ public:
 //            exit(1);
         }
     }
-    void setAllParametersForOneLayer(LatStruct & latStruct, //RadBlastWave & bw_obj,
-                                     StrDbMap & pars, StrStrMap & opts,
-                                     size_t ilayer, size_t ii_eq){
-
-        double nism, A0, s, r_ej, r_ism,  a, theta_max, epsilon_e_rad;
-
-        // set parameters for ISM density
-        nism = getDoublePar("n_ism", pars, AT, p_log, -1, true);//pars.at("nism");
-        A0 = getDoublePar("A0", pars, AT,p_log,-1,false);//pars.at("A0");
-        s = getDoublePar("s", pars, AT,p_log,-1,false);//pars.at("s");
-        r_ej = getDoublePar("r_ej", pars, AT,p_log,-1,false);//pars.at("r_ej");
-        r_ism = getDoublePar("r_ism", pars, AT,p_log,-1,false);//pars.at("r_ism");
-        p_dens->setPars(nism, A0, s, r_ej, r_ism, true);
-
-        // spreading
-        a = getDoublePar("a", pars, AT,p_log,-1,false);//pars.at("a");
-        theta_max = getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false);//pars.at("theta_max");
-
-        // radiative losses
-        epsilon_e_rad = getDoublePar("epsilon_e_rad", pars, AT,p_log,0.,false);// pars.at("epsilon_e_rad");
-
-        // interaction parameters
-        p_pars->which_jet_layer_to_use =
-                (int)getDoublePar("which_jet_layer_to_use",pars,AT,p_log,1.e5,false);
-        p_pars->steepnes_of_exp_decay =
-                (double)getDoublePar("steepnes_of_exp_decay",pars,AT,p_log,1.,false);
-        p_pars->Gamma_when_st_starts =
-                (double)getDoublePar("Gamma_when_st_starts",pars,AT,p_log,2.,false);
-        p_pars->fraction_of_Gamma0_when_bm_for_bm =
-                (double)getDoublePar("fraction_of_Gamma0_when_bm_for_bm",pars, AT,p_log,1.98,false);
-        p_pars->fraction_of_Gamma0_when_spread =
-                (double)getDoublePar("fraction_of_Gamma0_when_spread",pars, AT,p_log,.75,false);
 
 
-        // check if unknown option is given
-//        check_for_unexpected_opt(opts, listBwOpts(), "listBwOpts()");
 
-        // set options
-        std::string opt;
-
-        // mass accretion from ISM
-        opt = "method_dmdr";
-        METHOD_dmdr method_dmdr;
-        if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            method_dmdr = METHOD_dmdr::iusingdthdR;
-        }
-        else{
-            if(opts.at(opt) == "usingA")
-                method_dmdr = METHOD_dmdr::iusingA;
-            else if(opts.at(opt) == "usingdthdr")
-                method_dmdr = METHOD_dmdr::iusingdthdR;
-            else{
-                (*p_log)(LOG_WARN,AT) << " option for: " << opt
-                                      << " given: " << opts.at(opt)
-                                      << " is not recognized \n"
-                                      << " Possible options: "
-                                      << " usingA " <<" usingdthdr " << "\n"
-                                      << " Exiting...\n";
-//                std::cerr << AT << "\n";
-                exit(1);
-            }
-        }
-        p_pars->m_method_dmdr = method_dmdr;
-
-        // evolution eq
-        opt = "method_dgdr";
-        METHOD_dgdr method_dgdr;
-        if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            method_dgdr = METHOD_dgdr::iour;
-        }
-        else{
-            if(opts.at(opt) == "our")
-                method_dgdr = METHOD_dgdr::iour;
-            else if(opts.at(opt) == "peer")
-                method_dgdr = METHOD_dgdr::ipeer;
-            else{
-                (*p_log)(LOG_WARN,AT) << AT << " option for: " << opt
-                                      << " given: " << opts.at(opt)
-                                      << " is not recognized \n"
-                                      << " Possible options: "
-                                      << " our " <<" peer " << "\n"
-                                      << " Exiting...\n";
-//                std::cerr << AT << "\n";
-                exit(1);
-            }
-        }
-        p_pars->m_method_dgdr = method_dgdr;
-
-        // set parameters for lateral expanding
-        opt = "method_spread";
-        LatSpread::METHODS method_spread;
-        if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            method_spread = LatSpread::iNULL;
-        }
-        else{
-            if(opts.at(opt) == "None")
-                method_spread = LatSpread::iNULL;
-            else if(opts.at(opt) == "AFGPY")
-                method_spread = LatSpread::iAFGPY;
-            else if(opts.at(opt) == "Adi")
-                method_spread = LatSpread::iAdi;
-            else if(opts.at(opt) == "AA")
-                method_spread = LatSpread::iAA;
-            else{
-                (*p_log)(LOG_WARN,AT) << " option for: " << opt
-                                      <<" given: " << opts.at(opt)
-                                      << " is not recognized \n"
-                                      << " Possible options: "
-                                      << " None " <<" AFGPY " << " Adi " << " AA " << "\n"
-                                      << " Exiting...\n";
-//                std::cerr << AT << "\n";
-                exit(1);
-            }
-        }
-        p_spread->setPars(a,theta_max,latStruct.m_theta_c,
-                          latStruct.m_theta_w, method_spread);
-
-
-        // set parameters for EOS
-        opt = "method_eos";
-        EOSadi::METHODS method_eos;
-        if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            method_eos = EOSadi::iNava13;
-        }
-        else{
-            if(opts.at(opt) == "Nava13")
-                method_eos = EOSadi::iNava13;
-            else if(opts.at(opt) == "Peer12")
-                method_eos = EOSadi::iPeer12;
-            else{
-                (*p_log)(LOG_WARN,AT)<< " option for: " << opt
-                                     <<" given: " << opts.at(opt)
-                                     << " is not recognized \n"
-                                     << " Possible options: "
-                                     << " Nava13 " << " Peer12 " << "\n"
-                                     << " Exiting...\n";
-//                std::cerr << AT << "\n";
-                exit(1);
-            }
-        }
-        p_eos->setPars(method_eos);
-
-        // set Nuclear Atomic pars
-        p_nuc->setPars(pars, opts);
-
-        /// method for shock radius
-        opt = "method_Rsh";
-        METHOD_RSh m_method_r_sh;
-        if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            m_method_r_sh = METHOD_RSh::isameAsR;
-        }
-        else{
-            if(opts.at(opt) == "sameAsR")
-                m_method_r_sh = METHOD_RSh::isameAsR;
-            else if(opts.at(opt) == "useGammaSh")
-                m_method_r_sh = METHOD_RSh::iuseGammaSh;
-            else{
-                (*p_log)(LOG_WARN,AT) << " option for: " << opt
-                                      <<" given: " << opts.at(opt)
-                                      << " is not recognized \n"
-                                      << " Possible options: "
-                                      << " sameAsR " << " useGammaSh " << "\n"
-                                      << " Exiting...\n";
-//                std::cerr << AT << "\n";
-                exit(1);
-            }
-        }
-        p_pars->m_method_r_sh = m_method_r_sh;
-
-        /// method for shock velocity
-        opt = "method_GammaSh";
-        METHOD_GammaSh m_method_gamma_sh;
-        if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            m_method_gamma_sh = METHOD_GammaSh::isameAsGamma;
-        }
-        else{
-            if(opts.at(opt) == "useGamma")
-                m_method_gamma_sh = METHOD_GammaSh::isameAsGamma;
-            else if(opts.at(opt) == "useGammaRel")
-                m_method_gamma_sh = METHOD_GammaSh::iuseGammaRel;
-            else if(opts.at(opt) == "useJK")
-                m_method_gamma_sh = METHOD_GammaSh::iuseJK;
-            else if(opts.at(opt) == "useJKwithGammaRel")
-                m_method_gamma_sh = METHOD_GammaSh::iuseJKwithGammaRel;
-            else{
-                (*p_log)(LOG_WARN,AT) << " option for: " << opt
-                                      <<" given: " << opts.at(opt)
-                                      << " is not recognized \n"
-                                      << " Possible options: "
-                                      << " useGamma " << " useGammaRel " << " useJK "<< " useJKwithGammaRel " << "\n"
-                                      << " Exiting...\n";
-//                std::cerr << AT << "\n";
-                exit(1);
-            }
-        }
-        p_pars->m_method_gamma_sh = m_method_gamma_sh;
-
-        /// method for energy density behind shock
-        opt = "method_Up";
-        METHODS_Up m_method_up;
-        if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            m_method_up = METHODS_Up::iuseEint2;
-        }
-        else{
-            if(opts.at(opt) == "useEint2")
-                m_method_up = METHODS_Up::iuseEint2;
-            else if(opts.at(opt) == "useGamma")
-                m_method_up = METHODS_Up::iuseGamma;
-            else{
-                (*p_log)(LOG_WARN,AT) << " option for: " << opt
-                                      <<" given: " << opts.at(opt)
-                                      << " is not recognized \n"
-                                      << " Possible options: "
-                                      << " useEint2 " << " useGamma " << "\n"
-                                      << " Exiting...\n";
-//                std::cerr << AT << "\n";
-                exit(1);
-            }
-        }
-        p_pars->m_method_up = m_method_up;
-
-        /// method for shock thickness
-        opt = "method_Delta";
-        METHOD_Delta m_method_delta;
-        if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            m_method_delta = METHOD_Delta::iuseJoh06;
-        }
-        else{
-            if(opts.at(opt) == "useJoh06")
-                m_method_delta = METHOD_Delta::iuseJoh06;
-            else if(opts.at(opt) == "useVE12")
-                m_method_delta = METHOD_Delta::iuseVE12;
-            else if(opts.at(opt) == "None")
-                m_method_delta = METHOD_Delta::iNoDelta;
-            else{
-                (*p_log)(LOG_WARN,AT) << " option for: " << opt
-                                      <<" given: " << opts.at(opt)
-                                      << " is not recognized \n"
-                                      << " Possible options: "
-                                      << " useJoh06 " << " useVE12 " << "None" << "\n"
-                                      << " Exiting...\n";
-//                std::cerr << AT << "\n";
-                exit(1);
-            }
-        }
-        p_pars->m_method_Delta = m_method_delta;
-
-        /// EATS method guverns the BW discretization (piece-wise versus adaptive)
-        p_pars->m_method_eats = latStruct.m_method_eats;
-        p_pars->nlayers = latStruct.nlayers;
-
-        /// set boolean pars
-        p_pars->use_dens_prof_behind_jet_for_ejecta =
-                getBoolOpt("use_dens_prof_behind_jet_for_ejecta", opts, AT,p_log,false, false);
-
-        p_pars->use_exp_rho_decay_as_floor =
-                getBoolOpt("use_exp_rho_decay_as_floor", opts, AT,p_log,false, false);
-
-        p_pars->use_flat_dens_floor =
-                getBoolOpt("use_flat_dens_floor", opts, AT,p_log,false, false);
-
-        p_pars->use_st_dens_profile =
-                getBoolOpt("use_st_dens_profile", opts, AT,p_log,false, false);
-
-        p_pars->use_bm_dens_profile =
-                getBoolOpt("use_bm_dens_profile", opts, AT,p_log,false, false);
-
-        p_pars->adiabLoss =
-                getBoolOpt("use_adiabLoss", opts, AT,p_log,true, false);
-
-        /// set sedov-taylor profile (for jet to be seen by ejecta as it moves behind)
-        if (p_pars->use_st_dens_profile) {
-            p_sedov->setPars(1.5, 3, 0.); // TODO this should not be here and evaluated for EVERY bw...
-            p_sedov->evaluate();
-        }
-
-        /// set parameters for computing observed emission
-
-        // set initials and costants for the blast wave
-        switch (latStruct.m_method_eats) {
-
-            case LatStruct::i_pw:
-                if ( latStruct.dist_E0_pw.empty() || latStruct.dist_M0_pw.empty() || latStruct.dist_Mom0_pw.empty()
-                     || latStruct.dist_Ye_pw.empty() || latStruct.theta_pw.empty()){
-                    (*p_log)(LOG_ERR, AT) << "one of the blast-wave initial data arrays is empty. \n";
-                    exit(1);
-                }
-                (*p_log)(LOG_INFO,AT) << " Init. [pw] "
-                                      << " E0="<<latStruct.dist_E0_pw[ilayer]
-                                      << " Ye="<<latStruct.dist_Ye_pw[ilayer]
-                                      << " s="<<latStruct.dist_s_pw[ilayer]
-                                      << " M0="<<latStruct.dist_M0_pw[ilayer]
-                                      << " M0m0="<<latStruct.dist_Mom0_pw[ilayer]
-                                      << " beta0="<<EQS::BetFromMom(latStruct.dist_Mom0_pw[ilayer])
-                                      << " tb0="<<m_tb_arr[0]
-                                      << " thetab0="<<latStruct.m_theta_w
-                                      << " theta0="<<latStruct.theta_pw[ilayer]
-                                      << " theta1="<<latStruct.theta_pw[ilayer]
-                                      << " theta_w="<<latStruct.m_theta_w
-                                      << " ii_eq="<<ii_eq
-                                      << " ncells="<<latStruct.ncells
-                                      << "\n";
-                // double E0, double M0, double Gamma0, double tb0, double theta_a, double theta_b0,
-                // double theta_c_l, double theta_c_h, double theta_w, double theta_max, double epsilon_e_rad,
-                // size_t ii_eq,
-                // double ncells
-//                setMagPars(latStruct.dist_E0_pw[ilayer],  = double E0,
-//                        latStruct.dist_M0_pw[ilayer], = double M0,
-//                        latStruct.dist_G0_pw[ilayer], = double Gamma0,
-//                        m_mag_time[0],                  = double tb0
-//                        0.,                           = double theta_a
-//                        latStruct.m_theta_w,          = double theta_b0,
-//                        latStruct.theta_pw[ilayer],   = double theta_c_l,
-//                        latStruct.theta_pw[ilayer],   = double theta_c_h,
-//                        latStruct.m_theta_w,          = double theta_w,
-//                        theta_max,                    = double theta_max,
-//                        epsilon_e_rad,                = double epsilon_e_rad,
-//                        ii_eq,                        = size_t ii_eq,
-//                        (double) latStruct.ncells);   = double ncells
-                if (latStruct.m_theta_w > theta_max){
-                    (*p_log)(LOG_ERR,AT) << " theta_b0="<<latStruct.m_theta_w<<" exceeds theta_max="<<theta_max<<" \n Exiting... \n";
-//                    std::cerr << AT << "\n";
-                    exit(1);
-                }
-//
-                p_pars->E0        = latStruct.dist_E0_pw[ilayer];
-                p_pars->Ye0       = latStruct.dist_Ye_pw[ilayer];
-                p_pars->s0        = latStruct.dist_s_pw[ilayer];
-                p_pars->M0        = latStruct.dist_M0_pw[ilayer];
-                p_pars->mom0      = latStruct.dist_Mom0_pw[ilayer];
-                p_pars->tb0       = m_tb_arr[0];
-                p_pars->theta_a   = 0.; // theta_a
-                p_pars->theta_b0  = latStruct.m_theta_w; // theta_b0
-                p_pars->ctheta0   = 0.5 * (latStruct.theta_pw[ilayer] + latStruct.theta_pw[ilayer]);
-//        p_pars->theta_h0= theta_c_h;
-                p_pars->theta_c_l = latStruct.theta_pw[ilayer];//theta_c_l;
-                p_pars->theta_c_h = latStruct.theta_pw[ilayer];
-                p_pars->theta_w   = latStruct.m_theta_w; //
-                p_pars->theta_max = theta_max;
-                p_pars->ncells    = (double) latStruct.ncells;
-                p_pars->eps_rad   = epsilon_e_rad;
-
-                p_spread->m_theta_b0 = p_pars->theta_b0;
-                p_pars->x = p_pars->tb0;
-
-                p_pars->ii_eq  = ii_eq;
-
-
-                break;
-            case LatStruct::i_adap:
-                if ( latStruct.dist_E0_a.empty() || latStruct.dist_M0_a.empty() || latStruct.dist_Mom0_a.empty()
-                     || latStruct.dist_Ye_a.empty() || latStruct.thetas_c_h.empty()){
-                    (*p_log)(LOG_ERR, AT) << "one of the blast-wave initial data arrays is empty. \n";
-                    exit(1);
-                }
-                (*p_log)(LOG_INFO,AT)<<"Init. [a] "
-                                     << " E0="<<latStruct.dist_E0_a[ilayer]
-                                     << " Ye="<<latStruct.dist_Ye_a[ilayer]
-                                     << " s="<<latStruct.dist_s_a[ilayer]
-                                     << " M0="<<latStruct.dist_M0_a[ilayer]
-                                     << " G0="<<latStruct.dist_Mom0_a[ilayer]
-                                     << " beta0="<<EQS::BetFromMom(latStruct.dist_Mom0_a[ilayer])
-                                     << " tb0="<<m_tb_arr[0]
-                                     << " thetab0="<<latStruct.thetas_c_h[ilayer]
-                                     << " theta0="<<latStruct.thetas_c_l[ilayer]
-                                     << " theta1="<<latStruct.thetas_c_h[ilayer]
-                                     << " theta_w="<<latStruct.m_theta_w
-                                     << " ii_eq="<<ii_eq
-                                     << " ncells="<<1.
-                                     << "\n";
-                double fac = 2 * std::sin(0.5 * latStruct.thetas_c_h[ilayer]) * std::sin(0.5 * latStruct.thetas_c_h[ilayer]);
-                if (latStruct.thetas_c_h[ilayer] > theta_max){
-                    (*p_log)(LOG_ERR,AT) << " theta_b0="<<latStruct.thetas_c_h[ilayer]<<" exceeds theta_max="<<theta_max<<" \n Exiting... \n";
-//                    std::cerr << AT << "\n";
-                    exit(1);
-                }
-
-                p_pars->E0      = latStruct.dist_E0_a[ilayer];
-                p_pars->Ye0     = latStruct.dist_Ye_a[ilayer];
-                p_pars->s0      = latStruct.dist_s_a[ilayer];
-                p_pars->M0      = latStruct.dist_M0_a[ilayer];
-                p_pars->mom0    = latStruct.dist_Mom0_a[ilayer];
-                p_pars->tb0     = m_tb_arr[0];
-                p_pars->theta_a = 0.;
-                p_pars->theta_b0= latStruct.thetas_c_h[ilayer];
-                p_pars->ctheta0 = 0.5 * (latStruct.thetas_c_l[ilayer] + latStruct.thetas_c_h[ilayer]);
-//        p_pars->theta_h0= theta_c_h;
-                p_pars->theta_c_l = latStruct.thetas_c_l[ilayer];
-                p_pars->theta_c_h = latStruct.thetas_c_h[ilayer];
-                p_pars->theta_w = 0.; //
-                p_pars->theta_max = theta_max;
-                p_pars->ncells  = 1.;
-                p_pars->eps_rad = epsilon_e_rad;
-
-                p_spread->m_theta_b0 = p_pars->theta_b0;
-                p_pars->x = p_pars->tb0;
-
-                p_pars->ii_eq  = ii_eq;
-                // double E0, double M0, double Gamma0, double tb0, double theta_a, double theta_b0,
-                // double theta_c_l, double theta_c_h, double theta_w, double theta_max, double epsilon_e_rad,
-                // size_t ii_eq,
-                // double ncells
-//                bw_obj.setMagPars(latStruct.dist_E0_a[ilayer], = double E0,
-//                               latStruct.dist_M0_a[ilayer], = double M0,
-//                               latStruct.dist_G0_a[ilayer], = double Gamma0,
-//                               t_grid[0],                   = double tb0,
-//                               0.,                          = double theta_a,
-//                               latStruct.thetas_c_h[ilayer],= double theta_b0,
-//                               latStruct.thetas_c_l[ilayer],= double theta_c_l,
-//                               latStruct.thetas_c_h[ilayer],= double theta_c_h,
-//                               0.,                          = double theta_w,
-//                               theta_max,                   = double theta_max,
-////                             latStruct.cthetas0[ilayer],  = double epsilon_e_rad,
-//                               epsilon_e_rad,               = size_t ii_eq,
-//                               ii_eq,
-//                               1.);
-                break;
-        }
-
-        /// initialize non-thermal radiation module
-        p_rad->setEatsPars(pars,opts,p_pars->nlayers,p_pars->ctheta0);
-
-
-//        std::cout << " ["<<bw_obj.getPars()->ishell<<", "<<bw_obj.getPars()->ilayer<<"] "
-//                  <<" G0="<<bw_obj.getPars()->Gamma0
-//                  <<" E0="<<bw_obj.getPars()->E0
-//                  <<" M0="<<bw_obj.getPars()->M0
-//                  <<" ctheta0="<<bw_obj.getPars()->ctheta0
-//                  <<"\n";
-    }
-    // ---------------------------------------------------------
-//    enum Q {
-//        // --- properties of the ejecta element
-//        iRho, idR, iTau, iTauOut, iEinj,
-//        // -- dynamics ---
-//        iR, iRsh, irho, idrhodr, iGammaCBM, iGammaREL, idGammaCBMdr, idGammaRELdGamma, iPcbm, idPCBMdrho, iMCBM, iCSCBM,
-//        iGamma, ibeta, imom, iEint2, iU_p, itheta, ictheta, iErad2, iEsh2, iEad2, iM2,
-//        itcomov, itburst, itt, ithickness, iadi, irho2, iGammaFsh,
-//        // --- electrons  ---
-//        igm, igc, igM, iB, iTheta, iz_cool, ix, inprime, iacc_frac,
-//        // --- observables ---
-//        imu,
-//        // ---
-//        ijl, ir_dist
-//    };
-//    std::vector<std::string> m_vnames{
-//            // --- properties of the ejecta element
-//            "Rho", "dR", "Tau", "TauOut", "Einj",
-//            // --- dynamics ---
-//            "R", "Rsh", "rho", "drhodr", "GammaRho", "GammaRel", "dGammaRhodr", "dGammaReldGamma", "PCBM", "dPCBMdrho", "MCBM", "CSCBM",
-//            "Gamma", "beta", "mom", "Eint2", "U_p", "theta", "ctheta", "Erad2", "Esh2", "Ead2", "M2",
-//            "tcomov", "tburst", "tt", "thickness", "adi", "rho2", "GammaFsh",
-//            // --- electrons
-//            "gamma_min", "gamma_c", "gamma_max", "B", "ThetaTherm", "z_cool", "x", "nprime", "accel_frac",
-//            // --- observables
-//            "mu",
-//            // ---
-//            "ijl", "r_dist"
-//    };
-    static constexpr size_t NVALS = 47; // number of variables to save
     // ---------------------------------------------------------
     Vector & getTbGrid() {return m_tb_arr;}
     Vector getTbGrid(size_t every_it) {
@@ -3388,10 +3464,7 @@ public:
         }
         return ctheta;
     }
-//    inline double etot(dobule Gamma){
-//        double etot = (dyn2t2.get(f"Gamma_ej_{ii}") - 1)* cgs.c ** 2 * \
-//               (dyn2t2.get(f"M2_ej_{ii}") + 1e48 / (cgs.c ** 2 * dyn2t2.get(f"Gamma_ej_{ii}")[0])) + GammaEff * dyn2t2.get(f"Eint2_ej_{ii}")
-//    }
+
     inline VecArray & getData(){ return m_data; }
     inline Array & getData(BW::Q var){ return m_data[var]; }
     inline double & getVal(BW::Q var, int ix){
@@ -3550,9 +3623,6 @@ public:
             exit(1);
         }
     }
-//    virtual void evaluateCollision(double * out_Y, size_t i, double x, double const * Y,
-//                                   std::unique_ptr<BW> & other, size_t other_i ) = 0;
-
 
     /// Density profiles application based on the jet BW position and velocity
     void evalDensAndItsVelocityBehindBlastWave_Case1(
@@ -3946,35 +4016,361 @@ public:
             double theta_b0  = p_pars->theta_b0;
             double ej_theta  = Y[i + SOL::QS::itheta];
             double ej_ctheta = LatStruct::ctheta(ej_theta,p_pars->ilayer,p_pars->nlayers);//ctheta(ej_theta);
-//            if (ej_Gamma>10.){
-//                (*p_log)(LOG_ERR,AT)
-//                        << "["<<p_pars->ishell<<", "<<p_pars->ilayer<<"]"
-//                        << " ii_eq = "<<p_pars->ii_eq
-//                        << " i = " << i
-//                        << " Gamma="<<ej_Gamma
-//                        << " R = " << ej_R
-//                        << " theta_b0 = " <<theta_b0
-//                        << " ctheta =" <<ej_ctheta
-//                        << "\n"
-//                        << " Exiting...\n";
-////                std::cerr << AT << "\n";
-//                exit(1);
-//            }
             set_standard_ism(ej_R, ej_ctheta, ej_Gamma);
         }
 
         /// evaluate actual RHS
-//        evaluateRhsDens(out_Y, i, x, Y);
-        evaluateRhs(out_Y, i, x, Y);
+        evaluateRhsDens(out_Y, i, x, Y);
+//        evaluateRhs(out_Y, i, x, Y);
 
     }
 
     /// ---
 
-
 };
 
+/// how to collide two blastwaves
+class BlastWaveCollision{
+    struct FsolvePars{
+        EOSadi * p_eos = nullptr;
+        FsolvePars(EOSadi * eos_pointer) : p_eos(eos_pointer){ }
+        double m_gam1{}, m_beta1{}, m_mass1{}, m_eint1{}, m_adi1{};
+        double m_gam2{}, m_beta2{}, m_mass2{}, m_eint2{}, m_adi2{};
+        int getTheMostMassive() const{ return m_mass1 > m_mass2 ? 1 : 2; }
+        int getTheFastest() const{ return m_gam1 > m_gam2 ? 1 : 2; }
+        int getTheMostEnergetic() const{ return m_eint1 > m_eint2 ? 1 : 2; }
+        /// chose which shell to delete: the slowest/less energetic/less massive
+        int choseShell(){
+            int idx_massive = getTheMostMassive();
+            int idx_energetic = getTheMostEnergetic();
+            int idx_fastest = getTheFastest();
+            if (idx_massive == idx_energetic && idx_massive == idx_fastest){ return idx_massive;}
+            if (idx_massive != idx_energetic && idx_massive == idx_fastest){ return idx_massive;}
+            if (idx_massive == idx_energetic && idx_massive != idx_fastest){ return idx_fastest;}
+            if (idx_massive != idx_energetic && idx_massive != idx_fastest){ return idx_fastest;}
+            std::cerr<<AT<<" ERROR\n";
+            exit(1);
+        }
+        void set(double gam1, double beta1, double mass1, double eint1, double adi1,
+                 double gam2, double beta2, double mass2, double eint2, double adi2){
+            m_gam1=gam1; m_beta1=beta1; m_mass1=mass1; m_eint1=eint1; m_adi1=adi1;
+            m_gam2=gam2; m_beta2=beta2; m_mass2=mass2; m_eint2=eint2; m_adi2=adi2;
+        }
+    };
+    FsolvePars * p_colsolve;
+    std::unique_ptr<logger> p_log;
+    EOSadi * p_eos = nullptr;
+public:
+    BlastWaveCollision(int loglevel){
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BlastWaveCollision");
+        p_eos = new EOSadi();
+        p_colsolve = new FsolvePars(p_eos);
+    }
 
+    ~BlastWaveCollision(){ delete p_colsolve; delete p_eos; }
+
+    void collideBlastWaves(std::unique_ptr<BlastWave> & bw1,
+                           std::unique_ptr<BlastWave> & bw2,
+                           double * Y, double rcoll, size_t il){
+        if (p_colsolve->p_eos == nullptr){
+            (*p_log)(LOG_ERR,AT) << " eos pointer is not set\n;";
+            exit(1);
+        }
+        if ((bw1->getPars()->end_evolution) || (bw2->getPars()->end_evolution)){
+            (*p_log)(LOG_ERR,AT) << " of the shells staged for collision is not active\n";
+            exit(1);
+        }
+        /// get relevant parameters
+        double gam1 = EQS::GamFromMom( Y[bw1->getPars()->ii_eq + SOL::QS::imom] );
+        double beta1 = EQS::BetFromMom( Y[bw1->getPars()->ii_eq + SOL::QS::imom] );
+        double m0_1 = bw1->getPars()->M0;
+        double m2_1 = Y[bw1->getPars()->ii_eq + SOL::QS::iM2];
+        double m2_1_ = m2_1 * m0_1;
+        double eint2_1 = Y[bw1->getPars()->ii_eq + SOL::QS::iEint2];
+        double eint2_1_ = eint2_1 * bw1->getPars()->M0 * CGS::c * CGS::c;
+        double adi1 = bw1->getEos()->getGammaAdi(gam1, beta1);
+        /// --------------------
+        double gam2 = EQS::GamFromMom( Y[bw2->getPars()->ii_eq + SOL::QS::imom] );
+        double beta2 = EQS::BetFromMom( Y[bw2->getPars()->ii_eq + SOL::QS::imom] );
+        double m0_2 = bw2->getPars()->M0;
+        double m2_2 = Y[bw2->getPars()->ii_eq + SOL::QS::iM2];
+        double m2_2_ = m2_2 * m0_2;
+        double eint2_2 = Y[bw2->getPars()->ii_eq + SOL::QS::iEint2];
+        double eint2_2_ = eint2_1 * bw2->getPars()->M0 * CGS::c * CGS::c;
+        double adi2 = bw2->getEos()->getGammaAdi(gam2, beta2);
+        /// -------------------
+        p_colsolve->set(gam1, beta1, m2_1_ + m0_1, eint2_1_, adi1,
+                        gam2, beta2, m2_2_ + m0_2, eint2_2_, adi2);
+        (*p_log)(LOG_INFO,AT) << "\tLayer [ll=" << il << "] Colliding shells: "
+                              << " Masses=(" << p_colsolve->m_mass1 << ", " << p_colsolve->m_mass2 << ")"
+                              << " Gammas=(" << p_colsolve->m_gam1 << ", " << p_colsolve->m_gam2 << ")"
+                              << " betas=(" << p_colsolve->m_beta1 << ", " << p_colsolve->m_beta2 << ")"
+                              << " Eint2=(" << p_colsolve->m_eint1 << ", " << p_colsolve->m_eint2 << ")"
+                              << "\n";
+        /// set initial guess for the solver
+        double i_gM = (p_colsolve->m_gam1 * p_colsolve->m_mass1 + p_colsolve->m_gam2 * p_colsolve->m_mass2)
+                      / (p_colsolve->m_mass1 + p_colsolve->m_mass2);
+        double i_mM = p_colsolve->m_mass1 + p_colsolve->m_mass2;
+        double i_eM = p_colsolve->m_eint1 + p_colsolve->m_eint2;
+        //(p_colsolve->m_eint1 * p_colsolve->m_mass1 + p_colsolve->m_eint2 * p_colsolve->m_mass2)
+        /// (p_colsolve->m_mass1 + p_colsolve->m_mass2);
+        /// solve the collision
+        int result = solve(i_gM, i_eM, i_mM);
+        double m0_c = m0_2 + m0_1;
+        double eint2_c = i_eM / (m0_c * CGS::c * CGS::c);
+        double m2_c = (1 * (m2_1 + 1) / (m0_2/m0_1 + 1)) + (1 * (m2_2 + 1) / (1 + m0_1/m0_2));
+        if (m2_c==1)
+            m2_c = m2_1 + m2_2;
+        double mom_c = i_gM * EQS::Beta(i_gM);
+        /// update the shell composition (mass averaged)
+        double ye_c = (bw1->getPars()->Ye0 * bw1->getPars()->M0 + bw2->getPars()->Ye0 * bw2->getPars()->M0)
+                      / (bw1->getPars()->M0 + bw2->getPars()->M0);
+        /// chose which shell to update/delete
+        int ish = p_colsolve->choseShell();
+        double eint_before,eint_after,m2_before,m2_after,m0_before,m0_after;
+        if (ish == 1){
+            bw2->getPars()->end_evolution = true;
+            bw1->getPars()->M0 = m0_c;
+            bw1->getPars()->Ye0 = ye_c;
+            Y[bw1->getPars()->ii_eq + SOL::QS::imom] = mom_c;
+            Y[bw1->getPars()->ii_eq + SOL::QS::iEint2] = eint2_c;
+            Y[bw1->getPars()->ii_eq + SOL::QS::iM2] = m2_c;
+        }
+        else {
+            bw1->getPars()->end_evolution = true;
+            bw2->getPars()->M0 = m0_c;
+            bw2->getPars()->Ye0 = ye_c;
+            Y[bw2->getPars()->ii_eq + SOL::QS::imom] = mom_c;
+            Y[bw2->getPars()->ii_eq + SOL::QS::iEint2] = eint2_c;
+            Y[bw2->getPars()->ii_eq + SOL::QS::iM2] = m2_c;
+        }
+        (*p_log)(LOG_INFO,AT) << "\tLayer [il="<<il<<"] Outcome for"
+                              << " Eint2/M0c^2: ["<<eint2_1<<", "<<eint2_2<<"] -> "<<eint2_c
+                              << " M2/M0: ["<<m2_1<<", "<<m2_2<<"] -> "<<m2_c
+                              << " M0: ["<<m0_1<<", "<<m0_2<<"] -> "<<m0_c
+                              <<"\n";
+        if (!std::isfinite(i_gM)||(!std::isfinite(i_eM)||(!std::isfinite(i_mM)))){
+            (*p_log)(LOG_ERR,AT)<<"Nan in collision result\n";
+            exit(1);
+        }
+
+
+#if 0
+        /// Extract data for first shell
+        p_colsolve->m_gam1 = EQS::GamFromMom(Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+        p_colsolve->m_beta1 = EQS::BetFromMom(Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+        double m2_1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::iM2] * bw1->getPars()->M0;
+        std::cout << " m2="<<Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::iM2]
+                <<" m0="<<bw1->getPars()->M0<<" m2*m0="<<m2_1<<"\n";
+        p_colsolve->m_eint1 = Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
+        p_colsolve->m_adi1 = bw1->getEos()->getGammaAdi(p_colsolve->m_gam1, p_colsolve->m_beta1);
+        /// apply units for the first shell (mass and energy)
+        double m0_1 = bw1->getPars()->M0;
+        p_colsolve->m_eint1 = p_colsolve->m_eint1 * (bw1->getPars()->M0 * CGS::c * CGS::c);
+        p_colsolve->m_mass1 = m0_1 + m2_1;
+
+        /// extract data for the second shell
+        p_colsolve->m_gam2 = EQS::GamFromMom(Y[bw2->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+        p_colsolve->m_beta2 = EQS::BetFromMom(Y[bw2->getPars()->ii_eq + DynRadBlastWave::QS::imom] );
+        double m2_2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::QS::iM2] * bw2->getPars()->M0;
+        std::cout << " m2="<<Y[bw1->getPars()->ii_eq + DynRadBlastWave::QS::iM2]
+                  <<" m0="<<bw1->getPars()->M0<<" m2*m0="<<m2_1<<"\n";
+        p_colsolve->m_eint2 = Y[bw2->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
+        p_colsolve->m_adi2 = bw2->getEos()->getGammaAdi(p_colsolve->m_gam2, p_colsolve->m_beta2);
+        /// apply units for the second shell (mass and energy)
+        double m0_2 = bw2->getPars()->M0;
+        p_colsolve->m_eint2 = p_colsolve->m_eint2 * (bw2->getPars()->M0 * CGS::c * CGS::c);
+        p_colsolve->m_mass2 = m2_2 + m0_2;
+
+        /// log the data
+        (*p_log)(LOG_INFO,AT) << "\tLayer [ll=" << il << "] Colliding shells: "
+//                              << "idx1="<<idx1<<", idx2="<<idx2
+                              << " Masses=(" << p_colsolve->m_mass1 << ", " << p_colsolve->m_mass2 << ")"
+                              << " Gammas=(" << p_colsolve->m_gam1 << ", " << p_colsolve->m_gam2 << ")"
+                              << " betas=(" << p_colsolve->m_beta1 << ", " << p_colsolve->m_beta2 << ")"
+                              << " Eint2=(" << p_colsolve->m_eint1 << ", " << p_colsolve->m_eint2 << ")"
+                              << "\n";
+
+        /// set initial guess for the solver
+        double i_gM = (p_colsolve->m_gam1 * p_colsolve->m_mass1 + p_colsolve->m_gam2 * p_colsolve->m_mass2)
+                      / (p_colsolve->m_mass1 + p_colsolve->m_mass2);
+        double i_mM = p_colsolve->m_mass1 + p_colsolve->m_mass2;
+        double i_eM = (p_colsolve->m_eint1 * p_colsolve->m_mass1 + p_colsolve->m_eint2 * p_colsolve->m_mass2)
+                      / (p_colsolve->m_mass1 + p_colsolve->m_mass2);
+
+        /// solve the collision
+        int result = solve(i_gM, i_eM);
+//        i_mM =
+
+        /// chose which shell to update/delete
+        int ish = p_colsolve->choseShell();
+        size_t iieq; size_t iieq_other;
+        double eint_before=0., eint_after=0.;
+        double m2_before=0., m2_after=0.;
+        double m0_before=0., m0_after=0.;
+        if (ish == 1){
+            iieq = bw1->getPars()->ii_eq;
+            iieq_other = bw2->getPars()->ii_eq;
+            eint_before = Y[iieq + DynRadBlastWave::QS::iEint2];
+            m2_before = Y[iieq + DynRadBlastWave::QS::iM2];
+            m0_before = bw1->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::QS::iEad2] += Y[iieq + DynRadBlastWave::QS::iEint2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::QS::iEsh2] += Y[iieq + DynRadBlastWave::QS::iEsh2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::QS::iR] = rcoll;
+            //
+            bw1->getPars()->M0 = bw2->getPars()->M0 + bw1->getPars()->M0;//i_mM; // update the total mass of the shell
+//            Y[iieq + DynRadBlastWave::QS::iM2] = i_mM / bw1->getPars()->M0;//Y[iieq + DynRadBlastWave::QS::iM2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+            Y[iieq + DynRadBlastWave::QS::iM2] = (m0_1 + m2_1 + m2_2 + m0_2) / (m0_1 + m0_2);
+            m2_after = Y[iieq + DynRadBlastWave::QS::iM2];
+            // terminated collided shell
+            bw2->getPars()->end_evolution = true;
+//            Y[iieq_other + DynRadBlastWave::QS::iR] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iM2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEint2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEsh2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iErad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iRsh] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itcomov] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itheta] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itt] = 0;
+            eint_after = i_eM / ( bw1->getPars()->M0 * CGS::c * CGS::c );
+            Y[iieq + DynRadBlastWave::QS::iEint2] = eint_after;
+            Y[iieq + DynRadBlastWave::QS::imom] = i_gM * EQS::Beta(i_gM);
+            m0_after = bw1->getPars()->M0;
+        }
+        else{
+            iieq = bw2->getPars()->ii_eq;
+            iieq_other = bw1->getPars()->ii_eq;
+            eint_before = Y[iieq + DynRadBlastWave::QS::iEint2];
+            m2_before = Y[iieq + DynRadBlastWave::QS::iM2];
+            m0_before = bw2->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::QS::iEad2] += Y[iieq + DynRadBlastWave::QS::iEint2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::QS::iEsh2] += Y[iieq + DynRadBlastWave::QS::iEsh2] * bw2->getPars()->M0 / bw1->getPars()->M0;
+//            Y[iieq + DynRadBlastWave::QS::iR] = rcoll;
+            ///
+            ///
+            bw2->getPars()->M0 = bw2->getPars()->M0 + bw1->getPars()->M0;//i_mM; // update the total mass of the shell
+//            Y[iieq + DynRadBlastWave::QS::iM2] = i_mM / bw2->getPars()->M0;// Y[iieq + DynRadBlastWave::QS::iM2] * bw1->getPars()->M0 / bw2->getPars()->M0;
+            Y[iieq + DynRadBlastWave::QS::iM2] = (m0_1 + m2_1 + m2_2 + m0_2) / (m0_1 + m0_2);
+            m2_after = Y[iieq + DynRadBlastWave::QS::iM2];
+            // terminated collided shell
+            bw1->getPars()->end_evolution = true;
+
+//            Y[iieq_other + DynRadBlastWave::QS::iR] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iM2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEint2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEsh2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iErad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iEad2] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::iRsh] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itcomov] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itheta] = 0;
+//            Y[iieq_other + DynRadBlastWave::QS::itt] = 0;
+            eint_after = i_eM / ( bw2->getPars()->M0 * CGS::c * CGS::c );
+            Y[iieq + DynRadBlastWave::QS::iEint2] = eint_after;
+            Y[iieq + DynRadBlastWave::QS::imom] = i_gM * EQS::Beta(i_gM);
+            m0_after = bw2->getPars()->M0;
+        }
+        /// using the solution (mass, lorentz factor, energy) update the state vector
+//        double _mom = i_gM * EQS::Beta(i_gM);
+//        double _eint2 = i_eM / ( i_mM * CGS::c * CGS::c );
+//        Y[iieq + DynRadBlastWave::QS::imom] = _mom;
+//        Y[iieq + DynRadBlastWave::QS::iEint2] = _eint2; // use ODE units
+
+        (*p_log)(LOG_INFO,AT) << "\tLayer [il="<<il<<"] Outcome for"
+//                              << " idx1="<<idx1<<", idx2="<<idx2 << " collision:"
+                              << " Eint2/M0c^2: "<<eint_before<<" -> "<<eint_after
+                              << " M2/M0: "<<m2_before<<" -> "<<m2_after
+                              << " M0: "<<m0_before<<" -> "<<m0_after
+                              <<"\n";
+        if (!std::isfinite(i_gM)||(!std::isfinite(i_eM)||(!std::isfinite(i_mM)))){
+            (*p_log)(LOG_ERR,AT)<<"Nan in collision result\n";
+            exit(1);
+        }
+#endif
+    }
+private:
+    static void func( int n, double x[], double fx[], int &iflag, void * pars ){
+        auto pp = (struct FsolvePars *) pars;
+        double gM = x[0];
+        double eM = x[1];
+//        double em = x[1];
+        double gAdiM = pp->p_eos->getGammaAdi(gM, EQS::Beta(gM));
+        /// total mass conservation
+        double mM = pp->m_mass1 + pp->m_mass2;
+        /// total energy consercation (Ek + Eint)
+        double fx1 = (pp->m_gam1 * pp->m_mass1 + EQS::get_GammaEff(pp->m_gam1, pp->m_adi1) * pp->m_eint1)
+                     + (pp->m_gam2 * pp->m_mass2 + EQS::get_GammaEff(pp->m_gam2, pp->m_adi2) * pp->m_eint2)
+                     - (gM * mM + EQS::get_GammaEff(gM,gAdiM) * eM );
+        /// total momentum conservation
+        double fx2 = sqrt(pp->m_gam1 * pp->m_gam1 - 1) * (pp->m_mass1 + pp->m_adi1 * pp->m_eint1 )
+                     + sqrt(pp->m_gam2 * pp->m_gam2 - 1) * (pp->m_mass2 + pp->m_adi2 * pp->m_eint2 )
+                     - sqrt(gM * gM - 1) * (mM + gAdiM * eM );
+//        double fx3 = em
+//                     - pp->m_mass1 + pp->m_mass2;
+        if (!std::isfinite(fx1) || !std::isfinite(fx2))
+            iflag = -1;
+
+        if (!std::isfinite(sqrt(pp->m_gam1 * pp->m_gam1 - 1)))
+            iflag = -1;
+
+        fx[0] = fx1;//std::log10(fx1);// * fx1; TODO THis is wrong. It should not be sqred!
+        fx[1] = fx2;//std::log10(fx2);// * fx2;
+//        fx[2] = fx3;
+    };
+    int solve(double & iGamma, double & iEint, double &im){
+        double *fx;
+        int iflag;
+        int info;
+        int lwa;
+        int n = 2;
+        double tol = 1e-8;
+        double *wa;
+        double *x;
+
+        lwa = ( n * ( 3 * n + 13 ) ) / 2;
+        fx = new double[n];
+        wa = new double[lwa];
+        x = new double[n];
+
+//            (*p_log)(LOG_INFO,AT) << "\n";
+//            (*p_log)(LOG_INFO,AT) << "fsolve_test2():\n";
+//            (*p_log)(LOG_INFO,AT) << "fsolve() solves a nonlinear system of 2 equations.\n";
+
+        x[0] = iGamma;
+        x[1] = iEint;
+//        x[2] = im;
+        iflag = 0;
+        func ( n, x, fx, iflag, p_colsolve );
+//            r8vec2_print ( n, x, fx, "  Initial X, F(X)" );
+        info = fsolve ( func, n, x, p_colsolve, fx, tol, wa, lwa );
+
+        if (info<0){
+            (*p_log)(LOG_ERR,AT)<< "\tFsolve failed (try setting 'tol' lower). "
+                                   "Using initial guess values. New shell has "
+                                <<"Gamma="<<iGamma<<" beta="<<EQS::Beta(iGamma)<<" Eint="<<iEint<<" im="<<im<<"\n";
+//                i_gM = x[0];
+//                i_eM = x[1];
+        }
+        else{
+            (*p_log)(LOG_INFO,AT)<< "Fsolve successful. New shell has "
+                                 <<"Gamma="<<x[0]
+                                 <<" beta="<<EQS::Beta(x[0])
+                                 <<" Eint="<<x[1]<<"\n";
+            iGamma = x[0];
+            iEint = x[1];
+//            im = x[2];
+        }
+//            std::cout << "\n";
+//            std::cout << "  Returned value of INFO = " << info << "\n";
+//            r8vec2_print ( n, x, fx, "  Final X, FX" );
+        delete [] fx;
+        delete [] wa;
+        delete [] x;
+        return info;
+    };
+};
 
 
 #endif //SRC_BLASTWAVE_H

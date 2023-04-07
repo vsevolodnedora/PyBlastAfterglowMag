@@ -26,7 +26,7 @@ from .id_maker_tools import (reinterpolate_hist, reinterpolate_hist2, compute_ek
 from .utils import (cgs, get_Gamma, get_Beta, find_nearest_index)
 
 
-def get_ej_data_for_text(datadir : str,
+def get_ej_data_for_text(files : list[str],
                          req_times=np.array([25]),
                          new_theta_len=None,
                          new_vinf_len=None,
@@ -35,8 +35,8 @@ def get_ej_data_for_text(datadir : str,
         Load Kenta's data for various extraction times and get it
     """
 
-    sort_by = lambda k: int(re.findall(r'\d+', str(k.split("/")[-1]))[0])
-    files = sorted(glob.glob(datadir + "ejecta*", recursive=True), key=sort_by)
+    # sort_by = lambda k: int(re.findall(r'\d+', str(k.split("/")[-1]))[0])
+    # files = sorted(glob.glob(datadir + "ejecta*", recursive=True), key=sort_by)
     if verbose: print("Ejecta files found: {}".format(files))
     vals = {"masses": [],
             "texts": [],
@@ -148,30 +148,75 @@ def get_ej_data_for_text(datadir : str,
                 #pars["ejecta_prefix"] += "eps_t1_lfcut_tex{}_".format(int(times[idx]))
                 #print(pars["ejecta_prefix"])
 
-                masses = np.array(dfile[tkeys[idx]]["Mejecta"], dtype=np.float64)  # / cgs.solar_m
                 # thetas, masses = reinterpolate_hist(thetas, masses[:-1, :], new_theta_len=new_theta_len)
+
+                temp_ej = None
+                if verbose: print(dfile[tkeys[idx]].keys())
+                if ("T_ejecta" in list(dfile[tkeys[idx]].keys())):
+                    if verbose: print("Found 'T_ejecta'")
+                    temp_ej_ = np.array(dfile[tkeys[idx]]["T_ejecta"], dtype=np.float64)
+                    temp_ej_ *= 11604525006.17 # MeV -> Kelvin
+                    v_inf_, thetas_, temp_ej = reinterpolate_hist2(v_inf, thetas, temp_ej_[:, :],
+                                                                   new_theta_len=new_theta_len, new_vinf_len=new_vinf_len)
+
+                ye_ej = None
+                if ("Ye_ejecta" in list(dfile[tkeys[idx]].keys())):
+                    if verbose: print("Found 'Ye_ejecta'")
+                    ye_ej_ = np.array(dfile[tkeys[idx]]["Ye_ejecta"], dtype=np.float64)
+                    v_inf_, thetas_, ye_ej = reinterpolate_hist2(v_inf, thetas, ye_ej_[:, :],
+                                                                 new_theta_len=new_theta_len, new_vinf_len=new_vinf_len)
+
+                rho_ej = None
+                if ("rho_ejecta" in list(dfile[tkeys[idx]].keys())):
+                    if verbose: print("Found 'rho_ejecta'")
+                    rho_ej_ = np.array(dfile[tkeys[idx]]["rho_ejecta"], dtype=np.float64)
+                    rho_ej_ *= 5.807e18 # Code units -> CGS
+                    v_inf_, thetas_, rho_ej = reinterpolate_hist2(v_inf, thetas, rho_ej_[:, :],
+                                                                  new_theta_len=new_theta_len, new_vinf_len=new_vinf_len)
+
+                masses = np.array(dfile[tkeys[idx]]["Mejecta"], dtype=np.float64)  # / cgs.solar_m
                 v_inf, thetas, masses = reinterpolate_hist2(v_inf, thetas, masses[:, :],
                                                             new_theta_len=new_theta_len, new_vinf_len=new_vinf_len)
+
                 thetas = 0.5 * (thetas[1:] + thetas[:-1])
                 v_inf  = 0.5 * (v_inf[1:] + v_inf[:-1])
                 # v_inf = 0.5 * (v_inf[1:])
                 # masses = masses[::-1, :]
                 # masses = masses[thetas > 0, :]
                 # thetas = thetas[thetas > 0]
-                print("Total mass:{}".format(np.sum(masses)))
+                if verbose: print("Total mass:{}".format(np.sum(masses)))
                 _betas = []
                 _masses = []
+                _temps = []
+                _yes = []
+                _rhos = []
                 for iv in range(len(v_inf)):
                     if ((np.sum(masses[:, iv]) > 0.) & (v_inf[iv] > 0.) & (v_inf[iv] < 1.)):
                         _betas.append(v_inf[iv])
                         _masses.append(masses[:, iv])
+                        if(not temp_ej is None): _temps.append(temp_ej[:, iv])
+                        if(not ye_ej is None):_yes.append(ye_ej[:, iv])
+                        if(not rho_ej is None):_rhos.append(rho_ej[:, iv])
                 _betas = np.array(_betas)
                 _masses = np.reshape(np.array(_masses), newshape=(len(_betas), len(thetas)))
+                if(not temp_ej is None):
+                    _temps = np.reshape(np.array(_temps), newshape=(len(_betas), len(thetas)))
+                else:
+                    _temps = np.zeros_like(_masses)
+                if(not ye_ej is None):
+                    _yes = np.reshape(np.array(_yes), newshape=(len(_betas), len(thetas)))
+                else:
+                    _yes = np.zeros_like(_masses)
+                if(not rho_ej is None):
+                    _rhos = np.reshape(np.array(_rhos), newshape=(len(_betas), len(thetas)))
+                else:
+                    _rhos = np.zeros_like(_masses)
                 # EjectaEk.compute_ek_corr(_betas, _masses)
-                print(_betas)
-                print(thetas)
-                print(_masses)
-                pars["thetas"], pars["betas"], pars["masses"] = thetas, _betas, _masses.T
+                # print(_betas)
+                # print(thetas)
+                # print(_masses)
+                pars["thetas"], pars["betas"], pars["masses"], pars["temp"], pars["ye"], pars["rho"] = \
+                    thetas, _betas, _masses.T, _temps.T, _yes.T, _rhos.T
 
                 # if do_dist_plots:
                 #     plot_init_profile(pars["thetas"], pars["betas"], pars["masses"].T,
@@ -181,8 +226,8 @@ def get_ej_data_for_text(datadir : str,
 
                 pars_list.append(copy.deepcopy(pars))
 
-    print("Total iterations : {}".format(len(pars_list)))
-    print("Total times      : {}".format(np.array(vals["texts"],dtype=int)))
+    if verbose: print("Total iterations : {}".format(len(pars_list)))
+    if verbose: print("Total times      : {}".format(np.array(vals["texts"],dtype=int)))
 
     sorted_texts = np.sort(np.array(vals["texts"]))
     sorted_pars_list, sorted_vals = [], []
@@ -214,14 +259,14 @@ def get_ej_data_for_text(datadir : str,
         for key in sorted_vals.keys():
             selected_vals[key] = [sorted_vals[key][idx] for idx in idxes]
 
-        print(np.array(sorted_vals["texts"])[idxes])
-        print("Selected iterations : {}".format(len(selected_par_list)))
-        print("Selected times      : {}".format(np.array([par["text"] for par in selected_par_list])))
+        # print(np.array(sorted_vals["texts"])[idxes])
+        if verbose: print("Selected iterations : {}".format(len(selected_par_list)))
+        if verbose: print("Selected times      : {}".format(np.array([par["text"] for par in selected_par_list])))
         return (selected_par_list, selected_vals)
     else:
         return (sorted_pars_list, sorted_vals)
 
-def prepare_kn_ej_id_2d(datadir : str,
+def prepare_kn_ej_id_2d(files : list[str],
                         outfpaths : list[str],
                         dist="pw",
                         req_times=np.array([25]),
@@ -237,7 +282,7 @@ def prepare_kn_ej_id_2d(datadir : str,
         raise NotImplementedError(" ID for other EATS methods are not available")
 
     selected_par_list, sorted_vals = \
-        get_ej_data_for_text(datadir=datadir, req_times=req_times,
+        get_ej_data_for_text(files=files, req_times=req_times,
                              new_theta_len=new_theta_len, new_vinf_len=new_vinf_len, verbose = verbose)
 
     for pars, outfpath in zip(selected_par_list, outfpaths):
@@ -246,22 +291,38 @@ def prepare_kn_ej_id_2d(datadir : str,
         ek_corr2 = compute_ek_corr(pars["betas"], pars["masses"]).T
         if verbose: print(theta_corr2.shape, vinf_corr2.shape, ek_corr2.shape)
 
-
+        mass_corr = pars["masses"].T
+        temp_corr = pars["temp"].T
+        ye_corr = pars["ye"].T
+        rho_corr = pars["rho"].T
 
         # self.o_pba.setEjectaStructNumeric(theta_corr2, vinf_corr2, ek_corr2, fac, True, self.pars_kn["eats_method"])
 
         if verbose: print(len(theta_corr2), theta_corr2)
         dfile = h5py.File(outfpath, "w")
         dfile.create_dataset("theta",data=theta_corr2)
-        dfile.create_dataset("vel_inf",data=vinf_corr2)
+        dfile.create_dataset("ctheta",data=theta_corr2)
+        dfile.create_dataset("mom",data=vinf_corr2*get_Gamma(vinf_corr2))
         dfile.create_dataset("ek",data=ek_corr2)
+        dfile.create_dataset("mass",data=mass_corr*cgs.solar_m)
+        dfile.create_dataset("ye",data=ye_corr)
+        dfile.create_dataset("s",data=np.zeros_like(mass_corr))
+        dfile.create_dataset("rho",data=rho_corr)
+        dfile.create_dataset("temp",data=temp_corr)
+
         dfile.close()
         if verbose: print("file saved: {}".format(outfpath))
 
 def load_init_data(fpath):
     dfile = h5py.File(fpath, "r")
     theta_corr2 = np.array(dfile["theta"],dtype=np.float64)
-    vinf_corr2 = np.array(dfile["vel_inf"],dtype=np.float64)
+    ctheta_corr2 = np.array(dfile["ctheta"],dtype=np.float64)
+    mom_corr2 = np.array(dfile["mom"],dtype=np.float64)
     ek_corr2 = np.array(dfile["ek"],dtype=np.float64)
+    mass_corr2 = np.array(dfile["mass"],dtype=np.float64)
+    ye_corr2 = np.array(dfile["ye"],dtype=np.float64)
+    s_corr2 = np.array(dfile["s"],dtype=np.float64)
+    rho_corr2 = np.array(dfile["rho"],dtype=np.float64)
+    temp_corr2 = np.array(dfile["temp"],dtype=np.float64)
     dfile.close()
-    return (vinf_corr2, theta_corr2, ek_corr2)
+    return (mom_corr2, theta_corr2, ctheta_corr2, ek_corr2, mass_corr2, ye_corr2, s_corr2, rho_corr2, temp_corr2)

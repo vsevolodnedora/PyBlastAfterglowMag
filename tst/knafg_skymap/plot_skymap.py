@@ -10,32 +10,114 @@ from matplotlib.colors import Normalize, LogNorm
 from matplotlib import cm
 import os
 
-# from PyBlastAfterglowMag import BPA_METHODS as PBA
-from package.src.PyBlastAfterglowMag.interface import BPA_METHODS as PBA
-from package.src.PyBlastAfterglowMag.interface import cgs, modify_parfile_par_opt
-from package.src.PyBlastAfterglowMag.utils import latex_float
-from package.src.PyBlastAfterglowMag.id_maker_from_thc_ourflow import \
-    (prepare_kn_ej_id_1d,prepare_kn_ej_id_2d)
-from package.src.PyBlastAfterglowMag.skymap_tools import \
-    (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
+try:
+    from PyBlastAfterglowMag.interface import modify_parfile_par_opt
+    from PyBlastAfterglowMag.interface import PyBlastAfterglow
+    from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
+    from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma,
+                                                       BetFromMom, GamFromMom, MomFromGam)
+    from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+    from PyBlastAfterglowMag.id_maker_from_thc_ourflow import prepare_kn_ej_id_1d, prepare_kn_ej_id_2d
+    from PyBlastAfterglowMag.skymap_tools import \
+        (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
+except ImportError:
+    try:
+        from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
+        from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
+        from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
+        from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma,
+                                                           BetFromMom, GamFromMom, MomFromGam)
+        from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+        from package.src.PyBlastAfterglowMag.id_maker_from_thc_ourflow import prepare_kn_ej_id_1d, prepare_kn_ej_id_2d
+        from package.src.PyBlastAfterglowMag.skymap_tools import \
+            (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
+    except ImportError:
+        raise ImportError("Cannot import PyBlastAfterglowMag")
+
+def id_dyn_test():
+    workdir = os.getcwd()+'/'
+
+    dfile = h5py.File(workdir+"ejecta_2d_id_BLh_M13641364_M0_LK_SR.h5")
+    dfile_ref = h5py.File(workdir+"ejecta_2d_id_BLh_M13641364_M0_LK_SR_ref.h5")
+
+    # fig, ax = plt.subplots(ncols=1, nrows=1)
+    # ax.plot(np.array(dfile["ctheta"]),BetFromMom(np.array(dfile["mom"])), 'x')
+    # ax.plot(np.array(dfile_ref["theta"]),np.array(dfile_ref["vel_inf"]), '.')
+    # ax.plot(np.arange(len(dfile["ctheta"])),np.array(dfile["ctheta"]),BetFromMom(np.array(dfile["mom"])), 'x')
+    # ax.plot(np.arange(len(dfile["ctheta"])),np.array(dfile["ctheta"]),BetFromMom(np.array(dfile["mom"])), 'x')
+    # ax.plot(np.array(dfile_ref["theta"]),np.array(dfile_ref["vel_inf"]), '.')
+    # plt.show()
+
+    # fig, ax = plt.subplots(ncols=1, nrows=1)
+    # ax.plot(np.arange(len(dfile["ctheta"])),np.array(dfile["ctheta"]),marker='x',ls='none',color='red',label="our")
+    # ax.plot(np.arange(len(dfile_ref["theta"])),np.array(dfile_ref["theta"]),marker='.',ls='none',color='red',label="ref")
+    #
+    # ax.plot(np.arange(len(dfile["mom"])),BetFromMom(np.array(dfile["mom"])),marker='x',ls='none',color='blue')
+    # ax.plot(np.arange(len(dfile_ref["vel_inf"])),np.array(dfile_ref["vel_inf"]),marker='.',ls='none',color='blue')
+    # plt.legend()
+    # plt.show()
+
+    fig, ax = plt.subplots(ncols=1, nrows=1)
+    dfile = h5py.File(workdir+"dyn_kn.h5")
+    fname_ref = h5py.File(workdir+"dyn_kn_ref.h5")
+    nlayers = int(dfile.attrs["nlayers"])
+    nshells = 20#int(dfile.attrs["nshells"])
+    for il in range(nlayers-1):
+        for ish in [nshells]:#range(nshells):
+            key = f"shell={ish} layer={il}"
+            # print(dfile[key].attrs["Gamma0"])
+            ax.plot([dfile[key].attrs["Gamma0"]], [dfile[key].attrs["ctheta0"]],marker='x',label="our")
+            ax.plot([fname_ref[key].attrs["Gamma0"]], [fname_ref[key].attrs["ctheta0"]],marker='.',label="ref")
+
+
+            # ax.plot(np.array(dfile[key]["R"]),
+            #         np.array(dfile[key]["Eint2"]))
+            # ax.plot(np.array(fname_ref[key]["R"]),
+            #         np.array(fname_ref[key]["Eint2"]), ls=':')
+    # ax.axhline(y=np.pi/2.)
+
+    # ax.set_xscale("log")
+    # ax.set_yscale("log")
+    plt.legend()
+
+    plt.show()
+
+def skymap_test():
+    workdir = os.getcwd()+'/'
+    dfile = h5py.File(workdir+"skymap_kn.h5")
+    dfile_ref = h5py.File(workdir+"skymap_kn_ref.h5")
+    print(dfile.keys())
+    print(dfile_ref.keys())
+    # exit(1)
+
 
 def main():
+    # skymap_test()
+    # id_dyn_test()
+
     workdir = os.getcwd()+'/'
     # Pre-process the intput data
     fpath_2d_table = "corr_vel_inf_theta_BLh_M13641364_M0_LK_SR.h5"
     outfpath_2d_id = "ejecta_2d_id_BLh_M13641364_M0_LK_SR.h5"
     prepare_kn_ej_id_2d(nlayers=100,corr_fpath=workdir+fpath_2d_table,outfpath=workdir+outfpath_2d_id, dist="pw")
 
-    fpath_1d_table = "hist_vel_inf_BLh_M13641364_M0_LK_SR.dat"
-    outfpath_1d_id = "ejecta_1d_id_BLh_M13641364_M0_LK_SR.h5"
-    prepare_kn_ej_id_1d(nlayers=30, hist_fpath=workdir+fpath_1d_table, outfpath=workdir+outfpath_1d_id)
+    # fpath_1d_table = "hist_vel_inf_BLh_M13641364_M0_LK_SR.dat"
+    # outfpath_1d_id = "ejecta_1d_id_BLh_M13641364_M0_LK_SR.h5"
+    # prepare_kn_ej_id_1d(nlayers=30, hist_fpath=workdir+fpath_1d_table, outfpath=workdir+outfpath_1d_id)
 
-    pba = PBA(workingdir=os.getcwd()+'/',readparfileforpaths=True,parfile="parfile.par")
+    pba = PyBlastAfterglow(workingdir=os.getcwd()+'/',readparfileforpaths=True,parfile="parfile.par")
 
     modify_parfile_par_opt(workingdir=workdir,part="kn",newpars={}, newopts={ "fname_ejecta_id":outfpath_2d_id},
                            parfile="parfile.par",newparfile="parfile.par",keep_old=False)
+
     pba.reload_parfile()
     pba.run()
+
+
+
+    # plt.loglog(pba.KN.get_dyn_arr("R",ishell=29,ilayer=1),
+    #            pba.KN.get_dyn_arr("ctheta",ishell=29,ilayer=1))
+    # plt.show()
 
     workdir = os.getcwd() + '/'
     task_to_plot = {

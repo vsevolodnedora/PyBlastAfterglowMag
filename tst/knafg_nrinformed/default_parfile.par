@@ -68,11 +68,11 @@ rtol_adapt = 1e-5
 * Settings
 
 run_bws = yes
-save_ej_dynamics = no
-do_ej_ele = yes
-do_ej_spec = no
-do_ej_lc = yes
-do_ej_skymap = no
+save_dynamics = no
+do_ele = yes
+do_spec = no
+do_lc = yes
+do_skymap = no
 
 method_collision = none # none
 method_eats = piece-wise # piece-wise
@@ -82,8 +82,8 @@ fname_light_curve = abs.h5
 fname_light_curve_layers = none
 fname_sky_map = skymap_kn.h5
 
-type = numeric
-fname_ejecta_id = abs.h5
+use_1d_id = no
+fname_ejecta_id = ejecta_id_DD2_M135135_M0.h5
 enforce_angular_grid = yes
 
 do_thermrad_loss = no

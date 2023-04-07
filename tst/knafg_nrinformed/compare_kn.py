@@ -12,9 +12,28 @@ from matplotlib.colors import Normalize, LogNorm
 from matplotlib import cm
 import os
 
-from package.src.PyBlastAfterglowMag.interface import BPA_METHODS as PBA
-from package.src.PyBlastAfterglowMag.interface import cgs, modify_parfile_par_opt
-from package.src.PyBlastAfterglowMag.id_maker_from_thc_ourflow import prepare_kn_ej_id_1d, prepare_kn_ej_id_2d
+try:
+    from PyBlastAfterglowMag.interface import modify_parfile_par_opt
+    from PyBlastAfterglowMag.interface import PyBlastAfterglow
+    from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
+    from PyBlastAfterglowMag.utils import latex_float, cgs, get_beta, get_Gamma
+    from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+    from PyBlastAfterglowMag.id_maker_from_thc_ourflow import prepare_kn_ej_id_1d, prepare_kn_ej_id_2d
+    from PyBlastAfterglowMag.skymap_tools import \
+        (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
+except ImportError:
+    try:
+        from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
+        from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
+        from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
+        from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma)
+        from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+        from package.src.PyBlastAfterglowMag.id_maker_from_thc_ourflow import prepare_kn_ej_id_1d, prepare_kn_ej_id_2d
+        from package.src.PyBlastAfterglowMag.skymap_tools import \
+            (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
+    except ImportError:
+        raise ImportError("Cannot import PyBlastAfterglowMag")
+
 
 def main():
     # prepare ejecta ID from NR output
@@ -22,7 +41,7 @@ def main():
     shutil.copyfile(os.getcwd()+"/default_parfile.par",os.getcwd()+"/parfile.par")
     fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(4.6, 3.2))
     ax = axes
-    pba = PBA(workingdir=os.getcwd()+'/',readparfileforpaths=True)
+    pba = PyBlastAfterglow(workingdir=os.getcwd()+'/',readparfileforpaths=True)
 
     tasks = [
         {"corr_fpath":"corr_vel_inf_theta_DD2_M135135_M0.h5",
@@ -84,7 +103,7 @@ def main():
                               )
         pba.reload_parfile()
         pba.run()
-        ax.plot(pba.get_ej_lc_times() / cgs.day, pba.get_ej_lc_totalflux(freq=3.e9) * 1e3,
+        ax.plot(pba.KN.get_lc_times() / cgs.day, pba.KN.get_lc_totalflux(freq=3.e9) * 1e3,
                 **{"color": task["color"], "ls": "--", "lw": 0.8, "label": task["label"]})
         pba.clear()
 
@@ -104,7 +123,7 @@ def main():
                                parfile="parfile.par",newparfile="parfile.par",keep_old=False)
         pba.reload_parfile()
         pba.run()
-        ax.plot(pba.get_ej_lc_times() / cgs.day, pba.get_ej_lc_totalflux(freq=3.e9) * 1e3,
+        ax.plot(pba.KN.get_lc_times() / cgs.day, pba.KN.get_lc_totalflux(freq=3.e9) * 1e3,
                 **{"color": task["color"], "ls": "-", "lw": 0.8, "label": task["label"]})
         pba.clear()
 
@@ -147,7 +166,7 @@ def main():
     # if save_figs: plt.savefig(figdir + save, dpi=256)
     # if save_figs: plt.savefig(PAPERPATH + "figname" + ".pdf")
     # if save_figs: plt.savefig(FIGPATH + figname + ".png", dpi=256)
-
+    plt.savefig(os.getcwd()+"/figure.png",dpi=256)
     plt.show()
     #
     #

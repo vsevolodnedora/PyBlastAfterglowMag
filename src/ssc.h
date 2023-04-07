@@ -5,7 +5,7 @@
 #ifndef SRC_SSC_H
 #define SRC_SSC_H
 
-#include "utils.h"
+#include "utilitites/utils.h"
 
 /// Initilizing source specific variable dictionary
 struct Source{

@@ -16,17 +16,17 @@ import os
 
 try:
     from PyBlastAfterglowMag.interface import modify_parfile_par_opt
-    from PyBlastAfterglowMag.interface import BPA_METHODS
+    from PyBlastAfterglowMag.interface import PyBlastAfterglow
     from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
     from PyBlastAfterglowMag.utils import latex_float, cgs, get_beta, get_Gamma
-    from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_2d
+    from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
 except ImportError:
     try:
         from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
-        from package.src.PyBlastAfterglowMag.interface import BPA_METHODS
+        from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
         from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
         from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma)
-        from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_2d
+        from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
     except ImportError:
         raise ImportError("Cannot import PyBlastAfterglowMag")
 
@@ -43,13 +43,15 @@ curdir = os.getcwd() + '/' #"/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglow_dev
 
 def main():
     workdir = os.getcwd()+'/'
-    pba = BPA_METHODS(workingdir=os.curdir+'/',readparfileforpaths=True)
-    # prepare_grb_ej_id_1d({"Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
-    #                       "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":350,"nlayers_a": 10}, type="pw",
-    #                      outfpath=workdir+"gauss_grb_id.h5")
+    pba = PyBlastAfterglow(workingdir=os.curdir+'/',readparfileforpaths=True)
+
+    prepare_grb_ej_id_1d({"struct":"gaussian",
+        "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
+        "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":350,"nlayers_a": 10}, type="pw",
+        outfpath=workdir+"gauss_grb_id.h5")
 
     pba.run()
-    print(pba.fpath_kn_light_curve)
+    # print(pba.fpath_kn_light_curve)
     # print(pba.get_jet_lc_totalflux(freq=1e9))
 
     fig, ax = plt.subplots(figsize=(9,2.5), ncols=1, nrows=1)
@@ -60,10 +62,10 @@ def main():
     tts, fluxes = np.loadtxt(curdir+"./jelib_grb170817.txt",unpack=True)
     ax.plot(tts, fluxes*1e26, ls='--', color='gray', label='Joelib')
 
-    ax.plot(pba.get_jet_lc_times(), pba.get_jet_lc_totalflux(freq=3.e9), ls='-', color="black", label="PBA")
-    print(pba.get_jet_lc_obj().keys())
-    for il in range(int(pba.get_jet_lc_obj().attrs["nlayers"])):
-        ax.plot(pba.get_jet_lc_times(), pba.get_jet_lc(freq=3.e9, ilayer=il), ls='-', color="gray")
+    ax.plot(pba.GRB.get_lc_times(), pba.GRB.get_lc_totalflux(freq=3.e9), ls='-', color="black", label="PBA")
+    print(pba.GRB.get_lc_obj().keys())
+    for il in range(int(pba.GRB.get_lc_obj().attrs["nlayers"])):
+        ax.plot(pba.GRB.get_lc_times(), pba.GRB.get_lc(freq=3.e9, ishell=0, ilayer=il), ls='-', color="gray")
 
     ax.grid()
     ax.legend()

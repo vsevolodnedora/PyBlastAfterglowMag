@@ -52,6 +52,7 @@ p = 2.05
 
 nlayers = 100
 mfac = 2.0
+save_dyn_every_it = 1
 
 which_jet_layer_to_use = 1e5
 steepnes_of_exp_decay = 1.0
@@ -68,11 +69,11 @@ rtol_adapt = 1e-5
 * Settings
 
 run_bws = yes
-save_ej_dynamics = no
-do_ej_ele = yes
-do_ej_spec = no
-do_ej_lc = no
-do_ej_skymap = yes
+save_dynamics = no
+do_ele = yes
+do_spec = no
+do_lc = no
+do_skymap = yes
 
 method_eats = piece-wise # piece-wise
 method_collision = none
@@ -82,9 +83,12 @@ fname_light_curve = lc_kn.h5
 fname_light_curve_layers = none
 fname_sky_map = skymap_kn.h5
 
-type = numeric
+use_1d_id = no
 fname_ejecta_id = ejecta_2d_id_BLh_M13641364_M0_LK_SR.h5
 enforce_angular_grid = yes
+
+do_thermrad_loss = no
+do_nucinj = no
 
 method_spread = None
 method_eos = Nava13

@@ -68,11 +68,11 @@ rtol_adapt = 1e-5
 * Settings
 
 run_bws = yes
-save_ej_dynamics = no
-do_ej_ele = yes
-do_ej_spec = no
-do_ej_lc = yes
-do_ej_skymap = no
+save_dynamics = no
+do_ele = yes
+do_spec = no
+do_lc = yes
+do_skymap = no
 
 method_collision = none # none
 method_eats = piece-wise # piece-wise
@@ -82,7 +82,7 @@ fname_light_curve = lc_DD2_M135135_M0.h5
 fname_light_curve_layers = none
 fname_sky_map = skymap_kn.h5
 
-type = numeric
+use_1d_id = no
 fname_ejecta_id = ejecta_id_DD2_M135135_M0.h5
 enforce_angular_grid = yes
 
@@ -92,19 +92,19 @@ do_nucinj = no
 method_spread = None
 method_eos = Nava13
 method_GammaSh = useJKwithGammaRel # small effect
-method_Up = useGamma # !
+method_Up = useEint2 # !
 method_Delta = useJoh06
 use_adiabLoss = yes
 method_Rsh = useGammaSh # "useGammaSh",#"useGammaSh",
 method_dmdr = usingdthdr
-method_dgdr = peer # !
-method_shock_vel = sameAsBW # !
-method_nonreldist = none # !
-method_synchrotron = WSPN99 # !
+method_dgdr = our # !
+method_shock_vel = shockVel # !
+method_nonreldist = useGm # !
+method_synchrotron = Joh06 # !
 method_tau = smooth
 use_ssa = yes
 method_lf_min = useU_e # !
-method_ne = useNe # ! useNe is better here! (that is what was used before)
+method_ne = usenprime # ! useNe is better here! (that is what was used before)
 use_dens_prof_behind_jet_for_ejecta = no
 use_exp_rho_decay_as_floor = yes
 use_flat_dens_floor = no

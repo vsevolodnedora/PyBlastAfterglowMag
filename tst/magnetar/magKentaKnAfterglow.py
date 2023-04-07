@@ -23,17 +23,19 @@ from matplotlib import cm
 import os
 from matplotlib import cm
 import os
+import re
+from glob import glob
 
 try:
     from PyBlastAfterglowMag.interface import modify_parfile_par_opt
-    from PyBlastAfterglowMag.interface import BPA_METHODS
+    from PyBlastAfterglowMag.interface import PyBlastAfterglow
     from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
     from PyBlastAfterglowMag.utils import latex_float, cgs, get_beta, get_Gamma
     from PyBlastAfterglowMag.id_maker_from_kenta_bns import prepare_kn_ej_id_2d, load_init_data
 except ImportError:
     try:
         from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
-        from package.src.PyBlastAfterglowMag.interface import BPA_METHODS
+        from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
         from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
         from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma)
         from package.src.PyBlastAfterglowMag.id_maker_from_kenta_bns import prepare_kn_ej_id_2d, load_init_data
@@ -117,6 +119,9 @@ def plot2(vals : dict, figpath = None):
 
 def plot_init_profile(ctheta, betas, eks,
                       xmin=0,xmax=90,ymin=1e-2,ymax=6,vmin=1e-12,vmax=1e-6,
+                      norm_mode="log", cmap = plt.get_cmap('RdYlBu_r'),
+                      xscale="linear",yscale="linear",
+                      subplot_mode="sum",
                       title=None, figpath=None):
     fontsize=12
     gammas = get_Gamma(betas)
@@ -182,7 +187,10 @@ def plot_init_profile(ctheta, betas, eks,
     #                "shadow": "False", "ncol": 1, "fontsize": 11,
     #                "framealpha": 0., "borderaxespad": 0., "frameon": False})
 
-    ax1.set_yscale("log")
+    if norm_mode=="log":
+        ax1.set_yscale("log")
+    else:
+        ax1.set_yscale("linear")
     # ax1.set_ylim(ymin, ymax)
     # ax1.yaxis.tick_right()
     # ax1.yaxis.tick_left()
@@ -205,8 +213,14 @@ def plot_init_profile(ctheta, betas, eks,
         axx = np.sum(betas[mask, np.newaxis] * eks[mask, :],axis=0)
         ayy = np.sum(eks[mask, :],axis=0)
         # ax11.plot(ctheta, axx/ayy, color="gray", ls="-")
+        if (subplot_mode=="sum"): _yarr = np.sum(ctheta*eks[mask, :],axis=0)
+        elif (subplot_mode=="ave"): _yarr = axx/ayy
+        else:raise KeyError("subplot_mode is not recognized")
         ax11.plot(ctheta, np.sum(eks[mask, :],axis=0), color="gray", ls="-")
-    ax11.set_yscale("log")
+    if norm_mode=="log":
+        ax11.set_yscale("log")
+    else:
+        ax11.set_yscale("linear")
     ax11.set_ylabel(r"$M_{\rm ej}(\Gamma\beta>1)$ [M$_{\odot}$]", fontsize=fontsize, color="gray")
     ax11.minorticks_on()
     ax11.tick_params(axis='both', which='both', labelleft=False,
@@ -230,10 +244,16 @@ def plot_init_profile(ctheta, betas, eks,
     # dset.create_dataset(name="Ek(>Gamma_beta)", data=eks)
     # dset.close()
 
-    levels = MaxNLocator(nbins=15).tick_values(eks.min(), eks.max())
-    cmap = plt.get_cmap('RdYlBu_r')
-    norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
-    norm = LogNorm(eks[(eks > 0) & (np.isfinite(eks))].min(), eks[(eks > 0) & (np.isfinite(eks))].max())
+    if (norm_mode=="log"):
+        norm = LogNorm(eks[(eks > 0) & (np.isfinite(eks))].min(), eks[(eks > 0) & (np.isfinite(eks))].max())
+    elif (norm_mode=="linear"):
+        norm = Normalize(eks[(eks > 0) & (np.isfinite(eks))].min(), eks[(eks > 0) & (np.isfinite(eks))].max())
+    elif (norm_mode=="levels"):
+        levels = MaxNLocator(nbins=15).tick_values(eks.min(), eks.max())
+        norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
+    else:
+        raise KeyError(" norm_mode is not recognized ")
+
 
     im = ax0.pcolor(ctheta, moms, eks, cmap=cmap, norm=norm, shading='auto')
     # cbar = fig.colorbar(im, ax=ax, extend='both')
@@ -243,6 +263,8 @@ def plot_init_profile(ctheta, betas, eks,
 
     ax0.set_ylim(ymin, ymax)
     ax0.set_xlim(xmin, xmax)
+    ax0.set_xscale(xscale)
+    ax0.set_yscale(yscale)
 
     ax0.set_ylabel(r"$\Gamma\beta$", fontsize=fontsize)
     ax0.set_xlabel(r"Polar angle", fontsize=fontsize)
@@ -511,27 +533,40 @@ def plot_ejecta_dyn_evol_for_movie():
 def main():
     workdir = os.getcwd()+'/'
     ### locate and extract the data from the original ejecta profiles from Kenta
-    # path_to_original_data = "/media/vsevolod/data/KentaData/SFHo_13_14_150m_11/" #
+    path_to_original_data = "/media/vsevolod/data/KentaData/SFHo_13_14_150m_11/" #
     # if not os.path.isdir(path_to_original_data):
     #     raise FileExistsError("Input ejecta data is not found")
+
+    dfile = h5py.File(workdir+"kenta_ejecta_13.h5")
+    print(dfile.keys())
 
     # print(np.gradient([0.1,0.3], edge_order=1))
 
     # ## lead the original data and prepare the ID file for PyBlastAfterglow
-    text = 25.
+    # text = 25.
+    # label = f"corr_id_SFHo_13_14_150m_11_text{int(text)}"
+    # sort_by = lambda k: int(re.findall(r'\d+', str(k.split("/")[-1]))[0])
+    # files = sorted(glob("/media/vsevolod/data/KentaData/SFHo_13_14_150m_11/" + "ejecta*", recursive=True), key=sort_by)
+
+    text = 70.
     label = f"corr_id_SFHo_13_14_150m_11_text{int(text)}"
-    # prepare_kn_ej_id_2d(datadir=path_to_original_data,
-    #                     outfpaths=[workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5"],
-    #                     req_times=np.array([text]),
-    #                     new_theta_len=3,
-    #                     new_vinf_len=30,
-    #                     verbose=True,
-    #                     dist="pw")
+    sort_by = lambda k: int(re.findall(r'\d+', str(k.split("/")[-1]))[0])
+    files = sorted(glob(workdir + "kenta_ejecta*", recursive=True), key=sort_by)
+
+    prepare_kn_ej_id_2d(files=files,
+                        outfpaths=[workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5"],
+                        req_times=np.array([text]),
+                        new_theta_len=None,
+                        new_vinf_len=None,
+                        verbose=True,
+                        dist="pw")
     #
-    # vinf, theta, ek = load_init_data(workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5")
-    # plot_init_profile(theta, vinf, ek,
-    #                   figpath=None,#FIGPATH+"ang_mass_dist" + r"_text{}".format(int(times[idx])),
-    #                   title=r"$t_{\rm ext}="+r"{}$ [ms]".format(int(text)))
+    mom_, theta_, ctheta_, ek_, mass_, ye_, s_, rho_, temp_= load_init_data(workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5")
+    plot_init_profile(ctheta_, mom_, mass_/rho_,
+                      figpath=None,#FIGPATH+"ang_mass_dist" + r"_text{}".format(int(times[idx])),
+                      norm_mode="log",
+                      subplot_mode="ave",
+                      title=r"$t_{\rm ext}="+r"{}$ [ms]".format(int(text)))
 
     # data_par_list, data_par_list_all = get_ej_data_for_text(datadir=path_to_original_data,
     #                                                        req_times=np.array([text]),
@@ -548,23 +583,27 @@ def main():
                            )
 
     # dfile = h5py.File(label+".h5",'a')
-    # dfile.create_dataset(name="ye", data=np.full_like(np.array(dfile["ek"]),fill_value=.2))
+    # dfile = h5py.File(label+".h5",'a')
+    # print(np.array(dfile["mom"]))
+    # dfile.create_dataset(name="mom", data=np.array(dfile["vel_inf"])*get_Gamma(np.array(dfile["vel_inf"])))
+    # dfile.create_dataset(name="mom", data=np.array(dfile["vel_inf"])*get_Gamma(np.array(dfile["vel_inf"])))
     # dfile.create_dataset(name="s", data=np.full_like(np.array(dfile["ek"]),fill_value=10.))
+    # dfile.close()
 
 
-    pba = BPA_METHODS(workingdir=os.getcwd()+'/',readparfileforpaths=True)
+    pba = PyBlastAfterglow(workingdir=os.getcwd()+'/',readparfileforpaths=True)
     pba.reload_parfile()
     pba.run(loglevel="info")
 
 
 
-    fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(4.6, 3.2))
-    ax = axes
-    ax.loglog(pba.get_ej_lc_times() / cgs.day, pba.get_ej_lc_totalflux(freq=3.e9),
-            **{"color":"black", "ls": "--", "lw": 0.8, "label": label})
-
-    pba.clear()
-    plt.show()
+    # fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(4.6, 3.2))
+    # ax = axes
+    # ax.loglog(pba.get_ej_lc_times() / cgs.day, pba.get_ej_lc_totalflux(freq=3.e9),
+    #         **{"color":"black", "ls": "--", "lw": 0.8, "label": label})
+    #
+    # pba.clear()
+    # plt.show()
 
 
 if __name__ == '__main__':

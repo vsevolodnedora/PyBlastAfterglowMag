@@ -2,27 +2,21 @@
 // Created by vsevolod on 21/12/22.
 //
 
-#ifndef SRC_EJECTA_COMBINED_H
-#define SRC_EJECTA_COMBINED_H
+#ifndef SRC_MODEL_EVOLVE_H
+#define SRC_MODEL_EVOLVE_H
 
-#include "pch.h"
-#include "utils.h"
-#include "base_equations.h"
-#include "interpolators.h"
-#include "ode_solvers.h"
-#include "quadratures.h"
-#include "rootfinders.h"
-#include "observer.h"
+#include "utilitites/pch.h"
+#include "utilitites/utils.h"
+#include "blastwave_components.h"
+#include "utilitites/interpolators.h"
+#include "utilitites/ode_solvers.h"
+#include "utilitites/quadratures.h"
+#include "utilitites/rootfinders.h"
+#include "image.h"
 #include "synchrotron_an.h"
 
-#include "magnetar.h"
-//#include "pulsar_wind_nebula.h"
-#include "blastwave_base.h"
-#include "blastwave_rad.h"
-#include "blastwave_dyn.h"
-
-#include "ejecta_grb.h"
-#include "ejecta_kn.h"
+#include "model_magnetar.h"
+#include "model_ejecta.h"
 
 class EvolveODEsystem{
     struct Pars{
@@ -59,7 +53,6 @@ public:
                     std::unique_ptr<Ejecta> & p_grb,
                     std::unique_ptr<Ejecta> & p_ej,
                     std::unique_ptr<PWNset> & p_ej_pwn,
-//                    bool run_magnetar,
                     Vector & t_grid,
                     Vector & _t_grid,
                     const Integrators::METHODS integrator,
@@ -384,7 +377,7 @@ private:
     }
     bool isThereLateralExpansionTermiantion(){
 //        auto & jet_bws = p_pars->p_bws_jet;
-//        auto & ej_bws = p_pars->p_bws_ej;
+//        auto & ej_bws = p_pars->p_bws;
 #if 0
         size_t ii = 0; bool is_ok = true;
         if (p_pars->p_grb->run_bws) {
@@ -405,7 +398,7 @@ private:
         return is_ok;
 #endif
         size_t ii = 0; bool is_ok = true;
-        auto & ej_bws = p_pars->p_ej->getShells();
+        auto & ej_bws = p_pars->p_grb->getShells();
         for (size_t il=0; il<ej_bws.size(); il++){
             for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
                 auto & bw = ej_bws[il]->getBW(ish);
@@ -422,7 +415,7 @@ private:
     bool isSolutionOk(){
 //        auto & magnetar = p_pars->p_magnetar;
 //        auto & jet_bws = p_pars->p_bws_jet;
-//        auto & ej_bws = p_pars->p_ej;
+//        auto & ej_bws = p_pars->p_cumShells;
         size_t ii = 0; bool is_ok = true;
         if (p_pars->p_magnetar->run_magnetar) {
             auto & magnetar = p_pars->p_magnetar;
@@ -510,7 +503,7 @@ private:
     void insertSolution(size_t it){
 //        auto & magnetar = p_pars->p_magnetar;
 //        auto & jet_bws = p_pars->p_bws_jet;
-//        auto & ej_bws = p_pars->p_ej;
+//        auto & ej_bws = p_pars->p_cumShells;
         size_t ii = 0;
         if (p_pars->p_magnetar->run_magnetar) {
             auto & magnetar = p_pars->p_magnetar;
@@ -608,7 +601,7 @@ private:
         }
 
 //        for(size_t i = 0; i < p_pars->n_ej_bws; i++){
-//            p_pars->p_bws_ej[i]->addOtherVars( it );
+//            p_pars->p_bws[i]->addOtherVars( it );
 //        }
     }
 
@@ -689,7 +682,7 @@ private:
 
 
             while (!are_shells_sorted) {
-//                    std::cout << m_CurSol[p_pars->p_ej->getShells()[0]->getBW(0)->getPars()->ii_eq + DynRadBlastWave::QS::iEint2]<<"\n";
+//                    std::cout << m_CurSol[p_pars->p_cumShells->getShells()[0]->getBW(0)->getPars()->ii_eq + DynRadBlastWave::QS::iEint2]<<"\n";
                 i_substeps += 1;
                 /// check if there is anything left to collide
                 if (i_substeps > p_pars->p_ej->nshells()-2){
@@ -794,14 +787,14 @@ private:
                         <<"trunning="<<trunning<<" to tcoll="<<tcoll_min<<" Precision is set="<<col_prec_fac<<"\n";
 #if 0
                 /// update Magnetar energy injection
-                if (!p_pars->p_ej->do_eninj_inside_rhs)
+                if (!p_pars->p_cumShells->do_eninj_inside_rhs)
                     updateEnergyInjectionToEjectaBWs(
                             p_pars->p_magnetar->getMagValInt(Magnetar::Q::ildip, tcoll_min*(1.-col_prec_fac)),
                             p_pars->p_magnetar->getMagValInt(Magnetar::Q::ilacc, tcoll_min*(1.-col_prec_fac)),
                             m_CurSol,p_pars);
 
                 /// update opacity and nuclear heating
-                auto &ej_bws = p_pars->p_ej->getShells();
+                auto &ej_bws = p_pars->p_cumShells->getShells();
                 for (size_t il = 0; il < ej_bws.size(); il++) {
                     for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
                         ej_bws[il]->getBW(ish)->updateNucAtomic( m_CurSol, tcoll_min*(1.-col_prec_fac) );
@@ -903,16 +896,16 @@ private:
                 (*p_log)(LOG_INFO,AT)
                         <<"Trying to integrate after collision from trunning="<<trunning<<" to t[ix]="<<t_grid[ix]<<"\n";
 #if 0
-                if (!p_pars->p_ej->do_eninj_inside_rhs)
+                if (!p_pars->p_cumShells->do_eninj_inside_rhs)
                     updateEnergyInjectionToEjectaBWs(
                             p_pars->p_magnetar->getMagValInt(Magnetar::Q::ildip, t_grid[ix]),
                             p_pars->p_magnetar->getMagValInt(Magnetar::Q::ilacc, t_grid[ix]),
                             m_CurSol,p_pars);
 
                 /// update opacity and nuclear heating
-                for (size_t il = 0; il < p_pars->p_ej->nlayers(); il++) {
-                    for (size_t ish = 0; ish < p_pars->p_ej->nshells(); ish++) {
-                        auto & bw = p_pars->p_ej->getShells()[il]->getBW(ish);
+                for (size_t il = 0; il < p_pars->p_cumShells->nlayers(); il++) {
+                    for (size_t ish = 0; ish < p_pars->p_cumShells->nshells(); ish++) {
+                        auto & bw = p_pars->p_cumShells->getShells()[il]->getBW(ish);
                         bw->updateNucAtomic( m_CurSol, t_grid[ix] );
                     }
                 }
@@ -1100,8 +1093,8 @@ private:
             }
 
 
-//        for(size_t i_ej = 0; i_ej < p_pars->p_bws_ej.size(); i_ej++){
-//            auto & ej = p_pars->p_bws_ej[i_ej];
+//        for(size_t i_ej = 0; i_ej < p_pars->p_bws.size(); i_ej++){
+//            auto & ej = p_pars->p_bws[i_ej];
 //            std::cout << " ish=" << ej->getPars()->ishell
 //                      << " il="  << ej->getPars()->ishell
 //                      << " G=" << string_format("%.2e", ej->getVal(DynRadBlastWave::Q::iGamma, ix))
@@ -1115,7 +1108,7 @@ private:
 //                      << " dGrhodG=" << string_format("%.2e", ej->getDensIsm()->m_dGammaReldGamma)
 //                      << " Grel=" << string_format("%.2e", ej->getDensIsm()->m_GammaRel)
 //        }
-//             std::cout << p_pars->p_ej[0]->getCurrentIndexes() << "\n";
+//             std::cout << p_pars->p_cumShells[0]->getCurrentIndexes() << "\n";
 //        (*p_log)(LOG_INFO,AT) << "it=" << ix << "/"
 //                                            << t_grid.size() << " t=" << t_grid[ix] << ", " << t_grid[ix]/CGS::day << "\n";
         }
@@ -1242,4 +1235,4 @@ private:
 //    Array m_t_grid;
 };
 
-#endif //SRC_EJECTA_COMBINED_H
+#endif //SRC_MODEL_EVOLVE_H

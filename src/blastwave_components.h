@@ -2,13 +2,13 @@
 // Created by vsevolod on 21/12/22.
 //
 
-#ifndef SRC_BASE_EQUATIONS_H
-#define SRC_BASE_EQUATIONS_H
+#ifndef SRC_BLASTWAVE_COMPONENTS_H
+#define SRC_BLASTWAVE_COMPONENTS_H
 
-#include "pch.h"
-#include "utils.h"
-#include "interpolators.h"
-#include "quadratures.h"
+#include "utilitites/pch.h"
+#include "utilitites/utils.h"
+#include "utilitites/interpolators.h"
+#include "utilitites/quadratures.h"
 
 /* ------------- EQUATIONS ----------------- */
 
@@ -1001,4 +1001,4 @@ private:
     double m_theta_max=-1., m_thetaC=-1, m_thetaW=-1;
 };
 
-#endif //SRC_BASE_EQUATIONS_H
+#endif //SRC_BLASTWAVE_COMPONENTS_H

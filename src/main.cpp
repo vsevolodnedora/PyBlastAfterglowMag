@@ -45,9 +45,132 @@
 
 
 // include necessary files
-#include "utils.h"
+#include "utilitites/utils.h"
 #include "model.h"
-#include "H5Easy.h"
+#include "utilitites/H5Easy.h"
+
+class PyBlastAfterglow{
+    struct Pars{
+        double tb0{}; double tb1{}; int ntb{}; int iout{};
+        Integrators::METHODS integrator = Integrators::METHODS::RK4;
+        double rtol = 1e-5;
+        int nmax = 100000;
+        int loglevel{};
+    };
+    std::unique_ptr<logger> p_log;
+    std::unique_ptr<Pars> p_pars;
+    std::unique_ptr<EvolveODEsystem> p_model;
+    std::unique_ptr<Output> p_out;
+    std::unique_ptr<Magnetar> p_mag;
+    std::unique_ptr<Ejecta> p_grb;
+    std::unique_ptr<Ejecta> p_ej;
+    std::unique_ptr<PWNset> p_ej_pwn;
+    Vector _t_grid;
+    Vector t_grid;
+    int m_loglevel;
+public:
+    std::unique_ptr<Magnetar> & getMag(){return p_mag;}
+    std::unique_ptr<PWNset> & getEjPWN(){return p_ej_pwn;}
+    std::unique_ptr<Ejecta> & getGRB(){return p_grb;}
+    std::unique_ptr<Ejecta> & getEj(){return p_ej;}
+    Vector & getTburst(){return t_grid;}
+    PyBlastAfterglow(int loglevel){
+        m_loglevel = loglevel;
+        p_pars = std::make_unique<Pars>();
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "PyBlastAfterglow");
+        p_mag = std::make_unique<Magnetar>(loglevel);
+        p_ej_pwn = std::make_unique<PWNset>(loglevel);
+        p_grb = std::make_unique<Ejecta>(t_grid, loglevel);
+        p_ej  = std::make_unique<Ejecta>(t_grid, loglevel);
+    }
+
+    void setModelPars(StrDbMap pars, StrStrMap opts) {
+
+        /// check if parameters present
+        p_pars->tb0 = getDoublePar("tb0",pars,AT,p_log,-1,true);//pars.at("tb0");
+        p_pars->tb1 = getDoublePar("tb1",pars,AT,p_log,-1,true);//(double) pars.at("tb1");
+        p_pars->ntb = (int) getDoublePar("ntb",pars,AT,p_log,-1,true);//pars.at("ntb");
+        p_pars->iout = (int) getDoublePar("iout",pars,AT,p_log,-1,true);//pars.at("ntb");
+
+        p_pars->rtol = getDoublePar("rtol",pars,AT,p_log,1e-13,true);//(double) pars.at("rtol");
+        p_pars->nmax = (int)getDoublePar("nmax",pars,AT,p_log,100000,false);//(double) pars.at("rtol");
+
+        // set options
+        std::string opt = "integrator";
+        Integrators::METHODS val;
+        if (opts.find(opt) == opts.end()) {
+            std::cerr << " Option for '" << opt << "' is not set. Using default value.\n";
+            val = Integrators::METHODS::RK4;
+        }
+        else {
+            if (opts.at(opt) == "RK4")
+                val = Integrators::METHODS::RK4;
+            else if (opts.at(opt) == "DOP853")
+                val = Integrators::METHODS::DOP853;
+            else if (opts.at(opt) == "DOP853E")
+                val = Integrators::METHODS::DOP853E;
+            else {
+                std::cerr << " option for: " << opt
+                          << " given: " << opts.at(opt)
+                          << " is not recognized \n" << " Possible options: "
+                          << " RK4 " << " DOP853 " << " DOP853E " << "\n Exititng...";
+                std::cerr << AT << "\n";
+                exit(1);
+            }
+        }
+        p_pars->integrator = val;
+
+        // ---------------------------------------------------------------
+        /// Make a grid for ODE solver to follow
+        _t_grid = TOOLS::MakeLogspaceVec(std::log10(p_pars->tb0),
+                                         std::log10(p_pars->tb1),
+                                         p_pars->ntb);
+        /// Make a grid for solutions to be sotred
+        if (p_pars->iout == 1)
+            t_grid = _t_grid;
+        else {
+            t_grid.resize((int) p_pars->ntb / p_pars->iout);
+            int k = 0;
+            for (size_t i = 0; i < p_pars->ntb; i++)
+                if (i % p_pars->iout == 0) {
+                    t_grid[k] = _t_grid[i];
+                    k++;
+                }
+        }
+        p_pars->ntb = (int)t_grid.size();
+
+        (*p_log)(LOG_INFO,AT) << "Computation tgrid = ["<<_t_grid[0]<<", "<<_t_grid[_t_grid.size()-1]<<"] n="<<_t_grid.size()<<"\n";
+        (*p_log)(LOG_INFO,AT) << "Output      tgrid = ["<<t_grid[0]<<", "<<t_grid[t_grid.size()-1]<<"] n="<<t_grid.size()<<"\n";
+
+    }
+
+    /// run the time-evolution
+    void run(){
+        p_model = std::make_unique<EvolveODEsystem>( p_mag, p_grb, p_ej, p_ej_pwn,
+                                                     t_grid, _t_grid, p_pars->integrator, m_loglevel );
+        p_model->pIntegrator()->pPars()->rtol = p_pars->rtol;
+        p_model->pIntegrator()->pPars()->atol = p_pars->rtol;
+        p_model->pIntegrator()->pPars()->nmax = p_pars->nmax;
+        p_model->setInitialConditions(p_pars->tb0);
+        (*p_log)(LOG_INFO, AT) << "all initial conditions set. Starting evolution\n";
+        // evolve
+        double dt;
+        int ixx = 1;
+        for (size_t it = 1; it < _t_grid.size(); it++){
+            p_model->getPars()->i_restarts = 0;
+            dt = _t_grid[it] - _t_grid[it - 1];
+            p_model->evolve(dt, it);
+            if ((it % p_pars->iout == 0)) {
+                p_model->storeSolution(ixx);
+//                (*p_log)(LOG_INFO,AT)<<"Storing solution at i="<<ixx<<" t="<<t_grid[ixx]<<"\n";
+                ixx++;
+            }
+        }
+        (*p_log)(LOG_INFO, AT) << "evolution is completed\n";
+    }
+
+};
+
 
 /// -------------- Code configuration ------------------
 struct {
@@ -67,12 +190,12 @@ int main(int argc, char** argv) {
 //        working_dir = "../tst/grbafg_gauss_offaxis/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_gauss_offaxis_io/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
         working_dir = "../tst/grbafg_skymap_io/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-//        working_dir = "../../tst/grbafg_tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/grbafg_tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/knafg_nrinformed/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/magnetar/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_tophat_wind/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-//        working_dir = "../../tst/knafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/knafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../projects/grbtophat_parallel/"; parfilename="tophat_EisoC500_Gamma0c1000_thetaC50_thetaW50_theta00_nism10_p22_epse05_epsb05_parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../projects/grbgauss_mcmc/working/"; parfilename="tophat_7549a8d74ce86fc502b087d8eb0e341656ee536a.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/problems/"; parfilename="tst.par"; loglevel=LOG_INFO;
@@ -146,11 +269,7 @@ int main(int argc, char** argv) {
                  "# ----------------------- kN afterglow ----------------------",
                  "# --------------------------- END ---------------------------");
     size_t ii_eq = pba.getMag()->getNeq() + pba.getGRB()->getNeq();
-    if (pba.getGRB()->nshells() > 1){
-        (*p_log)(LOG_ERR,AT)<<"not implemented\n";
-        exit(1);
-    }
-    size_t nlayers_jet =pba.getGRB()->nlayers();
+    size_t nlayers_jet = pba.getGRB()->nlayers();
     pba.getEj()->setPars(kn_pars,kn_opts,working_dir,parfilename,main_pars,ii_eq,nlayers_jet);
 
 
@@ -574,68 +693,3 @@ int main(int argc, char** argv) {
     }
 }
 #endif
-
-//
-//    std::unordered_map<std::string, double> pars;
-//    std::unordered_map<std::string, std::string> opts;
-//    loadParFile(pars, opts, parfile_path);
-//
-//
-//
-//
-//    std::unordered_map<std::string, double> pars;
-//    std::unordered_map<std::string, std::string> opts;
-//    loadParFile(pars, opts, parfile_path);
-//
-//    /// initialize the model
-//    PyBlastAfterglow pba(loglevel);
-//
-//    bool do_grb_dyn = getBoolOpt("do_grb_dyn", opts, AT, p_log, false, true);
-//    if (do_grb_dyn){
-//        pba.setJetStructAnalytic(pars, opts);
-//    }
-//
-//    pba.setModelPars(pars, opts);
-//
-//    if (do_grb_dyn){
-//        pba.setJetBwPars(pars, opts);
-//    }
-//
-//    bool do_kn_syn_an_lc = getBoolOpt("do_kn_syn_an_lc", opts, AT, p_log, false, true);
-//    bool do_kn_syn_an_skymap = getBoolOpt("do_kn_syn_an_skymap", opts, AT, p_log, false, true);
-//    if (do_kn_syn_an_lc or do_kn_syn_an_skymap){
-//        pba.setPreComputeEjectaAnalyticElectronsPars();
-//    }
-//
-//    LoadH5 pars_arrs;
-//    pars_arrs.setFileName(parfile_arrs_path);
-//    pars_arrs.setVarName("light_curve_times");
-//    Vector times = pars_arrs.getDataVDouble();
-//    pars_arrs.setVarName("light_curve_freqs");
-//    Vector freqs = pars_arrs.getDataVDouble();
-//    if (do_kn_syn_an_lc){
-//        pba.computeSaveJetLightCurveAnalytic(
-//                getStrOpt("fpath_grb_light_curve", opts, AT, p_log, "", true),
-//                times, freqs );
-//    }
-
-//
-//    pr.m_path_to_ejecta_id = getStrOpt("path_to_ejecta_id", opts, AT, p_log, "", true);
-//    EjectaID ejecta_id;
-//    ejecta_id.loadTable(pr, CurrLogLevel);
-//
-//
-//    ///
-//    pr.m_task = getStrOpt("task", opts, AT, p_log, "", true);
-//    if (pr.m_task == "evolve_gaussian_bws"){
-//        (*p_log)(LOG_INFO, AT) << "Starting task: '" << pr.m_task << "'\n";
-//        pr.initGaussianStructure(pars, opts);
-//    }
-
-
-
-
-
-//    std::cout << config.dynamics.n_vals_ode << "\n";
-
-//}

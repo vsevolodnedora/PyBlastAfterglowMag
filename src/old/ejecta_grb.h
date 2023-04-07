@@ -7,7 +7,7 @@
 
 #include "pch.h"
 #include "utils.h"
-#include "base_equations.h"
+#include "blastwave_components.h"
 #include "interpolators.h"
 #include "ode_solvers.h"
 #include "quadratures.h"
@@ -15,11 +15,11 @@
 #include "observer.h"
 #include "synchrotron_an.h"
 
-#include "magnetar.h"
+#include "model_magnetar.h"
 //#include "pulsar_wind_nebula.h"
-#include "blastwave_base.h"
+#include "old/blastwave_base.h"
 //#include "blastwave_rad.h"
-#include "blastwave_dyn.h"
+#include "old/blastwave_dyn.h"
 
 #if 0
 class GRB{

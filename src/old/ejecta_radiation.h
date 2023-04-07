@@ -7,7 +7,7 @@
 
 #include "pch.h"
 #include "utils.h"
-#include "base_equations.h"
+#include "blastwave_components.h"
 #include "interpolators.h"
 #include "ode_solvers.h"
 #include "quadratures.h"

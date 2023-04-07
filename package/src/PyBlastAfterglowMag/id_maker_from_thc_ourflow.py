@@ -112,7 +112,7 @@ def load_corr_file2(corr_fpath,
     assert thetas_pol_centers[0] < thetas_pol_edges[-1]
     assert thetas_pol_centers[-1] <= np.pi / 2.
 
-    return (thetas_pol_centers, vinf_centers, mass)
+    return (thetas_pol_edges, thetas_pol_centers, vinf_centers, mass)
 
 def clean_data_hist(_vinf, _mass):
     tmp_vinf = []
@@ -162,28 +162,38 @@ def compute_ek_hist(_vinf, _mass):
 
 
 def prepare_kn_ej_id_2d(nlayers, corr_fpath, outfpath, dist="pw"):
-    thetas, betas, masses = load_corr_file2(corr_fpath=corr_fpath,
+    thetas, cthetas, betas, masses = load_corr_file2(corr_fpath=corr_fpath,
                                             reinterpolate_theta=True,
                                             new_theta_len=nlayers if nlayers > 0 else None,
                                             dist=dist)
 
-    theta_corr, vinf_corr, mass_corr = clean_data_corr(thetas, betas, masses, remove_pi_over_2=True)
+    # theta_corr, vinf_corr, mass_corr = clean_data_corr(thetas, betas, masses, remove_pi_over_2=True)
+    ctheta_corr, vinf_corr, mass_corr = clean_data_corr(cthetas, betas, masses, remove_pi_over_2=True)
     ek_corr = compute_ek_corr(vinf_corr, mass_corr).T  # [n_beta, n_theta]
-    print(theta_corr.shape, vinf_corr.shape, ek_corr.shape)
+    print(ctheta_corr.shape, vinf_corr.shape, ek_corr.shape)
     # EjectaEk.plot_corr(theta_corr, vinf_corr, ek_corr)
     ek_corr2 = np.copy(ek_corr[(vinf_corr > 0.) & (vinf_corr < 1), :])
+    mass_corr2 = np.copy(mass_corr.T[(vinf_corr > 0.) & (vinf_corr < 1), :])
     vinf_corr2 = np.copy(vinf_corr[(vinf_corr > 0.) & (vinf_corr < 1)])
-    theta_corr2 = np.copy(theta_corr)
+    ctheta_corr2 = np.copy(ctheta_corr)
     # EjectaEk.plot_corr(theta_corr, vinf_corr, ek_corr)
-    print(theta_corr2.shape, vinf_corr2.shape, ek_corr2.shape)
+    print(ctheta_corr2.shape, vinf_corr2.shape, ek_corr2.shape)
 
     # self.o_pba.setEjectaStructNumeric(theta_corr2, vinf_corr2, ek_corr2, fac, True, self.pars_kn["eats_method"])
 
-    print(len(theta_corr2), theta_corr2)
+    # vinf_corr2 = vinf_corr2[25:]
+    # ek_corr2 = ek_corr2[25:,:]
+    # mass_corr2 = mass_corr2[25:,:]
+
+    print(len(ctheta_corr2), ctheta_corr2)
     dfile = h5py.File(outfpath, "w")
-    dfile.create_dataset("theta",data=theta_corr2)
-    dfile.create_dataset("vel_inf",data=vinf_corr2)
+    dfile.create_dataset("theta",data=ctheta_corr2)# used for theta_w in PW method
+    dfile.create_dataset("ctheta",data=ctheta_corr2)
+    dfile.create_dataset("mom",data=np.array( vinf_corr2*get_Gamma(vinf_corr2)) )
     dfile.create_dataset("ek",data=ek_corr2)
+    dfile.create_dataset("mass",data=mass_corr2*cgs.solar_m)
+    dfile.create_dataset("ye",data=np.zeros_like(ek_corr2))
+    dfile.create_dataset("s",data=np.zeros_like(ek_corr2))
     dfile.close()
     print("file saved: {}".format(outfpath))
 def prepare_kn_ej_id_1d(nlayers, hist_fpath, outfpath):
@@ -208,7 +218,7 @@ def prepare_kn_ej_id_1d(nlayers, hist_fpath, outfpath):
 
     dfile = h5py.File(outfpath, "w")
     dfile.create_dataset("theta", data=theta_hist)
-    dfile.create_dataset("vel_inf", data=vinf_hist)
+    dfile.create_dataset("mom", data=gam_hist*vinf_hist)
     dfile.create_dataset("ek", data=ek_hist)
     dfile.close()
     print("file saved: {}".format(outfpath))

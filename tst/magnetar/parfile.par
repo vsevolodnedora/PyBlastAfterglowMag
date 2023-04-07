@@ -118,11 +118,11 @@ save_dyn_every_it = 1
 * Settings
 
 run_bws = yes
-save_ej_dynamics = yes
-do_ej_ele = no
-do_ej_spec = no
-do_ej_lc = no
-do_ej_skymap = no
+save_dynamics = yes
+do_ele = no
+do_spec = no
+do_lc = no
+do_skymap = no
 
 method_collision = an # none
 do_eninj_inside_rhs = no # yes
@@ -141,7 +141,7 @@ fname_light_curve = corr_id_SFHo_13_14_150m_11_text25.lc
 fname_light_curve_layers = none
 fname_sky_map = skymap_kn.h5
 
-type = numeric
+use_1d_id = no
 fname_ejecta_id = corr_id_SFHo_13_14_150m_11_text25.h5
 enforce_angular_grid = yes
 

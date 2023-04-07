@@ -26,7 +26,8 @@ rcParams['font.size'] = 8
 
 
 from .utils import cgs, make_hash, latex_float, find_nearest_index
-from .interface import BPA_METHODS, tmp_for_file2
+from .interface import PyBlastAfterglow, tmp_for_file2, combine_images, get_skymap_lat_dist, get_skymap_fwhm, \
+    smooth_interpolated_skymap_with_gaussian_kernel
 
 def precompute_skymaps(tasks_to_plot, settings):
     settings["precompute"] = True
@@ -1437,18 +1438,18 @@ def _plot_skymap_with_hists(ax_main, ax_histx, ax_histy, pb, tmp,
         ax_histy.axhline(y=yc, color=tmp["cm"]["color"], linestyle='dashed')
     if ("ysize" in tmp.keys()) and len(tmp["ysize"].keys()) > 0:
         if (len(tmp["smooth"].keys()) > 0):
-            i_zz_y = pb.smooth_interpolated_skymap_with_gaussian_kernel(i_zz=i_zz_y, type=tmp["smooth"]["type"],
+            i_zz_y = smooth_interpolated_skymap_with_gaussian_kernel(i_zz=i_zz_y, type=tmp["smooth"]["type"],
                                                                         sigma=tmp["smooth"]["sigma"])
-        y1, y2 = pb.get_skymap_fwhm(grid_y, i_zz_y, yc)
+        y1, y2 = get_skymap_fwhm(grid_y, i_zz_y, yc)
         ax_main.errorbar([xc, xc], [y1, y2], xerr=[int_x.max() / 10, int_x.max() / 10], **tmp["ysize"])
         ax_histy.plot(i_zz_y * 1e3, grid_y, lw=1., ls='-', drawstyle='steps', color=tmp["ysize"]["color"])
         ax_histy.axhline(y=y2, color=tmp["ysize"]["color"], linestyle='dotted')
         ax_histy.axhline(y=y1, color=tmp["ysize"]["color"], linestyle='dotted')
     if ("xsize" in tmp.keys()) and len(tmp["xsize"].keys()) > 0:
         if (len(tmp["smooth"].keys()) > 0):
-            i_zz_x = pb.smooth_interpolated_skymap_with_gaussian_kernel(i_zz=i_zz_x, type=tmp["smooth"]["type"],
+            i_zz_x = smooth_interpolated_skymap_with_gaussian_kernel(i_zz=i_zz_x, type=tmp["smooth"]["type"],
                                                                         sigma=tmp["smooth"]["sigma"])
-        x1, x2 = pb.get_skymap_fwhm(grid_x, i_zz_x, xc)
+        x1, x2 = get_skymap_fwhm(grid_x, i_zz_x, xc)
         ax_main.errorbar([x1, x2], [yc, yc], yerr=[int_y.max() / 10, int_y.max() / 10], **tmp["xsize"])
         ax_histx.plot(grid_x, i_zz_x * 1e3, lw=1., ls='-', drawstyle='steps',
                       color=tmp["xsize"]["color"])  # , color='blue')
@@ -1467,7 +1468,7 @@ def _plot_skymap_with_hists(ax_main, ax_histx, ax_histy, pb, tmp,
         int_zz = int_zz.T
         int_zz[~np.isfinite(int_zz)] = float(tmp["pcolormesh"]["isnan"])
         if (len(tmp["smooth"].keys()) > 0):
-            int_zz = pb.smooth_interpolated_skymap_with_gaussian_kernel(i_zz=int_zz, type=tmp["smooth"]["type"])
+            int_zz = smooth_interpolated_skymap_with_gaussian_kernel(i_zz=int_zz, type=tmp["smooth"]["type"])
         im = plot_pcolomesh(ax=ax_main, task_dict=tmp["pcolormesh"], int_x=int_x, int_y=int_y, int_zz=int_zz, outfname=None)
         if tmp["pcolormesh"]["set_rasterized"]: ax_main.set_rasterized(im)
         return im
@@ -1503,10 +1504,13 @@ def plot_one_skymap_with_dists(task_to_plot, settings):
 
     # --- make hash name from skymap names ---
     # pb_grb = BPA_METHODS(plot_dict["workingdir"], readparfileforpaths=True, parfile=plot_dict["grb_parfile"])
-    pb1 = BPA_METHODS(plot_dict["workingdir"], readparfileforpaths=True, parfile=plot_dict["parfile1"])
-    pb2 = BPA_METHODS(plot_dict["workingdir"], readparfileforpaths=True, parfile=plot_dict["parfile2"])
+    pb1 = PyBlastAfterglow(plot_dict["workingdir"], readparfileforpaths=True, parfile=plot_dict["parfile1"])
+    pb2 = PyBlastAfterglow(plot_dict["workingdir"], readparfileforpaths=True, parfile=plot_dict["parfile2"])
     hash, s = make_hash(plot_dict["workingdir"],
-                        pb1.fpath_grb_sky_map, pb1.fpath_kn_sky_map, pb2.fpath_kn_sky_map, time, freq)
+                        pb1.GRB.fpath_sky_map,
+                        pb1.KN.fpath_sky_map,
+                        pb2.KN.fpath_sky_map,
+                        time, freq)
 
     if settings["rerun"]: pb1.run()
     # if settings["rerun"]: pb2.run()
@@ -1558,7 +1562,7 @@ def plot_one_skymap_with_dists(task_to_plot, settings):
         tmp = copy.deepcopy(settings["kn_skymap"])
         if settings["precompute"]:
             all_x, all_y, all_fluxes \
-                = pb1.get_ej_skymap(time=time * cgs.day, freq=freq, verbose=True, remove_mu=True, renormalize=True)
+                = pb1.KN.get_skymap(time=time * cgs.day, freq=freq, verbose=True, remove_mu=True, renormalize=True)
 
             # plt.delaxes(ax_main)
             # plt.delaxes(ax_histy)
@@ -1570,10 +1574,10 @@ def plot_one_skymap_with_dists(task_to_plot, settings):
             # plt.loglog(pb.get_ej_skymap_times()/cgs.day, fnus_tot, ls=":", color="red")
             # plt.show()
 
-            int_x, int_y, int_zz = pb1.combine_images(all_x, all_y, all_fluxes, hist_or_int="hist", shells=True, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
-            grid_y, _, i_zz_y, _ = pb1.get_skymap_lat_dist(all_x, all_y, all_fluxes, collapse_axis="x", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
-            grid_x, _, i_zz_x, _ = pb1.get_skymap_lat_dist(all_x, all_y, all_fluxes, collapse_axis="y", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
-            xc, yc = pb1.get_ej_skymap_cm(all_x, all_y, all_fluxes)
+            int_x, int_y, int_zz = combine_images(all_x, all_y, all_fluxes, hist_or_int="hist", shells=True, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+            grid_y, _, i_zz_y, _ = get_skymap_lat_dist(all_x, all_y, all_fluxes, collapse_axis="x", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            grid_x, _, i_zz_x, _ = get_skymap_lat_dist(all_x, all_y, all_fluxes, collapse_axis="y", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            xc, yc = pb1.KN.get_skymap_cm(all_x, all_y, all_fluxes)
 
 
             print("all_fluxes=[{:.2e}, {:.2e}]".format(np.array(all_fluxes).min(), np.array(all_fluxes).max()))
@@ -1606,7 +1610,7 @@ def plot_one_skymap_with_dists(task_to_plot, settings):
             xc = float(grp_kn.attrs["xc"])
             yc = float(grp_kn.attrs["yc"])
         print("Total flux kn={:.2e} grb={:.2e} x_c={}".format(
-                pb1.get_ej_skymap_totfluxes(freq=freq, time=time*cgs.day),
+                pb1.KN.get_skymap_totfluxes(freq=freq, time=time*cgs.day),
                 0.,
                 xc
        ))
@@ -1663,24 +1667,24 @@ def plot_one_skymap_with_dists(task_to_plot, settings):
         if settings["precompute"]:
 
             all_x_jet, all_y_jet, all_fluxes_jet \
-                = pb1.get_jet_skymap(time=time * cgs.day, freq=freq, verbose=False, remove_mu=True)
+                = pb1.GRB.get_skymap(time=time * cgs.day, freq=freq, verbose=False, remove_mu=True)
 
-            int_x_j, int_y_j, int_zz_j = pb1.combine_images([all_x_jet], [all_y_jet], [all_fluxes_jet],
+            int_x_j, int_y_j, int_zz_j = combine_images(all_x_jet, all_y_jet, all_fluxes_jet,
                                                            hist_or_int="hist", shells=False, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
-            grid_y_j, _i_zz_y_j, i_zz_y_j, _ = pb1.get_skymap_lat_dist([all_x_jet], [all_y_jet], [all_fluxes_jet],
+            grid_y_j, _i_zz_y_j, i_zz_y_j, _ = get_skymap_lat_dist(all_x_jet, all_y_jet, all_fluxes_jet,
                                                                       collapse_axis="x", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
-            grid_x_j, _i_zz_x_j, i_zz_x_j, _ = pb1.get_skymap_lat_dist([all_x_jet], [all_y_jet], [all_fluxes_jet],
+            grid_x_j, _i_zz_x_j, i_zz_x_j, _ = get_skymap_lat_dist(all_x_jet, all_y_jet, all_fluxes_jet,
                                                                       collapse_axis="y", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
 
-            print("all_fluxes_jet=[{:.2e}, {:.2e}]".format(all_fluxes_jet.min(),all_fluxes_jet.max()))
+            # print("all_fluxes_jet=[{:.2e}, {:.2e}]".format(all_fluxes_jet.min(),all_fluxes_jet.max()))
+            # # print("i_zz_y_j=[{:.2e}, {:.2e}]".format(i_zz_y_j.min(),i_zz_y_j.max()))
+            # # print("i_zz_x_j=[{:.2e}, {:.2e}]".format(i_zz_x_j.min(),i_zz_x_j.max()))
+            # print("int_zz_j=[{:.2e}, {:.2e}]".format(int_zz_j.min(),int_zz_j.max()))
             # print("i_zz_y_j=[{:.2e}, {:.2e}]".format(i_zz_y_j.min(),i_zz_y_j.max()))
             # print("i_zz_x_j=[{:.2e}, {:.2e}]".format(i_zz_x_j.min(),i_zz_x_j.max()))
-            print("int_zz_j=[{:.2e}, {:.2e}]".format(int_zz_j.min(),int_zz_j.max()))
-            print("i_zz_y_j=[{:.2e}, {:.2e}]".format(i_zz_y_j.min(),i_zz_y_j.max()))
-            print("i_zz_x_j=[{:.2e}, {:.2e}]".format(i_zz_x_j.min(),i_zz_x_j.max()))
             # print("MAX i_zz_x_j = {} | i_zz_x_j = {}".format(i_zz_x_j.max(), i_zz_y_j.max()))
             # exit(1)
-            xc_m_j, yc_m_j = pb1.get_jet_skymap_cm([all_x_jet], [all_y_jet], [all_fluxes_jet])
+            xc_m_j, yc_m_j = pb1.GRB.get_skymap_cm(all_x_jet, all_y_jet, all_fluxes_jet)
             #
             grp_j = grp.create_group("grb nx={} ny={}".format(tmp["hist_nx"], tmp["hist_ny"]))
             grp_j.create_dataset("int_x", data=int_x_j)
@@ -1705,7 +1709,7 @@ def plot_one_skymap_with_dists(task_to_plot, settings):
             yc_m_j = float(grp_j.attrs["yc"])
         print("Total flux kn={:.2e} grb={:.2e} x_c={}".format(
             0.,# pb1.get_ej_skymap_totfluxes(freq=freq, time=time*cgs.day),
-            pb1.get_jet_skymap_totfluxes(freq=freq, time=time*cgs.day),
+            pb1.GRB.get_skymap_totfluxes(freq=freq, time=time*cgs.day),
             xc_m_j
         ))
         im = _plot_skymap_with_hists(ax_main, ax_histx, ax_histy, pb1, tmp,
@@ -1737,24 +1741,24 @@ def plot_one_skymap_with_dists(task_to_plot, settings):
         assert (len(settings["kn_skymap"].keys()) > 0)
         tmp = copy.deepcopy(settings["kn_grb_skymap"])
         if settings["precompute"]:
-            all_x_pj = [all_x_jet] + all_x
-            all_y_pj = [all_y_jet] + all_y
-            all_fluxes_pj = [all_fluxes_jet] + all_fluxes
+            all_x_pj = all_x_jet + all_x
+            all_y_pj = all_y_jet + all_y
+            all_fluxes_pj = all_fluxes_jet + all_fluxes
             int_x_pj, int_y_pj, int_zz_pj = \
-                pb1.combine_images(all_x_pj, all_y_pj, all_fluxes_pj, hist_or_int="hist", shells=False, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+                combine_images(all_x_pj, all_y_pj, all_fluxes_pj, hist_or_int="hist", shells=False, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
             # _, _, int_zz_wjet_nojet = pb.combine_images(all_x_pj, all_y_pj, all_fluxes_pj, hist_or_int="hist", shells=False, nx=225, ny=175)
-            xc_m_pj, yc_m_pj = pb1.get_jet_skymap_cm(all_x_pj, all_y_pj, all_fluxes_pj)
-            grid_y_pj, _i_zz_y_pj, i_zz_y_pj, _ = pb1.get_skymap_lat_dist(all_x_pj, all_y_pj, all_fluxes_pj,
+            xc_m_pj, yc_m_pj = pb1.GRB.get_skymap_cm(all_x_pj, all_y_pj, all_fluxes_pj)
+            grid_y_pj, _i_zz_y_pj, i_zz_y_pj, _ = get_skymap_lat_dist(all_x_pj, all_y_pj, all_fluxes_pj,
                                                                          collapse_axis="x", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
-            grid_x_pj, _i_zz_x_pj, i_zz_x_pj, _ = pb1.get_skymap_lat_dist(all_x_pj, all_y_pj, all_fluxes_pj,
+            grid_x_pj, _i_zz_x_pj, i_zz_x_pj, _ = get_skymap_lat_dist(all_x_pj, all_y_pj, all_fluxes_pj,
                                                                          collapse_axis="y", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
 
-            fnu_jet = pb1.get_jet_skymap_totfluxes(freq=freq)[find_nearest_index(pb1.get_jet_skymap_times(),time*cgs.day)]
-            fnu_ej = pb1.get_ej_skymap_totfluxes(freq=freq)[find_nearest_index(pb1.get_ej_skymap_times(),time*cgs.day)]
+            fnu_jet = pb1.GRB.get_skymap_totfluxes(freq=freq)[find_nearest_index(pb1.GRB.get_skymap_times(),time*cgs.day)]
+            fnu_ej = pb1.KN.get_skymap_totfluxes(freq=freq)[find_nearest_index(pb1.KN.get_skymap_times(),time*cgs.day)]
 
 
-            print("JET    ", pb1.get_jet_skymap_totfluxes(freq=freq))
-            print("EJECTA ", pb1.get_ej_skymap_totfluxes(freq=freq))
+            print("JET    ", pb1.GRB.get_skymap_totfluxes(freq=freq))
+            print("EJECTA ", pb1.KN.get_skymap_totfluxes(freq=freq))
             print("Time={} Fnu jet={:.2e} ejecta={:.2e}".format(time, fnu_jet, fnu_ej))
 
             grp_kn_plus_grb = grp.create_group("kn_and_grb nx={} ny={}".format(tmp["hist_nx"], tmp["hist_ny"]))
@@ -1811,14 +1815,14 @@ def plot_one_skymap_with_dists(task_to_plot, settings):
         tmp = copy.deepcopy(settings["kn_w_skymap"])
         if settings["precompute"]:
             all_x_w, all_y_w, all_fluxes_w \
-                = pb2.get_ej_skymap(time=time * cgs.day, freq=freq, verbose=False, remove_mu=True)
-            int_x_w, int_y_w, int_zz_w = pb2.combine_images(all_x_w, all_y_w, all_fluxes_w, hist_or_int="hist",
+                = pb2.KN.get_skymap(time=time * cgs.day, freq=freq, verbose=False, remove_mu=True)
+            int_x_w, int_y_w, int_zz_w = combine_images(all_x_w, all_y_w, all_fluxes_w, hist_or_int="hist",
                                                              shells=True, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
-            grid_y_w, i_zz_y_w, _ = pb2.get_skymap_lat_dist(all_x_w, all_y_w, all_fluxes_w, collapse_axis="x",
+            grid_y_w, i_zz_y_w, _ = get_skymap_lat_dist(all_x_w, all_y_w, all_fluxes_w, collapse_axis="x",
                                                              nx=tmp["hist_nx"], ny=tmp["hist_ny"])
-            grid_x_w, i_zz_x_w, _ = pb2.get_skymap_lat_dist(all_x_w, all_y_w, all_fluxes_w, collapse_axis="y",
+            grid_x_w, i_zz_x_w, _ = get_skymap_lat_dist(all_x_w, all_y_w, all_fluxes_w, collapse_axis="y",
                                                              nx=tmp["hist_nx"], ny=tmp["hist_ny"])
-            xc_w, yc_w = pb2.get_ej_skymap_cm(all_x_w, all_y_w, all_fluxes_w)
+            xc_w, yc_w = pb2.KN.get_skymap_cm(all_x_w, all_y_w, all_fluxes_w)
             #
             grp_kn_w = grp.create_group("kn_w nx={} ny={}".format(tmp["hist_nx"], tmp["hist_ny"]))
             grp_kn_w.create_dataset("int_x", data=int_x_w)
@@ -1843,8 +1847,8 @@ def plot_one_skymap_with_dists(task_to_plot, settings):
             yc_w = float(grp_kn_w.attrs["yc"])
         i_zz_x_w /= i_zz_x_w.max()
         i_zz_y_w /= i_zz_y_w.max()
-        y1_w, y2_w = pb2.get_skymap_fwhm(grid_y_w, i_zz_y_w, yc_w)
-        x1_w, x2_w = pb2.get_skymap_fwhm(grid_x_w, i_zz_x_w, xc_w)
+        y1_w, y2_w = get_skymap_fwhm(grid_y_w, i_zz_y_w, yc_w)
+        x1_w, x2_w = get_skymap_fwhm(grid_x_w, i_zz_x_w, xc_w)
         assert x2_w > x1_w
         if len(tmp["cm"].keys()) > 0: ax.plot(xc_w, yc_w, **tmp["cm"])
         if len(tmp["ysize"].keys()) > 0: ax.errorbar([xc_w, xc_w], [y1_w, y2_w],
@@ -1961,7 +1965,7 @@ def plot_one_skymap_with_dists(task_to_plot, settings):
                         bottom=True, top=True, left=True, right=True)
 
     if "text" in settings.keys() and settings["text"] == "full":
-        tot_flux = float(pb1.get_ej_skymap_totfluxes(freq) * 1e3)
+        tot_flux = float(pb1.KN.get_skymap_totfluxes(freq) * 1e3)
         ax_main.text(1.05, 0.6, r"$\\I_{\rm max}$="
                      + r"${}$".format(latex_float(int_zz.max() * 1e3)) + r"\,[$\mu$Jy/mas$^2$]\\"
                      + r"$F_{\nu}=$" + r"${}$".format(latex_float(tot_flux)) + r"\,[$\mu$Jy]\\"

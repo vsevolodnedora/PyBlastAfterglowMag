@@ -52,6 +52,15 @@ get_Gamma = lambda beta: np.float64(np.sqrt(1. / (1. - np.float64(beta) ** 2.)))
 def get_Beta(Gamma):
     return (1. / Gamma) * np.sqrt((Gamma - 1.) * (Gamma + 1.))
 
+def MomFromGam(gam):
+    return np.sqrt(gam*gam - 1.)
+
+def GamFromMom(mom):
+    return np.sqrt(1.0+mom*mom)
+
+def BetFromMom(mom):
+    return mom / GamFromMom(mom)
+
 def latex_float(f, format="{0:.2g}"):
     float_str = format.format(f)
     if "e" in float_str:

@@ -2,13 +2,13 @@
 // Created by vsevolod on 08/01/23.
 //
 
-#ifndef SRC_MAGNETAR_H
-#define SRC_MAGNETAR_H
+#ifndef SRC_MODEL_MAGNETAR_H
+#define SRC_MODEL_MAGNETAR_H
 
-#include "pch.h"
-#include "logger.h"
-#include "utils.h"
-#include "interpolators.h"
+#include "utilitites/pch.h"
+#include "utilitites/logger.h"
+#include "utilitites/utils.h"
+#include "utilitites/interpolators.h"
 
 class Magnetar_OLD{
     struct Pars{
@@ -1588,4 +1588,4 @@ public:
 
 };
 
-#endif //SRC_MAGNETAR_H
+#endif //SRC_MODEL_MAGNETAR_H

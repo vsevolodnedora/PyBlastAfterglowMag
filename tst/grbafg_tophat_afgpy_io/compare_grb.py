@@ -10,23 +10,19 @@ from matplotlib.colors import Normalize, LogNorm
 from matplotlib import cm
 import os
 
-# from PyBlastAfterglowMag import BPA_METHODS as PBA
-# from package.src.PyBlastAfterglowMag.interface import BPA_METHODS as PBA
-# from package.src.PyBlastAfterglowMag
-
 try:
     from PyBlastAfterglowMag.interface import modify_parfile_par_opt
-    from PyBlastAfterglowMag.interface import BPA_METHODS
+    from PyBlastAfterglowMag.interface import PyBlastAfterglow
     from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
     from PyBlastAfterglowMag.utils import latex_float, cgs, get_beta, get_Gamma
-    from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_2d
+    from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
 except ImportError:
     try:
         from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
-        from package.src.PyBlastAfterglowMag.interface import BPA_METHODS
+        from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
         from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
         from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma)
-        from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_2d
+        from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
     except ImportError:
         raise ImportError("Cannot import PyBlastAfterglowMag")
 
@@ -40,17 +36,168 @@ except:
 
 curdir = os.getcwd() + '/' #"/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglow_dev/PyBlastAfterglow/src/PyBlastAfterglow/tests/dyn/"
 
+def tst_against_afgpy(withSpread = False,
+                      savefig = "compare_uniform_afgpy.png",
+                      load_data = True):
+
+    # pba = PBA(workingdir=os.getcwd()+"/", readparfileforpaths=True)
+# modify_parfile_par_opt
+    fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(4.6, 3.2))
+    ax = axes
+
+    # pba_0 = PBA(os.getcwd()+"/", readparfileforpaths=True)
+    # pba_016 = PBA(os.getcwd()+"/", readparfileforpaths=True)
+
+    prepare_grb_ej_id_1d({"Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.1,
+                          "nlayers_pw": 150, "nlayers_a": 1, "struct":"tophat"},type="pw",outfpath="tophat_grb_id.h5")
+
+    lls, lbls = [], []
+    for (i_thetaobs, i_freq, i_color) in [
+        # (thetaObs, freqobs, "blue"),
+        (0.16, 1e9, "orange"),
+        (0, 1e18, "green"),
+        (0.16, 1.e18, "red"),
+        (0, 1e9, "gray"),
+    ]:
+
+        modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main", newpars={"theta_obs":i_thetaobs},newopts={},
+                               parfile="default_parfile.par", newparfile="parfile2.par", keep_old=True)
+        modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb", newpars={},
+                               newopts={"method_synchrotron":"Joh06", "fname_light_curve":"tophat_{}_joh06.h5"
+                               .format( str(i_thetaobs).replace(".",""))},
+                               parfile="parfile2.par", newparfile="parfile.par",keep_old=False)
+        pba = PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
+        # pba.reload_parfile()
+
+
+        pba.run()
+
+        ax.plot(pba.GRB.get_lc_times() / cgs.day,
+                pba.GRB.get_lc_totalflux(freq=i_freq), color=i_color, ls='-',
+                label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+
+        pba.clear()
+        modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main",newpars={"theta_obs":i_thetaobs},newopts={},
+                               parfile="default_parfile.par", newparfile="parfile2.par", keep_old=True)
+        modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",newpars={},
+                               newopts={"method_synchrotron":"WSPN99", "fname_light_curve":"tophat_{}_WSPN99.h5"
+                               .format( str(i_thetaobs).replace(".",""))},
+                               parfile="parfile2.par", newparfile="parfile.par",keep_old=False)
+        pba.reload_parfile()
+
+        pba.run()
+
+        ax.plot(pba.GRB.get_lc_times() / cgs.day,
+                pba.GRB.get_lc_totalflux(freq=i_freq), color=i_color, ls=':',
+                label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+
+        pba.clear()
+
+        if load_data:
+            if withSpread:
+                fname = "afterglowpy_theta{:d}_lognu{:d}_spread.txt".format(int(i_thetaobs * 180 / np.pi),
+                                                                            int(np.log10(i_freq)))
+            else:
+                fname = "afterglowpy_theta{:d}_lognu{:d}.txt".format(int(i_thetaobs * 180 / np.pi),
+                                                                     int(np.log10(i_freq)))
+            _t, _ref_F_afgpy, _ref_F = np.loadtxt(os.getcwd() + '/' + fname, unpack=True)
+            _ll, = ax.plot(_t / cgs.day, _ref_F_afgpy, color=i_color, ls='--')
+            lls.append(_ll)
+            lbls.append(r"$\nu=$" + r"${}$ Hz ".format(latex_float(i_freq))
+                        + r"$\theta_{\rm obs}=$" + r"{:.1f} deg".format(i_thetaobs * 180 / np.pi))
+
+        # break
+
+    l11, = ax.plot([-1., -1.], [-2., -2.], color='gray', ls='-', label=r"\texttt{PBA} with J06")
+    l12, = ax.plot([-1., -1.], [-2., -2.], color='gray', ls=':', label=r"\texttt{PBA} with WSPN99")
+    l13, = ax.plot([-1., -1.], [-2., -2.], color='gray', ls='--', label=r"\texttt{afterglowpy}")
+
+    legend1 = plt.legend([l11, l12, l13],
+                         # [r"\& J\'{o}hannesson+06", r"\& WSPN+99", r"\texttt{afterglowpy}"],
+                         [r"\texttt{PBA} with J06", r"\texttt{PBA} with WSPN99", r"\texttt{afterglowpy}"],
+                         loc="center", bbox_to_anchor=(0.78, 0.56), fancybox=False, shadow=False, ncol=1,
+                         fontsize=10, framealpha=0, borderaxespad=0., frameon=False)
+    legend2 = plt.legend(lls, lbls,
+                         loc="center", bbox_to_anchor=(0.4, 0.16), fancybox=False, shadow=False, ncol=1,
+                         fontsize=10, framealpha=0, borderaxespad=0., frameon=False)
+
+    ax.add_artist(legend1)
+    ax.add_artist(legend2)
+    # ax.plot([-1., -1.], [-2., -2.], color='gray', ls='--', label=r"afterglowpy")
+
+    # ax.set_title(r"Comparison with afterglowpy (e.g. Fig.2)")
+    ax.tick_params(axis='both', which='both', labelleft=True,
+                   labelright=False, tick1On=True, tick2On=True,
+                   # labelsize=plotdic["fontsize"],
+                   direction='in',
+                   bottom=True, top=True, left=True, right=True)
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.minorticks_on()
+    ax.set_xlabel(r"$t_{\rm obs}$ [day]")
+    ax.set_ylabel(r"$F_{\nu}$ [mJy]")
+    ax.set_xlim(1e-1, 1e3)
+    ax.set_ylim(1e-9, 1e2)
+    # ax.legend()
+    plt.tight_layout()
+    # if save_figs: plt.savefig(PAPERPATH + save)
+    if savefig: plt.savefig(os.getcwd() + '/' + savefig, dpi=256)
+
+    plt.show()
+
+if __name__ == '__main__':
+    tst_against_afgpy()
+    exit(0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 def main():
-    workdir = os.getcwd()+'/'
-    pba = BPA_METHODS(workingdir=os.curdir+'/',readparfileforpaths=True)
-    # prepare_grb_ej_id_1d({"Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
-    #                       "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":350,"nlayers_a": 10}, type="pw",
-    #                      outfpath=workdir+"gauss_grb_id.h5")
 
+    # afterglowpy
+    if (afterglowpy) : Z = {'jetType':     grb.jet.TopHat,     # Top-Hat jet
+                            'specType':    0,                  # Basic Synchrotron Spectrum
+                            'counterjet':  0,
+                            'spread':      0,
+                            'thetaObs':    0.0,   # Viewing angle in radians
+                            'E0':          1.0e52, # Isotropic-equivalent energy in erg
+                            'g0':          1000,
+                            'thetaCore':   0.2,    # Half-opening angle in radians
+                            'thetaWing':   0.2,
+                            'n0':          1e-3,    # circumburst density in cm^{-3}
+                            'p':           2.2,    # electron energy distribution index
+                            'epsilon_e':   0.1,    # epsilon_e
+                            'epsilon_B':   0.01,   # epsilon_B
+                            'xi_N':        1.0,    # Fraction of electrons accelerated
+                            'd_L':         3.09e26, # Luminosity distance in cm
+                            'z':           0.0099}   # redshift
+    t = np.geomspace(1.0 * 86400.0, 1.0e3 * 86400.0, 100)
+    nu = np.empty(t.shape)
+    nu[:] = 3.0e9
+    if (afterglowpy) : Fnu = grb.fluxDensity(t, nu, **Z)
+
+    # pyblastafterglow
+    pba = PBA(workingdir=os.curdir+'/',readparfileforpaths=True)
+    print(pba.main_pars)
+    pba.modify_main_part_parfile(newpars=dict({"theta_obs":0.16}),newopts={})
+    pba.modify_grb_part_parfile(newpars={},newopts={"fname_light_curve":"grb_lc_theta016.h5"})
     pba.run()
-    print(pba.fpath_kn_light_curve)
-    # print(pba.get_jet_lc_totalflux(freq=1e9))
+    exit(1)
+    print(pba.main_pars)
+    print(pba.get_jet_lc_totalflux(freq=1e9))
 
     fig, ax = plt.subplots(figsize=(9,2.5), ncols=1, nrows=1)
 
@@ -61,9 +208,6 @@ def main():
     ax.plot(tts, fluxes*1e26, ls='--', color='gray', label='Joelib')
 
     ax.plot(pba.get_jet_lc_times(), pba.get_jet_lc_totalflux(freq=3.e9), ls='-', color="black", label="PBA")
-    print(pba.get_jet_lc_obj().keys())
-    for il in range(int(pba.get_jet_lc_obj().attrs["nlayers"])):
-        ax.plot(pba.get_jet_lc_times(), pba.get_jet_lc(freq=3.e9, ilayer=il), ls='-', color="gray")
 
     ax.grid()
     ax.legend()

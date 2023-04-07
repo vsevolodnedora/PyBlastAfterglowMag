@@ -5,11 +5,11 @@
 #ifndef SRC_COMPOSITION_H
 #define SRC_COMPOSITION_H
 
-#include "utils.h"
-#include "pch.h"
-#include "logger.h"
-#include "interpolators.h"
-#include "H5Easy.h"
+#include "utilitites/utils.h"
+#include "utilitites/pch.h"
+#include "utilitites/logger.h"
+#include "utilitites/interpolators.h"
+#include "utilitites/H5Easy.h"
 
 struct LippunerHeating{
     std::unique_ptr<logger> p_log;
