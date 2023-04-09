@@ -294,14 +294,18 @@ struct TanakaOpacity{
     Array Ye{0.01,0.10,0.15,0.20,0.25,0.30,0.35,0.40,0.50};
     Array kappa{30.1,30.0,29.9,22.30,5.60,5.36,3.30,0.96,0.1};
     TanakaOpacity(){}
-    void setPars(StrDbMap pars, StrStrMap opts){}
+    void setPars(StrDbMap & pars, StrStrMap & opts){}
     double evaluateOpacity(double ye){
         if (ye < Ye[0])
             ye = Ye[0];
         if (ye > Ye[Ye.size()-1])
             ye = Ye[Ye.size()-1];
         auto interp = Interp1d(Ye, kappa);
-        double kap = interp.Interpolate(ye, Interp1d::METHODS::iLagrangeLinear);
+        double kap = interp.Interpolate(ye, Interp1d::METHODS::iLinear);
+        if (kap < 0 or !std::isfinite(kap)){
+            std::cerr << AT <<" kap = "<<kap<<"\n";
+            exit(1);
+        }
         return kap;
     }
 };
@@ -427,6 +431,10 @@ public:
         if (!do_nucinj)
             return;
         double kappa = p_tanaka->evaluateOpacity(ye);
+        if (kappa < 0 or !std::isfinite(kappa)){
+            (*p_log)(LOG_ERR,AT)<<" kappa = "<<kappa<<"\n";
+            exit(1);
+        }
         p_pars->kappa = kappa;
 
         /// update thermalization efficiency

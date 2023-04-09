@@ -1120,7 +1120,8 @@ private:
         applyUnits();
 
         /// check if blast wave has fully expanded
-        isThereLateralExpansionTermiantion();
+        if (p_pars->p_grb->run_bws)
+            isThereLateralExpansionTermiantion();
         // check if there are no nans/unphysical vals in solution
         if ( !isSolutionOk() ) {
             (*p_log)(LOG_ERR,AT)  << " Unphysical value in the solution \n";

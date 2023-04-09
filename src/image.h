@@ -177,7 +177,7 @@ void combineImages(Image & image, size_t ncells, size_t nlayers, std::vector<Ima
 //    Image image(2 * struc.ncells, 0. );
     image.resize(2 * ncells, 0. );
     for (size_t ilayer = 0; ilayer < nlayers; ilayer++){
-        size_t ncells_in_layer = LatStruct::CellsInLayer(ilayer);//struc.cil[ilayer];
+        size_t ncells_in_layer = EjectaID2::CellsInLayer(ilayer);//struc.cil[ilayer];
         auto & tmp = images[ilayer];
 //        if ( tmp.m_size != 2 * ncells_in_layer ){
 //            std::cerr <<  " Error !" << "\n";

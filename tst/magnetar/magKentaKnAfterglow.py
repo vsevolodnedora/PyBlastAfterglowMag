@@ -30,15 +30,25 @@ try:
     from PyBlastAfterglowMag.interface import modify_parfile_par_opt
     from PyBlastAfterglowMag.interface import PyBlastAfterglow
     from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
-    from PyBlastAfterglowMag.utils import latex_float, cgs, get_beta, get_Gamma
-    from PyBlastAfterglowMag.id_maker_from_kenta_bns import prepare_kn_ej_id_2d, load_init_data
+    from PyBlastAfterglowMag.utils import \
+        (latex_float, cgs, get_beta, get_Gamma,get_Beta,BetFromMom,GamFromMom,MomFromGam)
+    from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+    from PyBlastAfterglowMag.id_maker_from_kenta_bns import \
+        prepare_kn_ej_id_2d, load_init_data
+    from PyBlastAfterglowMag.skymap_tools import \
+        (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
 except ImportError:
     try:
         from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
         from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
         from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
-        from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma)
-        from package.src.PyBlastAfterglowMag.id_maker_from_kenta_bns import prepare_kn_ej_id_2d, load_init_data
+        from package.src.PyBlastAfterglowMag.utils import \
+            (latex_float, cgs, get_beta, get_Gamma,get_Beta,BetFromMom,GamFromMom,MomFromGam)
+        from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+        from package.src.PyBlastAfterglowMag.id_maker_from_kenta_bns import \
+            prepare_kn_ej_id_2d, load_init_data
+        from package.src.PyBlastAfterglowMag.skymap_tools import \
+            (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
     except ImportError:
         raise ImportError("Cannot import PyBlastAfterglowMag")
 
@@ -560,9 +570,67 @@ def main():
                         new_vinf_len=None,
                         verbose=True,
                         dist="pw")
+
+
+
     #
-    mom_, theta_, ctheta_, ek_, mass_, ye_, s_, rho_, temp_= load_init_data(workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5")
-    plot_init_profile(ctheta_, mom_, mass_/rho_,
+    mom_, theta_, ctheta_, ek_, mass_, ye_, s_, rho_, temp_\
+        = load_init_data(workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5")
+    r = np.zeros_like(mass_)
+    for ith in range(len(ctheta_[0,:])):
+        idx = 0
+        k = 0.5
+        r[idx,ith] = (k*(3/4./np.pi)*rho_[idx,ith]*mass_[idx,ith])**(1./3.)
+
+        if (r[idx,ith] == 0):
+            raise ValueError()
+        for ir in range(1,len(mom_[:,0]),1):
+            _val = (3./4./np.pi)*rho_[ir,ith]*mass_[ir,ith]
+            _rm1 = r[ir-1,ith]**3
+            if(mass_[ir,ith]>0):
+                r[ir,ith] = (_rm1 + _val)**(1./3.)
+
+    t = 70. * 1e-3
+    for ith in range(len(ctheta_[0,:])):
+        for ir in range(0,len(mom_[:,0]),1):
+            r[ir,ith] =  BetFromMom(mom_[ir,ith])*cgs.c * t
+
+
+    # r = np.zeros_like(mass_)
+    # for ith in range(len(ctheta_)):
+    #     idx = np.argmax(np.where(mass_[:,ith] > 0))
+    #     if idx != len(mom_)-1: print(idx, mass_[idx,ith], mass_[idx+1,ith])
+    #     if (len(mass_[:,ith]>0.)==1):
+    #         raise ValueError()
+    #
+    #     k = 100.
+    #     r[idx,ith] = (k*(3/4./np.pi)*rho_[idx,ith]*mass_[idx,ith])**(1./3.)
+    #     for i in range(idx-1, 0, -1):
+    #         _rp1 = r[i+1,ith]**3
+    #         _val = (3./4./np.pi)*rho_[i,ith]*mass_[i,ith]
+    #         if (_rp1 < _val):
+    #             raise ValueError()
+    #         r[i,ith] = (_rp1 - _val)**(1./3.)
+    #         y = 1
+    #     print(r[:,ith])
+    #     x = 1
+
+        # if (idx == 1):
+        #     print(mass_[:,ith])
+
+    # exit(1)
+    # k = 1./2.
+    # rn = (k*(3/4/np.pi)*rho_[-1,:]*mass_[-1,:])**(1./3.)
+    # r = np.zeros_like(mass_)
+    # r[-1,:] = rn
+    # for i in range(len(mom_)-2, 0, -1):
+    #     print(i)
+    #     r[i,:] = (r[i+1,:]**3 - (3./4./np.pi)*rho_[i,:]*mass_[i,:])**(1./3.)
+
+
+
+
+    plot_init_profile(ctheta_[0,:], mom_[:,0], r,
                       figpath=None,#FIGPATH+"ang_mass_dist" + r"_text{}".format(int(times[idx])),
                       norm_mode="log",
                       subplot_mode="ave",

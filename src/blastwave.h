@@ -26,7 +26,7 @@ enum METHOD_dgdr{ iour, ipeer };
 enum METHODS_SHOCK_VEL { isameAsBW, ishockVel };
 enum METHOD_NE{ iusenprime, iuseNe };
 enum METHODS_RAD { icomovspec, iobservflux };
-
+#if 0
 class ShockMicrophysics{
     std::unique_ptr<logger> p_log;
     std::unique_ptr<SynchrotronAnalytic> p_syn_an;
@@ -209,7 +209,7 @@ struct ParsOld{
 //    std::unique_ptr<logger> p_log;
 
 };
-
+#endif
 struct Pars{
     // set a reference to the data container
     // *************************************** //
@@ -222,7 +222,7 @@ struct Pars{
     METHOD_RSh m_method_r_sh{};
     METHOD_dmdr m_method_dmdr{};
     METHOD_dgdr m_method_dgdr{};
-    LatStruct::METHOD_eats m_method_eats{};
+    EjectaID2::STUCT_TYPE m_method_eats{};
 
     /// blast wave initial conditions
     double M0 = -1.;
@@ -935,7 +935,7 @@ public:
 
     /// evaluate intensity/flux density distribution using piece-wise summation
     void evalImagePW(Image & image, Image & im_pj, Image & im_cj, double obs_time, double obs_freq){
-        Array phi_grid = LatStruct::getCphiGridPW( p_pars->ilayer );
+        Array phi_grid = EjectaID2::getCphiGridPW( p_pars->ilayer );
         computeImagePW(im_pj, im_cj, obs_time, obs_freq );
         /// combine the two images (use full 'ncells' array, and fill only cells that correspond to this layer)
         for (size_t icell = 0; icell < phi_grid.size(); ++icell) {
@@ -974,7 +974,7 @@ public:
 //                    << " Error might occure here... [TODO] Check if limited calcs to this ix works..\n";
 //        }
         Array ttobs( 1e200, m_data[BW::Q::iR].size()  );
-        Array cphis = LatStruct::getCphiGridPW(p_pars->ilayer);
+        Array cphis = EjectaID2::getCphiGridPW(p_pars->ilayer);
 
         /// limit the evaluation to the latest 'R' that is not 0 (before termination)
         size_t nr = m_data[BW::Q::iR].size();
@@ -1251,7 +1251,7 @@ public:
     }
     /// get the observed flux density distrib 'image' for 2 projections for given time, freq, angle, distance, red shift
     void computeImagePW(Image & im_pj, Image & im_cj, double obs_time, double obs_freq){
-        size_t cells_in_layer = LatStruct::CellsInLayer(p_pars->ilayer);
+        size_t cells_in_layer = EjectaID2::CellsInLayer(p_pars->ilayer);
         /// compute image for primary jet and counter jet
         evalImageFromPW(im_pj, obs_time, obs_freq, obsAngle, imageXXs, imageYYs);
         if (p_pars->counter_jet) // p_eats->counter_jet
@@ -1272,7 +1272,7 @@ public:
 
 
     /// compute light curve using Adapitve or Piece-Wise EATS method
-    void evalForwardShockLightCurve(LatStruct::METHOD_eats m_method_eats,
+    void evalForwardShockLightCurve(EjectaID2::STUCT_TYPE m_method_eats,
                                     Image & image, Image & im_pj, Image & im_cj,
                                     Vector & light_curve, Vector & times, Vector & freqs ){
 //        Vector light_curve (times.size(), 0.0);
@@ -1288,7 +1288,7 @@ public:
 //        Image image; Image im_pj; Image im_cj;
         for (size_t it = 0; it < times.size(); it++) {
 //            (*p_log)(LOG_INFO,AT)<<" LC processing it="<<it<<"/"<<times.size()<<"\n";
-            if (m_method_eats == LatStruct::i_pw) {
+            if (m_method_eats == EjectaID2::STUCT_TYPE::ipiecewise) {
 //                    auto image = model->evalImagePW(obs_times[it], obs_freqs[it]);
                 computeImagePW(im_pj, im_cj, times[it], freqs[it] );
                 image.m_f_tot = (im_pj.m_f_tot + im_cj.m_f_tot);
@@ -1941,6 +1941,8 @@ protected:
     std::unique_ptr<BlastWaveRadiation> p_rad = nullptr;
     std::unique_ptr<Pars> p_pars = nullptr;
     int m_loglevel;
+    size_t ish = 0;
+    size_t il = 0;
 public:
     // RHS settings
 //    const static int neq = 11;
@@ -1983,9 +1985,12 @@ public:
         p_pars->nr = m_tb_arr.size();
         p_pars->ilayer = ilayer;
         p_pars->ishell = ishell;
+        ish = ishell;
+        il = ilayer;
         // ----------------------
     }
-    void setAllParametersForOneLayer(LatStruct & latStruct, StrDbMap & pars, StrStrMap & opts,
+    void setAllParametersForOneLayer(std::unique_ptr<EjectaID2> & id,
+                                     StrDbMap & pars, StrStrMap & opts,
                                      size_t ilayer, size_t ii_eq){
 
         double nism, A0, s, r_ej, r_ism,  a, theta_max, epsilon_e_rad;
@@ -2101,8 +2106,8 @@ public:
                 exit(1);
             }
         }
-        p_spread->setPars(a,theta_max,latStruct.m_theta_c,
-                          latStruct.m_theta_w, method_spread);
+        p_spread->setPars(a,theta_max,id->theta_core,
+                          id->theta_wing, method_spread);
 
 
         // set parameters for EOS
@@ -2240,8 +2245,8 @@ public:
         p_pars->m_method_Delta = m_method_delta;
 
         /// EATS method guverns the BW discretization (piece-wise versus adaptive)
-        p_pars->m_method_eats = latStruct.m_method_eats;
-        p_pars->nlayers = latStruct.nlayers;
+        p_pars->m_method_eats = id->method_eats;
+        p_pars->nlayers = id->nlayers;
 
         /// set boolean pars
         p_pars->use_dens_prof_behind_jet_for_ejecta =
@@ -2271,9 +2276,10 @@ public:
         /// set parameters for computing observed emission
 
         // set initials and costants for the blast wave
-        switch (latStruct.m_method_eats) {
+        switch (id->method_eats) {
 
-            case LatStruct::i_pw:
+            case EjectaID2::ipiecewise:
+#if 0
                 if ( latStruct.dist_E0_pw.empty() || latStruct.dist_M0_pw.empty() || latStruct.dist_Mom0_pw.empty()
                      || latStruct.dist_Ye_pw.empty() || latStruct.theta_pw.empty()){
                     (*p_log)(LOG_ERR, AT) << "one of the blast-wave initial data arrays is empty. \n";
@@ -2300,22 +2306,22 @@ public:
 //                    std::cerr << AT << "\n";
                     exit(1);
                 }
-//
-                p_pars->E0        = latStruct.dist_E0_pw[ilayer];
-                p_pars->Ye0       = latStruct.dist_Ye_pw[ilayer];
-                p_pars->s0        = latStruct.dist_s_pw[ilayer];
-                p_pars->M0        = latStruct.dist_M0_pw[ilayer];
-                p_pars->mom0      = latStruct.dist_Mom0_pw[ilayer];
+#endif
+                p_pars->E0        = id->get(ish,il,EjectaID2::Q::iek);//latStruct.dist_E0_pw[ilayer];
+                p_pars->Ye0       = id->get(ish,il,EjectaID2::Q::iye);//latStruct.dist_Ye_pw[ilayer];
+                p_pars->s0        = id->get(ish,il,EjectaID2::Q::is);//latStruct.dist_s_pw[ilayer];
+                p_pars->M0        = id->get(ish,il,EjectaID2::Q::imass);//latStruct.dist_M0_pw[ilayer];
+                p_pars->mom0      = id->get(ish,il,EjectaID2::Q::imom);//latStruct.dist_Mom0_pw[ilayer];
                 p_pars->tb0       = m_tb_arr[0];
                 p_pars->theta_a   = 0.; // theta_a
-                p_pars->theta_b0  = latStruct.m_theta_w; // theta_b0
-                p_pars->ctheta0   = 0.5 * (latStruct.theta_pw[ilayer] + latStruct.theta_pw[ilayer]);
+                p_pars->theta_b0  = id->theta_wing;//latStruct.m_theta_w; // theta_b0
+                p_pars->ctheta0   = id->get(ish,il,EjectaID2::Q::ictheta); //TODO !! 0.5 * (latStruct.theta_pw[ilayer] + latStruct.theta_pw[ilayer]);
 //        p_pars->theta_h0= theta_c_h;
-                p_pars->theta_c_l = latStruct.theta_pw[ilayer];//theta_c_l;
-                p_pars->theta_c_h = latStruct.theta_pw[ilayer];
-                p_pars->theta_w   = latStruct.m_theta_w; //
+                p_pars->theta_c_l = 0.;//id->get(ish,il,EjectaID2::Q::itheta_c_l);//latStruct.theta_pw[ilayer];//theta_c_l;
+                p_pars->theta_c_h = 0.,//id->get(ish,il,EjectaID2::Q::itheta_c_h);//latStruct.theta_pw[ilayer];
+                p_pars->theta_w   = id->theta_wing;//latStruct.m_theta_w; //
                 p_pars->theta_max = theta_max;
-                p_pars->ncells    = (double) latStruct.ncells;
+                p_pars->ncells    = (double)id->ncells;//(double) latStruct.ncells;
                 p_pars->eps_rad   = epsilon_e_rad;
 
                 p_spread->m_theta_b0 = p_pars->theta_b0;
@@ -2328,7 +2334,9 @@ public:
                                    p_pars->theta_c_l,p_pars->theta_c_h,p_pars->theta_w,p_pars->theta_max);
 
                 break;
-            case LatStruct::i_adap:
+
+            case EjectaID2::iadaptive:
+#if 0
                 if ( latStruct.dist_E0_a.empty() || latStruct.dist_M0_a.empty() || latStruct.dist_Mom0_a.empty()
                      || latStruct.dist_Ye_a.empty() || latStruct.thetas_c_h.empty()){
                     (*p_log)(LOG_ERR, AT) << "one of the blast-wave initial data arrays is empty. \n";
@@ -2355,19 +2363,19 @@ public:
 //                    std::cerr << AT << "\n";
                     exit(1);
                 }
-
-                p_pars->E0      = latStruct.dist_E0_a[ilayer];
-                p_pars->Ye0     = latStruct.dist_Ye_a[ilayer];
-                p_pars->s0      = latStruct.dist_s_a[ilayer];
-                p_pars->M0      = latStruct.dist_M0_a[ilayer];
-                p_pars->mom0    = latStruct.dist_Mom0_a[ilayer];
+#endif
+                p_pars->E0      = id->get(ish,il,EjectaID2::Q::iek);//latStruct.dist_E0_a[ilayer];
+                p_pars->Ye0     = id->get(ish,il,EjectaID2::Q::iye);//latStruct.dist_Ye_a[ilayer];
+                p_pars->s0      = id->get(ish,il,EjectaID2::Q::is);//latStruct.dist_s_a[ilayer];
+                p_pars->M0      = id->get(ish,il,EjectaID2::Q::imass);//latStruct.dist_M0_a[ilayer];
+                p_pars->mom0    = id->get(ish,il,EjectaID2::Q::imom);//latStruct.dist_Mom0_a[ilayer];
                 p_pars->tb0     = m_tb_arr[0];
                 p_pars->theta_a = 0.;
-                p_pars->theta_b0= latStruct.thetas_c_h[ilayer];
-                p_pars->ctheta0 = 0.5 * (latStruct.thetas_c_l[ilayer] + latStruct.thetas_c_h[ilayer]);
+                p_pars->theta_b0= id->get(ish,il,EjectaID2::Q::itheta_c_h);//latStruct.thetas_c_h[ilayer];
+                p_pars->ctheta0 = id->get(ish,il,EjectaID2::Q::ictheta); // TODO 0.5 * (latStruct.thetas_c_l[ilayer] + latStruct.thetas_c_h[ilayer]);
 //        p_pars->theta_h0= theta_c_h;
-                p_pars->theta_c_l = latStruct.thetas_c_l[ilayer];
-                p_pars->theta_c_h = latStruct.thetas_c_h[ilayer];
+                p_pars->theta_c_l = id->get(ish,il,EjectaID2::Q::itheta_c_l);//latStruct.thetas_c_l[ilayer];
+                p_pars->theta_c_h = id->get(ish,il,EjectaID2::Q::itheta_c_h);//latStruct.thetas_c_h[ilayer];
                 p_pars->theta_w = 0.; //
                 p_pars->theta_max = theta_max;
                 p_pars->ncells  = 1.;
@@ -2425,7 +2433,7 @@ public:
     void updateNucAtomic( double * sol, const double t ){
         p_nuc->update(
                 p_pars->Ye0,
-                p_pars->M0 * (double)LatStruct::CellsInLayer(p_pars->ilayer), // m_iso ( for eps_th )
+                p_pars->M0 * (double)EjectaID2::CellsInLayer(p_pars->ilayer), // m_iso ( for eps_th )
                 EQS::BetFromMom( sol[ p_pars->ii_eq + SOL::QS::imom ] ),
                 t,
                 sol[ p_pars->ii_eq + SOL::QS::iR ],
@@ -2812,7 +2820,7 @@ public:
 
         // ****************************************
 //        auto *_pars = (struct RHS_pars *) rhs_pars;
-        double ctheta_ = LatStruct::ctheta(theta,p_pars->ilayer,p_pars->nlayers);//ctheta(theta);//p_pars->ctheta0 + 0.5 * (2. * theta - 2. * p_pars->theta_w);
+        double ctheta_ = EjectaID2::ctheta(theta,p_pars->ilayer,p_pars->nlayers);//ctheta(theta);//p_pars->ctheta0 + 0.5 * (2. * theta - 2. * p_pars->theta_w);
         p_dens->evaluateRhoDrhoDrDefault(R, ctheta_);
         double rho = p_dens->m_rho_def / p_pars->M0;
         double drhodr = p_dens->m_drhodr_def / p_pars->M0;
@@ -3015,7 +3023,7 @@ public:
         // ****************************************
         // Get ISM density and its velocity
 //        double rho, m_drhodr;
-        double ctheta_ = LatStruct::ctheta(theta,p_pars->ilayer,p_pars->nlayers);//ctheta(theta);// = p_pars->ctheta0 + 0.5 * (2. * theta - 2. * p_pars->theta_w);
+        double ctheta_ = EjectaID2::ctheta(theta,p_pars->ilayer,p_pars->nlayers);//ctheta(theta);// = p_pars->ctheta0 + 0.5 * (2. * theta - 2. * p_pars->theta_w);
 //        p_dens->getDrhoDr( rho, m_drhodr, R,ctheta );
 //        rho /= p_pars->M0;
 //        m_drhodr /= p_pars->M0;
@@ -3871,7 +3879,7 @@ public:
 //        double j_Gamma = std::exp(j_lnGamma);
         double j_Gamma0 = others[i_ej_l]->getPars()->Gamma0;
 //        double j_ctheta = others[i_ej_l]->ctheta(j_theta);
-        double j_ctheta = LatStruct::ctheta(j_theta,
+        double j_ctheta = EjectaID2::ctheta(j_theta,
                                             others[i_ej_l]->getPars()->ilayer,
                                             others[i_ej_l]->getPars()->nlayers);//others[i_ej_l]->ctheta(j_theta);
         if (ej_ctheta < j_ctheta){ is_within = true; }
@@ -4015,7 +4023,7 @@ public:
             double ej_R      = Y[i + SOL::QS::iR];
             double theta_b0  = p_pars->theta_b0;
             double ej_theta  = Y[i + SOL::QS::itheta];
-            double ej_ctheta = LatStruct::ctheta(ej_theta,p_pars->ilayer,p_pars->nlayers);//ctheta(ej_theta);
+            double ej_ctheta = EjectaID2::ctheta(ej_theta,p_pars->ilayer,p_pars->nlayers);//ctheta(ej_theta);
             set_standard_ism(ej_R, ej_ctheta, ej_Gamma);
         }
 

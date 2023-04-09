@@ -256,6 +256,10 @@ public:
             double r_i =  Y[bw->getPars()->ii_eq + SOL::QS::iR];
             double dr_i = frac * r_i;
             double vol_i = frac * (4./3.) * CGS::pi * (r_i*r_i*r_i) / bw->getPars()->ncells;
+            if (dr_i < 0 or !std::isfinite(dr_i)){
+                (*p_log)(LOG_ERR,AT)<<" dr_i = "<<dr_i<<"\n";
+                exit(1);
+            }
             m_data[Q::idelta][idx] = dr_i;
             m_data[Q::ivol][idx] = vol_i;
         }
@@ -280,6 +284,10 @@ public:
                 double dr_i = r_ip1 - r_i;
                 /// evaluate the volume of the shell (fraction of the 4pi)
                 double vol_i = (4./3.) * CGS::pi * (r_ip1*r_ip1*r_ip1 - r_i*r_i*r_i) / bw->getPars()->ncells;
+                if (dr_i < 0 or !std::isfinite(dr_i)){
+                    (*p_log)(LOG_ERR,AT)<<" dr_i = "<<dr_i<<"\n";
+                    exit(1);
+                }
                 /// --------------------------- |
                 m_data[Q::idelta][idx] = dr_i;
                 m_data[Q::ivol][idx] = vol_i;
@@ -291,6 +299,10 @@ public:
             double r_i =  Y[bw->getPars()->ii_eq + SOL::QS::iR];
             double dr_i = frac * r_i;
             double vol_i = frac * (4./3.) * CGS::pi * (r_i*r_i*r_i) / bw->getPars()->ncells;
+            if (dr_i < 0 or !std::isfinite(dr_i)){
+                (*p_log)(LOG_ERR,AT)<<" dr_i = "<<dr_i<<"\n";
+                exit(1);
+            }
             m_data[Q::idelta][idx] = dr_i;
             m_data[Q::ivol][idx] = vol_i;
         }
@@ -615,7 +627,8 @@ public:
 
 /// Radially/Angular structured Blastwave collection
 class Ejecta{
-    VelocityAngularStruct ejectaStructs{};
+//    VelocityAngularStruct ejectaStructs{};
+    std::unique_ptr<EjectaID2> id = nullptr;
     std::unique_ptr<Output> p_out = nullptr;
     std::vector<std::unique_ptr<CumulativeShell>> p_cumShells {};
     std::unique_ptr<logger> p_log = nullptr;
@@ -625,7 +638,7 @@ class Ejecta{
     double jet_layer_fnu_stop_frac=1e-5;
     int n_ode_eq{};
     int m_loglevel{};
-    LatStruct::METHOD_eats ejecta_eats_method{};
+//    LatStruct::METHOD_eats ejecta_eats_method{};
     Vector & t_arr;
 //    size_t m_nshells = 0;
 //    size_t m_nlayers = 0;
@@ -665,9 +678,13 @@ public:
         return std::move(tmp);
     }
     size_t nlayers() const {
-        return run_bws ? ejectaStructs.structs[0].nlayers : 0; }
+//        return run_bws ? ejectaStructs.structs[0].nlayers : 0;
+        return run_bws ? id->nlayers : 0;
+    }
     size_t nshells() const {
-        return run_bws ? ejectaStructs.nshells : 0; }
+//        return run_bws ? ejectaStructs.nshells : 0;
+        return run_bws ? id->nshells : 0;
+    }
     size_t nMaxActiveShells() {
         size_t nsh = 0;
         for (auto & cumShell : getShells() )
@@ -676,7 +693,9 @@ public:
         return nsh;
     }
     int ncells() const {
-        return run_bws ? (int)ejectaStructs.structs[0].ncells : 0; }
+//        return run_bws ? (int)ejectaStructs.structs[0].ncells : 0;
+        return run_bws ? (int)id->ncells : 0;
+    }
     std::vector<std::unique_ptr<CumulativeShell>> & getShells(){
         if (p_cumShells.empty()){
             (*p_log)(LOG_ERR,AT)<<" ejecta not initialized\n";
@@ -717,7 +736,8 @@ public:
                     (*p_log)(LOG_ERR, AT) << " File not found. " + working_dir + fname_ejecta_id << "\n";
                     exit(1);
                 }
-                EjectaID ID(working_dir + fname_ejecta_id, m_loglevel);
+#if 0
+                EjectaID2 ID(working_dir + fname_ejecta_id, m_loglevel);
                 if (ID.idtype == EjectaID::IDTYPE::i_id_corr && (!use_1d_id))
                     setEjectaStructNumeric(
                             ID,
@@ -735,6 +755,14 @@ public:
                     (*p_log)(LOG_ERR, AT) << " no valid grb ejecta structure given\n";
                     exit(1);
                 }
+#endif
+                id = std::make_unique<EjectaID2>(
+                        working_dir + fname_ejecta_id,
+                        getStrOpt("method_eats",grb_opts,AT,p_log,"", true),
+                        getBoolOpt("use_1d_id", grb_opts, AT, p_log, false, true),
+                        m_loglevel
+                        );
+
 
 //                size_t ii_eq = pba.getMag()->getNeq();
 //            size_t nlayers_jet = pba.getGRB()->getBWs().size();
@@ -901,7 +929,7 @@ public:
     }
 
 private:
-
+#if 0
     void setEjectaStructNumericUniformInTheta(EjectaID & id, size_t nlayers, double mfac, StrStrMap & opts){
         run_bws = getBoolOpt("run_bws", opts, AT, p_log, false, true);
         if (!run_bws)
@@ -929,6 +957,7 @@ private:
         ejectaStructs.initCustom(id, force_grid, ej_eats_method, m_loglevel);
         is_ejecta_struct_set = true;
     }
+#endif
     void setEjectaBwPars(StrDbMap pars, StrStrMap opts, size_t ii_eq, size_t n_layers_jet){
 
         run_bws = getBoolOpt("run_bws", opts, AT, p_log, false, true);
@@ -939,8 +968,8 @@ private:
         size_t n_ejecta_empty_images = 0;
         std::vector<std::vector<size_t>> n_empty_images;
         std::vector<size_t> n_empty_images_shells;
-        size_t nshells_ = ejectaStructs.nshells;
-        size_t n_layers_ej_ = ejectaStructs.structs[0].nlayers;
+        size_t nshells_ = nshells();//ejectaStructs.nshells;
+        size_t n_layers_ej_ = nlayers();//ejectaStructs.structs[0].nlayers;
         if (n_layers_ej_ == 0){
             (*p_log)(LOG_ERR,AT)<<" no layers found to evolve!\n";
             exit(1);
@@ -956,8 +985,8 @@ private:
             p_cumShells[il]->setPars(pars, opts);
             for (size_t ish = 0; ish < nshells_; ish++){
                 auto & bw = p_cumShells[il]->getBW(ish);
-                auto & struc = ejectaStructs.structs[ish];
-                bw->setAllParametersForOneLayer(struc, pars, opts, il, ii_eq);
+//                auto & struc = ejectaStructs.structs[ish];
+                bw->setAllParametersForOneLayer(id, pars, opts, il, ii_eq);
 /// Override the layer-to-use
                 if (bw->getPars()->which_jet_layer_to_use == 0){
                     bw->getPars()->which_jet_layer_to_use = 0; // the fastest
@@ -1075,8 +1104,8 @@ private:
                 ccerr << "Ejecta blastwave is NOT initialized for total n="
                       << n_ejecta_empty_images << " layers. Specifically:\n";
                 for (size_t ish = 0; ish < n_empty_images_shells.size(); ish++) {
-                    auto &ejectaStruct = ejectaStructs.structs[n_empty_images_shells[ish]];
-                    size_t n_layers_i = ejectaStruct.nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStruct.nlayers_pw : ejectaStruct.nlayers_a ;
+//                    auto &ejectaStruct = ejectaStructs.structs[n_empty_images_shells[ish]];
+                    size_t n_layers_i = nlayers();//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStruct.nlayers_pw : ejectaStruct.nlayers_a ;
                     ccerr << "\t [ishell=" << n_empty_images_shells[ish] << " ilayer] = [";
                     for (size_t il = 0; il < n_empty_images[ish].size(); il++) {
                         ccerr << n_empty_images[ish][il] << " ";
@@ -1304,9 +1333,9 @@ private:
                         << " EJECTA LC ntimes="<<obs_times.size()
                         << " vel_shell="<<ishell<<"/"<<nshells()-1
                         << " theta_layer="<<ilayer<<"/"<<nlayers()
-                        << " phi_cells="<<LatStruct::CellsInLayer(ilayer)<<"\n";
+                        << " phi_cells="<<EjectaID2::CellsInLayer(ilayer)<<"\n";
                 model->getBW(ishell)->getRad()->evalForwardShockLightCurve(
-                        ejecta_eats_method,
+                        id->method_eats,
                         image_i, im_pj, im_cj, light_curves[ishell][ilayer], obs_times, obs_freqs);
                 ii ++;
             }

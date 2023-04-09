@@ -49,7 +49,7 @@ def tst_against_afgpy(withSpread = False,
     # pba_016 = PBA(os.getcwd()+"/", readparfileforpaths=True)
 
     prepare_grb_ej_id_1d({"Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.1,
-                          "nlayers_pw": 150, "nlayers_a": 1, "struct":"tophat"},type="pw",outfpath="tophat_grb_id.h5")
+                          "nlayers_pw": 150, "nlayers_a": 1, "struct":"tophat"},type="a",outfpath="tophat_grb_id.h5")
 
     lls, lbls = [], []
     for (i_thetaobs, i_freq, i_color) in [

@@ -72,7 +72,7 @@ do_lc = yes
 do_skymap = no
 
 method_collision = none # none
-method_eats = piece-wise # adaptive # piece-wise
+method_eats = adaptive # adaptive # piece-wise
 
 do_thermrad_loss = no
 

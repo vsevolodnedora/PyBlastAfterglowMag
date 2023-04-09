@@ -47,7 +47,7 @@ def main():
 
     prepare_grb_ej_id_1d({"struct":"gaussian",
         "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
-        "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":350,"nlayers_a": 10}, type="pw",
+        "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":350,"nlayers_a": 10}, type="a",
         outfpath=workdir+"gauss_grb_id.h5")
 
     pba.run()

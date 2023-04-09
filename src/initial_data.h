@@ -10,7 +10,225 @@
 #ifndef SRC_INITIAL_DATA_H
 #define SRC_INITIAL_DATA_H
 
-class EjectaID{
+class EjectaID2{
+    enum IDTYPE { i_id_hist, i_id_corr };
+    struct Pars{};
+    std::vector< // v_ns
+            std::vector< // shells
+                    std::vector<double>>> // layers
+    m_data{};
+    std::unique_ptr<logger> p_log = nullptr;
+    std::unique_ptr<Pars> p_pars = nullptr;
+    unsigned m_loglevel{};
+public:
+    enum Q{imom,itheta,ictheta,iek,imass,iye,is,
+        itheta_c_l, itheta_c_h, itheta_c};
+    std::vector<std::string> m_names{
+            "mom","theta","ctheta","ek","mass","ye","s",
+            "theta_c_l","theta_c_h","theta_c"
+    };
+    std::vector<std::string> m_v_ns {
+            "mom", "theta", "ctheta", "ek", "mass", "ye", "s"
+    };
+    enum STUCT_TYPE { iadaptive, ipiecewise };
+    IDTYPE idtype{};  STUCT_TYPE method_eats{};
+    size_t nshells=0, nlayers=0, ncells=0;
+    double theta_core{}; double theta_wing{};
+    EjectaID2(std::string path_to_table,
+              std::string eats_method,
+              bool use_1d_id,
+              unsigned loglevel){
+        m_loglevel=loglevel;
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "EjectaID");
+        p_pars = std::make_unique<Pars>();
+        m_data.resize(m_names.size());
+        /// --------------------------------
+        if(eats_method == "piece-wise")
+            method_eats = STUCT_TYPE::ipiecewise;
+        else if(eats_method == "adaptive")
+            method_eats = STUCT_TYPE::iadaptive;
+        else{
+            std::cerr << " option for: " << "eats_method"
+                      <<" given: " << eats_method
+                      << " is not recognized \n"
+                      << "Possible options: "
+                      << " piece-wise " << " adaptive " << "\n"
+                      << " Exiting...\n";
+            std::cerr << AT << "\n";
+            exit(1);
+        }
+        _load_id_file(path_to_table,use_1d_id);
+
+    }
+    double get (size_t ish, size_t il, Q iv){
+        return m_data[iv][ish][il];
+    }
+    inline static double ctheta(double theta, size_t ilayer, size_t nlayers_pw){
+        // cthetas = 0.5*(2.*arcsin(facs[0]*sin(self.joAngles[:,layer-1]/2.)) + 2.*arcsin(facs[1]*sin(self.joAngles[:,layer-1]/2.)))
+//        if (theta > p_pars->theta_max ){
+//            std::cerr << AT << " theta="<<theta<<" > theta_max=" << p_pars->theta_max << "\n";
+//        }
+//        if (std::fabs( theta - p_pars->theta_b0) > 1e-2){
+//            std::cerr << AT << " theta="<<theta<<" < theta_b0=" << p_pars->theta_b0 <<"\n";
+//            exit(1);
+//        }
+//        double ctheta = p_pars->ctheta0 + 0.5 * (2. * theta - 2. * p_pars->theta_w); // TODO WROOOONG
+
+        double ctheta = 0.;
+        if (ilayer > 0) {
+            //
+            double fac0 = (double)ilayer/(double)nlayers_pw;
+            double fac1 = (double)(ilayer+1)/(double)nlayers_pw;
+//            std::cout << std::asin(CGS::pi*3/4.) << "\n";
+            if (!std::isfinite(std::sin(theta))){
+                std::cerr << " sin(theta= "<<theta<<") is not finite... Exiting..." << "\n";
+                std::cerr << AT << "\n";
+                exit(1);
+            }
+
+            double x2 = fac1*std::sin(theta / 2.);
+            double xx2 = 2.*std::asin(x2);
+            double x1 = fac0*std::sin(theta / 2.);
+            double xx1 = 2.*std::asin(x1);
+
+            ctheta = 0.5 * (xx1 + xx2);
+            if (!std::isfinite(ctheta)){
+                std::cerr << "ctheta is not finite. ctheta="<<ctheta<<" Exiting..." << "\n";
+                std::cerr << AT << "\n";
+                exit(1);
+            }
+        }
+        return ctheta;
+    }
+    /// phi grid for a given layer (given number of phi cells)
+    static Array getCphiGridPW( size_t ilayer ){
+        size_t cil = CellsInLayer(ilayer);
+        Array cphis ( cil );
+        for (size_t j = 0; j < cil; j++){
+            cphis[j] = (double)j * 2.0 * CGS::pi / (double)cil;
+        }
+        return std::move ( cphis );
+    }
+    static size_t CellsInLayer(const size_t &i_layer){
+        return 2 * i_layer + 1;
+    }
+private:
+    /// initial grid for [a] EATS method
+    void _init_a_grid(size_t ish, size_t nlayers, double theta_w){
+        m_data[Q::itheta_c][ish].resize(nlayers,0.);
+        m_data[Q::itheta_c_h][ish].resize(nlayers,0.);
+        m_data[Q::itheta_c_l][ish].resize(nlayers,0.);
+        double dtheta = theta_w / (double) nlayers;
+        for (size_t i = 0; i < nlayers; i++) {
+            /// account for geometry
+            double theta_c_i = (double)i * dtheta + dtheta / 2.;
+            double i_theta_c_l = (double) i * dtheta;
+            double i_theta_c_h = (double) (i + 1) * dtheta;
+            m_data[Q::itheta_c][ish][i]=theta_c_i;//thetas_c[i] = theta_c_i ;
+            m_data[Q::itheta_c_l][ish][i]=i_theta_c_l;//thetas_c_l[i] = i_theta_c_l ;
+            m_data[Q::itheta_c_h][ish][i]=i_theta_c_h;//thetas_c_h[i] = i_theta_c_h ;
+        }
+        int x = 1;
+    }
+    void _init_pw_grid(size_t ish, size_t nlayers, double theta_w){
+        m_data[ictheta][ish].resize(nlayers,0.);
+        Vector theta_pw ( nlayers + 1 );
+//        cthetas0.resize( nlayers_pw );
+        for (size_t i = 0; i < nlayers + 1; i++){
+            double fac = (double)i / (double)nlayers;
+            theta_pw[i] = 2.0 * std::asin( fac * std::sin(theta_w / 2.0 ) );
+        }
+
+        Vector thetas_h0_pw (nlayers );
+        for (size_t i = 0; i < nlayers; ++i){
+            m_data[ictheta][ish][i] = 0.5 * ( theta_pw[i+1] + theta_pw[i] );
+            thetas_h0_pw[i] = theta_pw[i + 1];
+        }
+
+        /// compute the number of phi cells in each 'theta' layer
+        std::valarray<size_t> cil ( nlayers );
+        for (size_t i = 0; i < nlayers; i++)
+            cil[i] = CellsInLayer(i);
+        ncells = cil.sum(); /// total number of cells
+
+
+    }
+    void _load_id_file(std::string & path_to_table, bool & use_1d_id){
+        if (!std::experimental::filesystem::exists(path_to_table))
+            throw std::runtime_error("File not found. " + path_to_table);
+        /// ---------------------------------------------
+        LoadH5 ldata;
+        ldata.setFileName(path_to_table);
+
+//        size_t nshells=0, nlayers=0;
+        if (use_1d_id){
+            /// expect 1 shell with varying properties
+            nshells = 1;
+            for (auto & arr : m_data) arr.resize(m_names.size());
+            for (size_t ish = 0; ish < nshells; ish++) {
+                for (size_t i_v_n = 0; i_v_n < m_v_ns.size(); i_v_n++) {
+                    ldata.setVarName(m_v_ns[i_v_n]);
+                    m_data[i_v_n][ish] = ldata.getDataVDouble();
+                }
+            }
+            nlayers = m_data[0][0].size();
+        }
+        else{
+            /// expect N shells with varying properties [nshells; nlayers]
+            ldata.setVarName("mass");
+            VecVector tmp = ldata.getData2Ddouble();
+            nshells = tmp.size();
+            nlayers = tmp[0].size();
+            for (auto & arr : m_data) arr.resize(nshells);
+            for (size_t ish = 0; ish < nshells; ish++) {
+                for (size_t i_v_n = 0; i_v_n < m_v_ns.size(); i_v_n++) {
+                    ldata.setVarName(m_v_ns[i_v_n]);
+                    m_data[i_v_n] = ldata.getData2Ddouble();
+                }
+            }
+        }
+        /// ---------------------------
+        (*p_log)(LOG_ERR,AT) << "Initial data loaded with nshells="<<nshells<<" nlayers="<<nlayers<<"\n";
+        /// ---------------------------
+        for (size_t ish = 0; ish < nshells; ish++){
+            theta_wing = m_data[Q::itheta][ish][nlayers-1];
+            theta_core = m_data[Q::itheta][ish][nlayers-1];
+            _init_a_grid(ish, nlayers, theta_wing);
+            _init_pw_grid(ish, nlayers, theta_wing);
+        }
+        /// ---------------------------
+        (*p_log)(LOG_ERR,AT) << "Angular grids are initialized. nshells="<<nshells<<" nlayers="<<nlayers<<"\n";
+        /// ---------------------------
+        switch (method_eats) {
+            case iadaptive:
+                for (size_t ish = 0; ish < nshells; ish++) {
+                    for (size_t i = 0; i < nlayers; ++i) {
+                        double frac_of_solid_ang = 2
+                                                   * std::sin(0.5 * m_data[Q::itheta_c_h][ish][i])
+                                                   * std::sin(0.5 * m_data[Q::itheta_c_h][ish][i]);
+                        m_data[Q::iek][ish][i] *= (frac_of_solid_ang / 2.);// TODO remove it and include into ID maker
+                        m_data[Q::imass][ish][i] *= (frac_of_solid_ang / 2.);
+                    }
+                }
+                break;
+            case ipiecewise:
+                for (size_t ish = 0; ish < nshells; ish++) {
+                    for (size_t i = 0; i < nlayers; ++i) {
+                        m_data[Q::iek][ish][i] /= (double) CellsInLayer(i); // TODO remove it and make ID that includes it
+                        m_data[Q::imass][ish][i] /= (double) CellsInLayer(i);
+                    }
+                }
+                break;
+        }
+        (*p_log)(LOG_ERR,AT) << "Energy and mass are rescaled."<<"\n";
+
+
+    }
+
+};
+
+#if 0
+class EjectaID {
     Vector m_mom{};
     Vector m_theta0{};
     Vector m_ctheta0{};
@@ -606,6 +824,12 @@ public:
             setThetaGridPW();
             if ((!force_grid) &&
                 (cthetas0[0] != dist_cthetas[0] || cthetas0[nlayers - 1] != dist_cthetas[nlayers - 1])) {
+                dist_E0_pw.resize(nlayers);
+                dist_Ye_pw.resize(nlayers);
+                dist_s_pw.resize(nlayers);
+                dist_Mom0_pw.resize(nlayers);
+                dist_M0_pw.resize(nlayers);
+
                 std::cerr << "force_grid=" << force_grid << "\n";
                 std::cerr << "dist_thetas.size()=" << dist_cthetas.size() << " cthetas0.size()=" << cthetas0.size()
                           << "\n";
@@ -1025,7 +1249,7 @@ public:
             exit(1);//throw std::runtime_error("");
         }
 
-
+#if 0
         for (size_t ish = 0; ish < dist_moms.size(); ish++){
             auto nth = dist_cthetas.size();
             (*p_log)(LOG_INFO,AT)
@@ -1098,6 +1322,7 @@ public:
 //            std::cerr << AT << "\n";
 //            exit(1);
         }
+#endif
         method = iCustom;
         if (dist_cthetas.empty() || dist_moms.empty() || dist_ek.empty() || dist_ye.empty()){
             std::cerr << "One of the input arrays is empty: "
@@ -1132,25 +1357,26 @@ public:
                 std::cerr << "shell beta=" << dist_moms[imom] << " [" << imom << "] is ignored (wrong value)\n";
                 continue;
             }
-            // evaluate other needed vals for a layer
-            Vector mass_layer(dist_cthetas.size() );
-            Vector ek_layer( dist_cthetas.size() );
-            Vector ye_layer( dist_cthetas.size() );
-            Vector s_layer( dist_cthetas.size() );
+//            // evaluate other needed vals for a layer
+//            Vector mass_layer(dist_cthetas.size() );
+//            Vector ek_layer( dist_cthetas.size() );
+//            Vector ye_layer( dist_cthetas.size() );
+//            Vector s_layer( dist_cthetas.size() );
             Vector mom_layer ( dist_cthetas.size(), dist_moms[imom] );//(dist_thetas.size(), EQS::Gamma(dist_moms[imom]) );
-            for (size_t ith = 0; ith < dist_cthetas.size(); ++ith){
-                ek_layer[ith] = dist_ek[imom][ith];
-                ye_layer[ith] = dist_ye[imom][ith];
-                s_layer[ith] = dist_s[imom][ith];
-                double beta = EQS::BetFromMom(dist_moms[imom]);
-//                mass_layer[ith] = ek_layer[ith] / (beta * beta * CGS::c * CGS::c);
-                mass_layer[ith] = dist_mass[imom][ith];//= ek_layer[ith] / (beta * beta * CGS::c * CGS::c);
-            }
+//            for (size_t ith = 0; ith < dist_cthetas.size(); ++ith){
+//                ek_layer[ith] = dist_ek[imom][ith];
+//                ye_layer[ith] = dist_ye[imom][ith];
+//                s_layer[ith] = dist_s[imom][ith];
+//                double beta = EQS::BetFromMom(dist_moms[imom]);
+////                mass_layer[ith] = ek_layer[ith] / (beta * beta * CGS::c * CGS::c);
+//                mass_layer[ith] = dist_mass[imom][ith];//= ek_layer[ith] / (beta * beta * CGS::c * CGS::c);
+//            }
 //            std::cout << dist_cthetas << "\n";
             /// emplace the layer grid
             structs.emplace_back( LatStruct() );// TODO this is necessary to avoid segfault but should be replaced.
-            structs[structs.size()-1].initCustom(dist_thetas, dist_cthetas, ek_layer, ye_layer, s_layer,
-                                                 mom_layer, mass_layer,
+            structs[structs.size()-1].initCustom(dist_thetas, dist_cthetas,
+                                                 dist_ek[imom], dist_ye[imom],
+                                                 dist_s[imom],mom_layer, dist_mass[imom],
                                                  force_grid, method_eats, loglevel);
             n_shells += 1;
 
@@ -1206,5 +1432,10 @@ public:
     size_t nshells=0;
     METHODS method{};
 };
+#endif
+
+
+
+
 
 #endif //SRC_INITIAL_DATA_H

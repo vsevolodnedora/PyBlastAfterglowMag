@@ -64,7 +64,7 @@ fnu_min_frac = 1e-5
 
 * Settings
 
-method_eats = piece-wise # adaptive # piece-wise
+method_eats = adaptive # adaptive # piece-wise
 
 run_bws = yes
 save_dynamics = no
