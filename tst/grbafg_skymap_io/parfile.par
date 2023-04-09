@@ -85,7 +85,7 @@ fname_sky_map = skymap_grb_gauss.h5
 do_nucinj = no
 type = numeric
 fname_ejecta_id = gauss_grb_id.h5
-enforce_angular_grid = yes
+load_r0 = no
 
 method_spread = AA
 method_dgdr = our

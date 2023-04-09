@@ -142,6 +142,7 @@ fname_light_curve_layers = none
 fname_sky_map = skymap_kn.h5
 
 use_1d_id = no
+load_r0 = yes
 fname_ejecta_id = corr_id_SFHo_13_14_150m_11_text70.h5
 enforce_angular_grid = yes
 

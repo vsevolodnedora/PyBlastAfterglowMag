@@ -27,7 +27,7 @@ import argparse
 
 
 from .id_maker_tools import (reinterpolate_hist, compute_ek_corr)
-from .utils import (cgs, get_Gamma, get_beta)
+from .utils import (cgs, get_Gamma, get_beta, MomFromGam, GamFromMom, BetFromMom)
 
 
 def load_vinf_hist(hist_fpath):
@@ -161,7 +161,9 @@ def compute_ek_hist(_vinf, _mass):
     return _mass * cgs.solar_m * (_vinf * _vinf * cgs.c * cgs.c)
 
 
-def prepare_kn_ej_id_2d(nlayers, corr_fpath, outfpath, dist="pw"):
+def prepare_kn_ej_id_2d(nlayers, corr_fpath, outfpath,
+                        r0type="fromrho", t0=100, r0frac=0.5,
+                        dist="pw"):
     thetas, cthetas, betas, masses = load_corr_file2(corr_fpath=corr_fpath,
                                             reinterpolate_theta=True,
                                             new_theta_len=nlayers if nlayers > 0 else None,
@@ -185,43 +187,59 @@ def prepare_kn_ej_id_2d(nlayers, corr_fpath, outfpath, dist="pw"):
     # ek_corr2 = ek_corr2[25:,:]
     # mass_corr2 = mass_corr2[25:,:]
 
+    ctheta_corr3 = np.zeros_like(ek_corr2)
+    theta_corr3 = np.zeros_like(ek_corr2)
+    for imom in range(len(vinf_corr2)):
+        ctheta_corr3[imom,:] = ctheta_corr2
+        theta_corr3[imom,:] = ctheta_corr2
+    mom_corr3 = np.zeros_like(ek_corr2)
+    for ith in range(len(ctheta_corr2)):
+        mom_corr3[:,ith]=np.array( vinf_corr2*get_Gamma(vinf_corr2))
+
+    r = np.zeros_like(mass_corr2)
+    t = t0
+    for ith in range(len(ctheta_corr3[0,:])):
+        for ir in range(len(mom_corr3[:,0])):
+            r[ir,ith] =  BetFromMom(mom_corr3[ir,ith])*cgs.c * t
+
     print(len(ctheta_corr2), ctheta_corr2)
     dfile = h5py.File(outfpath, "w")
-    dfile.create_dataset("theta",data=ctheta_corr2)# used for theta_w in PW method
-    dfile.create_dataset("ctheta",data=ctheta_corr2)
-    dfile.create_dataset("mom",data=np.array( vinf_corr2*get_Gamma(vinf_corr2)) )
+    dfile.create_dataset("r",data=r)# used for theta_w in PW method
+    dfile.create_dataset("theta",data=ctheta_corr3)# used for theta_w in PW method
+    dfile.create_dataset("ctheta",data=ctheta_corr3)
+    dfile.create_dataset("mom",data=mom_corr3)
     dfile.create_dataset("ek",data=ek_corr2)
     dfile.create_dataset("mass",data=mass_corr2*cgs.solar_m)
     dfile.create_dataset("ye",data=np.zeros_like(ek_corr2))
     dfile.create_dataset("s",data=np.zeros_like(ek_corr2))
     dfile.close()
     print("file saved: {}".format(outfpath))
-def prepare_kn_ej_id_1d(nlayers, hist_fpath, outfpath):
-    betas, masses = load_vinf_hist(hist_fpath=hist_fpath)
-    # thetas = np.full_like(betas, np.pi / 2.)
-
-    # vinf_hist, mass_hist = o_data.load_vinf_hist()
-    assert len(betas) == len(masses)
-    vinf_hist, mass_hist = clean_data_hist(betas, masses)
-    ek_hist = compute_ek_hist(vinf_hist, mass_hist)
-    # ek_hist = np.cumsum(ek_hist)
-    # vinf_hist = np.sqrt(ek_hist/mass_hist/cgs.solar_m)/cgs.c
-    # theta_hist = np.zeros_like(ek_hist)
-    theta_hist = np.full_like(vinf_hist, np.pi / 2.)
-    gam_hist = get_Gamma(vinf_hist)
-    if (len(gam_hist[~np.isfinite(gam_hist)]) > 0):
-        raise ValueError("nan in gammas for beta={}".format(vinf_hist))
-
-    # self.o_pba.setEjectaStructNumericUniformInTheta(theta_hist, ek_hist, gam_hist,
-    #                                                 mass_hist * cgs.solar_m, nlayers, fac,
-    #                                                 self.pars_kn["eats_method"])
-
-    dfile = h5py.File(outfpath, "w")
-    dfile.create_dataset("theta", data=theta_hist)
-    dfile.create_dataset("mom", data=gam_hist*vinf_hist)
-    dfile.create_dataset("ek", data=ek_hist)
-    dfile.close()
-    print("file saved: {}".format(outfpath))
+# def prepare_kn_ej_id_1d(nlayers, hist_fpath, outfpath):
+#     betas, masses = load_vinf_hist(hist_fpath=hist_fpath)
+#     # thetas = np.full_like(betas, np.pi / 2.)
+#
+#     # vinf_hist, mass_hist = o_data.load_vinf_hist()
+#     assert len(betas) == len(masses)
+#     vinf_hist, mass_hist = clean_data_hist(betas, masses)
+#     ek_hist = compute_ek_hist(vinf_hist, mass_hist)
+#     # ek_hist = np.cumsum(ek_hist)
+#     # vinf_hist = np.sqrt(ek_hist/mass_hist/cgs.solar_m)/cgs.c
+#     # theta_hist = np.zeros_like(ek_hist)
+#     theta_hist = np.full_like(vinf_hist, np.pi / 2.)
+#     gam_hist = get_Gamma(vinf_hist)
+#     if (len(gam_hist[~np.isfinite(gam_hist)]) > 0):
+#         raise ValueError("nan in gammas for beta={}".format(vinf_hist))
+#
+#     # self.o_pba.setEjectaStructNumericUniformInTheta(theta_hist, ek_hist, gam_hist,
+#     #                                                 mass_hist * cgs.solar_m, nlayers, fac,
+#     #                                                 self.pars_kn["eats_method"])
+#
+#     dfile = h5py.File(outfpath, "w")
+#     dfile.create_dataset("theta", data=theta_hist)
+#     dfile.create_dataset("mom", data=gam_hist*vinf_hist)
+#     dfile.create_dataset("ek", data=ek_hist)
+#     dfile.close()
+#     print("file saved: {}".format(outfpath))
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':

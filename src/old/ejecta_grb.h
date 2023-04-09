@@ -5,21 +5,21 @@
 #ifndef SRC_EJECTA_GRB_H
 #define SRC_EJECTA_GRB_H
 
-#include "pch.h"
-#include "utils.h"
-#include "blastwave_components.h"
-#include "interpolators.h"
-#include "ode_solvers.h"
-#include "quadratures.h"
-#include "rootfinders.h"
-#include "observer.h"
-#include "synchrotron_an.h"
+#include "../utilitites/pch.h"
+#include "../utilitites/utils.h"
+#include "../blastwave_components.h"
+#include "../utilitites/interpolators.h"
+#include "../utilitites/ode_solvers.h"
+#include "../utilitites/quadratures.h"
+#include "../utilitites/rootfinders.h"
+#include "../image.h"
+#include "../synchrotron_an.h"
 
-#include "model_magnetar.h"
+#include "../model_magnetar.h"
 //#include "pulsar_wind_nebula.h"
-#include "old/blastwave_base.h"
+#include "blastwave_base.h"
 //#include "blastwave_rad.h"
-#include "old/blastwave_dyn.h"
+#include "blastwave_dyn.h"
 
 #if 0
 class GRB{

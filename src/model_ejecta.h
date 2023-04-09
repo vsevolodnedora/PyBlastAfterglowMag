@@ -246,6 +246,7 @@ public:
         }
     }
     /// Evaluate shell thickness using various methods. Assumes sorted shells (no overruns)
+#if 0
     void updateSortedShellWidth( const double * Y ){
         /// if there is one shell we cannot have the shell width that comes from shell separation.
         if (p_pars->n_active_shells == 1){
@@ -305,6 +306,52 @@ public:
             }
             m_data[Q::idelta][idx] = dr_i;
             m_data[Q::ivol][idx] = vol_i;
+        }
+    }
+#endif
+    void updateSortedShellWidth( const double * Y ){
+
+        /// for the first shell we have to assume it width
+        size_t idx = m_idxs[0];//p_pars->n_active_shells-1;
+        double frac = 0.5; // TODO fraction of the shell volume to be used as its width. !!! Inaccurate as we need adjacent shells to get the volume...
+        auto & bw = p_bws[idx];
+        double r_i =  Y[bw->getPars()->ii_eq + SOL::QS::iR];
+        double dr_i = frac * r_i;
+        double vol_i = frac * (4./3.) * CGS::pi * (r_i*r_i*r_i) ;/// bw->getPars()->ncells;
+        if (dr_i <= 0 or !std::isfinite(dr_i)){
+            (*p_log)(LOG_ERR,AT)<<" dr_i = "<<dr_i<<"\n";
+            exit(1);
+        }
+        m_data[Q::idelta][0] = dr_i;
+        m_data[Q::ivol][0] = vol_i;
+
+        for (size_t ii=1; ii<p_pars->n_active_shells; ii++) {
+            ///
+            size_t previdx = m_idxs[ii-1];
+            size_t curidx = m_idxs[ii];
+            auto & prevbw = p_bws[previdx];
+            auto & currbw = p_bws[curidx];
+            if ((prevbw->getPars()->end_evolution) || (currbw->getPars()->end_evolution)){
+//                    evalShellThicknessIsolated(idx, Y);
+                (*p_log)(LOG_ERR,AT) << "|error|\n";
+                exit(1);
+            }
+            double rm1_i = Y[prevbw->getPars()->ii_eq + SOL::QS::iR];
+            r_i = Y[currbw->getPars()->ii_eq + SOL::QS::iR];
+            if ((rm1_i == 0.) || (r_i == 0.)) {
+//                (*p_log)(LOG_WARN,AT)<<" shell="<<idx<<" has r_i="<<r_i<<" and r_ip1="<<r_ip1<<"\n";
+                continue;
+            }
+            dr_i = r_i - rm1_i;
+            /// evaluate the volume of the shell (fraction of the 4pi)
+            vol_i = (4./3.) * CGS::pi * (r_i*r_i*r_i - rm1_i*rm1_i*rm1_i);// / currbw->getPars()->ncells;
+            if ((dr_i <= 0) or (!std::isfinite(dr_i))){
+                (*p_log)(LOG_ERR,AT)<<" dr_i = "<<dr_i<<"\n";
+                exit(1);
+            }
+            /// --------------------------- |
+            m_data[Q::idelta][ii] = dr_i;
+            m_data[Q::ivol][ii] = vol_i;
         }
     }
     /// Evaluate the radial extend of a velocity shell. Assume ordered shells. Assumes sorted shells. Assume update kappa
@@ -640,8 +687,6 @@ class Ejecta{
     int m_loglevel{};
 //    LatStruct::METHOD_eats ejecta_eats_method{};
     Vector & t_arr;
-//    size_t m_nshells = 0;
-//    size_t m_nlayers = 0;
 public:
     bool do_eninj_inside_rhs = false;
     bool run_bws=false, save_dyn=false, do_ele=false, do_spec=false, do_lc=false, do_skymap=false;
@@ -760,6 +805,8 @@ public:
                         working_dir + fname_ejecta_id,
                         getStrOpt("method_eats",grb_opts,AT,p_log,"", true),
                         getBoolOpt("use_1d_id", grb_opts, AT, p_log, false, true),
+                        getBoolOpt("load_r0", grb_opts, AT, p_log, false, true),
+                        t_arr[0],
                         m_loglevel
                         );
 
@@ -772,12 +819,12 @@ public:
 //                if (run_pwn) {
 //                    (*p_log)(LOG_ERR,AT) << " not implemented\n";
 //                    exit(1);
-////                size_t ii_eq_ = pba.getMag()->getNeq() + pba.getGRB()->getNeq() + pba.getEj()->getNeq();
-//                    /// init ejecta-bound PWN
-////                pba.getEjPWN()->setPWNpars(pba.getTburst(), pwn_pars, pwn_opts, ii_eq_,
-////                                           pba.getEj()->getShells().size());
+//                size_t ii_eq_ = pba.getMag()->getNeq() + pba.getGRB()->getNeq() + pba.getEj()->getNeq();
+                    /// init ejecta-bound PWN
+//                pba.getEjPWN()->setPWNpars(pba.getTburst(), pwn_pars, pwn_opts, ii_eq_,
+//                                           pba.getEj()->getShells().size());
 //                }
-//                std::cout<<"nshells="<<nshells()<<" nlayers="<<nlayers()<<"\n";
+                std::cout<<"nshells="<<nshells()<<" nlayers="<<nlayers()<<"\n";
 
             }
         }

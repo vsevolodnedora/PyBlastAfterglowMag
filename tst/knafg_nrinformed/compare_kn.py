@@ -18,7 +18,7 @@ try:
     from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
     from PyBlastAfterglowMag.utils import latex_float, cgs, get_beta, get_Gamma
     from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
-    from PyBlastAfterglowMag.id_maker_from_thc_ourflow import prepare_kn_ej_id_1d, prepare_kn_ej_id_2d
+    from PyBlastAfterglowMag.id_maker_from_thc_ourflow import prepare_kn_ej_id_2d
     from PyBlastAfterglowMag.skymap_tools import \
         (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
 except ImportError:
@@ -28,7 +28,7 @@ except ImportError:
         from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
         from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma)
         from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
-        from package.src.PyBlastAfterglowMag.id_maker_from_thc_ourflow import prepare_kn_ej_id_1d, prepare_kn_ej_id_2d
+        from package.src.PyBlastAfterglowMag.id_maker_from_thc_ourflow import prepare_kn_ej_id_2d
         from package.src.PyBlastAfterglowMag.skymap_tools import \
             (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
     except ImportError:

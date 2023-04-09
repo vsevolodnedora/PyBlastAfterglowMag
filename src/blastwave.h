@@ -2311,6 +2311,7 @@ public:
                 p_pars->Ye0       = id->get(ish,il,EjectaID2::Q::iye);//latStruct.dist_Ye_pw[ilayer];
                 p_pars->s0        = id->get(ish,il,EjectaID2::Q::is);//latStruct.dist_s_pw[ilayer];
                 p_pars->M0        = id->get(ish,il,EjectaID2::Q::imass);//latStruct.dist_M0_pw[ilayer];
+                p_pars->R0        = id->get(ish,il,EjectaID2::Q::ir);//latStruct.dist_M0_pw[ilayer];
                 p_pars->mom0      = id->get(ish,il,EjectaID2::Q::imom);//latStruct.dist_Mom0_pw[ilayer];
                 p_pars->tb0       = m_tb_arr[0];
                 p_pars->theta_a   = 0.; // theta_a
@@ -2368,6 +2369,7 @@ public:
                 p_pars->Ye0     = id->get(ish,il,EjectaID2::Q::iye);//latStruct.dist_Ye_a[ilayer];
                 p_pars->s0      = id->get(ish,il,EjectaID2::Q::is);//latStruct.dist_s_a[ilayer];
                 p_pars->M0      = id->get(ish,il,EjectaID2::Q::imass);//latStruct.dist_M0_a[ilayer];
+                p_pars->R0      = id->get(ish,il,EjectaID2::Q::ir);//latStruct.dist_M0_a[ilayer];
                 p_pars->mom0    = id->get(ish,il,EjectaID2::Q::imom);//latStruct.dist_Mom0_a[ilayer];
                 p_pars->tb0     = m_tb_arr[0];
                 p_pars->theta_a = 0.;
@@ -2459,7 +2461,7 @@ public:
         p_pars->Gamma0 = EQS::GamFromMom(p_pars->mom0);
         // ****************************************
         double beta0 = EQS::BetFromMom(p_pars->mom0);
-        p_pars->R0    = p_pars->tb0 * beta0 * CGS::c;
+//        p_pars->R0    = p_pars->tb0 * beta0 * CGS::c;
 
         p_dens->evaluateRhoDrhoDrDefault(p_pars->R0, p_pars->ctheta0);
         if (p_pars->is_within0){ //p_pars->j_i0!=123456789

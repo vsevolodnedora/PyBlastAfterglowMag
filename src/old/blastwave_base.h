@@ -5,17 +5,17 @@
 #ifndef SRC_BLASTWAVE_BASE_H
 #define SRC_BLASTWAVE_BASE_H
 
-#include "pch.h"
-#include "utils.h"
-#include "blastwave_components.h"
-#include "interpolators.h"
-#include "ode_solvers.h"
-#include "quadratures.h"
-#include "rootfinders.h"
-#include "observer.h"
-#include "synchrotron_an.h"
-#include "composition.h"
-#include "initial_data.h"
+#include "../utilitites/pch.h"
+#include "../utilitites/utils.h"
+#include "../blastwave_components.h"
+#include "../utilitites/interpolators.h"
+#include "../utilitites/ode_solvers.h"
+#include "../utilitites/quadratures.h"
+#include "../utilitites/rootfinders.h"
+#include "../image.h"
+#include "../synchrotron_an.h"
+#include "../composition.h"
+#include "../initial_data.h"
 
 
 #if 0

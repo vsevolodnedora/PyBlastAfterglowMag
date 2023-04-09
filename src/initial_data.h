@@ -20,15 +20,16 @@ class EjectaID2{
     std::unique_ptr<logger> p_log = nullptr;
     std::unique_ptr<Pars> p_pars = nullptr;
     unsigned m_loglevel{};
+    bool m_loadr0{};
 public:
-    enum Q{imom,itheta,ictheta,iek,imass,iye,is,
-        itheta_c_l, itheta_c_h, itheta_c};
+    enum Q{ ir,imom,itheta,ictheta,iek,imass,iye,is,
+            itheta_c_l, itheta_c_h, itheta_c    };
     std::vector<std::string> m_names{
-            "mom","theta","ctheta","ek","mass","ye","s",
+            "r","mom","theta","ctheta","ek","mass","ye","s",
             "theta_c_l","theta_c_h","theta_c"
     };
     std::vector<std::string> m_v_ns {
-            "mom", "theta", "ctheta", "ek", "mass", "ye", "s"
+            "r","mom", "theta", "ctheta", "ek", "mass", "ye", "s"
     };
     enum STUCT_TYPE { iadaptive, ipiecewise };
     IDTYPE idtype{};  STUCT_TYPE method_eats{};
@@ -37,6 +38,7 @@ public:
     EjectaID2(std::string path_to_table,
               std::string eats_method,
               bool use_1d_id,
+              bool load_r0, double t0,
               unsigned loglevel){
         m_loglevel=loglevel;
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "EjectaID");
@@ -57,7 +59,7 @@ public:
             std::cerr << AT << "\n";
             exit(1);
         }
-        _load_id_file(path_to_table,use_1d_id);
+        _load_id_file(path_to_table,use_1d_id, load_r0, t0);
 
     }
     double get (size_t ish, size_t il, Q iv){
@@ -153,7 +155,7 @@ private:
 
 
     }
-    void _load_id_file(std::string & path_to_table, bool & use_1d_id){
+    void _load_id_file(std::string & path_to_table, bool & use_1d_id, bool loadr0, double t0){
         if (!std::experimental::filesystem::exists(path_to_table))
             throw std::runtime_error("File not found. " + path_to_table);
         /// ---------------------------------------------
@@ -188,7 +190,7 @@ private:
             }
         }
         /// ---------------------------
-        (*p_log)(LOG_ERR,AT) << "Initial data loaded with nshells="<<nshells<<" nlayers="<<nlayers<<"\n";
+        (*p_log)(LOG_INFO,AT) << "Initial data loaded with nshells="<<nshells<<" nlayers="<<nlayers<<"\n";
         /// ---------------------------
         for (size_t ish = 0; ish < nshells; ish++){
             theta_wing = m_data[Q::itheta][ish][nlayers-1];
@@ -197,12 +199,12 @@ private:
             _init_pw_grid(ish, nlayers, theta_wing);
         }
         /// ---------------------------
-        (*p_log)(LOG_ERR,AT) << "Angular grids are initialized. nshells="<<nshells<<" nlayers="<<nlayers<<"\n";
+        (*p_log)(LOG_INFO,AT) << "Angular grids are initialized. nshells="<<nshells<<" nlayers="<<nlayers<<"\n";
         /// ---------------------------
         switch (method_eats) {
             case iadaptive:
                 for (size_t ish = 0; ish < nshells; ish++) {
-                    for (size_t i = 0; i < nlayers; ++i) {
+                    for (size_t i = 0; i < nlayers; i++) {
                         double frac_of_solid_ang = 2
                                                    * std::sin(0.5 * m_data[Q::itheta_c_h][ish][i])
                                                    * std::sin(0.5 * m_data[Q::itheta_c_h][ish][i]);
@@ -213,15 +215,27 @@ private:
                 break;
             case ipiecewise:
                 for (size_t ish = 0; ish < nshells; ish++) {
-                    for (size_t i = 0; i < nlayers; ++i) {
+                    for (size_t i = 0; i < nlayers; i++) {
                         m_data[Q::iek][ish][i] /= (double) CellsInLayer(i); // TODO remove it and make ID that includes it
                         m_data[Q::imass][ish][i] /= (double) CellsInLayer(i);
                     }
                 }
                 break;
         }
-        (*p_log)(LOG_ERR,AT) << "Energy and mass are rescaled."<<"\n";
+        (*p_log)(LOG_INFO,AT) << "Energy and mass are rescaled."<<"\n";
 
+        if (loadr0){
+            /// pass
+
+        }
+        else{
+            /// pass
+            for (size_t ish = 0; ish < nshells; ish++) {
+                for (size_t i = 0; i < nlayers; i++) {
+                    m_data[Q::ir][ish][i] = BetFromMom(m_data[Q::imom][ish][i]) * CGS::c * t0;
+                }
+            }
+        }
 
     }
 

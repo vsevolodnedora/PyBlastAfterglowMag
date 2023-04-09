@@ -85,7 +85,7 @@ fname_sky_map = skymap_kn.h5
 
 use_1d_id = no
 fname_ejecta_id = ejecta_2d_id_BLh_M13641364_M0_LK_SR.h5
-enforce_angular_grid = yes
+load_r0 = no
 
 do_thermrad_loss = no
 do_nucinj = no

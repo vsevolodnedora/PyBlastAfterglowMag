@@ -78,6 +78,7 @@ static inline double interpSegLog( size_t & a, size_t & b, double x, Array & X, 
 class InterpBase{
 public:
     enum METHODS {
+        iLinear, // linear interpolation
         iLagrangeLinear,  // Lagrange linear interpolation
         iLagrangeUnivariate3m, // Lagrange univariate three - point linear interpolation
         iSmoothCubicPolynomial,  // Smooth interpolation Cubic polynomial interpolation
@@ -90,6 +91,8 @@ public:
         METHODS _opt;
 
         if (method == "linear")
+            _opt = InterpBase::METHODS::iLinear;
+        else if (method == "laglinear")
             _opt = InterpBase::METHODS::iLagrangeLinear;
         else if (method == "univariate")
             _opt = InterpBase::METHODS::iLagrangeUnivariate3m;
@@ -131,15 +134,19 @@ public:
 
         switch (method) {
 
-            case iLagrangeLinear:
+            case InterpBase::iLinear:
+                return lin(ix);
+                break;
+
+            case InterpBase::iLagrangeLinear:
                 return lgr(ix);
                 break;
 
-            case iLagrangeUnivariate3m:
+            case InterpBase::iLagrangeUnivariate3m:
                 return lg3(ix);
                 break;
 
-            case iSmoothCubicPolynomial:
+            case InterpBase::iSmoothCubicPolynomial:
                 static double s[5];
                 spl(-1, ix, s);
                 return s[4];
@@ -195,6 +202,38 @@ private:
     size_t m_nX, m_nY;
 
 protected:
+
+    /// linear interpolation
+    double lin(const double x_interp) {
+        auto & x = m_X;
+        auto & y = m_Y;
+        // Check that x and y have the same size
+        if (x.size() != y.size()) {
+            throw std::runtime_error("Input vectors x and y must have the same size.");
+        }
+
+        // Check that x has at least two values
+        if (x.size() < 2) {
+            throw std::runtime_error("Input vector x must have at least two values.");
+        }
+
+        // Find the index of the interval containing x_interp
+        int intervalIndex = 0;
+        while (intervalIndex < x.size() - 2 && x_interp > x[intervalIndex + 1]) {
+            intervalIndex++;
+        }
+
+        // Perform linear interpolation
+        double x1 = x[intervalIndex];
+        double x2 = x[intervalIndex + 1];
+        double y1 = y[intervalIndex];
+        double y2 = y[intervalIndex + 1];
+        double slope = (y2 - y1) / (x2 - x1);
+        double y_interp = y1 + slope * (x_interp - x1);
+
+        return y_interp;
+    }
+
     /// Lagrange linear interpolation
     double lgr(const double &t)
     {
@@ -243,6 +282,9 @@ protected:
             }
             z = z + s * m_Y[i];
         }
+//        if (z < 0){
+//            exit(1);
+//        }
         return(z);
     }
 

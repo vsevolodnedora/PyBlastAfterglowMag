@@ -62,6 +62,8 @@ except ImportError:
 # plt.grid(True, color='0.7', linestyle='-', which='both', axis='both')
 # plt.show()
 
+
+
 def plot2(vals : dict, figpath = None):
     fig, axes = plt.subplots(ncols=1, nrows=2, figsize=(4.6,2+2.8), sharex="all")
     ax = axes[0]
@@ -540,7 +542,7 @@ def plot_ejecta_dyn_evol_for_movie():
 
     plt.show()
 
-def main():
+def main_old():
     workdir = os.getcwd()+'/'
     ### locate and extract the data from the original ejecta profiles from Kenta
     path_to_original_data = "/media/vsevolod/data/KentaData/SFHo_13_14_150m_11/" #
@@ -569,6 +571,7 @@ def main():
                         new_theta_len=None,
                         new_vinf_len=None,
                         verbose=True,
+                        r0type="fromrho",
                         dist="pw")
 
 
@@ -590,10 +593,10 @@ def main():
             if(mass_[ir,ith]>0):
                 r[ir,ith] = (_rm1 + _val)**(1./3.)
 
-    t = 70. * 1e-3
-    for ith in range(len(ctheta_[0,:])):
-        for ir in range(0,len(mom_[:,0]),1):
-            r[ir,ith] =  BetFromMom(mom_[ir,ith])*cgs.c * t
+    # t = 70. * 1e-3
+    # for ith in range(len(ctheta_[0,:])):
+    #     for ir in range(0,len(mom_[:,0]),1):
+    #         r[ir,ith] =  BetFromMom(mom_[ir,ith])*cgs.c * t
 
 
     # r = np.zeros_like(mass_)
@@ -672,6 +675,44 @@ def main():
     #
     # pba.clear()
     # plt.show()
+
+def main():
+    workdir = os.getcwd()+'/'
+    path_to_original_data = "/media/vsevolod/data/KentaData/SFHo_13_14_150m_11/" #
+    dfile = h5py.File(workdir+"kenta_ejecta_13.h5")
+    print(dfile.keys())
+
+    text = 70.
+    label = f"corr_id_SFHo_13_14_150m_11_text{int(text)}"
+    sort_by = lambda k: int(re.findall(r'\d+', str(k.split("/")[-1]))[0])
+    files = sorted(glob(workdir + "kenta_ejecta*", recursive=True), key=sort_by)
+
+    prepare_kn_ej_id_2d(files=files,
+                        outfpaths=[workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5"],
+                        req_times=np.array([text]),
+                        new_theta_len=None,
+                        new_vinf_len=None,
+                        verbose=True,
+                        r0type="fromrho", r0frac=0.5, t0=-1,
+                        dist="pw")
+
+    r_, mom_, theta_, ctheta_, ek_, mass_, ye_, s_, rho_, temp_ \
+        = load_init_data(workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5")
+
+    plot_init_profile(ctheta_[0,:], mom_[:,0], r_,
+                      figpath=None,#FIGPATH+"ang_mass_dist" + r"_text{}".format(int(times[idx])),
+                      norm_mode="log",
+                      subplot_mode="ave",
+                      title=r"$t_{\rm ext}="+r"{}$ [ms]".format(int(text)))
+
+    modify_parfile_par_opt(workingdir=workdir, part="kn", newpars={},
+                           newopts={"fname_light_curve":f"{label}.lc",
+                                    "fname_ejecta_id":f"{label}.h5"},
+                           parfile="parfile.par",newparfile="parfile.par",keep_old=False )
+
+    pba = PyBlastAfterglow(workingdir=os.getcwd()+'/',readparfileforpaths=True)
+    pba.reload_parfile()
+    pba.run(loglevel="info")
 
 
 if __name__ == '__main__':

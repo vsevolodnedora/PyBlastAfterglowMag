@@ -5,15 +5,15 @@
 #ifndef SRC_EJECTA_RADIATION_H
 #define SRC_EJECTA_RADIATION_H
 
-#include "pch.h"
-#include "utils.h"
-#include "blastwave_components.h"
-#include "interpolators.h"
-#include "ode_solvers.h"
-#include "quadratures.h"
-#include "rootfinders.h"
-#include "observer.h"
-#include "synchrotron_an.h"
+#include "../utilitites/pch.h"
+#include "../utilitites/utils.h"
+#include "../blastwave_components.h"
+#include "../utilitites/interpolators.h"
+#include "../utilitites/ode_solvers.h"
+#include "../utilitites/quadratures.h"
+#include "../utilitites/rootfinders.h"
+#include "../image.h"
+#include "../synchrotron_an.h"
 
 
 #if 0
@@ -641,13 +641,13 @@ class Radiation{
     struct Pars{
         size_t nr{};
         std::unique_ptr<SynchrotronAnalytic> p_syna = nullptr;
-        std::unique_ptr<Ejecta> & p_ej;
+        std::unique_ptr<Ejecta> & p_cumShells;
         std::unique_ptr<logger> p_log = nullptr;
         std::vector<std::vector<std::vector<double>>> m_mu{};
-        Pars(std::unique_ptr<Ejecta> & p_ej, int loglevel) : p_ej(p_ej) {
+        Pars(std::unique_ptr<Ejecta> & p_cumShells, int loglevel) : p_cumShells(p_cumShells) {
             p_log=std::make_unique<logger>(std::cout,std::cerr,loglevel,"Pars for Radiation");
             p_syna=std::make_unique<SynchrotronAnalytic>(loglevel);
-            nr = p_ej->getTbGrid().size();
+            nr = p_cumShells->getTbGrid().size();
         }
         // -------------------------------------------------------------------------
         bool use_t_e = false;
@@ -694,10 +694,10 @@ class Radiation{
         long n_fialed_electrons = 0;
         // ---------------------------------------------------------------------------
         void computeMu(){
-            for(size_t il = 0; il > p_ej->nlayers(); il++) {
-                for (size_t ish = 0; ish < p_ej->nshells(); ish++) {
-                    auto & data = p_ej->getData( il, ish );
-                    for (size_t i = 0; i < p_ej->getTbGrid().size(); i++) {
+            for(size_t il = 0; il > p_cumShells->nlayers(); il++) {
+                for (size_t ish = 0; ish < p_cumShells->nshells(); ish++) {
+                    auto & data = p_cumShells->getData( il, ish );
+                    for (size_t i = 0; i < p_cumShells->getTbGrid().size(); i++) {
                         data[BlastWaveBase::Q::imu][i] =
                                 (data[BlastWaveBase::Q::itburst][i] - t_obs / (1.0 + z))
                                 / data[BlastWaveBase::Q::iR][i] * CGS::c;
@@ -890,10 +890,10 @@ class Radiation{
     std::unique_ptr<logger> p_log;
 //    std::unique_ptr<Pars> p_pars = nullptr;
     Pars * p_pars = nullptr;
-    Radiation(std::unique_ptr<Ejecta> & p_ej, int loglevel){
+    Radiation(std::unique_ptr<Ejecta> & p_cumShells, int loglevel){
         p_log=std::make_unique<logger>(std::cout,std::cerr,loglevel,"Radiation");
-//        p_pars=std::make_unique<Pars>(p_ej, loglevel);
-        p_pars = new Radiation::Pars(p_ej, loglevel);
+//        p_pars=std::make_unique<Pars>(p_cumShells, loglevel);
+        p_pars = new Radiation::Pars(p_cumShells, loglevel);
     }
     /// evaluate flux density using adaptive integrator
     double evalFluxDensA(double t_obs, double nu_obs, double atol) {
@@ -1401,14 +1401,14 @@ class Radiation{
 //            t_arr = getTbGrid();
 //            out_em.resize(m_mag_time.size());
 //            out_abs.resize(m_mag_time.size());
-            t_arr = p_pars->p_ej->getTbGrid();// m_tb_arr;
+            t_arr = p_pars->p_cumShells->getTbGrid();// m_tb_arr;
             for(auto & arr : p_pars->p_syna->m_names_)
                 arr.resize( t_arr.size() );
         }
         else{
-            t_arr = p_pars->p_ej->getTbGrid(every_it);//getTbGrid(every_it);
+            t_arr = p_pars->p_cumShells->getTbGrid(every_it);//getTbGrid(every_it);
             for(auto & arr : p_pars->p_syna->m_names_)
-                arr.resize( p_pars->p_ej->getTbGrid().size() );
+                arr.resize( p_pars->p_cumShells->getTbGrid().size() );
 //            out_em.resize(t_arr.size());
 //            out_abs.resize(t_arr.size());
         }
@@ -1427,7 +1427,7 @@ class Radiation{
 
         /// compute spectra and fill storage
         size_t iit = 0;
-        for (size_t it = 0; it < p_pars->p_ej->getTbGrid().size(); it = it + every_it){
+        for (size_t it = 0; it < p_pars->p_cumShells->getTbGrid().size(); it = it + every_it){
             /// -- check if there are any data first
             double beta_;
             if (m_data[BlastWaveBase::Q::iGammaREL][it] > 0.) beta_ = EQS::Beta( m_data[BlastWaveBase::Q::iGammaREL][it] );

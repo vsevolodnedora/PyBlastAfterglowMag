@@ -23,7 +23,7 @@ import sys
 import argparse
 
 from .id_maker_tools import (reinterpolate_hist, reinterpolate_hist2, compute_ek_corr)
-from .utils import (cgs, get_Gamma, get_Beta, find_nearest_index)
+from .utils import (cgs, get_Gamma, get_Beta, find_nearest_index, MomFromGam, GamFromMom, BetFromMom)
 
 
 def get_ej_data_for_text(files : list[str],
@@ -272,6 +272,7 @@ def prepare_kn_ej_id_2d(files : list[str],
                         req_times=np.array([25]),
                         new_theta_len=None,
                         new_vinf_len=None,
+                        r0type="fromrho", t0=100, r0frac=0.5,
                         verbose = True,
                         ):
 
@@ -291,20 +292,53 @@ def prepare_kn_ej_id_2d(files : list[str],
         ek_corr2 = compute_ek_corr(pars["betas"], pars["masses"]).T
         if verbose: print(theta_corr2.shape, vinf_corr2.shape, ek_corr2.shape)
 
-        mass_corr = pars["masses"].T
+        mass_corr = pars["masses"].T * cgs.solar_m
         temp_corr = pars["temp"].T
         ye_corr = pars["ye"].T
         rho_corr = pars["rho"].T
+
+        ctheta_corr3 = np.zeros_like(ek_corr2)
+        theta_corr3 = np.zeros_like(ek_corr2)
+        for imom in range(len(vinf_corr2)):
+            ctheta_corr3[imom,:] = theta_corr2
+            theta_corr3[imom,:] = theta_corr2
+        mom_corr3 = np.zeros_like(ek_corr2)
+        for ith in range(len(theta_corr2)):
+            mom_corr3[:,ith]=np.array( vinf_corr2*get_Gamma(vinf_corr2))
+
+        if (r0type == "fromrho"):
+            r = np.zeros_like(mass_corr)
+            for ith in range(len(ctheta_corr3[0,:])):
+                idx = 0
+                k = r0frac#0.5
+                r[idx,ith] = (k*(3/4./np.pi)*rho_corr[idx,ith]*mass_corr[idx,ith])**(1./3.)
+
+                if (r[idx,ith] == 0):
+                    raise ValueError()
+                for ir in range(1,len(mom_corr3[:,0]),1):
+                    _val = (3./4./np.pi)*rho_corr[ir,ith]*mass_corr[ir,ith]
+                    _rm1 = r[ir-1,ith]**3
+                    if(mass_corr[ir,ith]>0):
+                        r[ir,ith] = (_rm1 + _val)**(1./3.)
+        elif (r0type == "frombeta"):
+            r = np.zeros_like(mass_corr)
+            t = t0
+            for ith in range(len(ctheta_corr3[0,:])):
+                for ir in range(0,len(mom_corr3[:,0]),1):
+                    r[ir,ith] =  BetFromMom(mom_corr3[ir,ith])*cgs.c * t
+        else:
+            raise KeyError(f"r0type={r0type} is not recognized")
 
         # self.o_pba.setEjectaStructNumeric(theta_corr2, vinf_corr2, ek_corr2, fac, True, self.pars_kn["eats_method"])
 
         if verbose: print(len(theta_corr2), theta_corr2)
         dfile = h5py.File(outfpath, "w")
-        dfile.create_dataset("theta",data=theta_corr2)
-        dfile.create_dataset("ctheta",data=theta_corr2)
-        dfile.create_dataset("mom",data=vinf_corr2*get_Gamma(vinf_corr2))
+        dfile.create_dataset("r",data=r)
+        dfile.create_dataset("theta",data=theta_corr3)
+        dfile.create_dataset("ctheta",data=theta_corr3)
+        dfile.create_dataset("mom",data=mom_corr3)
         dfile.create_dataset("ek",data=ek_corr2)
-        dfile.create_dataset("mass",data=mass_corr*cgs.solar_m)
+        dfile.create_dataset("mass",data=mass_corr)
         dfile.create_dataset("ye",data=ye_corr)
         dfile.create_dataset("s",data=np.zeros_like(mass_corr))
         dfile.create_dataset("rho",data=rho_corr)
@@ -315,6 +349,7 @@ def prepare_kn_ej_id_2d(files : list[str],
 
 def load_init_data(fpath):
     dfile = h5py.File(fpath, "r")
+    r_corr2 = np.array(dfile["r"],dtype=np.float64)
     theta_corr2 = np.array(dfile["theta"],dtype=np.float64)
     ctheta_corr2 = np.array(dfile["ctheta"],dtype=np.float64)
     mom_corr2 = np.array(dfile["mom"],dtype=np.float64)
@@ -325,4 +360,4 @@ def load_init_data(fpath):
     rho_corr2 = np.array(dfile["rho"],dtype=np.float64)
     temp_corr2 = np.array(dfile["temp"],dtype=np.float64)
     dfile.close()
-    return (mom_corr2, theta_corr2, ctheta_corr2, ek_corr2, mass_corr2, ye_corr2, s_corr2, rho_corr2, temp_corr2)
+    return (r_corr2, mom_corr2, theta_corr2, ctheta_corr2, ek_corr2, mass_corr2, ye_corr2, s_corr2, rho_corr2, temp_corr2)
