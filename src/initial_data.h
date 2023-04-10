@@ -20,13 +20,12 @@ class EjectaID2{
     std::unique_ptr<logger> p_log = nullptr;
     std::unique_ptr<Pars> p_pars = nullptr;
     unsigned m_loglevel{};
-    bool m_loadr0{};
 public:
     enum Q{ ir,imom,itheta,ictheta,iek,imass,iye,is,
-            itheta_c_l, itheta_c_h, itheta_c    };
+            itheta_c_l, itheta_c_h, itheta_c, ieint    };
     std::vector<std::string> m_names{
             "r","mom","theta","ctheta","ek","mass","ye","s",
-            "theta_c_l","theta_c_h","theta_c"
+            "theta_c_l","theta_c_h","theta_c", "eint"
     };
     std::vector<std::string> m_v_ns {
             "r","mom", "theta", "ctheta", "ek", "mass", "ye", "s"
@@ -62,7 +61,7 @@ public:
         _load_id_file(path_to_table,use_1d_id, load_r0, t0);
 
     }
-    double get (size_t ish, size_t il, Q iv){
+    double get(size_t ish, size_t il, Q iv){
         return m_data[iv][ish][il];
     }
     inline static double ctheta(double theta, size_t ilayer, size_t nlayers_pw){
@@ -103,9 +102,9 @@ public:
         return ctheta;
     }
     /// phi grid for a given layer (given number of phi cells)
-    static Array getCphiGridPW( size_t ilayer ){
+    static Vector getCphiGridPW( size_t ilayer ){
         size_t cil = CellsInLayer(ilayer);
-        Array cphis ( cil );
+        Vector cphis ( cil );
         for (size_t j = 0; j < cil; j++){
             cphis[j] = (double)j * 2.0 * CGS::pi / (double)cil;
         }
@@ -148,10 +147,12 @@ private:
         }
 
         /// compute the number of phi cells in each 'theta' layer
-        std::valarray<size_t> cil ( nlayers );
+        std::vector<size_t> cil ( nlayers );
         for (size_t i = 0; i < nlayers; i++)
             cil[i] = CellsInLayer(i);
-        ncells = cil.sum(); /// total number of cells
+        ncells = std::accumulate(cil.begin(), cil.end(),
+                                 decltype(cil)::value_type(0));
+//        ncells =  cil.sum(); /// total number of cells
 
 
     }
@@ -170,7 +171,7 @@ private:
             for (size_t ish = 0; ish < nshells; ish++) {
                 for (size_t i_v_n = 0; i_v_n < m_v_ns.size(); i_v_n++) {
                     ldata.setVarName(m_v_ns[i_v_n]);
-                    m_data[i_v_n][ish] = ldata.getDataVDouble();
+                    m_data[i_v_n][ish] = std::move ( ldata.getDataVDouble() ); // Mode data
                 }
             }
             nlayers = m_data[0][0].size();
@@ -185,7 +186,7 @@ private:
             for (size_t ish = 0; ish < nshells; ish++) {
                 for (size_t i_v_n = 0; i_v_n < m_v_ns.size(); i_v_n++) {
                     ldata.setVarName(m_v_ns[i_v_n]);
-                    m_data[i_v_n] = ldata.getData2Ddouble();
+                    m_data[i_v_n] = std::move( ldata.getData2Ddouble() ); //
                 }
             }
         }
@@ -223,7 +224,7 @@ private:
                 break;
         }
         (*p_log)(LOG_INFO,AT) << "Energy and mass are rescaled."<<"\n";
-
+        /// ---------------------------
         if (loadr0){
             /// pass
 
@@ -236,6 +237,9 @@ private:
                 }
             }
         }
+        /// ---------------------------
+//        ldata.setVarName(m_v_ns[i_v_n]);
+//        m_data[i_v_n][ish] = ldata.getDataVDouble();
 
     }
 

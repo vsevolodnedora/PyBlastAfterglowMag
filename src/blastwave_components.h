@@ -34,10 +34,10 @@ inline namespace EQS{
     double Beta2(double const &Gamma){
         return (Gamma-1.) * (Gamma+1.) / ( Gamma * Gamma );
     }
-    Array Beta(Array &Gamma){
+//    Vector Be/ta(Vector &Gamma){
 //        return sqrt(1.0 - (1.0 / (Gamma * Gamma)) );
-        return (1. / Gamma) * sqrt( (Gamma - 1.) * (Gamma + 1.) );
-    }
+//        return (1. / Gamma) * sqrt( (Gamma - 1.) * (Gamma + 1.) );
+//    }
 
     double Gamma(const double & beta){
 //        return sqrt(1.0 / (1.0 - (beta * beta)));
@@ -154,19 +154,19 @@ inline namespace EQS{
      * Integrate the elapsed time in the lab frame
      */
     double integrate_elapsed_time(unsigned int i,
-                                  std::valarray<double> &Rss,
-                                  std::valarray<double> &Gammas,
-                                  std::valarray<double> &thetas,
+                                  Vector &Rss,
+                                  Vector &Gammas,
+                                  Vector &thetas,
                                   const bool &use_spread){
 
         // integrate only to 'i'
 
         size_t n = i+1;
         double result = 0.0;
-        Array Rs(n);
+        Vector Rs(n);
         for (size_t j = 0; j < n; j++) Rs[j] = Rss[j];
-        Array integrand( n );
-        Array dthetadr( i+1 );
+        Vector integrand( n );
+        Vector dthetadr( i+1 );
         if (use_spread){
             // considering lateral spreading
             dthetadr[0] = 0.0;
@@ -529,11 +529,11 @@ class SedovTaylor{
         double w1{}, w2{}, w3{};
         double b0{}, b1{}, b2{}, b3{}, b4{}, b5{}, b6{}, b7{}, b8{};
         double c0{}, c1{}, c2{}, c3{}, c4{}, c5{}, c6{}, c7{}, c8{};
-        Array f{};//, 1e5);
-        Array eta{};
-        Array d{};
-        Array p{};
-        Array vv{};
+        Vector f{};//, 1e5);
+        Vector eta{};
+        Vector d{};
+        Vector p{};
+        Vector vv{};
     };
     Pars * p_pars{};
 public:
@@ -583,36 +583,36 @@ public:
         // Characterize the solution
         double f_min =  p_pars->w1 > w ? p_pars->c2 : p_pars->c6;
 
-        p_pars->f = TOOLS::MakeLogspace(log10(f_min), 0., (int)p_pars->f.size()); // log10(f_min)
+        p_pars->f = TOOLS::MakeLogspaceVec(log10(f_min), 0., (int)p_pars->f.size()); // log10(f_min)
 //        print_x_as_numpy(p_pars->f, 100, "f");
 
 
 //                p_pars->c2 ? p_pars->w1 > w : p_pars->c6
         bool use_uniform_log_grid = false;
         if (use_uniform_log_grid){
-            p_pars->f = TOOLS::MakeLogspace(log10(f_min), 0., (int)p_pars->f.size());
+            p_pars->f = TOOLS::MakeLogspaceVec(log10(f_min), 0., (int)p_pars->f.size());
         }
         else {
             double tmp_fmin = log10(f_min);
             double tmp_fmax = tmp_fmin;
             std::vector<size_t> segment_lengths = {10000, 1000, 100, 100};
-            VecArray segments{};
+            VecVector segments{};
             size_t tot_size = 0;
             for (size_t i_segment = 0; i_segment < segment_lengths.size() - 1; i_segment++) {
                 double _p = (double) i_segment - (double) segment_lengths.size() - 1;
                 double step = std::pow(10, (double) _p);
                 if (tmp_fmax == 1) tmp_fmax = 0;
                 //            std::cout << " tmp_min="<<tmp_fmin<<" tmp_max="<<tmp_fmin + step<<"\n";
-                segments.emplace_back(TOOLS::MakeLogspace(tmp_fmin, tmp_fmin + step, (int) segment_lengths[i_segment]));
+                segments.emplace_back(TOOLS::MakeLogspaceVec(tmp_fmin, tmp_fmin + step, (int) segment_lengths[i_segment]));
                 //            std::cout << segments[i_segment] << "\n";
                 tmp_fmin = tmp_fmin + step;
                 tot_size = tot_size + segment_lengths[i_segment];
             }
-            segments.emplace_back(TOOLS::MakeLogspace(tmp_fmin, 0, (int) segment_lengths[segment_lengths.size() - 1]));
+            segments.emplace_back(TOOLS::MakeLogspaceVec(tmp_fmin, 0, (int) segment_lengths[segment_lengths.size() - 1]));
 //            std::cout << segments[segments.size() - 1] << "\n";
             tot_size = tot_size + segment_lengths[segment_lengths.size() - 1];
             //        std::cout << " tmp_min="<<tmp_fmin<<" tmp_max="<<0<<"\n";
-            Array tmp(tot_size);
+            Vector tmp(tot_size);
             size_t ii = 0;
             for (size_t i_segment = 0; i_segment < segments.size(); i_segment++) {
                 for (size_t ip = 0; ip < segment_lengths[i_segment]; ip++) {
@@ -627,7 +627,7 @@ public:
 
         // Sort the etas for our interpolation function
         p_pars->eta = parametrized_eta(p_pars->f);
-        std::valarray<size_t> idx = sort_indexes(p_pars->eta);
+        std::vector<size_t> idx = sort_indexes(p_pars->eta);
         p_pars->f = sort_by_indexes(p_pars->f, idx);
         p_pars->eta = sort_by_indexes(p_pars->eta, idx);
 
@@ -646,9 +646,12 @@ public:
 
         // Finally Calculate the normalization of R_s:
 //        auto tmp = std::pow(p_pars->vv, 2);
-        Array integral_ = std::pow(p_pars->eta, nu - 1) * (p_pars->d * std::pow(p_pars->vv, 2.) + p_pars->p);
-        Array integral( integral_.size() - 1 );
-        Array deta (integral_.size() - 1);
+        Vector integral_(p_pars->eta.size());// = std::pow(p_pars->eta, nu - 1) * (p_pars->d * std::pow(p_pars->vv, 2.) + p_pars->p);
+        for (size_t i = 0; i < p_pars->eta.size(); i++)
+            integral_[i] = std::pow(p_pars->eta[i], nu - 1) * (p_pars->d[i] * std::pow(p_pars->vv[i], 2.) + p_pars->p[i]);
+
+        Vector integral( integral_.size() - 1 );
+        Vector deta (integral_.size() - 1);
         double integ = 0;
         for (size_t i = 0; i < integral.size(); i++){
             integral[i] = 0.5 * (integral_[i+1] + integral_[i]);
@@ -661,26 +664,49 @@ public:
 
     }
 
-    Array parametrized_eta(Array & var) {
-        return std::pow(var, -p_pars->b6) * std::pow((p_pars->c1 * (var - p_pars->c2)), p_pars->b2)
-               * std::pow( (p_pars->c3 * (p_pars->c4 - var)), -p_pars->b1);
+    Vector parametrized_eta(Vector & var) {
+        Vector res(var.size());
+        for (size_t i = 0; i < var.size(); i++)
+            res[i] = std::pow(var[i], -p_pars->b6)
+                    * std::pow((p_pars->c1 * (var[i] - p_pars->c2)), p_pars->b2)
+                     * std::pow( (p_pars->c3 * (p_pars->c4 - var[i])), -p_pars->b1);
+        return res;
+//        return std::pow(var, -p_pars->b6) * std::pow((p_pars->c1 * (var - p_pars->c2)), p_pars->b2)
+//               * std::pow( (p_pars->c3 * (p_pars->c4 - var)), -p_pars->b1);
     }
 
-    Array parametrized_d(Array & var) {
-        return std::pow(var, -p_pars->b7)
-               * ( std::pow(p_pars->c1 * (var - p_pars->c2), p_pars->b3 - p_pars->w * p_pars->b2) )
-               * ( std::pow(p_pars->c3 * (p_pars->c4 - var), p_pars->b4 + p_pars->w * p_pars->b1) )
-               * std::pow(p_pars->c5 * (p_pars->c6 - var),  -p_pars->b5 );
+    Vector parametrized_d(Vector & var) {
+        Vector res(var.size());
+        for (size_t i = 0; i < var.size(); i++)
+            res[i] = std::pow(var[i], -p_pars->b7)
+                     * ( std::pow(p_pars->c1 * (var[i] - p_pars->c2), p_pars->b3 - p_pars->w * p_pars->b2) )
+                     * ( std::pow(p_pars->c3 * (p_pars->c4 - var[i]), p_pars->b4 + p_pars->w * p_pars->b1) )
+                     * std::pow(p_pars->c5 * (p_pars->c6 - var[i]),  -p_pars->b5 );
+        return res;
+//        return std::pow(var, -p_pars->b7)
+//               * ( std::pow(p_pars->c1 * (var - p_pars->c2), p_pars->b3 - p_pars->w * p_pars->b2) )
+//               * ( std::pow(p_pars->c3 * (p_pars->c4 - var), p_pars->b4 + p_pars->w * p_pars->b1) )
+//               * std::pow(p_pars->c5 * (p_pars->c6 - var),  -p_pars->b5 );
     }
 
-    Array parametrized_p(Array & var) {
-        return std::pow(var, p_pars->b8)
-               * ( std::pow(p_pars->c3 * (p_pars->c4 - var), p_pars->b4 + (p_pars->w - 2) * p_pars->b1))
-               * ( std::pow(p_pars->c5 * (p_pars->c6 - var), 1 - p_pars->b5));
+    Vector parametrized_p(Vector & var) {
+        Vector res(var.size());
+        for (size_t i = 0; i < var.size(); i++)
+            res[i] = std::pow(var[i], p_pars->b8)
+                     * ( std::pow(p_pars->c3 * (p_pars->c4 - var[i]), p_pars->b4 + (p_pars->w - 2) * p_pars->b1))
+                     * ( std::pow(p_pars->c5 * (p_pars->c6 - var[i]), 1 - p_pars->b5));
+        return res;
+//        return std::pow(var, p_pars->b8)
+//               * ( std::pow(p_pars->c3 * (p_pars->c4 - var), p_pars->b4 + (p_pars->w - 2) * p_pars->b1))
+//               * ( std::pow(p_pars->c5 * (p_pars->c6 - var), 1 - p_pars->b5));
     }
 
-    Array parametrized_v(Array & var) {
-        return parametrized_eta(var) * var;
+    Vector parametrized_v(Vector & var) {
+        Vector res(var.size());
+        for (size_t i = 0; i < p_pars->eta.size(); i++)
+            res[i] = parametrized_eta(var)[i] * var[i];
+        return res;
+//        return parametrized_eta(var) * var;
     }
 
     double rho_profile_int(double r, double r_shock, double rho2) {

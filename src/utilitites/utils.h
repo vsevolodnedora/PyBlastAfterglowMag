@@ -8,8 +8,8 @@
 #include "pch.h"
 #include "logger.h"
 
-typedef std::valarray<double> Array;
-typedef std::vector<Array> VecArray;
+//typedef std::valarray<double> Array;
+//typedef std::vector<Array> VecArray;
 typedef std::vector<double> Vector;
 typedef std::vector<std::vector<double>> VecVector;
 typedef std::unordered_map<std::string,double> StrDbMap;
@@ -89,14 +89,14 @@ namespace TOOLS{
     }
 
     //
-    static std::valarray<double> MakeLogspace(const double &start,
-                                              const double &stop,
-                                              const int &num = 50,
-                                              const double &base = 10) {
-        auto retval = MakeLogspaceVec(start, stop, num, base);
-        return std::move(std::valarray<double> (retval.data(), retval.size()));
-
-    }
+//    static std::valarray<double> MakeLogspace(const double &start,
+//                                              const double &stop,
+//                                              const int &num = 50,
+//                                              const double &base = 10) {
+//        auto retval = MakeLogspaceVec(start, stop, num, base);
+//        return std::move(std::valarray<double> (retval.data(), retval.size()));
+//
+//    }
 
     std::vector<double> linspace(double first, double last, int len) {
         std::vector<double> result(len);
@@ -220,18 +220,18 @@ double getDoublePar(std::string par, StrDbMap & pars,
     return val;
 }
 
-Vector arrToVec(Array & array){
+Vector arrToVec(Vector & array){
     std::vector<double> vec;
     vec.assign(std::begin(array), std::end(array));
     return std::move( vec );
 }
-void vecToArr(Vector & source, Array & target){
-    if ((target.size() != source.size())){
-        target.resize(source.size(), 0.0);
-    }
-    for (size_t i = 0; i < source.size(); ++i)
-        target[i] = source[i];
-}
+//void vecToArr(Vector & source, Array & target){
+//    if ((target.size() != source.size())){
+//        target.resize(source.size(), 0.0);
+//    }
+//    for (size_t i = 0; i < source.size(); ++i)
+//        target[i] = source[i];
+//}
 
 
 double linearExtrapolate(double x1, double x2, double y1, double y2, double new_x){
@@ -257,10 +257,10 @@ void sort_indexes(const std::vector<T> &v, std::vector<size_t> & idx) {
 //    return std::move( idx );
 }
 template <typename T>
-std::valarray<size_t> sort_indexes(const std::valarray<T> &v) {
+std::vector<size_t> sort_indexes(const std::vector<T> &v) {
 
     // initialize original index locations
-    std::valarray<size_t> idx(v.size());
+    std::vector<size_t> idx(v.size());
     std::iota(begin(idx), end(idx), 0);
 
     // sort indexes based on comparing values in vv
@@ -273,12 +273,12 @@ std::valarray<size_t> sort_indexes(const std::valarray<T> &v) {
 
     return std::move( idx );
 }
-Array sort_by_indexes(const Array & array, const std::valarray<size_t> & indexes){
+Vector sort_by_indexes(const Vector & array, const std::vector<size_t> & indexes){
     if (array.size() != indexes.size()){
         std::cerr << AT << " size mismatch\n";
         exit(1);
     }
-    Array sorted (array.size());
+    Vector sorted (array.size());
     for(size_t i = 0; i < array.size(); i++){
         sorted[i] = array[indexes[i]];
     }

@@ -69,6 +69,7 @@ rtol_adapt = 1e-5
 
 run_bws = yes
 save_dynamics = no
+load_dynamics = no
 do_ele = yes
 do_spec = no
 do_lc = yes
@@ -108,7 +109,7 @@ method_ne = usenprime # ! useNe is better here! (that is what was used before)
 use_dens_prof_behind_jet_for_ejecta = no
 use_exp_rho_decay_as_floor = yes
 use_flat_dens_floor = no
-use_st_dens_profile = yes
+use_st_dens_profile = no
 use_bm_dens_profile = no
 method_quad = CADRE
 method_comp_mode = observFlux # "comovSpec",#"observFlux"

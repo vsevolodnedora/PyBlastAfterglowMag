@@ -135,6 +135,23 @@ class LoadH5
       };
       // Here we use the Proxy class to have a single getData function
       Proxy getData() const {return Proxy(this);}
+      //
+      double getDoubleAttr(std::string key){
+          H5::H5File file{LoadH5::filename, H5F_ACC_RDONLY};
+          auto isatt = file.attrExists(key);
+          if (!isatt){
+              std::cout << AT << " attribute="<<key<<" does not exists\n";
+              exit(1);
+          }
+          auto att = file.openAttribute(key);
+          hsize_t lnSize = att.getStorageSize();
+          double* lpnBuffer = new double[lnSize];
+          H5::DataType lcType = att.getDataType();
+          att.read(lcType, lpnBuffer);
+          double val = *lpnBuffer;
+          delete [] lpnBuffer;
+          return val;
+      }
 };
 
 

@@ -9,29 +9,29 @@
 #include "pch.h"
 #include "utils.h"
 
-static size_t findIndex( const double & x, const Array & arr, size_t N ) {
-    if(x <= arr[0])
-        return 0;
-    else if(x >= arr[N-1])
-        return N-2;
-
-    unsigned int i = ((unsigned int) N) >> 1;
-    unsigned int a = 0;
-    unsigned int b = N-1;
-
-    // https://stackoverflow.com/questions/4192440/is-there-any-difference-between-1u-and-1-in-c/4192469
-    // untill the m_size of b-a > 1 continue shrinking the array, approaching the 'x'
-    while (b-a > 1u) // 1U is an unsigned value with the single bit 0 set
-    {
-        i = (b+a) >> 1; // ???
-        if (arr[i] > x)
-            b = i;
-        else
-            a = i;
-    }
-
-    return (int)a;
-}
+//static size_t findIndex( const double & x, const Vector & arr, size_t N ) {
+//    if(x <= arr[0])
+//        return 0;
+//    else if(x >= arr[N-1])
+//        return N-2;
+//
+//    unsigned int i = ((unsigned int) N) >> 1;
+//    unsigned int a = 0;
+//    unsigned int b = N-1;
+//
+//    // https://stackoverflow.com/questions/4192440/is-there-any-difference-between-1u-and-1-in-c/4192469
+//    // untill the m_size of b-a > 1 continue shrinking the array, approaching the 'x'
+//    while (b-a > 1u) // 1U is an unsigned value with the single bit 0 set
+//    {
+//        i = (b+a) >> 1; // ???
+//        if (arr[i] > x)
+//            b = i;
+//        else
+//            a = i;
+//    }
+//
+//    return (int)a;
+//}
 static size_t findIndex( const double & x, const Vector & arr, size_t N ) {
     if(x <= arr[0])
         return 0;
@@ -55,7 +55,7 @@ static size_t findIndex( const double & x, const Vector & arr, size_t N ) {
 
     return (int)a;
 }
-static inline double interpSegLin( size_t & a, size_t & b, const double & x, Array & X, Array & Y) {
+static inline double interpSegLin( size_t & a, size_t & b, const double & x, Vector & X, Vector & Y) {
     // take two indexis, 'a' 'b' and two arrays 'X' and 'Y' and interpolate
     // between them 'Y' for at 'x" of "X'
     double xa = X[a];
@@ -64,7 +64,7 @@ static inline double interpSegLin( size_t & a, size_t & b, const double & x, Arr
     double yb = Y[b];
     return ya + (yb-ya) * (x-xa)/(xb-xa);
 }
-static inline double interpSegLog( size_t & a, size_t & b, double x, Array & X, Array & Y) {
+static inline double interpSegLog( size_t & a, size_t & b, double x, Vector & X, Vector & Y) {
 //        std::cout << a << ' ' << b << ' '<< x << ' '<< X << ' '<< Y << ' '<< N << "\n";
     double xa = X[a];
     double xb = X[b];
@@ -118,7 +118,7 @@ public:
 class Interp1d : public InterpBase{
 public:
 
-    Interp1d(Array &x, Array &y) : m_X(x), m_Y(y)
+    Interp1d(Vector &x, Vector &y) : m_X(x), m_Y(y)
     {
         m_nX = x.size();
         m_nY = y.size();
@@ -158,8 +158,8 @@ public:
     }
 
     //return multipoint value, point number is m
-    Array Interpolate(Array &t, METHODS method) {
-        Array result ( t.size() );
+    Vector Interpolate(Vector &t, METHODS method) {
+        Vector result ( t.size() );
         size_t m = t.size();
 //        if (t == NULL)
 //            return;
@@ -171,7 +171,7 @@ public:
         return std::move(result);
     }
 
-    static int FindIdx(Array &x, const double &t, int n) {
+    static int FindIdx(Vector &x, const double &t, int n) {
         int kk, m, lc;
         /*if(t<x[0])
         return( 0);
@@ -198,7 +198,7 @@ public:
     }
 
 private:
-    Array m_X, m_Y;
+    Vector m_X, m_Y;
     size_t m_nX, m_nY;
 
 protected:
@@ -530,7 +530,7 @@ public:
      * @param z array of the m_size 'm*n'
      *
      */
-    Interp2d(Array &x, Array &y, Array &z)
+    Interp2d(Vector &x, Vector &y, Vector &z)
             : m_X(x), m_Y(y), m_Z(z)
     {
         m_nX = x.size();
@@ -559,8 +559,8 @@ public:
 //        double tempx[2] = { 0,0 };
 //        double tempz[2] = { 0,0 };
 
-        Array tempx { 0,0 };
-        Array tempz { 0,0 };
+        Vector tempx { 0,0 };
+        Vector tempz { 0,0 };
 
         tempi = Interp1d::FindIdx(m_X, a, (int)m_nX);
         tempj = Interp1d::FindIdx(m_Y, b, (int)m_nY);
@@ -620,9 +620,9 @@ public:
         return(w);
     }
 
-    Array Interpolate(Array &x, Array &y, Interp1d::METHODS method){
+    Vector Interpolate(Vector &x, Vector &y, Interp1d::METHODS method){
         double tempVal = 0.0;
-        Array result ( x.size() * y.size() );
+        Vector result ( x.size() * y.size() );
         size_t idx = 0;
         for (size_t i = 0; i < x.size(); i++){
             for(size_t j = 0; j < y.size(); j++){
@@ -703,7 +703,7 @@ public:
     }
 
 private:
-    Array m_X, m_Y, m_Z;
+    Vector m_X, m_Y, m_Z;
     size_t m_nX, m_nY, m_nZ;
 
     inline size_t Idx( int x, int y ) const { return x + m_nX * y; } // m_width
@@ -809,7 +809,7 @@ private:
     }
 };
 
-inline double lagrangeInterpolation(Array & x, Array & y, size_t n, double xp){
+inline double lagrangeInterpolation(Vector & x, Vector & y, size_t n, double xp){
     double intp = 0;
     for (size_t i = 0; i < n; i++){
         double m = 1;
@@ -823,7 +823,7 @@ inline double lagrangeInterpolation(Array & x, Array & y, size_t n, double xp){
     return intp;
 }
 
-inline double dydx(Array & x, Array & y, Array & dy, double dx, size_t idx, double curr_x, bool lagrange_interp=true){
+inline double dydx(Vector & x, Vector & y, Vector & dy, double dx, size_t idx, double curr_x, bool lagrange_interp=true){
     double dy_idx;
     if (idx == 2){
         // first order derivative

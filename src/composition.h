@@ -101,14 +101,14 @@ struct BarnsThermalization{
 
     std::unique_ptr<logger> p_log;
     /// From Barns et al (Values for mej and vej)
-    Array a; Array b; Array d;
-    Array x = {std::log10(1.e-3),std::log10(5e-3),std::log10(1e-2),std::log10(5e-2)};
-    Array y = {0.1,0.2,0.3};
+    Vector a; Vector b; Vector d;
+    Vector x = {std::log10(1.e-3),std::log10(5e-3),std::log10(1e-2),std::log10(5e-2)};
+    Vector y = {0.1,0.2,0.3};
     /// From Barns et al for mej/vej^2
-    Array x_barnes = {0.011, 0.025, 0.0556, 0.1, 0.111, 0.125, 0.25, 0.5, 0.5556, 1., 1.25, 5.};
-    Array a_barnes = {8.16, 4.52, 3.20, 2.01, 2.19, 1.90, 1.31, 0.81, 0.95, 0.56, 0.55, 0.27};
-    Array b_barnes = {1.19, 0.62, 0.45, 0.28, 0.31, 0.28, 0.21, 0.19, 0.15, 0.17, 0.13, 0.10};
-    Array d_barnes = {1.52, 1.39, 1.39, 1.12, 1.32, 1.21, 1.13, 0.86, 1.13, 0.74, 0.90, 0.60};
+    Vector x_barnes = {0.011, 0.025, 0.0556, 0.1, 0.111, 0.125, 0.25, 0.5, 0.5556, 1., 1.25, 5.};
+    Vector a_barnes = {8.16, 4.52, 3.20, 2.01, 2.19, 1.90, 1.31, 0.81, 0.95, 0.56, 0.55, 0.27};
+    Vector b_barnes = {1.19, 0.62, 0.45, 0.28, 0.31, 0.28, 0.21, 0.19, 0.15, 0.17, 0.13, 0.10};
+    Vector d_barnes = {1.52, 1.39, 1.39, 1.12, 1.32, 1.21, 1.13, 0.86, 1.13, 0.74, 0.90, 0.60};
     ///
 //    METHOD_THERMALIZATION methodThermalization{};
     double thef{};
@@ -291,8 +291,8 @@ struct KorobkinHeating{
 };
 
 struct TanakaOpacity{
-    Array Ye{0.01,0.10,0.15,0.20,0.25,0.30,0.35,0.40,0.50};
-    Array kappa{30.1,30.0,29.9,22.30,5.60,5.36,3.30,0.96,0.1};
+    Vector Ye{0.01,0.10,0.15,0.20,0.25,0.30,0.35,0.40,0.50};
+    Vector kappa{30.1,30.0,29.9,22.30,5.60,5.36,3.30,0.96,0.1};
     TanakaOpacity(){}
     void setPars(StrDbMap & pars, StrStrMap & opts){}
     double evaluateOpacity(double ye){

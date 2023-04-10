@@ -16,7 +16,7 @@
  * @param last_idx last index of 'x' array up to which to continue integrating
  *
  */
-double Trapz(Array &integrant, Array &x, size_t last_idx){
+double Trapz(Vector &integrant, Vector &x, size_t last_idx){
     double result = 0.0;
     for (size_t i = 0; i < last_idx - 1; i++)
         result += (integrant[i] + integrant[i+1]) * (x[i+1]-x[i]) / 2.0;

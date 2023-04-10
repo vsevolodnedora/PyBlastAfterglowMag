@@ -29,8 +29,8 @@ class Magnetar_OLD{
 
         double omega0=-1;
     };
-    Array & m_tb_arr;
-    VecArray m_data{}; // container for the solution of the evolution
+    Vector & m_tb_arr;
+    VecVector m_data{}; // container for the solution of the evolution
     std::unique_ptr<logger> p_log;
     std::unique_ptr<Pars> p_pars;
     bool is_mag_pars_set = false;
@@ -56,10 +56,10 @@ public:
             "tburst", "omega", "mdot", "r_lc", "r_mag", "r_corot", "fastness", "n_dip", "n_acc", "n_grav", "ldip", "lprop"
     };
 //    static constexpr size_t NVALS = 1; // number of variables to save
-    inline Array & operator[](unsigned ll){ return m_data[ll]; }
+    inline Vector & operator[](unsigned ll){ return m_data[ll]; }
     inline double & operator()(size_t ivn, size_t ir){ return m_data[ivn][ir]; }
 
-    Magnetar_OLD( Array & t_grid, int loglevel ) : m_tb_arr(t_grid) {
+    Magnetar_OLD( Vector & t_grid, int loglevel ) : m_tb_arr(t_grid) {
         ///
         p_pars = std::make_unique<Pars>();
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "Magnetar");
@@ -67,15 +67,15 @@ public:
 
     }
 
-    Array & getTbGrid() { return m_tb_arr; }
-    Array getTbGrid(size_t every_it) {
+    Vector & getTbGrid() { return m_tb_arr; }
+    Vector getTbGrid(size_t every_it) {
         if ((every_it == 1)||(every_it==0)) return m_tb_arr;
         Vector tmp{};
         for (size_t it = 0; it < m_tb_arr.size(); it = it + every_it){
             tmp.push_back(m_tb_arr[it]);
         }
-        Array tmp2 (tmp.data(), tmp.size());
-        return std::move(tmp2);
+//        Vector tmp2 (tmp.data(), tmp.size());
+        return std::move(tmp);
     }
 
     void setPars(StrDbMap & pars, StrStrMap & opts){
@@ -405,8 +405,8 @@ class Magnetar{
     struct Pars{
 
     };
-    Array m_mag_time;
-    VecArray m_data{}; // container for the solution of the evolution
+    Vector m_mag_time;
+    VecVector m_data{}; // container for the solution of the evolution
     std::unique_ptr<logger> p_log;
     std::unique_ptr<Pars> p_pars;
     bool is_mag_pars_set = false;
@@ -438,7 +438,7 @@ public:
             "tburst", "omega", "ildip", "ilacc"
     };
 //    static constexpr size_t NVALS = 1; // number of variables to save
-    inline Array & operator[](unsigned ll){ return m_data[ll]; }
+    inline Vector & operator[](unsigned ll){ return m_data[ll]; }
     inline double & operator()(size_t ivn, size_t ir){ return m_data[ivn][ir]; }
 
     Magnetar( int loglevel ){// : m_mag_time(t_grid) {
@@ -447,15 +447,15 @@ public:
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "Magnetar");
     }
 
-    Array & getTbGrid() { return m_mag_time; }
-    Array getTbGrid(size_t every_it) {
+    Vector & getTbGrid() { return m_mag_time; }
+    Vector getTbGrid(size_t every_it) {
         if ((every_it == 1)||(every_it==0)) return m_mag_time;
         Vector tmp{};
         for (size_t it = 0; it < m_mag_time.size(); it = it + every_it){
             tmp.push_back(m_mag_time[it]);
         }
-        Array tmp2 (tmp.data(), tmp.size());
-        return std::move(tmp2);
+//        Vector tmp2 (tmp.data(), tmp.size());
+        return std::move(tmp);
     }
     double getMagValInt(Q vname, double tb){
         if (!std::isfinite(tb)){
@@ -511,9 +511,11 @@ public:
         mth = InterpBase::select("linear",p_log);
         // **************************************
         if (vname == Q::itb)
-            vecToArr(values, m_mag_time);
+            m_mag_time = values;
+//            vecToArr(values, m_mag_time);
         else
-            vecToArr(values,m_data[vname]);
+            m_data[vname] = values;
+//            vecToArr(values,m_data[vname]);
         is_mag_pars_set = true;
 //        std::cerr << m_data[0][0] << " " << m_data[1][0] << " " << m_data[2][0] << " " << m_data[3][0] << "\n";
     }
@@ -787,7 +789,7 @@ class PWNmodel{
         bool is_init = false;
     };
     Vector m_tb_arr;
-    VecArray m_data{}; // container for the solution of the evolution
+    VecVector m_data{}; // container for the solution of the evolution
     std::unique_ptr<logger> p_log;
     std::unique_ptr<Pars> p_pars;
     Vector frac_psr_dep_{};
@@ -818,7 +820,7 @@ public:
             "tburst", "Rwing", "Enebula", "Epwn"
     };
 //    static constexpr size_t NVALS = 1; // number of variables to save
-    inline Array & operator[](unsigned ll){ return m_data[ll]; }
+    inline Vector & operator[](unsigned ll){ return m_data[ll]; }
     inline double & operator()(size_t ivn, size_t ir){ return m_data[ivn][ir]; }
 
     PWNmodel( Vector & tarr, int loglevel ) : m_tb_arr(tarr) {// : m_mag_time(t_grid) {

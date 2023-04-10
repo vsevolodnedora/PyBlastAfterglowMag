@@ -274,12 +274,14 @@ struct Margalit21 {
 
         /// Mahadevan+95 "Harmony in Electrons"
         const size_t n = 7;
-        Array temps = { 5e8, 1e9, 2e9, 4e9, 8e9, 1.6e10, 3.2e10 };
-        Array alphas = { 0.0431, 1.121, 1.180, 1.045, 0.9774, 0.9768, 0.9788 };
-        Array betas = {10.44, -10.65, -4.008, -0.1897, 1.160, 1.095, 1.021};
-        Array gammas = {16.61, 9.169, 1.559, 0.0595, 0.2641, 0.8332, 1.031};
+        Vector temps = { 5e8, 1e9, 2e9, 4e9, 8e9, 1.6e10, 3.2e10 };
+        Vector alphas = { 0.0431, 1.121, 1.180, 1.045, 0.9774, 0.9768, 0.9788 };
+        Vector betas = {10.44, -10.65, -4.008, -0.1897, 1.160, 1.095, 1.021};
+        Vector gammas = {16.61, 9.169, 1.559, 0.0595, 0.2641, 0.8332, 1.031};
 
-        Array Thetas = temps * CGS::kB / (CGS::me * CGS::c * CGS::c);
+        Vector Thetas (temps.size());
+        for (size_t i = 0; i < temps.size(); i++)
+            Thetas[i] = temps[i] * CGS::kB / (CGS::me * CGS::c * CGS::c);
 
         double alpha, beta, gamma;
         if (Theta < Thetas[0]){
@@ -786,7 +788,7 @@ struct Margalit21 {
 /// from Lamb+2818 model (from Fernandez GitHub repo)
 double interpolated_xi(const double &p){
 
-    Array p_xi = {
+    Vector p_xi = {
             1.44449807, 1.48206417, 1.48206417, 1.49279734, 1.50353051,
             1.51963027, 1.54109661, 1.55361864, 1.58402929, 1.61944876,
             1.60012905, 1.64842832, 1.66989466, 1.70746076, 1.71282735,
@@ -806,7 +808,7 @@ double interpolated_xi(const double &p){
             5.86656455, 5.95242991, 5.9577965
     };
 
-    Array Xi = {
+    Vector Xi = {
             0.99441363, 0.99511912, 0.97241493, 0.95724356, 0.94207218,
             0.92309915, 0.90708165, 0.89361622, 0.8763981 , 0.84773936,
             0.86391198, 0.8286159 , 0.81232812, 0.7972488 , 0.78083371,
@@ -831,7 +833,7 @@ double interpolated_xi(const double &p){
 }
 double interpolated_phi(const double &p){
 
-    Array p_phi = {
+    Vector p_phi = {
             1.00621662, 1.04516293, 1.13098906, 1.21681519, 1.25720396,
             1.35312728, 1.46419639, 1.58608392, 1.62070287, 1.69643181,
             1.81759811, 1.85798688, 1.9589588 , 2.09022229, 2.23158298,
@@ -846,7 +848,7 @@ double interpolated_phi(const double &p){
             5.39200406, 5.44249002, 5.51821896, 5.57375351, 5.60909369,
             5.7151142 , 5.7726682 , 5.87666927, 5.93725242
     };
-    Array phi = {
+    Vector phi = {
             0.41141367, 0.41748522, 0.43521089, 0.45395245, 0.46103901,
             0.48129824, 0.50341068, 0.52512949, 0.53192933, 0.5467828 ,
             0.56618001, 0.5703882 , 0.58454897, 0.60117452, 0.61418181,
@@ -1132,7 +1134,7 @@ class SynchrotronAnalytic : public RadiationBase{
     };
     std::unique_ptr<Pars> p_pars = nullptr;
     std::unique_ptr<logger> p_log = nullptr;
-    Array m_data{};
+    Vector m_data{};
     Vector m_gamma_arr{};
     Vector m_freq_arr_syn{};
     Vector m_tmp_arr1{};
@@ -1792,7 +1794,7 @@ public:
         m_data[QQ::i_tau] = RadiationBase::optical_depth(m_data[i_abs], dr, mu, beta_sh);
         m_data[QQ::i_int] = RadiationBase::computeIntensity(m_data[i_em], m_data[QQ::i_tau], p_pars->method_tau);
     }
-    inline Array & getData(){return m_data;}
+    inline Vector & getData(){return m_data;}
     inline double getIntensity(){ return m_data[QQ::i_int]; }
 //    inline Array & getSpectrum(){ return m_spectrum; }
 //    inline Array & getFreqArr(){ return m_freq_grid; }

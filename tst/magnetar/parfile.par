@@ -14,9 +14,9 @@
 
 tb0 = 1.e1
 tb1 = 1.e11 #1e11
-ntb = 10000
-iout = 1
-rtol = 1.e-11
+ntb = 50000
+iout = 50
+rtol = 1.e-12
 nmax = 1000
 
 A0 = -1
@@ -37,7 +37,7 @@ lc_use_freq_to_time = no
 skymap_freqs = array 1e9 1e18
 skymap_times = array logspace 8.e5 2e9 50
 
-integrator = DOP853E
+integrator = DOP853
 method_eats = piece-wise # piece-wise
 
 # --------------------------- END ---------------------------
@@ -144,7 +144,6 @@ fname_sky_map = skymap_kn.h5
 use_1d_id = no
 load_r0 = yes
 fname_ejecta_id = corr_id_SFHo_13_14_150m_11_text70.h5
-enforce_angular_grid = yes
 
 method_spread = None
 method_eos = Nava13
@@ -165,7 +164,7 @@ method_ne = usenprime # ! useNe is better here! (that is what was used before)
 use_dens_prof_behind_jet_for_ejecta = no
 use_exp_rho_decay_as_floor = yes
 use_flat_dens_floor = no
-use_st_dens_profile = yes
+use_st_dens_profile = no
 use_bm_dens_profile = no
 method_quad = CADRE
 method_comp_mode = observFlux # "comovSpec",#"observFlux"

@@ -690,7 +690,7 @@ def main():
     prepare_kn_ej_id_2d(files=files,
                         outfpaths=[workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5"],
                         req_times=np.array([text]),
-                        new_theta_len=None,
+                        new_theta_len=4,
                         new_vinf_len=None,
                         verbose=True,
                         r0type="fromrho", r0frac=0.5, t0=-1,

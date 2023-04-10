@@ -392,10 +392,16 @@ public:
             m_data[Q::itdiff][i] = std::max( kappa_i * m_i / m_data[Q::ibeta][i] / r_i / CGS::c, m_tlc); // TODO M0 or M0+M2 )
 
             m_data[Q::ilum][i] = ene_th / m_data[Q::itdiff][i];
+            if (m_data[Q::itdiff][i] < 1){
+                (*p_log)(LOG_WARN,AT) << " small tdiff\n";
+            }
             ltot += m_data[Q::ilum][i];
         }
         p_pars->ltot = ltot;
         p_pars->tautot = tau_tot;
+        if (tau_tot < 1.){
+            int x = 1;
+        }
 
         /// Compute the optical depth from 0 to a given shell
         int idx_photo=-1;
@@ -689,8 +695,9 @@ class Ejecta{
     Vector & t_arr;
 public:
     bool do_eninj_inside_rhs = false;
-    bool run_bws=false, save_dyn=false, do_ele=false, do_spec=false, do_lc=false, do_skymap=false;
+    bool run_bws=false, save_dyn=false, load_dyn=false, do_ele=false, do_spec=false, do_lc=false, do_skymap=false;
     bool do_collision = false;
+    bool do_nuc = false;
     bool is_ejecta_obs_pars_set = false;
     bool is_ejecta_anal_synch_computed = false;
     StrDbMap grb_pars; StrStrMap grb_opts;
@@ -710,7 +717,7 @@ public:
             return (p_cumShells.size() * p_cumShells[0]->nBWs() * SOL::neq);//p_cumShells[0]->getBW(0)->getNeq());
         }
     }
-    VecArray & getData(size_t il, size_t ish){ return getShells()[il]->getBW(ish)->getData(); }
+    VecVector & getData(size_t il, size_t ish){ return getShells()[il]->getBW(ish)->getData(); }
     Vector & getTbGrid(){ return t_arr; }
     Vector getTbGrid(size_t every_it) {
         if ((every_it == 1)||(every_it==0))
@@ -724,11 +731,11 @@ public:
     }
     size_t nlayers() const {
 //        return run_bws ? ejectaStructs.structs[0].nlayers : 0;
-        return run_bws ? id->nlayers : 0;
+        return (run_bws||load_dyn) ? id->nlayers : 0;
     }
     size_t nshells() const {
 //        return run_bws ? ejectaStructs.nshells : 0;
-        return run_bws ? id->nshells : 0;
+        return (run_bws||load_dyn) ? id->nshells : 0;
     }
     size_t nMaxActiveShells() {
         size_t nsh = 0;
@@ -739,7 +746,7 @@ public:
     }
     int ncells() const {
 //        return run_bws ? (int)ejectaStructs.structs[0].ncells : 0;
-        return run_bws ? (int)id->ncells : 0;
+        return (run_bws||load_dyn) ? (int)id->ncells : 0;
     }
     std::vector<std::unique_ptr<CumulativeShell>> & getShells(){
         if (p_cumShells.empty()){
@@ -762,6 +769,7 @@ public:
         if ((!grb_pars.empty()) || (!grb_opts.empty())) {
             run_bws = getBoolOpt("run_bws", grb_opts, AT, p_log, false, true);
             save_dyn = getBoolOpt("save_dynamics", grb_opts, AT, p_log, false, true);
+            load_dyn = getBoolOpt("load_dynamics", grb_opts, AT, p_log, false, true);
             do_ele = getBoolOpt("do_ele", grb_opts, AT, p_log, false, true);
             do_spec = getBoolOpt("do_spec", grb_opts, AT, p_log, false, true);
             do_lc = getBoolOpt("do_lc", grb_opts, AT, p_log, false, true);
@@ -774,7 +782,7 @@ public:
                 grb_pars[key] = main_pars.at(key);
             }
             grb_opts["workingdir"] = working_dir; // For loading Nuclear Heating table
-            if (run_bws) {
+            if (run_bws || load_dyn) {
                 std::string fname_ejecta_id = getStrOpt("fname_ejecta_id", grb_opts, AT, p_log, "", true);
                 bool use_1d_id = getBoolOpt("use_1d_id", grb_opts, AT, p_log, false, true);
                 if (!std::experimental::filesystem::exists(working_dir + fname_ejecta_id)) {
@@ -835,8 +843,7 @@ public:
 
     void computeAndOutputObservables(StrDbMap main_pars, StrStrMap main_opts){
         /// work on GRB afterglow
-        if (run_bws){
-
+        if (run_bws || load_dyn){
             bool lc_freq_to_time = getBoolOpt("lc_use_freq_to_time",main_opts,AT,p_log,false,true);
             Vector lc_freqs = makeVecFromString(getStrOpt("lc_freqs",main_opts,AT,p_log,"",true),p_log);
             Vector lc_times = makeVecFromString(getStrOpt("lc_times",main_opts,AT,p_log,"",true), p_log);
@@ -849,6 +856,10 @@ public:
                         getStrOpt("fname_dyn", grb_opts, AT, p_log, "", true),
                         (int)getDoublePar("save_dyn_every_it", grb_pars, AT, p_log, 1, true),
                         main_pars, grb_pars);
+            if (load_dyn)
+                loadEjectaBWDynamics(working_dir,
+                                     getStrOpt("fname_dyn", grb_opts, AT, p_log, "", true));
+
             if (do_ele) {
                 setPreComputeEjectaAnalyticElectronsPars();
 //                (*p_log)(LOG_INFO, AT) << "jet analytic synch. electrons finished [" << timer.checkPoint() << " s]" << "\n";
@@ -1008,7 +1019,8 @@ private:
     void setEjectaBwPars(StrDbMap pars, StrStrMap opts, size_t ii_eq, size_t n_layers_jet){
 
         run_bws = getBoolOpt("run_bws", opts, AT, p_log, false, true);
-        if (!run_bws)
+        load_dyn = getBoolOpt("load_dynamics", opts, AT, p_log, false, true);
+        if ((!run_bws) && (!load_dyn))
             return;
         bool is_within = false;
         std::vector<size_t> which_within{};
@@ -1169,23 +1181,18 @@ private:
             do_collision = true;
             (*p_log)(LOG_INFO,AT)<<"Including shell collision into kN ejecta dynamics\n";
         }
+        do_nuc = getBoolOpt("do_nucinj", opts, AT,p_log, false, true);
+
         do_eninj_inside_rhs = getBoolOpt("do_eninj_inside_rhs", opts, AT, p_log, "no", false);
-//        std::cout<<"nshells_="<<nshells()<<" nlayers="<<nlayers()<<"\n";
-//        std::cout<<"nshells_="<<nshells_<<" nlayers="<<n_layers_ej_<<"\n";
 
         (*p_log)(LOG_INFO,AT) << "finished initializing ejecta. "
                                  "nshells="<<nshells()<<" nlayers="<<nlayers()<<"\n";
-//        for(size_t il = 0; il < n_layers_ej_; il++){
-//            for (size_t ish = 0; ish < nshells_; ish++) {
-//                p_cumShells[il]->getBW(ish)->getRad();
-//            }
-//        }
     }
 
     double ej_rtol = 1e-5;
 
     /// OUTPUT
-    void saveEjectaBWsDynamics(std::string workingdir, std::string fname, size_t every_it,
+    void saveEjectaBWsDynamics_old(std::string workingdir, std::string fname, size_t every_it,
                                StrDbMap & main_pars, StrDbMap & ej_pars){
         (*p_log)(LOG_INFO,AT) << "Saving Ejecta BW dynamics...\n";
 
@@ -1256,6 +1263,74 @@ private:
         for (auto& [key, value]: ej_pars) { attrs[key] = value; }
         p_out->VecVectorOfVectorsAsGroupsH5(tot_dyn_out, table_names, arr_names,
                                             workingdir+fname, attrs, group_attrs);
+    }
+    void saveEjectaBWsDynamics(std::string workingdir, std::string fname, size_t every_it,
+                               StrDbMap & main_pars, StrDbMap & ej_pars){
+        (*p_log)(LOG_INFO,AT) << "Saving Ejecta BW dynamics...\n";
+
+        if (every_it < 1){
+            std::cerr << " every_it must be > 1; Given every_it="<<every_it<<" \n Exiting...\n";
+            std::cerr << AT << "\n";
+            exit(1);
+        }
+        auto & models = getShells();
+        std::vector<std::vector<double>> tot_dyn_out ( nshells() * nlayers() * BW::m_vnames.size() );
+        for (auto & arr : tot_dyn_out)
+            arr.resize(getTbGrid(every_it).size());
+        std::vector<std::string> arr_names{};
+        size_t ii = 0;
+        for (size_t ishell = 0; ishell < nshells(); ishell++){
+            for(size_t ilayer = 0; ilayer < nlayers(); ilayer++){
+                for (size_t ivar = 0; ivar < BW::m_vnames.size(); ivar++) {
+                    arr_names.push_back("shell="+std::to_string(ishell)
+                                       +" layer="+std::to_string(ilayer)
+                                       +" key="+BW::m_vnames[ivar]);
+                    auto & bw = models[ilayer]->getBW(ishell);
+                    for (size_t it = 0; it < bw->getTbGrid().size(); it = it + every_it)
+                        tot_dyn_out[ii].emplace_back( (*bw)[ static_cast<BW::Q>(ivar) ][it] );
+                    ii++;
+                }
+            }
+        }
+
+        std::unordered_map<std::string, double> attrs{
+                {"nshells", nshells() },
+                {"nlayers", nlayers() }
+        };
+        for (auto& [key, value]: main_pars) { attrs[key] = value; }
+        for (auto& [key, value]: ej_pars) { attrs[key] = value; }
+        p_out->VectorOfVectorsH5(tot_dyn_out,arr_names,workingdir+fname,attrs);
+    }
+
+    /// INPUT
+    void loadEjectaBWDynamics(std::string workingdir, std::string fname){
+        if (!std::experimental::filesystem::exists(working_dir+fname))
+            throw std::runtime_error("File not found. " + workingdir+fname);
+        LoadH5 ldata;
+        ldata.setFileName(workingdir+fname);
+        ldata.setVarName("nshells");
+        double nshells = ldata.getDoubleAttr("nshells");
+        double nlayers = ldata.getDoubleAttr("nlayers");
+        auto & models = getShells();
+        for (size_t ish = 0; ish < nshells; ish++){
+            for (size_t il = 0; il < nlayers; il++){
+                auto & bw = models[il]->getBW(ish);
+                for (size_t ivar = 0; ivar < BW::m_vnames.size(); ivar++) {
+                    std::string key = "shell=" + std::to_string(ish)
+                                    + " layer=" + std::to_string(il)
+                                    + " key=" + BW::m_vnames[ivar];
+                    ldata.setVarName(BW::m_vnames[ivar]);
+                    bw->getData(static_cast<BW::Q>(ivar))
+                        = std::move(ldata.getDataVDouble());
+                }
+
+//                auto & bw = models[il]->getBW(ish);
+//                std::string
+//                bw->getData()[]
+            }
+        }
+        (*p_log)(LOG_INFO,AT)<<" dynamics loaded successfully\n";
+
     }
 private:
     void computeEjectaSkyMapPieceWise( std::vector<Image> & images, double obs_time, double obs_freq ){
@@ -1395,7 +1470,7 @@ public:
     void setPreComputeEjectaAnalyticElectronsPars(){//(StrDbMap pars, StrStrMap opts){
         (*p_log)(LOG_INFO,AT) << "Computing Ejecta analytic electron pars...\n";
 
-        if (!run_bws){
+        if ((!run_bws)&&(!load_dyn)){
             std::cerr << " ejecta BWs were not evolved. Cannot compute electrons (analytic) exiting...\n";
             std::cerr << AT << "\n";
             exit(1);
@@ -1434,7 +1509,7 @@ public:
 
     void computeSaveEjectaSkyImagesAnalytic(std::string workingdir, std::string fname, Vector times, Vector freqs,
                                             StrDbMap & main_pars, StrDbMap & ej_pars){
-        if (!run_bws)
+        if ((!run_bws)&&(!load_dyn))
             return;
 
         (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta sky image with analytic synchrotron...\n";

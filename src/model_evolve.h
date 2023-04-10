@@ -977,11 +977,11 @@ private:
         }
 
         /// update ejecta opacity and nuclear heating
-        if ((p_pars->p_ej->run_bws) && (p_pars->p_ej->do_collision)) {
+        if ((p_pars->p_ej->run_bws) && (p_pars->p_ej->do_nuc)) {
             auto &ej_bws = p_pars->p_ej->getShells();
             for (auto &cumShell: p_pars->p_ej->getShells()) {
                 for (auto & bw : cumShell->getBWs()) {
-                    bw->updateNucAtomic( sol, time); //t_grid[ix] );
+                    bw->updateNucAtomic( sol, time ); //t_grid[ix] );
                 }
             }
         }

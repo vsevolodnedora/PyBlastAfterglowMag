@@ -40,7 +40,7 @@
 #include <deque>
 #include <array>
 #include <vector>
-#include <valarray>
+//#include <valarray>
 #include <initializer_list>
 #include <set>
 #include <map>
