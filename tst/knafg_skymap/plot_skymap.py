@@ -57,6 +57,8 @@ def id_dyn_test():
     # plt.legend()
     # plt.show()
 
+    v_n_x = "R"
+    v_n_y = "mom"
     fig, ax = plt.subplots(ncols=1, nrows=1)
     dfile = h5py.File(workdir+"dyn_kn.h5")
     fname_ref = h5py.File(workdir+"dyn_kn_ref.h5")
@@ -64,10 +66,13 @@ def id_dyn_test():
     nshells = 20#int(dfile.attrs["nshells"])
     for il in range(nlayers-1):
         for ish in [nshells]:#range(nshells):
-            key = f"shell={ish} layer={il}"
+            key1 = f"shell={ish} layer={il} key={v_n_x}"
+            key2 = f"shell={ish} layer={il} key={v_n_y}"
             # print(dfile[key].attrs["Gamma0"])
-            ax.plot([dfile[key].attrs["Gamma0"]], [dfile[key].attrs["ctheta0"]],marker='x',label="our")
-            ax.plot([fname_ref[key].attrs["Gamma0"]], [fname_ref[key].attrs["ctheta0"]],marker='.',label="ref")
+            # ax.plot([dfile[key].attrs["Gamma0"]], [dfile[key].attrs["ctheta0"]],marker='x',label="our")
+            # ax.plot([fname_ref[key].attrs["Gamma0"]], [fname_ref[key].attrs["ctheta0"]],marker='.',label="ref")
+            print(len(np.array(dfile[key1])))
+            ax.plot(np.array(dfile[key1]), np.array(dfile[key2]),marker='.',label="ref")
 
 
             # ax.plot(np.array(dfile[key]["R"]),
@@ -76,8 +81,8 @@ def id_dyn_test():
             #         np.array(fname_ref[key]["Eint2"]), ls=':')
     # ax.axhline(y=np.pi/2.)
 
-    # ax.set_xscale("log")
-    # ax.set_yscale("log")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
     plt.legend()
 
     plt.show()

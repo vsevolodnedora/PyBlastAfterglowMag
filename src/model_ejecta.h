@@ -47,17 +47,19 @@ public:
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "CumulativeShell");
         p_coll = std::make_unique<BlastWaveCollision>(loglevel);
         p_pars = std::make_unique<Pars>();
+        p_pars->ilayer=ilayer;
+        p_pars->nshells=nshells;
+        p_pars->n_active_shells=nshells;
         for (size_t ishell = 0; ishell < nshells; ishell++)
             p_bws.emplace_back(std::make_unique<BlastWave>(t_grid, ishell, ilayer, loglevel ) );
+        if (t_grid.empty())
+            return;
         m_data.resize(m_vnames.size());
         for (auto & arr : m_data)
             arr.resize(nshells);
         m_idxs.resize(nshells);
         std::fill(m_data[Q::ir].begin(), m_data[Q::ir].end(), std::numeric_limits<double>::max());
         std::fill(m_idxs.begin(), m_idxs.end(), std::numeric_limits<size_t>::max());
-        p_pars->ilayer=ilayer;
-        p_pars->nshells=nshells;
-        p_pars->n_active_shells=nshells;
     }
     void setPars(StrDbMap & pars, StrStrMap & opts){
         p_pars->do_thermrad_loss= getBoolOpt("do_thermrad_loss",opts,AT,p_log,false,true);
@@ -789,26 +791,6 @@ public:
                     (*p_log)(LOG_ERR, AT) << " File not found. " + working_dir + fname_ejecta_id << "\n";
                     exit(1);
                 }
-#if 0
-                EjectaID2 ID(working_dir + fname_ejecta_id, m_loglevel);
-                if (ID.idtype == EjectaID::IDTYPE::i_id_corr && (!use_1d_id))
-                    setEjectaStructNumeric(
-                            ID,
-                            getBoolOpt("enforce_angular_grid", grb_opts, AT, p_log, false, true),
-                            grb_opts);
-                else if (ID.idtype == EjectaID::IDTYPE::i_id_hist && (use_1d_id))
-                    setEjectaStructNumeric(ID, grb_opts);
-                else if (ID.idtype == EjectaID::IDTYPE::i_id_hist && (!use_1d_id))
-                    setEjectaStructNumericUniformInTheta(
-                            ID,
-                            (size_t) getDoublePar("nlayers", grb_pars, AT, p_log, 30, true),
-                            getDoublePar("mfac", grb_pars, AT, p_log, 1.0, true),
-                            grb_opts);
-                else {
-                    (*p_log)(LOG_ERR, AT) << " no valid grb ejecta structure given\n";
-                    exit(1);
-                }
-#endif
                 id = std::make_unique<EjectaID2>(
                         working_dir + fname_ejecta_id,
                         getStrOpt("method_eats",grb_opts,AT,p_log,"", true),
@@ -818,22 +800,7 @@ public:
                         m_loglevel
                         );
 
-
-//                size_t ii_eq = pba.getMag()->getNeq();
-//            size_t nlayers_jet = pba.getGRB()->getBWs().size();
                 setEjectaBwPars(grb_pars, grb_opts, ii_eq, iljet);
-
-                /// initialize Ejecta Bound PWN
-//                if (run_pwn) {
-//                    (*p_log)(LOG_ERR,AT) << " not implemented\n";
-//                    exit(1);
-//                size_t ii_eq_ = pba.getMag()->getNeq() + pba.getGRB()->getNeq() + pba.getEj()->getNeq();
-                    /// init ejecta-bound PWN
-//                pba.getEjPWN()->setPWNpars(pba.getTburst(), pwn_pars, pwn_opts, ii_eq_,
-//                                           pba.getEj()->getShells().size());
-//                }
-                std::cout<<"nshells="<<nshells()<<" nlayers="<<nlayers()<<"\n";
-
             }
         }
         else{
@@ -987,41 +954,47 @@ public:
     }
 
 private:
-#if 0
-    void setEjectaStructNumericUniformInTheta(EjectaID & id, size_t nlayers, double mfac, StrStrMap & opts){
-        run_bws = getBoolOpt("run_bws", opts, AT, p_log, false, true);
-        if (!run_bws)
-            return;
-        std::string ej_eats_method = getStrOpt("method_eats",opts,AT,p_log,"", true);
-        ejecta_eats_method = LatStruct::setEatsMethod(ej_eats_method);
-        ejectaStructs.initUniform(id, nlayers, mfac, ej_eats_method, m_loglevel);
-        is_ejecta_struct_set = true;
-    }
-    void setEjectaStructNumeric(EjectaID & id, StrStrMap & opts){
-        run_bws = getBoolOpt("run_bws", opts, AT, p_log, false, true);
-        if (!run_bws)
-            return;
-        std::string ej_eats_method = getStrOpt("method_eats",opts,AT,p_log,"", true);
-        ejecta_eats_method = LatStruct::setEatsMethod(ej_eats_method);
-        ejectaStructs.initCustom(id, ej_eats_method, m_loglevel);
-        is_ejecta_struct_set = true;
-    }
-    void setEjectaStructNumeric(EjectaID & id, bool force_grid, StrStrMap & opts){
-        run_bws = getBoolOpt("run_bws", opts, AT, p_log, false, true);
-        if (!run_bws)
-            return;
-        std::string ej_eats_method = getStrOpt("method_eats",opts,AT,p_log,"", true);
-        ejecta_eats_method = LatStruct::setEatsMethod(ej_eats_method);
-        ejectaStructs.initCustom(id, force_grid, ej_eats_method, m_loglevel);
-        is_ejecta_struct_set = true;
-    }
-#endif
     void setEjectaBwPars(StrDbMap pars, StrStrMap opts, size_t ii_eq, size_t n_layers_jet){
 
         run_bws = getBoolOpt("run_bws", opts, AT, p_log, false, true);
         load_dyn = getBoolOpt("load_dynamics", opts, AT, p_log, false, true);
         if ((!run_bws) && (!load_dyn))
             return;
+
+        if ((!run_bws) && (load_dyn)){
+            is_ejecta_obs_pars_set = true;
+            for(size_t il = 0; il < nlayers(); il++) {
+                p_cumShells.push_back(
+                        std::make_unique<CumulativeShell>(Vector {}, nshells(), il,
+                                                          p_log->getLogLevel()));
+                p_cumShells[il]->setPars(pars, opts);
+                for (size_t ish = 0; ish < nshells(); ish++){
+                    auto & bw = p_cumShells[il]->getBW(ish);
+                    bw->setAllParametersForOneLayer(id, pars, opts, il, ii_eq);
+                    switch (id->method_eats) {
+                        case EjectaID2::iadaptive:
+                            bw->getRad()->setEatsPars(
+                                    pars,opts,id->nlayers,id->get(ish,il,EjectaID2::Q::ictheta),
+                                    0.,0.,id->theta_wing,
+                                    getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false));
+
+                            break;
+                        case EjectaID2::ipiecewise:
+                            bw->getRad()->setEatsPars(
+                                    pars,opts,id->nlayers,id->get(ish,il,EjectaID2::Q::ictheta),
+                                    id->get(ish,il,EjectaID2::Q::itheta_c_l),
+                                    id->get(ish,il,EjectaID2::Q::itheta_c_h),0.,
+                                    getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false));
+
+                            break;
+                    }
+                    ii_eq += SOL::neq;//bw->getNeq();
+                }
+            }
+            return;
+        }
+
+
         bool is_within = false;
         std::vector<size_t> which_within{};
         size_t n_ejecta_empty_images = 0;
@@ -1046,6 +1019,24 @@ private:
                 auto & bw = p_cumShells[il]->getBW(ish);
 //                auto & struc = ejectaStructs.structs[ish];
                 bw->setAllParametersForOneLayer(id, pars, opts, il, ii_eq);
+                switch (id->method_eats) {
+                    case EjectaID2::iadaptive:
+                        bw->getRad()->setEatsPars(
+                                pars,opts,id->nlayers,id->get(ish,il,EjectaID2::Q::ictheta),
+                                0.,0.,id->theta_wing,
+                                getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false));
+
+                        break;
+                    case EjectaID2::ipiecewise:
+                        bw->getRad()->setEatsPars(
+                                pars,opts,id->nlayers,id->get(ish,il,EjectaID2::Q::ictheta),
+                                id->get(ish,il,EjectaID2::Q::itheta_c_l),
+                                id->get(ish,il,EjectaID2::Q::itheta_c_h),0.,
+                                getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false));
+
+                        break;
+                }
+
 /// Override the layer-to-use
                 if (bw->getPars()->which_jet_layer_to_use == 0){
                     bw->getPars()->which_jet_layer_to_use = 0; // the fastest
@@ -1086,74 +1077,7 @@ private:
 //                ii++;
             }
         }
-# if 0
-        size_t ii = 0;
-        bool is_within = false;
-        std::vector<size_t> which_within{};
 
-        size_t n_ejecta_empty_images = 0;
-        std::vector<std::vector<size_t>> n_empty_images;
-        std::vector<size_t> n_empty_images_shells;
-        size_t n_layers_i = ejectaStructs.structs[0].nlayers;
-
-        for(size_t i = 0; i < ejectaStructs.nshells_; i++){
-            std::vector<size_t> n_empty_images_layer;
-            auto & struc = ejectaStructs.structs[i];
-            if (n_layers_i != struc.nlayers){
-                (*p_log)(LOG_ERR,AT)<<" expected nlayers="<<n_layers_i<<" (from 0th shell) got="<<struc.nlayers<<"\n";
-                exit(1);
-            }
-//            size_t n_layers_i = struc.nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? struc.nlayers_pw : struc.nlayers_a ;
-            for(size_t j = 0; j < n_layers_i; j++) { // ii = il + nlayers * ish
-                p_bws.emplace_back(std::make_unique<DynRadBlastWave>(t_grid, i, j, p_pars->loglevel));
-                setAllParametersForOneLayer(struc, *(p_bws[ii]), pars, opts, j, ii_eq);
-                /// Override the layer-to-use
-                if (p_bws[ii]->getPars()->which_jet_layer_to_use == 0){
-                    p_bws[ii]->getPars()->which_jet_layer_to_use = 0; // the fastest
-                }
-                else if(n_layers_i==0){
-                    n_ejecta_empty_images += 1;
-                    n_empty_images_layer.emplace_back(j);
-//                    std::cerr << AT << "\n jet structure was NOT initialized. No layer selected for ejecta to propagate through.\n";
-                }
-                else if(n_layers_i == 0){
-                    // NO jet structure was set, so exiting I guess... :)
-                    // TODO THIS MIGHT BE WRONG -- why 'n_layers_i'
-                }
-                else if(n_layers_jet == 0){
-                    // NO jet structure was set, so exiting I guess... :)
-                }
-                else if ((p_bws[ii]->getPars()->which_jet_layer_to_use > n_layers_jet - 1)){
-                    p_bws[ii]->getPars()->which_jet_layer_to_use = (int)n_layers_jet - 1;
-                }
-                else if ((p_bws[ii]->getPars()->which_jet_layer_to_use < n_layers_jet) &&
-                         (p_bws[ii]->getPars()->which_jet_layer_to_use > -1)){
-                    //
-                }
-                else{
-                    std::cerr << " which_jet_layer_to_use="<<p_bws[ii]->getPars()->which_jet_layer_to_use
-                              << "\n" << " expected 0 (for fasterst) or any N larger than n_layers_jet=" << (int)n_layers_jet-1
-                              <<" for the slowest"
-                              <<" or any N in between the two for a specific jet layer \n"
-                              << "Exiting..."
-                              << "\n";
-                    std::cerr << AT << "\n";
-                    exit(1);
-                }
-                ii_eq += p_bws[ii]->getNeq();
-
-                p_bws[ii]->setEatsPars(pars, opts);
-                p_bws[ii]->getSynchAnPtr()->setPars( pars, opts );
-
-                ii++;
-            }
-
-            if(!n_empty_images_layer.empty()){
-                n_empty_images_shells.emplace_back(i);
-                n_empty_images.emplace_back(n_empty_images_layer);
-            }
-        }
-#endif
         is_ejBW_init = true;
         is_ejecta_obs_pars_set = true;
 
@@ -1276,7 +1200,7 @@ private:
         auto & models = getShells();
         std::vector<std::vector<double>> tot_dyn_out ( nshells() * nlayers() * BW::m_vnames.size() );
         for (auto & arr : tot_dyn_out)
-            arr.resize(getTbGrid(every_it).size());
+            arr.resize(t_arr.size());
         std::vector<std::string> arr_names{};
         size_t ii = 0;
         for (size_t ishell = 0; ishell < nshells(); ishell++){
@@ -1286,42 +1210,160 @@ private:
                                        +" layer="+std::to_string(ilayer)
                                        +" key="+BW::m_vnames[ivar]);
                     auto & bw = models[ilayer]->getBW(ishell);
-                    for (size_t it = 0; it < bw->getTbGrid().size(); it = it + every_it)
-                        tot_dyn_out[ii].emplace_back( (*bw)[ static_cast<BW::Q>(ivar) ][it] );
+                    for (size_t it = 0; it < t_arr.size(); it++)
+                        tot_dyn_out[ii][it] = bw->getData(static_cast<BW::Q>(ivar))[it];
+                    size_t size = tot_dyn_out[ii].size();
+                    auto & x = tot_dyn_out[ii];
                     ii++;
                 }
             }
         }
 
+
+
         std::unordered_map<std::string, double> attrs{
                 {"nshells", nshells() },
-                {"nlayers", nlayers() }
+                {"nlayers", nlayers() },
+                {"ntimes", t_arr.size() },
+                {"ncells", ncells() }
         };
         for (auto& [key, value]: main_pars) { attrs[key] = value; }
         for (auto& [key, value]: ej_pars) { attrs[key] = value; }
         p_out->VectorOfVectorsH5(tot_dyn_out,arr_names,workingdir+fname,attrs);
     }
 
+
+
+    double getDoubleAttr(H5::H5File & h5File, std::string key){
+//        H5::H5File file{LoadH5::filename, H5F_ACC_RDONLY};
+        auto isatt = h5File.attrExists(key);
+        if (!isatt){
+            std::cout << AT << " attribute="<<key<<" does not exists\n";
+            exit(1);
+        }
+        auto att = h5File.openAttribute(key);
+        hsize_t lnSize = att.getStorageSize();
+        double* lpnBuffer = new double[lnSize];
+        H5::DataType lcType = att.getDataType();
+        att.read(lcType, lpnBuffer);
+        double val = *lpnBuffer;
+        delete [] lpnBuffer;
+        return val;
+    }
     /// INPUT
     void loadEjectaBWDynamics(std::string workingdir, std::string fname){
         if (!std::experimental::filesystem::exists(working_dir+fname))
             throw std::runtime_error("File not found. " + workingdir+fname);
+
+
+        Exception::dontPrint();
+        H5std_string FILE_NAME(workingdir+fname);
+        H5File file(FILE_NAME, H5F_ACC_RDONLY);
+        size_t nshells_ = (size_t)getDoubleAttr(file,"nshells");
+        size_t nlayers_ = (size_t)getDoubleAttr(file, "nlayers");
+        size_t ntimes_ = (size_t)getDoubleAttr(file, "ntimes");
+        if (nshells_ != nshells()){
+            (*p_log)(LOG_ERR,AT) << "Wring attribute: nshells_="<<nshells_<<" expected nshells="<<nshells()<<"\n";
+//            exit(1);
+        }
+        if (nlayers_ != nlayers()){
+            (*p_log)(LOG_ERR,AT) << "Wring attribute: nlayers_="<<nlayers_<<" expected nlayers_="<<nlayers()<<"\n";
+//            exit(1);
+        }
+//        if (ntimes_ != ()){
+//            (*p_log)(LOG_ERR,AT) << "Wring attribute: nlayers_="<<nlayers_<<" expected nlayers_="<<nlayers()<<"\n";
+//            exit(1);
+//        }
+        //        double ntimes = getDoubleAttr(file, "ntimes");
+        auto & models = getShells();
+        for (size_t ish = 0; ish < nshells(); ish++) {
+            for (size_t il = 0; il < nlayers(); il++) {
+                auto &bw = models[il]->getBW(ish);
+                for (size_t ivar = 0; ivar < BW::m_vnames.size(); ivar++) {
+                    std::string key = "shell=" + std::to_string(ish)
+                                      + " layer=" + std::to_string(il)
+                                      + " key=" + BW::m_vnames[ivar];
+                    auto & vec = bw->getData()[static_cast<BW::Q>(ivar)];
+                    if (!vec.empty()){
+                        (*p_log)(LOG_ERR,AT) << " container is not empty\n";
+                    }
+
+                    DataSet dataset = file.openDataSet(key);
+                    DataType datatype = dataset.getDataType();
+                    DataSpace dataspace = dataset.getSpace();
+                    const int npts = dataspace.getSimpleExtentNpoints();
+
+                    H5T_class_t classt = datatype.getClass();
+                    if ( classt != 1 )
+                    {
+                        std::cout << key << " is not a float... you can't save this as a float." << std::endl;
+                        exit(1);
+                    }
+                    FloatType ftype = dataset.getFloatType();
+                    H5std_string order_string;
+                    H5T_order_t order = ftype.getOrder( order_string);
+                    size_t size = ftype.getSize();
+//                    vec.resize(1);
+                    double * data = new double[npts];
+                    if ( order==0 && size == 4 )
+                    {
+                        std::cout << "NOTE: This is actually float data. We are casting to double" << std:: endl;
+                        dataset.read((double*)data, PredType::IEEE_F32LE); // Our standard integer
+                    }
+                    else if ( order == 0 && size == 8 )
+                        dataset.read(data, PredType::IEEE_F64LE);
+                    else if ( order == 1 && size == 4 )
+                    {
+                        std::cout << "NOTE: This is actually float data. We are casting to double" << std:: endl;
+                        dataset.read((double*)data, PredType::IEEE_F32BE);
+                    }
+                    else if ( order ==1 && size == 8 )
+                        dataset.read((double*)data, PredType::IEEE_F64BE);
+                    else
+                        std::cout << "Did not find data type" << std::endl;
+                    std::vector<double> v(data, data + npts);
+                    vec = std::move( v );
+//                    delete[] data;
+                    dataspace.close();
+                    datatype.close();
+                    dataset.close();
+
+                    if ( bw->getData()[static_cast<BW::Q>(ivar)].empty() ){
+                        std::cout << key << " faild" << std::endl;
+                        exit(1);
+                    }
+                }
+                if (bw->getData()[BW::iR][0] == 0){
+                    (*p_log)(LOG_WARN,AT) << "Loaded not evolved shell [il="<<il<<", "<<"ish="<<ish<<"] \n";
+                }
+            }
+        }
+        file.close();
+//        if ( p_cumShells[0]->getBW(0)->getData()[BW::iR][0] == 0 ){
+//            std::cout << p_cumShells[0]->getBW(0)->getData()[BW::iR] << "\n";
+//            std::cout << " faild" << std::endl;
+//            exit(1);
+//        }
+
+#if 0
         LoadH5 ldata;
         ldata.setFileName(workingdir+fname);
         ldata.setVarName("nshells");
         double nshells = ldata.getDoubleAttr("nshells");
         double nlayers = ldata.getDoubleAttr("nlayers");
         auto & models = getShells();
-        for (size_t ish = 0; ish < nshells; ish++){
-            for (size_t il = 0; il < nlayers; il++){
+        for (size_t ish = 0; ish < nshells-1; ish++){
+            for (size_t il = 0; il < nlayers-1; il++){
                 auto & bw = models[il]->getBW(ish);
                 for (size_t ivar = 0; ivar < BW::m_vnames.size(); ivar++) {
                     std::string key = "shell=" + std::to_string(ish)
                                     + " layer=" + std::to_string(il)
                                     + " key=" + BW::m_vnames[ivar];
                     ldata.setVarName(BW::m_vnames[ivar]);
-                    bw->getData(static_cast<BW::Q>(ivar))
-                        = std::move(ldata.getDataVDouble());
+                    bw->getData().emplace_back( std::move( ldata.getDataVDouble() ) );
+                    (*p_log)(LOG_INFO,AT) << "Reading: "<<key<<"\n";
+//                    bw->getData(static_cast<BW::Q>(ivar))
+//                        = std::move( ldata.getDataVDouble() );
                 }
 
 //                auto & bw = models[il]->getBW(ish);
@@ -1329,6 +1371,7 @@ private:
 //                bw->getData()[]
             }
         }
+#endif
         (*p_log)(LOG_INFO,AT)<<" dynamics loaded successfully\n";
 
     }

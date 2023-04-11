@@ -1717,7 +1717,7 @@ public:
 
         m_data[i_em_pl] = em_pl; // 1e-26
         m_data[i_em_th] = em_th;
-        m_data[i_em] = em_pl+em_th;
+        m_data[i_em] = em_pl + em_th;
 
         if (p_pars->m_methods_ssa!=iSSAoff) {
             m_data[i_abs_th] = abs_th;

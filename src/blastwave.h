@@ -350,7 +350,7 @@ class BlastWaveRadiation{
         Pars(VecVector & m_data, size_t ish, size_t il, int loglevel) : m_data(m_data){
             ishell = ish;
             ilayer= il;
-            nr = m_data[BW::Q::itburst].size();
+//            nr = m_data[BW::Q::itburst].size();
             p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BlastWaveRadiation");
             p_syna = std::make_unique<SynchrotronAnalytic>(loglevel);
         }
@@ -1262,10 +1262,14 @@ public:
     }
 
 //    void addComputeForwardShockMicrophysics(size_t it){ p_pars->addComputeForwardShockMicrophysics(it); }
-    void computeForwardShockElectronAnalyticVars(){ p_pars->computeForwardShockElectronAnalyticVars(); }
+    void computeForwardShockElectronAnalyticVars(){
+        p_pars->nr = p_pars->m_data[BW::Q::itburst].size();
+        p_pars->computeForwardShockElectronAnalyticVars(); }
 
 //    void computeForwardShockComovingEmissivityAndAbsorption(size_t it){p_pars->computeForwardShockComovingEmissivityAndAbsorption(it);}
-    void computeForwardShockSynchrotronAnalyticSpectrum(){ p_pars->computeForwardShockSynchrotronAnalyticSpectrum();}
+    void computeForwardShockSynchrotronAnalyticSpectrum(){
+        p_pars->nr = p_pars->m_data[BW::Q::itburst].size();
+        p_pars->computeForwardShockSynchrotronAnalyticSpectrum();}
 
     auto evalForwardShockComovingSynchrotron(Vector & freq_arr, size_t every_it){
         return p_pars->evalForwardShockComovingSynchrotron(freq_arr,every_it);
@@ -1365,6 +1369,7 @@ private:
                 intensity = RadiationBase::computeIntensity(em_lab, dtau,
                                                             p_syna->getPars()->method_tau);
 //                flux_dens = (intensity * R * R * dr) * (1.0 + p_eats->z) / (2.0 * p_eats->d_l * p_eats->d_l);
+
                 flux_dens = (intensity * R * R * dr) ;
                 break;
             case iuseNe:
@@ -1953,26 +1958,7 @@ public:
     BlastWave(Vector & tb_arr, size_t ishell, size_t ilayer, int loglevel )
             : m_tb_arr(tb_arr), m_loglevel(loglevel) {
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BW");
-        // allocate the space for the the entire solution of a given blast wave
-        if (m_tb_arr.empty()){
-            // REMOVING LOGGER
-            (*p_log)(LOG_ERR,AT) << " Time grid is not initialized\n";
-//            std::cerr << AT  << "\n";
-            exit(1);
-        }
-        if (m_data.empty()){
-            m_data.resize( BW::NVALS );
-        }
-        if (m_data[BW::Q::itburst].size() < 1) {
-            for (auto & arr : m_data) {
-                arr.resize( m_tb_arr.size(), 0.0);
-            }
-        }
         // ---------------------- Methods
-//        p_syn = std::make_unique<SynchrotronAnalytic>(loglevel);// SynchrotronAnalytic(loglevel);
-//        p_fs = std::make_unique<ShockMicrophysics>(loglevel);
-//        p_rs = std::make_unique<ShockMicrophysics>(loglevel);
-//        p_pars->p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "pars");
         p_pars = std::make_unique<Pars>(); // TODO replace 'new' with std::unique_ptr<>
         p_spread = std::make_unique<LatSpread>();
         p_eos = std::make_unique<EOSadi>();
@@ -1982,12 +1968,28 @@ public:
         p_nuc = std::make_unique<NuclearAtomic>(loglevel);
         p_rad = std::make_unique<BlastWaveRadiation>(m_data, ishell, ilayer, loglevel);
         // ----------------------
-        p_pars->nr = m_tb_arr.size();
         p_pars->ilayer = ilayer;
         p_pars->ishell = ishell;
         ish = ishell;
         il = ilayer;
-        // ----------------------
+        /// First: resize the container
+        if (m_data.empty()){
+            m_data.resize( BW::NVALS );
+        }
+        /// Check if contener will be filled by evolving or loading
+        if (m_tb_arr.empty()){
+            // REMOVING LOGGER
+            (*p_log)(LOG_WARN,AT) << " Time grid is not initialized\n";
+//            std::cerr << AT  << "\n";
+            return;
+        }
+        /// if no evolution required; do not allocate memory for each variable
+        p_pars->nr = m_tb_arr.size();
+        if (m_data[BW::Q::itburst].size() < 1) {
+            for (auto & arr : m_data) {
+                arr.resize( p_pars->nr, 0.0);
+            }
+        }
     }
     void setAllParametersForOneLayer(std::unique_ptr<EjectaID2> & id,
                                      StrDbMap & pars, StrStrMap & opts,
@@ -2315,7 +2317,7 @@ public:
                 p_pars->R0        = id->get(ish,il,EjectaID2::Q::ir);//latStruct.dist_M0_pw[ilayer];
                 p_pars->mom0      = id->get(ish,il,EjectaID2::Q::imom);//latStruct.dist_Mom0_pw[ilayer];
 //                p_pars->Eint0     = id->get(ish,il,EjectaID2::Q::ieint);
-                p_pars->tb0       = m_tb_arr[0];
+                p_pars->tb0       = m_tb_arr.empty() ? 0 : m_tb_arr[0];
                 p_pars->theta_a   = 0.; // theta_a
                 p_pars->theta_b0  = id->theta_wing;//latStruct.m_theta_w; // theta_b0
                 p_pars->ctheta0   = id->get(ish,il,EjectaID2::Q::ictheta); //TODO !! 0.5 * (latStruct.theta_pw[ilayer] + latStruct.theta_pw[ilayer]);
@@ -2333,8 +2335,10 @@ public:
                 p_pars->ii_eq  = ii_eq;
 
                 /// initialize non-thermal radiation module
-                p_rad->setEatsPars(pars,opts,p_pars->nlayers,p_pars->ctheta0,
-                                   p_pars->theta_c_l,p_pars->theta_c_h,p_pars->theta_w,p_pars->theta_max);
+//                p_rad->setEatsPars(pars,opts,id->nlayers,
+//                                   id->get(ish,il,EjectaID2::Q::ictheta),
+//                                   0.,0.,id->theta_wing,
+//                                   getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false));
 
                 break;
 
@@ -2373,7 +2377,7 @@ public:
                 p_pars->M0      = id->get(ish,il,EjectaID2::Q::imass);//latStruct.dist_M0_a[ilayer];
                 p_pars->R0      = id->get(ish,il,EjectaID2::Q::ir);//latStruct.dist_M0_a[ilayer];
                 p_pars->mom0    = id->get(ish,il,EjectaID2::Q::imom);//latStruct.dist_Mom0_a[ilayer];
-                p_pars->tb0     = m_tb_arr[0];
+                p_pars->tb0     = m_tb_arr.empty() ? 0 : m_tb_arr[0];
                 p_pars->theta_a = 0.;
                 p_pars->theta_b0= id->get(ish,il,EjectaID2::Q::itheta_c_h);//latStruct.thetas_c_h[ilayer];
                 p_pars->ctheta0 = id->get(ish,il,EjectaID2::Q::ictheta); // TODO 0.5 * (latStruct.thetas_c_l[ilayer] + latStruct.thetas_c_h[ilayer]);
@@ -2391,8 +2395,10 @@ public:
                 p_pars->ii_eq  = ii_eq;
 
                 /// initialize non-thermal radiation module
-                p_rad->setEatsPars(pars,opts,p_pars->nlayers,p_pars->ctheta0,
-                                   p_pars->theta_c_l,p_pars->theta_c_h,p_pars->theta_w,p_pars->theta_max);
+//                p_rad->setEatsPars(pars,opts,id->nlayers,id->get(ish,il,EjectaID2::Q::ictheta),
+//                                   id->get(ish,il,EjectaID2::Q::itheta_c_l),
+//                                   id->get(ish,il,EjectaID2::Q::itheta_c_h),0.,
+//                                   getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false));
 
                 // double E0, double M0, double Gamma0, double tb0, double theta_a, double theta_b0,
                 // double theta_c_l, double theta_c_h, double theta_w, double theta_max, double epsilon_e_rad,

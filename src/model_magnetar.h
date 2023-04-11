@@ -1515,17 +1515,6 @@ public:
             ii_eq += p_pwns[il]->getNeq();
         }
     }
-//    void setPWNpars(Vector & tarr, StrDbMap pars, StrStrMap opts, size_t ii_eq, size_t n_layers){
-//        run_pwn = getBoolOpt("run_pwn", opts, AT,p_log, false, true);
-//        if (!run_pwn)
-//            return;
-//        m_nlayers = n_layers;
-//        for(size_t il = 0; il < n_layers; il++) {
-//            p_pwns.push_back( std::make_unique<PWNmodel>( tarr, loglevel ) );
-//            p_pwns[il]->setPars(pars, opts, ii_eq);
-//            ii_eq += p_pwns[il]->getNeq();
-//        }
-//    }
     void setInitConditions(double * m_InitData){
         for (size_t il=0; il<m_nlayers; il++) {
             auto &ej_pwn = getPWNs()[il];
@@ -1586,7 +1575,6 @@ public:
                                             workingdir+fname, attrs, group_attrs);
 
     }
-
 
 };
 
