@@ -1462,6 +1462,49 @@ private:
         return frac_psr_dep_tmp;
     }
 
+    double f_gamma_esc(double e_gamma, double m_ej, double delta, double r_ej, double albd_fac, const int opacitymode) {
+        double mu_e; /* electron mean molecular weight */
+        //double Z_eff = 7.0; /* effective nuclear weight */
+        /* this corresponds to C:O = 1:1 */
+        double Z_eff;
+        if(opacitymode==0){
+            Z_eff = 24.21; /* effective nuclear weight */
+            mu_e = 2.148;
+        }
+        else if(opacitymode==1){
+            Z_eff = 26.74;
+            mu_e = 2.2353;
+        }
+        else if(opacitymode==2){
+            Z_eff = 53.90;
+            mu_e= 2.4622;
+        }
+        else if(opacitymode==3){
+            Z_eff = 7.0;
+            mu_e = 2.0;
+        }
+
+        double tau_Compton = (3.0-delta)/4.0/M_PI*m_ej*sigma_kn(e_gamma)/mu_e/M_PRO/r_ej/r_ej;
+        double tau_BH = (3.0-delta)/4.0/mu_e/M_PI*m_ej*(1.0+Z_eff)*sigma_BH_p(e_gamma)/M_PRO/r_ej/r_ej;
+        //double tau_bf = 2.0*(1.0-albd_fac)*(3.0-delta)/4.0/M_PI*m_ej*kappa_bf(e_gamma,Z_eff)/r_ej/r_ej;
+        double tau_bf = (1.0-albd_fac)*(3.0-delta)/4.0/M_PI*m_ej*kappa_bf(e_gamma,Z_eff)/r_ej/r_ej;
+
+        double tau_abs = (1.0+gamma_inelas_Compton(e_gamma))*(tau_BH+tau_bf);
+        double tau_eff = sqrt((tau_abs+tau_Compton)*tau_abs);
+
+        double power_Compton=0.0;
+        if (tau_Compton > 1.0)
+            power_Compton = tau_Compton*tau_Compton;
+        else
+            power_Compton = tau_Compton;
+
+
+        //return exp(-tau_eff);
+        return exp(-(tau_BH+tau_bf)) * (exp(-(tau_Compton)) + (1.0-exp(-(tau_Compton))) * pow(1.0-gamma_inelas_Compton(e_gamma),power_Compton));
+        //return (exp(-(tau_Compton))+(1.0-exp(-(tau_Compton)))*pow(1.0-gamma_inelas_Compton(e_gamma),power_Compton));
+
+    }
+
 };
 
 /// Container for independent layers of PWN model
