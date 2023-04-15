@@ -12,33 +12,29 @@
 
 * Parameters
 
-tb0 = 1.e1
-tb1 = 1.e11 #1e11
-ntb = 50000
-iout = 50
-rtol = 1.e-12
+tb0 = 1.e3
+tb1 = 1.e11
+ntb = 1000
+rtol = 1e-8
 nmax = 1000
 
 A0 = -1
 s = -1
-r_ism = -1
 r_ej = -1
-n_ism = 0.001
+r_ism = -1
+n_ism = 0.1
 d_l = 3.0857e+26
 z = 0.001
-theta_obs = 0.785 # 45.
+theta_obs = 0
 
 * Settings
 
 lc_freqs = array 3.e9
-lc_times = array logspace 1.e4 1.e8 150
-lc_use_freq_to_time = no
-
+lc_times = array logspace 1.e4 1.e10 150
 skymap_freqs = array 1e9 1e18
 skymap_times = array logspace 8.e5 2e9 50
 
 integrator = DOP853
-method_eats = piece-wise # piece-wise
 
 # --------------------------- END ---------------------------
 #
@@ -49,34 +45,22 @@ method_eats = piece-wise # piece-wise
 * Settings
 
 run_magnetar = no
-load_magnetar = yes
 save_magnetar = no
-
-fname_magnetar_evol = magnetar_evol.h5
-fname_mag = magnetar.h5
 
 # --------------------------- END ---------------------------
 #
-# --------------------------- PWN ---------------------------
+# ---------------------- GRB afterglow ----------------------
 
 * Parameters
 
-eps_e = 0.1
-eps_mag = 0.1
-eps_th = 0.1
-gamma_b = 1.0e5
-albd_fac = 0.5
-Rw0 = 120000000. # 100*12*1000*100
-iters = 1000
-nthreads_frac = 14
-
-save_pwn_every_it = 1
-
 * Settings
 
-run_pwn = yes
-save_pwn = yes
-fname_pwn = pwn.h5
+run_jet_bws = no
+save_j_dynamics = no
+do_j_ele = no
+do_j_spec = no
+do_j_lc = no
+do_j_skymap = no
 
 # --------------------------- END ---------------------------
 #
@@ -86,18 +70,11 @@ fname_pwn = pwn.h5
 
 eps_e = 0.1
 eps_b = 0.01
-eps_t = 1.0
-p = 2.05
-ksi_n = 1.
+eps_t = 0.0
+p = 2.16
 
-eps_thermalization = 0.5    # used if method_thermalization = const
-eps_nuc0 = 1.2e19           # In (eps_nuc0 / 2.e18) * eps_nuc * eps_th; (Both method)
-alpha = 1.3
-sigma = 0.11
-a_eps_nuc = 0.5
-b_eps_nuc = 2.5
-t_eps_nuc = 1.0
-t0eps = 1.3
+nlayers = 30
+mfac = 2.0
 
 which_jet_layer_to_use = 1e5
 steepnes_of_exp_decay = 1.0
@@ -110,38 +87,25 @@ freq2 = 1.e12
 nfreq = 100
 
 rtol_adapt = 1e-5
-save_dyn_every_it = 1
 
 * Settings
 
-run_bws = yes
-load_dynamics = no
-save_dynamics = yes
-do_ele = no
-do_spec = no
-do_lc = no
-do_skymap = no
+run_ejecta_bws = yes
+save_ej_dynamics = no
+do_ej_ele = yes
+do_ej_spec = no
+do_ej_lc = yes
+do_ej_skymap = no
 
-method_collision = an # none
-do_eninj_inside_rhs = no # yes
 method_eats = piece-wise # piece-wise
 
-do_nucinj = yes
-fname_nuc = heatingLippuner.h5
-method_heating = PBR    # PBR LR none
-method_thermalization = const # const BKWM BKWM_1d
-
-do_thermrad_loss = yes
-thermradloss_at_photo = yes
-
-fname_dyn = magnetar_driven_ej.h5
-fname_light_curve = corr_id_SFHo_13_14_150m_11_text70.lc
-fname_light_curve_layers = none
+fname_dyn = dyn_kn_gauss.h5
+fname_light_curve = abs.h5
 fname_sky_map = skymap_kn.h5
 
-use_1d_id = no
-load_r0 = yes
-fname_ejecta_id = corr_id_SFHo_13_14_150m_11_text70.h5
+type = numeric
+fname_ejecta_id = abs.h5
+enforce_angular_grid = yes
 
 method_spread = None
 method_eos = Nava13
@@ -154,15 +118,15 @@ method_dmdr = usingdthdr
 method_dgdr = our # !
 method_shock_vel = shockVel # !
 method_nonreldist = useGm # !
-method_synchrotron = Marg21 # Joh06 # !
+method_synchrotron = Marg21 # !
 method_tau = smooth
 use_ssa = yes
-method_lf_min = useTheta # useU_e # !
+method_lf_min = useTheta # !
 method_ne = usenprime # ! useNe is better here! (that is what was used before)
 use_dens_prof_behind_jet_for_ejecta = no
 use_exp_rho_decay_as_floor = yes
 use_flat_dens_floor = no
-use_st_dens_profile = no
+use_st_dens_profile = yes
 use_bm_dens_profile = no
 method_quad = CADRE
 method_comp_mode = observFlux # "comovSpec",#"observFlux"

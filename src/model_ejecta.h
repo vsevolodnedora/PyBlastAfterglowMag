@@ -7,7 +7,6 @@
 
 #include "utilitites/pch.h"
 #include "utilitites/utils.h"
-#include "blastwave_components.h"
 #include "utilitites/interpolators.h"
 #include "utilitites/ode_solvers.h"
 #include "utilitites/quadratures.h"
@@ -15,6 +14,7 @@
 #include "image.h"
 #include "synchrotron_an.h"
 
+#include "blastwave_components.h"
 #include "model_magnetar.h"
 #include "blastwave.h"
 
@@ -38,8 +38,9 @@ class CumulativeShell{
     std::unique_ptr<BlastWaveCollision> p_coll = nullptr;
     std::vector<std::unique_ptr<BlastWave>> p_bws{};
     VecVector m_data{};
+//    VecVector m_data_prev{};
 public:
-    enum Q { ir, irho, ibeta, idelta, ivol, idtau, itaucum, itaucum0, ieth, itemp, ilum, itdiff };
+    enum Q { irEj, irhoEj, ibetaEj, idelta, ivol, idtau, itaucum, itaucum0, ieth, itemp, ilum, itdiff };
     std::vector<std::string> m_vnames{
             "r", "rho", "beta", "delta", "vol", "dtau", "taucum", "taucum0", "eth", "temp", "lum", "tdiff"
     };
@@ -57,8 +58,10 @@ public:
         m_data.resize(m_vnames.size());
         for (auto & arr : m_data)
             arr.resize(nshells);
+//        for (auto & arr : m_data_prev)
+//            arr.resize(nshells);
         m_idxs.resize(nshells);
-        std::fill(m_data[Q::ir].begin(), m_data[Q::ir].end(), std::numeric_limits<double>::max());
+        std::fill(m_data[Q::irEj].begin(), m_data[Q::irEj].end(), std::numeric_limits<double>::max());
         std::fill(m_idxs.begin(), m_idxs.end(), std::numeric_limits<size_t>::max());
     }
     void setPars(StrDbMap & pars, StrStrMap & opts){
@@ -67,12 +70,37 @@ public:
             return;
         p_pars->thermradloss_at_photo= getBoolOpt("thermradloss_at_photo",opts,AT,p_log,false,true);
     }
-    // ------------------------
-    inline double getR(size_t i){return m_data[Q::ir][i];}
-    inline Vector & getRvec(){return m_data[Q::ir]; }
+    /// copy current shell properties to each blastwave "data container"
+    void insertStatusInBWdata(size_t it){
+        for (size_t i=0; i<p_pars->n_active_shells; i++){
+            size_t idx = m_idxs[i];
+            if (p_bws[idx]->getPars()->end_evolution) {
+                continue;
+            }
+            auto & bw1 = p_bws[idx];
+//            for (size_t key = 0; key < m_vnames.size(); key++)
+//                bw1->getData(static_cast<BW::Q>(key))[it] = m_data[key][i];
+
+            bw1->getData()[BW::Q::iEJr][it]       = m_data[Q::irEj][i];
+            bw1->getData()[BW::Q::iEJbeta][it]    = m_data[Q::ibetaEj][i];
+            bw1->getData()[BW::Q::iEJdelta][it]   = m_data[Q::idelta][i];
+            bw1->getData()[BW::Q::iEJdtau][it]    = m_data[Q::idtau][i];
+            bw1->getData()[BW::Q::iEJeth][it]     = m_data[Q::ieth][i];
+            bw1->getData()[BW::Q::iEJlum][it]     = m_data[Q::ilum][i];
+            bw1->getData()[BW::Q::iEJrho][it]     = m_data[Q::irhoEj][i];
+            bw1->getData()[BW::Q::iEJtaucum][it]  = m_data[Q::itaucum][i];
+            bw1->getData()[BW::Q::iEJtdiff][it]   = m_data[Q::itdiff][i];
+            bw1->getData()[BW::Q::iEJtemp][it]    = m_data[Q::itemp][i];
+            bw1->getData()[BW::Q::iEJtaucum0][it] = m_data[Q::itaucum0][i];
+            bw1->getData()[BW::Q::iEJvol][it]     = m_data[Q::ivol][i];
+        }
+    }
+    // -------------------------
+    inline double getR(size_t i){return m_data[Q::irEj][i];}
+    inline Vector & getRvec(){return m_data[Q::irEj]; }
     inline std::vector<size_t> & getIdx(){ return m_idxs; }
-    inline Vector & getBetaVec(){return m_data[Q::ibeta]; }
-    inline Vector & getRhoVec(){return m_data[Q::irho]; }
+    inline Vector & getBetaVec(){return m_data[Q::ibetaEj]; }
+    inline Vector & getRhoVec(){return m_data[Q::irhoEj]; }
     inline Vector & getTauVec(){return m_data[Q::idtau]; }
     inline Vector & getTempVec(){return m_data[Q::itemp]; }
     inline Vector & getDeltaVec(){return m_data[Q::idelta]; }
@@ -112,18 +140,18 @@ public:
     bool checkIfActiveShellsOrdered(const double * Y, size_t & idx0, size_t & idx1 ){
         idx0 = std::numeric_limits<size_t>::max();
         idx1 = std::numeric_limits<size_t>::max();
-        std::fill(m_data[Q::ir].begin(), m_data[Q::ir].end(),std::numeric_limits<double>::max());
+        std::fill(m_data[Q::irEj].begin(), m_data[Q::irEj].end(),std::numeric_limits<double>::max());
         bool is_sorted = true;
         for (size_t i=0; i<p_pars->n_active_shells; ++i) {
             size_t idx = m_idxs[i];
-            m_data[Q::ir][i] = Y[p_bws[idx]->getPars()->ii_eq + SOL::QS::iR ];
+            m_data[Q::irEj][i] = Y[p_bws[idx]->getPars()->ii_eq + SOL::QS::iR ];
         }
         for (size_t i=1; i<p_pars->n_active_shells; ++i) {
             size_t idx = m_idxs[i];
-            double rim1 = m_data[Q::ir][i-1];
+            double rim1 = m_data[Q::irEj][i-1];
             /// if the next shells in the list has a radius > than the previous; shells not ordered
-            if (m_data[Q::ir][i] > rim1){
-                rim1 = m_data[Q::ir][i];
+            if (m_data[Q::irEj][i] > rim1){
+                rim1 = m_data[Q::irEj][i];
             }
             else {
                 is_sorted = false;
@@ -170,7 +198,7 @@ public:
         for (size_t ii=0; ii<p_pars->n_active_shells; ++ii) {
             n_collisions = 0;
             size_t i_idx = m_idxs[ii];
-            double r_i = m_data[Q::ir][ii];
+            double r_i = m_data[Q::irEj][ii];
             if (r_i == std::numeric_limits<double>::max()){
                 continue;
             }
@@ -180,7 +208,7 @@ public:
 
             for (size_t jj = ii; jj < p_pars->n_active_shells; ++jj) {
                 size_t j_idx = m_idxs[jj];
-                double r_j = m_data[Q::ir][jj];
+                double r_j = m_data[Q::irEj][jj];
                 if (r_i > r_j) {
                     n_collisions += 1;
                     overrun_shells.push_back(j_idx);
@@ -314,6 +342,7 @@ public:
     void updateSortedShellWidth( const double * Y ){
 
         /// for the first shell we have to assume it width
+#if 0
         size_t idx = m_idxs[0];//p_pars->n_active_shells-1;
         double frac = 0.5; // TODO fraction of the shell volume to be used as its width. !!! Inaccurate as we need adjacent shells to get the volume...
         auto & bw = p_bws[idx];
@@ -326,7 +355,43 @@ public:
         }
         m_data[Q::idelta][0] = dr_i;
         m_data[Q::ivol][0] = vol_i;
+#endif
+        if (p_pars->n_active_shells > 1) {
+            size_t idx = m_idxs[0];//p_pars->n_active_shells-1;
+            size_t nextidx = m_idxs[1];//p_pars->n_active_shells-1;
+            auto &bw = p_bws[idx];
+            auto &nextbw = p_bws[nextidx];
 
+            double r_i = Y[bw->getPars()->ii_eq + SOL::QS::iR];
+            double r_ip1 = Y[nextbw->getPars()->ii_eq + SOL::QS::iR];
+            double dr_i = r_ip1 - r_i;
+            double vol_i =
+                    (4. / 3.) * CGS::pi * (r_ip1 * r_ip1 * r_ip1 - r_i * r_i * r_i);// / currbw->getPars()->ncells;
+            if (dr_i <= 0 or !std::isfinite(dr_i)) {
+                (*p_log)(LOG_ERR, AT) << " dr_i = " << dr_i << "\n";
+                exit(1);
+            }
+            m_data[Q::idelta][0] = dr_i;
+            m_data[Q::ivol][0] = vol_i;
+            bw->getPars()->delta = dr_i;
+            bw->getPars()->vol = vol_i;
+        }
+        else{
+            double koeff = 0.1;
+            size_t idx = m_idxs[0];//p_pars->n_active_shells-1;
+            auto &bw = p_bws[idx];
+            double r_i = Y[bw->getPars()->ii_eq + SOL::QS::iR];
+
+            double _r_i = r_i * koeff;
+            double _vol_i = koeff * (4./3.) * CGS::pi * (r_i*r_i*r_i);
+            double _r_i_pref = bw->getPars()->delta;
+            double _vol_i_prev = bw->getPars()->vol;
+//            double k_r =
+//            size_t idx = m_idxs[0];
+            double _r_ip1 = 1.01 * r_i;
+            m_data[Q::idelta][0] = _r_ip1 - r_i;// p_bws[idx]->getPars()->delta;
+            m_data[Q::ivol][0] = (4./3.) * CGS::pi * (_r_ip1*_r_ip1*_r_ip1 - r_i*r_i*r_i); //p_bws[idx]->getPars()->vol;
+        }
         for (size_t ii=1; ii<p_pars->n_active_shells; ii++) {
             ///
             size_t previdx = m_idxs[ii-1];
@@ -339,14 +404,14 @@ public:
                 exit(1);
             }
             double rm1_i = Y[prevbw->getPars()->ii_eq + SOL::QS::iR];
-            r_i = Y[currbw->getPars()->ii_eq + SOL::QS::iR];
+            double r_i = Y[currbw->getPars()->ii_eq + SOL::QS::iR];
             if ((rm1_i == 0.) || (r_i == 0.)) {
 //                (*p_log)(LOG_WARN,AT)<<" shell="<<idx<<" has r_i="<<r_i<<" and r_ip1="<<r_ip1<<"\n";
                 continue;
             }
-            dr_i = r_i - rm1_i;
+            double dr_i = r_i - rm1_i;
             /// evaluate the volume of the shell (fraction of the 4pi)
-            vol_i = (4./3.) * CGS::pi * (r_i*r_i*r_i - rm1_i*rm1_i*rm1_i);// / currbw->getPars()->ncells;
+            double vol_i = (4./3.) * CGS::pi * (r_i*r_i*r_i - rm1_i*rm1_i*rm1_i);// / currbw->getPars()->ncells;
             if ((dr_i <= 0) or (!std::isfinite(dr_i))){
                 (*p_log)(LOG_ERR,AT)<<" dr_i = "<<dr_i<<"\n";
                 exit(1);
@@ -354,6 +419,8 @@ public:
             /// --------------------------- |
             m_data[Q::idelta][ii] = dr_i;
             m_data[Q::ivol][ii] = vol_i;
+            prevbw->getPars()->delta = dr_i;
+            prevbw->getPars()->vol = vol_i;
         }
     }
     /// Evaluate the radial extend of a velocity shell. Assume ordered shells. Assumes sorted shells. Assume update kappa
@@ -378,20 +445,20 @@ public:
             double temp = std::pow(ene_th / A_RAD / vol_i, 0.25); // Stephan-Boltzman law
             m_data[Q::ieth][i] = ene_th;
             m_data[Q::itemp][i] = temp;
-            m_data[Q::ibeta][i] = m_beta;
+            m_data[Q::ibetaEj][i] = m_beta;
 
             double m_i = bw->getPars()->M0;
             double m2_i = Y[bw->getPars()->ii_eq + SOL::QS::iM2] * m_i;
 //            m_i += m2_i; // TODO should I include this?/
             double rho_i = m_i / vol_i;
             double kappa_i = bw->getPars()->kappa;
-            m_data[Q::irho][i] = rho_i;
+            m_data[Q::irhoEj][i] = rho_i;
             m_data[Q::idtau][i] = kappa_i * rho_i * dr_i;
             tau_tot += m_data[Q::idtau][i];
 
             double r_i = Y[bw->getPars()->ii_eq + SOL::QS::iR];
             double m_tlc = r_i / CGS::c;
-            m_data[Q::itdiff][i] = std::max( kappa_i * m_i / m_data[Q::ibeta][i] / r_i / CGS::c, m_tlc); // TODO M0 or M0+M2 )
+            m_data[Q::itdiff][i] = std::max( kappa_i * m_i / m_data[Q::ibetaEj][i] / r_i / CGS::c, m_tlc); // TODO M0 or M0+M2 )
 
             m_data[Q::ilum][i] = ene_th / m_data[Q::itdiff][i];
             if (m_data[Q::itdiff][i] < 1){
@@ -442,207 +509,7 @@ public:
 //            bw->getPars()->is_above_tau1 = idx_photo > cur_idx ? false : true;
         }
 
-
-#if 0
-        /// if there is one shell we cannot have the shell width that comes from shell separation.
-        double tau_tot=0.; double ltot = 0.;
-        if (p_pars->n_active_shells == 1){
-            size_t idx = 0;
-            double frac = 0.1; // fraction of the shell volume to be used as its width. Inaccurate as we need adjacent shells to get the volume...
-            auto & bw = p_bws[0];
-            double kappa_i = bw->getPars()->kappa;
-//            r_i =  Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iR];
-            double dr_i = m_data[Q::idelta][idx];//bw->getPars()->thickness;//frac * r_i; // TODO add other methods 1/Gamma...
-            double vol_i = m_data[Q::ivol][idx];//bw->getPars()->volume;// = frac * (4./3.) * CGS::pi * (r_i*r_i*r_i) / bw->getPars()->ncells;
-            double m_i = bw->getPars()->M0;
-            double m2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iM2] * m_i;
-//            m_i += m2_i; // TODO should I include this?/
-            double rho_i = m_i / vol_i;
-            //
-            double r_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iR];
-//            eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
-//            eint2_i *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
-//            ene_th = eint2_i; // TODO is this shock??
-            //
-            m_data[Q::idtau][idx] = kappa_i * rho_i * dr_i;
-            tau_tot += m_data[Q::idtau][idx];
-
-            m_data[Q::itaucum][idx] = 0.; // opt. depth to this shell
-            double m_tlc = r_i / CGS::c;
-            m_data[Q::itdiff][idx] = std::max( kappa_i * m_i / m_data[Q::ibeta][idx] / r_i / CGS::c, m_tlc); // TODO M0 or M0+M2 )
-
-        }
-#endif
-#if 0
-        /// compute shell width from the shell separation
-        double tau_tot=0.;
-        for (size_t ii=0; ii<p_pars->n_active_shells-1; ii++){
-            ///
-            size_t idx = m_idxs[ii];
-            size_t nextidx = m_idxs[ii+1];
-            auto & bw = p_bws[idx];
-            auto & nextbw = p_bws[nextidx];
-
-            double dr_i = m_data[Q::idelta][ii];//bw->getPars()->thickness;//r_ip1 - r_i;
-            double kappa_i = bw->getPars()->kappa;
-
-            /// evaluate mass within the shell
-            double m_i = bw->getPars()->M0;
-            double m2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iM2] * m_i;
-            m_i += m2_i;
-            double m_ip1 = nextbw->getPars()->M0;
-            double m2_ip1 = Y[nextbw->getPars()->ii_eq + DynRadBlastWave::QS::iM2] * m_ip1;
-            m_ip1 += m2_ip1;
-            double r_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iR];
-            /// evaluate the volume of the shell (fraction of the 4pi)
-            double vol_i = m_data[Q::ivol][ii];//bw->getPars()->volume;//(4./3.) * CGS::pi * (r_ip1*r_ip1*r_ip1 - r_i*r_i*r_i) / bw->getPars()->ncells;
-            /// evaluate density within a shell (neglecting the accreted by the shock!)
-            double rho_i = m_i / vol_i;
-            m_data[Q::irho][ii] = rho_i;//m_rho[ii] = rho_i;
-
-//            eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
-//            eint2_i *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
-
-            /// evaluate optical depth
-            double dtau_i = kappa_i * rho_i * dr_i;
-            tau_tot += dtau_i;
-            if ((!std::isfinite(dtau_i)) || (dtau_i < 0)){
-                (*p_log)(LOG_ERR,AT) << "dtau is nan or < 0 and dtau="<<dtau_i<<"\n";
-                exit(1);
-            }
-            m_data[Q::idtau][ii] = dtau_i;//m_dtau[ii] = dtau_i;
-
-            double m_tlc = r_i / CGS::c;
-            m_data[Q::itdiff][ii] = std::max(
-                    kappa_i * bw->getPars()->M0 / m_data[Q::ibeta][ii] / r_i / CGS::c, m_tlc); // TODO M0 or M0+M2 )
-//            tdiff = m_dtau[ii] * Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iR] / CGS::c;
-
-        }
-#endif
-#if 0
-        /// Compute the optical depth from 0 to a given shell
-        for (size_t ii = 0 ; ii < p_pars->n_active_shells; ii++){
-            size_t cur_idx = m_idxs[ii];
-            double tau_cum = 0.;
-            for (size_t jj = 0 ; jj < p_pars->n_active_shells; jj++){
-                size_t other_idx = m_idxs[jj];
-                if (other_idx < cur_idx) {
-                    tau_cum += m_data[Q::idtau][jj];
-                }
-            }
-            m_data[Q::itaucum][cur_idx] = tau_cum;
-        }
-
-        /// Compute cumulative diffusive timescale for all shells
-        for (size_t ii = 0 ; ii < p_pars->n_active_shells; ii++){
-            double tdiff_cum = 0.;
-            for (size_t jj = ii ; jj < p_pars->n_active_shells; jj++){
-                tdiff_cum += m_data[Q::itdiff][jj];
-            }
-//            m_tdiff_out[ii] = std::max( t/diff_cum, m_tlc[ii] ); // Eq. 19 in Ren+19
-        }
-#endif
-#if 0
-        /// Compute luminocity from each shell
-        double ltot = 0.;
-        for (size_t ii=0; ii<p_pars->n_active_shells-1; ii++){
-            size_t idx = m_idxs[ii];
-            auto & bw = p_bws[idx];
-            double eint2_i = Y[bw->getPars()->ii_eq + DynRadBlastWave::QS::iEint2];
-            eint2_i *= bw->getPars()->M0 * CGS::c * CGS::c; /// remember the units in ODE solver are different
-            double ene_th = eint2_i; // TODO is this shock??
-            m_data[Q::ilum][ii] = ene_th / m_data[Q::itdiff][ii]; // m_dtau[ii] * ene_th * bw->getPars()->M0 * CGS::c * CGS::c / tdiff;
-            bw->getPars()->dElum = m_data[Q::ilum][ii];
-            ltot += m_data[Q::ilum][ii];
-        }
-        p_pars->ltot = ltot;
-#endif
-#if 0
-        /// based on where tau = 1 get the photosphere radius, i.e., in which shell is the photosphere
-        double tmp_tau = 0; double r_ph;
-        size_t idx_photo = p_pars->n_active_shells;
-        for (size_t i = p_pars->n_active_shells-1; i > 0; --i){
-            size_t idx = m_idxs[i];
-            auto & bw = p_bws[idx];
-            tmp_tau+=m_data[Q::idtau][i];
-            if (tmp_tau > 1.){
-                idx_photo = (int)idx+1;
-                break;
-            }
-        }
-        if (idx_photo == 0) {
-            /// Ejecta totally transparent
-            int y = 1;
-        }
-        else if ((idx_photo == p_pars->n_active_shells-1) && (m_data[Q::idtau][idx_photo-1] > 1)) {
-            /// Ejecta totally opaque
-            int x = 1;
-        }
-        else{
-            p_pars->rphot = Y[p_bws[idx_photo-1]->getPars()->ii_eq + DynRadBlastWave::QS::iR];
-            p_pars->tphoto = 0.;
-        }
-#endif
-
-
-
-//        std::cout << "m_rho      ="<< m_data[Q::irho] << "\n";
-//        std::cout << "m_lum      ="<< m_data[Q::ilum] << "\n";
-//        std::cout << "m_temp     ="<< m_data[Q::itemp] << "\n";
-//        std::cout << "m_dtau     ="<< m_data[Q::idtau] << "\n";
-//        std::cout << "m_tdiff    ="<< m_data[Q::itdiff] << "\n";
-//        std::cout << "m_tau_cum  ="<< m_data[Q::itaucum] << "\n";
-//        std::cout << "m_tau_cum0 ="<< m_data[Q::itaucum0] << "\n";
-
-
-
-//        (*p_log)(LOG_INFO,AT)<<"\tLayer [il="<<mylayer
-//                                        <<"] Cumulative optical depth to idx0"
-//                                        <<" tau0="<<m_dtau_cum[0]
-//                                        <<" tau[-1]="<<m_dtau_cum[n_active_shells-1]<<"\n";
-
-
-//        std::cout << m_dtau_cum << "\n";
-//        std::cout << m_dtau << "\n";
-//        std::cout << m_rho << "\n";
         int x = 1;
-
-//        if ((idx_photo < 10) && (idx_photo > 0)){
-//            int a = 1;
-//            std::cout << " i_photo="<<idx_photo << " TauToIt="<<m_dtau_cum[idx_photo]<< " remaining tau="<<tau_tot-m_dtau_cum[idx_photo]<<'\n';
-//        }
-
-
-//        for (size_t i = 0; i<m_nshells; i++){
-//            double tau_cum = 0.;
-//            for (size_t j = 0; j<m_nshells; j++) {
-//                if (i > j)
-//                    continue;
-//                else
-//                    tau_cum += m_dtau[i];
-//            }
-//            m_dtau_cum[i] = tau_cum;
-//        }
-//        if (idx_photo>0)
-//            std::cout << " i_photo="<<idx_photo << " TauToIt="<<m_dtau_cum[idx_photo]<< " remaining tau="<<tau_tot-m_dtau_cum[idx_photo]<<'\n';
-        /// for the last shell i don't have difference, so... just the same as previous one.
-//        size_t ish = m_idxs.back();
-//        p_bws[ish]->getLastVal(DynRadBlastWave::Q::idR) = dr_i;
-//        p_bws[ish]->getLastVal(DynRadBlastWave::Q::iRho) = rho_i;
-//        p_bws[ish]->getLastVal(DynRadBlastWave::Q::iTau) = tau_i; // update blastwave thickness
-
-//        if (idx_photo == m_idxs.back()-1)
-//            idx_photo = (int)m_idxs.back();
-//        for (auto idx : m_idxs)
-//            std::cout << "i_photo=" <<idx_photo<< "; "<< p_bws[idx]->getLastVal(DynRadBlastWave::Q::iTau) << ", ";
-//        std::cout <<"\n";
-
-//        double tau_out = 0, tau_out_i = 0;
-//        for (auto idx_curr : m_idxs){
-//            tau_out = 0.;
-//            for (auto idx = m_idxs.back(); idx > idx_curr; idx--){
-//                tau_out_i = p_bws[idx]->getLastVal(DynRadBlastWave::Q::iTau);
-//                tau_out+=tau_out_i ;
 
 
     }

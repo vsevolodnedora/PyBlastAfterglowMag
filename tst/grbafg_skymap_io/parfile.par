@@ -64,9 +64,9 @@ fnu_min_frac = 1e-4
 
 * Settings
 
-run_bws = no
+run_bws = yes
 save_dynamics = no
-load_dynamics = yes
+load_dynamics = no
 do_ele = yes
 do_spec = no
 do_lc = no

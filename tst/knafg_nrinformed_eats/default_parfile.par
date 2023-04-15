@@ -76,7 +76,7 @@ do_lc = yes
 do_skymap = no
 
 method_collision = none # none
-method_eats = piece-wise # piece-wise
+method_eats = adaptive # adaptive piece-wise
 
 fname_dyn = dyn_kn_gauss.h5
 fname_light_curve = abs.h5

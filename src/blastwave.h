@@ -251,6 +251,8 @@ struct Pars{
     double dEnuc = 0.;
     double dElum = 0.;
     double kappa = 0.;
+    double delta = 0.;
+    double vol = 0.;
     // ---
     bool adiabLoss = true;
     // ---
@@ -305,8 +307,6 @@ struct Pars{
 /// Each BlastWave collects the following data
 namespace BW{
     enum Q {
-        // --- properties of the ejecta element
-        iRho, idR, iTau, iTauOut, iEinj,
         // -- dynamics ---
         iR, iRsh, irho, idrhodr, iGammaCBM, iGammaREL, idGammaCBMdr, idGammaRELdGamma, iPcbm, idPCBMdrho, iMCBM, iCSCBM,
         iGamma, ibeta, imom, iEint2, iU_p, itheta, ictheta, iErad2, iEsh2, iEad2, iM2,
@@ -316,11 +316,11 @@ namespace BW{
         // --- observables ---
         imu,
         // ---
-        ijl, ir_dist
+        ijl, ir_dist,
+        // --- properties of the ejecta element
+        iEJr, iEJrho, iEJbeta, iEJdelta, iEJvol, iEJdtau, iEJtaucum, iEJtaucum0, iEJeth, iEJtemp, iEJlum, iEJtdiff,
     };
     std::vector<std::string> m_vnames{
-            // --- properties of the ejecta element
-            "Rho", "dR", "Tau", "TauOut", "Einj",
             // --- dynamics ---
             "R", "Rsh", "rho", "drhodr", "GammaRho", "GammaRel", "dGammaRhodr", "dGammaReldGamma", "PCBM", "dPCBMdrho", "MCBM", "CSCBM",
             "Gamma", "beta", "mom", "Eint2", "U_p", "theta", "ctheta", "Erad2", "Esh2", "Ead2", "M2",
@@ -330,9 +330,11 @@ namespace BW{
             // --- observables
             "mu",
             // ---
-            "ijl", "r_dist"
+            "ijl", "r_dist",
+            // --- properties of the ejecta as a part of the cumShell
+            "EJr", "EJrho", "EJbeta", "EJdelta", "EJvol", "EJdtau", "EJtaucum", "EJtaucum0", "EJeth", "EJtemp", "EJlum", "EJtdiff"
     };
-    static constexpr size_t NVALS = 47; // number of variables to save
+    static constexpr size_t NVALS = 55; // number of variables to save
 }
 
 /// Each blastwave evolution computes the following data
@@ -3491,7 +3493,7 @@ public:
     }
 
     inline VecVector & getData(){ return m_data; }
-    inline Vector & getData(BW::Q var){ return m_data[var]; }
+    inline Vector & getData(BW::Q var){ return m_data[ var ]; }
     inline double & getVal(BW::Q var, int ix){
         auto ixx = (size_t)ix;
         if (ix == -1) { ixx = m_data[0].size()-1; }
@@ -3504,7 +3506,10 @@ public:
 //        p_dens->evaluateRhoDrhoDr(m_data[Q::iR][it], m_data[Q::ictheta][it]);
         double rho_prev = m_data[BW::Q::irho][it-1];
         double rho = m_data[BW::Q::irho][it];
-
+        if ((rho < 0)||(!std::isfinite(rho))){
+            (*p_log)(LOG_ERR,AT)<<" negative density!\n";
+            exit(1);
+        }
 
         /// related to the jet BW density profile
         m_data[BW::Q::irho][it] = p_dens->m_rho_;

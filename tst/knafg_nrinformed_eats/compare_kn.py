@@ -82,7 +82,7 @@ def main():
         ax.plot(kenta_t[1:-1], kenta_f[1:-1], **{"color": task["color"], "ls": ":", "lw": 0.8, "label": task["label"]})
 
         # prepare_kn_ej_id_1d(nlayers=30,hist_fpath=task["hist_fpath"],outfpath=task["outfpath"])
-        prepare_kn_ej_id_2d(nlayers=None,corr_fpath=task["corr_fpath"],outfpath=task["outfpath"], dist="pw")
+        prepare_kn_ej_id_2d(nlayers=30,corr_fpath=task["corr_fpath"],outfpath=task["outfpath"], dist="a")
         # prepare_kn_ej_id_1d(nlayers=30,hist_fpath=task["hist_fpath"],outfpath=task["outfpath"])
 
 

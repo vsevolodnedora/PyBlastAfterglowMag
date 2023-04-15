@@ -7,14 +7,13 @@
 
 #include "utilitites/pch.h"
 #include "utilitites/utils.h"
-#include "blastwave_components.h"
 #include "utilitites/interpolators.h"
 #include "utilitites/ode_solvers.h"
 #include "utilitites/quadratures.h"
 #include "utilitites/rootfinders.h"
 #include "image.h"
 #include "synchrotron_an.h"
-
+#include "blastwave_components.h"
 #include "model_magnetar.h"
 #include "model_ejecta.h"
 
@@ -215,7 +214,7 @@ public:
                     ii += SOL::neq;//ii += ej_bws[il]->getBW(ish)->getNeq();
                 }
             }
-            ejectaUpdate(tb0, m_InitData);
+            ejectaUpdate(tb0,0, m_InitData);
         }
 
 
@@ -271,6 +270,7 @@ public:
         // add electron properties (needed for synchron calculation)
         //        addComputeForwardShockMicrophysics(ix);
         ///
+
     }
 
     inline auto * pIntegrator() { return p_Integrator; }
@@ -591,6 +591,8 @@ private:
                 for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
                     ej_bws[il]->getBW(ish)->addOtherVars(it);
                 }
+                /// save shell order; thickness; optical depth etc...
+                ej_bws[il]->insertStatusInBWdata( it );
             }
         }
         if (p_pars->p_ej_pwn->run_pwn) {
@@ -803,7 +805,7 @@ private:
 #endif
                 /// advance the ODE to time of the collision. Use previous solution [ix-1] as a starting point
                 p_Integrator->Integrate(trunning, tcoll_min*(1.-col_prec_fac), m_TmpSol);
-                ejectaUpdate(tcoll_min*(1.-col_prec_fac), m_TmpSol);
+                ejectaUpdate(tcoll_min*(1.-col_prec_fac), ix, m_TmpSol);
                 /// extract the solution vector from the ODE solver into 'm_CurSol'
                 p_Integrator->GetY(m_CurSol);
 
@@ -883,6 +885,7 @@ private:
                     auto &cumShell = p_pars->p_ej->getShells()[il];
                     cumShell->updateSortedShellWidth(m_CurSol);
                     cumShell->updateSortedShellProperties(m_CurSol);
+//                    cumShell->insertStatusInBWdata(ix);
                     /// update the shell properties for the PWN if needed
                     if (p_pars->p_ej_pwn->run_pwn){
                         auto & pwn = p_pars->p_ej_pwn->getPWN(il);
@@ -912,7 +915,7 @@ private:
 #endif
                 /// try to complete the timestep, itegrating from trunning to t_grid[ix]
                 p_Integrator->Integrate(trunning, t_grid[ix], m_CurSol);
-                ejectaUpdate(t_grid[ix], m_CurSol);
+                ejectaUpdate(t_grid[ix], ix, m_CurSol);
 
                 /// extract the solution vector from the ODE solver into 'm_CurSol'
                 p_Integrator->GetY(m_CurSol);
@@ -960,7 +963,7 @@ private:
             return false;
         }
     }
-    void ejectaUpdate(double time, double * sol){
+    void ejectaUpdate(double time, size_t it, double * sol){
 
         /// update cumulative shell properties
         if ((p_pars->p_ej->run_bws) && (p_pars->p_ej->do_collision)) {
@@ -991,6 +994,7 @@ private:
             for (auto &cumShell: p_pars->p_ej->getShells()) {
                 cumShell->updateSortedShellWidth(sol);
                 cumShell->updateSortedShellProperties(sol);
+//                cumShell->insertStatusInBWdata(it);
             }
         }
 
@@ -1069,7 +1073,7 @@ private:
             is_updated = doCollisionSubSteps( ix );
 
         if (p_pars->p_ej->run_bws && (!is_updated))
-            ejectaUpdate(t_grid[ix], m_CurSol);
+            ejectaUpdate(t_grid[ix], ix, m_CurSol);
 
 
         /// --- Log main results of the integration

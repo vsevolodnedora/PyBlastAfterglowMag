@@ -378,169 +378,7 @@ def plot_init_profile(ctheta, betas, eks,
     # # if (save_figs): plt.savefig(PAPERPATH + figname + ".pdf")
     # plt.show()
 
-def plot_ejecta_dyn_evol_for_movie():
-    def plot_timestep_ejecta(self):
-        dfile_ej = h5py.File(curdir + "ejecta_dynamics_shells_layers.h5", "r")
-    print(dfile_ej.keys())
-    print(dfile_ej[list(dfile_ej.keys())[0]].keys())
-    print(dfile_ej.attrs.keys())
 
-    ishell = 20
-    all_shells = int(dfile_ej.attrs["nshells"])
-    all_layers = int(dfile_ej.attrs["nlayers"])
-    print("all_shells={} all_layers={}".format(all_shells, all_shells))
-
-    r_grid = np.array(dfile_ej["shell={} layer={}".format(0, 0)]["R"])
-
-    n = all_layers * all_layers
-
-    cthetas = np.zeros((all_layers, all_shells))
-    rs = np.zeros((all_layers, all_shells))
-    val = np.zeros((all_layers, all_shells))
-
-    ir = 100
-
-    for ilayer in range(int(all_layers)):
-        for ishell in range(int(all_shells)):
-            key = "shell={} layer={}".format(ishell, ilayer)
-            cthetas[ilayer, ishell] = np.array(dfile_ej[key]["ctheta"])[ir]
-            rs[ilayer, ishell] = np.array(dfile_ej[key]["R"])[ir]
-            i_val = np.array(dfile_ej[key]["beta"]) * np.array(dfile_ej[key]["Gamma"])
-            val[ilayer, ishell] = i_val[ir]
-
-            # cthetas = np.vstack(( cthetas, np.array(dfile_ej[key]["ctheta0"]) ))
-            # rs = np.vstack(( rs, np.array(dfile_ej[key]["R"]) ))
-            # i_val = np.array( dfile_ej[key]["beta"] ) * np.array( dfile_ej[key]["Gamma"] )
-            # val = np.vstack(( val, i_val ))
-
-    # lrs = np.log10(rs)
-
-    # val.append( np.array( dfile_ej[key]["GammaRho"] ) * np.array( dfile_ej[key]["GammaRho"] ) )
-    # val.append( np.log10( np.array( dfile_ej[key]["rho"] )/np.array( dfile_ej[key]["rho"] )[-1] ))#* ( np.array( dfile_ej[key]["rho"][-1] ) ) ) )
-    # val.append( np.log10(np.array( dfile_ej[key]["rho2"] ) / ( np.array( dfile_ej[key]["rho2"][0] ) ) ) )
-    # plt.semilogx(Rs, val[-1])
-    # plt.show()
-    cthetas = np.array(cthetas)  # [::-1] # INVERT DATA ----------------------------------------------------------
-
-    print("ctheta: {}".format(cthetas.shape))
-    print("Rs: {}".format(rs.shape))
-
-    print("Jet Data loaded")
-
-    # cthetas = np.array(cthetas)#[::-1] # INVERT DATA ----------------------------------------------------------
-    # cthetas0 = np.array(cthetas0)#[::-1] # INVERT DATA ----------------------------------------------------------
-    # cthetas = np.array(cthetas)[::-1,:] # INVERT DATA ----------------------------------------------------------
-    #
-    # print("ctheta: {}".format(cthetas0.shape))
-    # print("Rs: {}".format(Rs0.shape))
-    #
-    # val = np.reshape(np.array(val), (len(cthetas0), len(Rs0)))
-    # ctheta = np.reshape(np.array(cthetas), (len(cthetas0), len(Rs0)))
-    # Rs = np.reshape(np.array(Rs), (len(cthetas0), len(Rs0)))
-    # print("Val: {}".format(val.shape))
-    #
-    # print("ctheta={}, {}".format(cthetas[0] * 180 / np.pi, cthetas[-1] * 180 / np.pi))
-    # print("Rs={}, {}".format(Rs0[0],Rs0[-1]))
-
-    # ---------------------------------
-
-    angle_ticks = range(0, 100, 10)
-    angle_ticks_rads = [a * np.pi / 180.0 for a in angle_ticks]  # [::-1] # INVERT TICKS -------------------
-    angle_ticks_rads_plus_offset = [a for a in angle_ticks_rads]
-    # angle_ticks_rads_plus_offset = angle_ticks_rads_plus_offset[::-1] # Polar Angle
-    angle_ticks_for_plot = []
-    for i in range(len(angle_ticks)):
-        angle_ticks_for_plot.append((angle_ticks_rads_plus_offset[i], r"$" + str(angle_ticks[i]) + "$"))
-
-    print("Angle ticks prepared")
-
-    # lRs = np.log10(Rs/Rs0[0])
-    # lRs0 = np.log10(Rs0/Rs0[0])
-
-    # rs = rs/rs.min()
-    lrs = np.log2(rs) - 0.9 * np.log2(rs)[0, 0]
-    # lrs /= lrs.min()
-    radius_ticks = range(int(lrs[0, 0]), int(lrs[0, -1]), 1)
-    radius_ticks_for_plot = []
-    for i in range(len(radius_ticks)):
-        radius_ticks_for_plot.append((radius_ticks[i], r"$" + str(radius_ticks[i]) + "$"))
-
-    print("Radial ticks prepared")
-
-    # ---------------------------------------
-
-    scale = 1.5
-    aspect = 1.20
-    height = 3.0
-    fig = plt.figure(1, figsize=(height * aspect * scale, height * scale))
-    fig.subplots_adjust(wspace=0.1, left=0.05, right=0.95, top=0.94)
-    fig.subplots_adjust()
-
-    ax2, aux_ax2 = self.setup_arc_radial_axes(fig, 111, angle_ticks_for_plot, radius_ticks_for_plot, 1,
-                                              radius_ticks[-1])
-
-    # r, theta = np.meshgrid(lRs,cthetas)
-    values = val
-
-    # levels = ticker.LogLocator(base=10,numticks=1000).tick_values(1e-4, 0.8)
-    levels = MaxNLocator(nbins=20).tick_values(val.min(), val.max())
-    cmap = plt.get_cmap('viridis')  # seismic
-    norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
-    norm = colors.TwoSlopeNorm(vmin=val.min(), vcenter=0.1, vmax=val.max())
-
-    # im = aux_ax2.pcolormesh(cthetas, lrs, values, cmap=cmap, norm=norm, alpha=0.7)
-    im = aux_ax2.pcolormesh(cthetas, lrs, values, cmap=cmap, alpha=0.7, norm=LogNorm(vmin=1e-3, vmax=5e-1),
-                            rasterized=True)
-
-    cbar = plt.colorbar(im, orientation='vertical')
-    cbar.ax.set_ylabel(r'$\log_{10}( \rho/\rho_{\rm ISM} )$', fontsize=12)
-
-    # ax2.axis["bottom"].axes.set_xlabel('Angle [deg]', fontsize=20, weight="bold")
-
-    plt.suptitle(' Jet layer dynamics ', fontsize=14, weight="bold")
-    plt.legend(loc=3, prop={'size': 14})
-    # plt.xlabel('Angle [deg]', fontsize=20, weight="bold", rotation=30)
-    plt.ylabel(r'Radius $[R/R_0]$', fontsize=14, weight="bold")
-
-    # plt.show()
-    plt.savefig('plot.png', dpi=256)
-    plt.show()
-    plt.close()
-
-    fig, ax = plt.subplots(figsize=(4, 3), subplot_kw={'projection': 'polar'}, ncols=1, nrows=1)
-    # ax = plt.subplot(111, polar=True)
-    # levels = MaxNLocator(nbins=25).tick_values(val.min(), val.max())
-    levels = ticker.LogLocator(base=2, numticks=100).tick_values(val.min(), val.max())
-
-    cmap = plt.get_cmap('inferno')
-    norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
-    im = ax.pcolormesh(cthetas, lrs, val, cmap=cmap, norm=norm)
-    fig.colorbar(im, ax=ax)
-    # ax.set_title('pcolormesh with levels')
-    print(ax.get_rmin(), ax.get_rmax())
-    # ax.set_rmax(10)
-    # ax.set_rmin(20)
-    print(ax.get_rmin(), ax.get_rmax())
-
-    max_theta = 90
-    # ax.set_theta_zero_location("U")
-    # ax.set_theta_offset(np.pi/2)
-
-    ax.set_thetamax(90)
-    # ax.set_thetamin(0)
-    # ax.set_rlim(10,20)
-
-    # ax.set_rlim(Rs.min(), Rs.max())
-    # ax.set_rscale("log")
-    # ax.set_rscale('log')
-    #
-    # ticklabels = ax.get_yticklabels()
-    # labels = range(80, 0, -10)
-    # for i in range(0, len(labels)):
-    #     ticklabels[i] = str(labels[i])
-    # ax.set_yticklabels(ticklabels)
-
-    plt.show()
 
 def main_old():
     workdir = os.getcwd()+'/'
@@ -677,6 +515,23 @@ def main_old():
     # plt.show()
 
 def main():
+
+    x_arr = np.array([ 6.62534e-19, 9.57652e-19, 1.38423e-18, 2.00082e-18, 2.89206e-18, 4.1803e-18, 6.04238e-18, 8.73389e-18, 1.26243e-17, 1.82477e-17, 2.63759e-17, 3.81248e-17, 5.51071e-17, 7.96541e-17, 1.15135e-16, 1.66421e-16, 2.40551e-16, 3.47703e-16, 5.02583e-16, 7.26454e-16, 1.05005e-15, 1.51778e-15, 2.19386e-15, 3.17109e-15, 4.58361e-15, 6.62534e-15, 9.57652e-15, 1.38423e-14, 2.00082e-14, 2.89206e-14, 4.1803e-14, 6.04238e-14, 8.73389e-14, 1.26243e-13, 1.82477e-13, 2.63759e-13, 3.81248e-13, 5.51071e-13, 7.96541e-13, 1.15135e-12, 1.66421e-12, 2.40551e-12, 3.47703e-12, 5.02583e-12, 7.26454e-12, 1.05005e-11, 1.51778e-11, 2.19386e-11, 3.17109e-11, 4.58361e-11, 6.62534e-11, 9.57652e-11, 1.38423e-10, 2.00082e-10, 2.89206e-10, 4.1803e-10, 6.04238e-10, 8.73389e-10, 1.26243e-09, 1.82477e-09, 2.63759e-09, 3.81248e-09, 5.51071e-09, 7.96541e-09, 1.15135e-08, 1.66421e-08, 2.40551e-08, 3.47703e-08, 5.02583e-08, 7.26454e-08, 1.05005e-07, 1.51778e-07, 2.19386e-07, 3.17109e-07, 4.58361e-07, 6.62534e-07, 9.57652e-07, 1.38423e-06, 2.00082e-06, 2.89206e-06, 4.1803e-06, 6.04238e-06, 8.73389e-06, 1.26243e-05, 1.82477e-05, 2.63759e-05, 3.81248e-05, 5.51071e-05, 7.96541e-05, 0.000115135, 0.000166421, 0.000240551, 0.000347703, 0.000502583, 0.000726454, 0.00105005, 0.00151778, 0.00219386, 0.00317109, 0.00458361])
+    y_arr = np.array([ 9.89229e+10, 8.22805e+10, 6.8438e+10, 5.69242e+10, 4.73475e+10, 3.93819e+10, 3.27565e+10, 2.72456e+10, 2.26619e+10, 1.88494e+10, 1.56782e+10, 1.30406e+10, 1.08467e+10, 9.02188e+09, 7.50407e+09, 6.24162e+09, 5.19155e+09, 4.31814e+09, 3.59167e+09, 2.98743e+09, 2.48483e+09, 2.06679e+09, 1.71908e+09, 1.42987e+09, 1.18932e+09, 9.89229e+08, 8.22805e+08, 6.8438e+08, 5.69242e+08, 4.73475e+08, 3.93819e+08, 3.27565e+08, 2.72456e+08, 2.26619e+08, 1.88494e+08, 1.56782e+08, 1.30406e+08, 1.08467e+08, 9.02188e+07, 7.50407e+07, 6.24162e+07, 5.19155e+07, 4.31814e+07, 3.59167e+07, 2.98743e+07, 2.48483e+07, 2.06679e+07, 1.71908e+07, 1.42987e+07, 1.18932e+07, 9.89229e+06, 8.22805e+06, 6.8438e+06, 5.69242e+06, 4.73475e+06, 3.93819e+06, 3.27565e+06, 2.72456e+06, 2.26619e+06, 1.88494e+06, 1.56782e+06, 1.30406e+06, 1.08467e+06, 902188, 750407, 624162, 519155, 431814, 359167, 298743, 248483, 206679, 171908, 142987, 118932, 98922.9, 82280.5, 68438, 56924.2, 47347.5, 39381.9, 32756.5, 27245.6, 22661.9, 18849.4, 15678.2, 13040.6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+
+    plt.loglog(x_arr, y_arr, ls='--', label='afg')
+    plt.show()
+
+
+
+
+
+
+
+
+
+
+
     workdir = os.getcwd()+'/'
     path_to_original_data = "/media/vsevolod/data/KentaData/SFHo_13_14_150m_11/" #
     dfile = h5py.File(workdir+"kenta_ejecta_13.h5")
