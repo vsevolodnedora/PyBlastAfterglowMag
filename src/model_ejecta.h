@@ -339,7 +339,7 @@ public:
         }
     }
 #endif
-    void updateSortedShellWidth( const double * Y ){
+    void updateSortedShellWidth_( const double * Y ){
 
         /// for the first shell we have to assume it width
 #if 0
@@ -359,8 +359,8 @@ public:
         if (p_pars->n_active_shells > 1) {
             size_t idx = m_idxs[0];//p_pars->n_active_shells-1;
             size_t nextidx = m_idxs[1];//p_pars->n_active_shells-1;
-            auto &bw = p_bws[idx];
-            auto &nextbw = p_bws[nextidx];
+            auto & bw = p_bws[idx];
+            auto & nextbw = p_bws[nextidx];
 
             double r_i = Y[bw->getPars()->ii_eq + SOL::QS::iR];
             double r_ip1 = Y[nextbw->getPars()->ii_eq + SOL::QS::iR];
@@ -421,6 +421,82 @@ public:
             m_data[Q::ivol][ii] = vol_i;
             prevbw->getPars()->delta = dr_i;
             prevbw->getPars()->vol = vol_i;
+        }
+    }
+    void updateSortedShellWidth( const double * Y ){
+        /// -------------------------------------------------------
+        for (size_t ii=0; ii<p_pars->n_active_shells-1; ii++) {
+            ///
+            size_t nextidx = m_idxs[ii+1];
+            size_t curidx = m_idxs[ii];
+            auto & nextbw = p_bws[nextidx];
+            auto & currbw = p_bws[curidx];
+            if ((nextbw->getPars()->end_evolution) || (currbw->getPars()->end_evolution)){
+//                    evalShellThicknessIsolated(idx, Y);
+                (*p_log)(LOG_ERR,AT) << "|error|\n";
+                exit(1);
+            }
+            double r_ip1 = Y[nextbw->getPars()->ii_eq + SOL::QS::iR];
+            double r_i = Y[currbw->getPars()->ii_eq + SOL::QS::iR];
+            if ((r_ip1 == 0.) || (r_i == 0.)) {
+//                (*p_log)(LOG_WARN,AT)<<" shell="<<idx<<" has r_i="<<r_i<<" and r_ip1="<<r_ip1<<"\n";
+                continue;
+            }
+            double dr_i = r_ip1;
+            /// evaluate the volume of the shell (fraction of the 4pi)
+            double vol_i = (4./3.) * CGS::pi * (r_ip1*r_ip1*r_ip1 - r_i*r_i*r_i);// / currbw->getPars()->ncells;
+            if ((dr_i <= 0) or (!std::isfinite(dr_i))){
+                (*p_log)(LOG_ERR,AT)<<" dr_i = "<<dr_i<<"\n";
+                exit(1);
+            }
+            /// --------------------------- |
+            m_data[Q::idelta][ii] = dr_i;
+            m_data[Q::ivol][ii] = vol_i;
+            currbw->getPars()->delta = dr_i;
+            currbw->getPars()->vol = vol_i;
+        }
+
+        /// ----------------------------
+        if (p_pars->n_active_shells>1){
+            double frac = 0.5;
+            size_t ii = p_pars->n_active_shells;
+            auto & prevbw = p_bws[p_pars->n_active_shells-2];
+            auto & curbw = p_bws[p_pars->n_active_shells-1];
+            if ((prevbw->getPars()->end_evolution) || (curbw->getPars()->end_evolution)){
+//                    evalShellThicknessIsolated(idx, Y);
+                (*p_log)(LOG_ERR,AT) << "|error|\n";
+                exit(1);
+            }
+            double prev_r = Y[prevbw->getPars()->ii_eq + SOL::QS::iR];
+            double curbw_r = Y[curbw->getPars()->ii_eq + SOL::QS::iR];
+            double dr_i = curbw_r - prev_r;
+            if ((dr_i <= 0) or (!std::isfinite(dr_i))){
+                (*p_log)(LOG_ERR,AT)<<" dr_i = "<<dr_i<<"\n";
+                exit(1);
+            }
+            double vol_i = (4./3.) * CGS::pi * (prev_r*prev_r*prev_r - curbw_r*curbw_r*curbw_r);
+            m_data[Q::idelta][ii-1] = dr_i;
+            m_data[Q::ivol][ii-1] = vol_i;
+            curbw->getPars()->delta = dr_i;
+            curbw->getPars()->vol = vol_i;
+        }
+        else{
+            size_t ii = p_pars->n_active_shells-1;
+            auto & curbw = p_bws[p_pars->n_active_shells-1];
+            if (curbw->getPars()->delta<=0){
+                (*p_log)(LOG_ERR,AT)<<" previous dr <= 0 dr="<<curbw->getPars()->delta<<"\n";
+                exit(1);
+            }
+//            double r_i = Y[curbw->getPars()->ii_eq + SOL::QS::iR];
+//            double vol_i = (4./3.) * CGS::pi * (r_i*r_i*r_i);
+//            double koeff = vol_i / curbw->getPars()->vol;
+//            double koeff_dr = std::pow(koeff, 1./3.);
+//            if (koeff < 1.){
+//                (*p_log)(LOG_ERR,AT)<<" koeff < 1; koeff="<<koeff<<"\n";
+//                exit(1);
+//            }
+
+
         }
     }
     /// Evaluate the radial extend of a velocity shell. Assume ordered shells. Assumes sorted shells. Assume update kappa
