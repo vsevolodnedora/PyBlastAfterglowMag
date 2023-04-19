@@ -72,7 +72,7 @@ inline namespace EQS{
     }
 
     /*
-     * compute the swept-up mass by the expanding blast wave
+     * evaluateShycnhrotronSpectrum the swept-up mass by the expanding blast wave
      * Accounts for lateral spreading if 'aa' < 0
      * https://arxiv.org/pdf/1203.5797.pdf
      * https://academic.oup.com/mnras/article/421/1/570/990386 (for introduction of 'a' parameter)
@@ -188,7 +188,7 @@ inline namespace EQS{
         }
         if (result!=result){
             std::cerr<< AT
-                     <<" Failed to compute TT"
+                     <<" Failed to evaluateShycnhrotronSpectrum TT"
                      <<" i="<<i
                      <<" Rs[0]"<<Rs[0]
                      <<" Rs[i]"<<Rs[i]

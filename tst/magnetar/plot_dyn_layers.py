@@ -270,8 +270,8 @@ def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
 # plot_ej_and_magnetar_layers(ishells=([i for i in range(3)]), ilayers=(0,), v_n_x = "tburst",
 #                             v_n_ys = ([]), pwn_v_n_ys=(["Rwing","Enebula","Epwn"]),
 #                             colors_by="shell",figname="./pwn.png")
-plot_ej_and_magnetar_layers(ishells=([i for i in range(80)]), ilayers=(1,), v_n_x = "tburst",
-                            v_n_ys = (["EJr","EJdelta","mom"]), pwn_v_n_ys=([]),
+plot_ej_and_magnetar_layers(ishells=([i for i in range(80)]), ilayers=(0,), v_n_x = "R",
+                            v_n_ys = (["EJrho","EJdelta","EJtemp","psrFrac","mom"]), pwn_v_n_ys=([]),
                             colors_by="shell",figname="./pwn_driv_ejecta.png")
 
 

@@ -72,6 +72,8 @@ public:
     }
     /// copy current shell properties to each blastwave "data container"
     void insertStatusInBWdata(size_t it){
+//        if (p_pars->)
+
         for (size_t i=0; i<p_pars->n_active_shells; i++){
             size_t idx = m_idxs[i];
             if (p_bws[idx]->getPars()->end_evolution) {
@@ -144,7 +146,7 @@ public:
         bool is_sorted = true;
         for (size_t i=0; i<p_pars->n_active_shells; ++i) {
             size_t idx = m_idxs[i];
-            m_data[Q::irEj][i] = Y[p_bws[idx]->getPars()->ii_eq + SOL::QS::iR ];
+            m_data[Q::irEj][i] = Y[ p_bws[idx]->getPars()->ii_eq + SOL::QS::iR ];
         }
         for (size_t i=1; i<p_pars->n_active_shells; ++i) {
             size_t idx = m_idxs[i];
@@ -167,6 +169,9 @@ public:
                 break;
             }
         }
+
+
+
         return is_sorted;
     }
     ///
@@ -442,7 +447,7 @@ public:
 //                (*p_log)(LOG_WARN,AT)<<" shell="<<idx<<" has r_i="<<r_i<<" and r_ip1="<<r_ip1<<"\n";
                 continue;
             }
-            double dr_i = r_ip1;
+            double dr_i = r_ip1 - r_i;
             /// evaluate the volume of the shell (fraction of the 4pi)
             double vol_i = (4./3.) * CGS::pi * (r_ip1*r_ip1*r_ip1 - r_i*r_i*r_i);// / currbw->getPars()->ncells;
             if ((dr_i <= 0) or (!std::isfinite(dr_i))){
@@ -454,50 +459,94 @@ public:
             m_data[Q::ivol][ii] = vol_i;
             currbw->getPars()->delta = dr_i;
             currbw->getPars()->vol = vol_i;
+            /// ---------------------------- | for when this shell is the only one left |------
+            double _r_i = Y[currbw->getPars()->ii_eq + SOL::QS::iR];
+            double _vol_i = (4./3.) * CGS::pi * (_r_i*_r_i*_r_i);
+            currbw->getPars()->_last_frac = _r_i / m_data[Q::idelta][ii];
+            currbw->getPars()->_last_frac_vol = _vol_i / m_data[Q::ivol][ii];
         }
 
         /// ----------------------------
         if (p_pars->n_active_shells>1){
-            double frac = 0.5;
-            size_t ii = p_pars->n_active_shells;
-            auto & prevbw = p_bws[p_pars->n_active_shells-2];
-            auto & curbw = p_bws[p_pars->n_active_shells-1];
-            if ((prevbw->getPars()->end_evolution) || (curbw->getPars()->end_evolution)){
-//                    evalShellThicknessIsolated(idx, Y);
-                (*p_log)(LOG_ERR,AT) << "|error|\n";
-                exit(1);
-            }
-            double prev_r = Y[prevbw->getPars()->ii_eq + SOL::QS::iR];
-            double curbw_r = Y[curbw->getPars()->ii_eq + SOL::QS::iR];
-            double dr_i = curbw_r - prev_r;
-            if ((dr_i <= 0) or (!std::isfinite(dr_i))){
-                (*p_log)(LOG_ERR,AT)<<" dr_i = "<<dr_i<<"\n";
-                exit(1);
-            }
-            double vol_i = (4./3.) * CGS::pi * (prev_r*prev_r*prev_r - curbw_r*curbw_r*curbw_r);
-            m_data[Q::idelta][ii-1] = dr_i;
-            m_data[Q::ivol][ii-1] = vol_i;
-            curbw->getPars()->delta = dr_i;
-            curbw->getPars()->vol = vol_i;
-        }
-        else{
+            /// copy from previos shell
             size_t ii = p_pars->n_active_shells-1;
-            auto & curbw = p_bws[p_pars->n_active_shells-1];
-            if (curbw->getPars()->delta<=0){
-                (*p_log)(LOG_ERR,AT)<<" previous dr <= 0 dr="<<curbw->getPars()->delta<<"\n";
-                exit(1);
-            }
-//            double r_i = Y[curbw->getPars()->ii_eq + SOL::QS::iR];
-//            double vol_i = (4./3.) * CGS::pi * (r_i*r_i*r_i);
-//            double koeff = vol_i / curbw->getPars()->vol;
-//            double koeff_dr = std::pow(koeff, 1./3.);
-//            if (koeff < 1.){
-//                (*p_log)(LOG_ERR,AT)<<" koeff < 1; koeff="<<koeff<<"\n";
+            size_t idx = m_idxs[ii];
+            p_bws[idx]->getPars()->delta = 1.01 * p_bws[idx-1]->getPars()->delta;
+            p_bws[idx]->getPars()->vol = 1.01 * p_bws[idx-1]->getPars()->vol;
+            m_data[Q::idelta][ii] = p_bws[idx]->getPars()->delta;//dr_i;
+            m_data[Q::ivol][ii] = p_bws[idx]->getPars()->vol;
+            double _r_i = Y[p_bws[idx]->getPars()->ii_eq + SOL::QS::iR];
+            double _vol_i = (4./3.) * CGS::pi * (_r_i*_r_i*_r_i);
+            p_bws[idx]->getPars()->_last_frac = _r_i / m_data[Q::idelta][ii];
+            p_bws[idx]->getPars()->_last_frac_vol = _vol_i / m_data[Q::ivol][ii];
+        }
+        else {
+            // use same fraction as at the last time there were many shells
+            size_t ii = p_pars->n_active_shells-1;
+            size_t idx = m_idxs[ii];
+//            auto & curbw = p_bws[p_pars->n_active_shells-1];
+//            if (curbw->getPars()->delta<=0){
+//                (*p_log)(LOG_ERR,AT)<<" previous dr <= 0 dr="<<curbw->getPars()->delta<<"\n";
 //                exit(1);
 //            }
-
-
+//            if (p_bws[idx]->getPars()->_last_frac <= 0. || p_bws[idx]->getPars()->_last_frac_vol <= 0.){
+//                (*p_log)(LOG_ERR,AT)<<" frac <= 0 frac="<<curbw->getPars()->_last_frac
+//                                               <<" frac_vol <= 0 frac="<<curbw->getPars()->_last_frac_vol<<"\n";
+//                exit(1);
+//            }
+//            double _r_i = Y[p_bws[idx]->getPars()->ii_eq + SOL::QS::iR];
+//            double _vol_i = (4./3.) * CGS::pi * (_r_i*_r_i*_r_i);
+//            p_bws[idx]->getPars()->delta = _r_i * p_bws[idx]->getPars()->_last_frac;
+//            p_bws[idx]->getPars()->vol = _vol_i * p_bws[idx]->getPars()->_last_frac_vol;
+            m_data[Q::idelta][ii] = p_bws[idx]->getPars()->delta;//dr_i;
+            m_data[Q::ivol][ii] = p_bws[idx]->getPars()->vol;
         }
+
+//
+//        if (p_pars->n_active_shells>1){
+//            double frac = 0.5;
+//            size_t ii = p_pars->n_active_shells-1;
+//            size_t idx = m_idxs[ii];
+//            size_t previdx = m_idxs[ii-1];
+//            auto & prevbw = p_bws[previdx];
+//            auto & curbw = p_bws[idx];
+//            if ((prevbw->getPars()->end_evolution) || (curbw->getPars()->end_evolution)){
+////                    evalShellThicknessIsolated(idx, Y);
+//                (*p_log)(LOG_ERR,AT) << "|error|\n";
+//                exit(1);
+//            }
+//            double prev_r = Y[prevbw->getPars()->ii_eq + SOL::QS::iR];
+//            double curbw_r = Y[curbw->getPars()->ii_eq + SOL::QS::iR];
+//            double dr_i = curbw_r - prev_r;
+//            if ((dr_i <= 0) or (!std::isfinite(dr_i))){
+//                (*p_log)(LOG_ERR,AT)<<" dr_i = "<<dr_i<<"\n";
+//                exit(1);
+//            }
+//            double vol_i = (4./3.) * CGS::pi * (curbw_r*curbw_r*curbw_r - prev_r*prev_r*prev_r);
+//            m_data[Q::idelta][ii] = dr_i;
+//            m_data[Q::ivol][ii] = vol_i;
+//            curbw->getPars()->delta = dr_i;
+//            curbw->getPars()->vol = vol_i;
+//        }
+//        else{
+//            size_t ii = p_pars->n_active_shells-1;
+//            auto & curbw = p_bws[p_pars->n_active_shells-1];
+//            if (curbw->getPars()->delta<=0){
+//                (*p_log)(LOG_ERR,AT)<<" previous dr <= 0 dr="<<curbw->getPars()->delta<<"\n";
+//                exit(1);
+//            }
+////            double r_i = Y[curbw->getPars()->ii_eq + SOL::QS::iR];
+////            double vol_i = (4./3.) * CGS::pi * (r_i*r_i*r_i);
+////            double koeff = vol_i / curbw->getPars()->vol;
+////            double koeff_dr = std::pow(koeff, 1./3.);
+////            if (koeff < 1.){
+////                (*p_log)(LOG_ERR,AT)<<" koeff < 1; koeff="<<koeff<<"\n";
+////                exit(1);
+////            }
+//
+//
+//        }
+        int x = 1;
     }
     /// Evaluate the radial extend of a velocity shell. Assume ordered shells. Assumes sorted shells. Assume update kappa
     void updateSortedShellProperties( const double * Y ){
@@ -513,6 +562,7 @@ public:
                 (*p_log)(LOG_ERR,AT)<<"Error.\n";
                 exit(1);
             }
+
             ///store also velocity
             double m_beta = EQS::BetFromMom( Y[bw->getPars()->ii_eq + SOL::QS::imom] );
             double eint2_i = Y[bw->getPars()->ii_eq + SOL::QS::iEint2];
@@ -590,7 +640,7 @@ public:
 
     }
     /// Evaluate shell total mass, volume, density
-    /// next three functions compute mass, volume and average density of the entire shell
+    /// next three functions evaluateShycnhrotronSpectrum mass, volume and average density of the entire shell
     double getShellMass(const double * Y_){
         double mtot = 0.;
         for (size_t ii=0; ii<p_pars->n_active_shells; ++ii){
@@ -1457,7 +1507,7 @@ public:
         (*p_log)(LOG_INFO,AT) << "Computing Ejecta analytic electron pars...\n";
 
         if ((!run_bws)&&(!load_dyn)){
-            std::cerr << " ejecta BWs were not evolved. Cannot compute electrons (analytic) exiting...\n";
+            std::cerr << " ejecta BWs were not evolved. Cannot evaluateShycnhrotronSpectrum electrons (analytic) exiting...\n";
             std::cerr << AT << "\n";
             exit(1);
         }
@@ -1501,12 +1551,12 @@ public:
         (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta sky image with analytic synchrotron...\n";
 
         if (!is_ejecta_anal_synch_computed){
-            std::cerr  << "ejecta analytic electrons were not evolved. Cannot compute images (analytic) exiting...\n";
+            std::cerr  << "ejecta analytic electrons were not evolved. Cannot evaluateShycnhrotronSpectrum images (analytic) exiting...\n";
             std::cerr << AT << " \n";
             exit(1);
         }
         if (!is_ejecta_obs_pars_set){
-            std::cerr<< "ejecta observer parameters are not set. Cannot compute image (analytic) exiting...\n";
+            std::cerr<< "ejecta observer parameters are not set. Cannot evaluateShycnhrotronSpectrum image (analytic) exiting...\n";
             std::cerr << AT << " \n";
             exit(1);
         }
@@ -1630,12 +1680,12 @@ public:
 //        size_t ncells =  (int)p_cumShells->ncells();
 
         if (!is_ejecta_anal_synch_computed){
-            std::cerr << " ejecta analytic electrons were not evolved. Cannot compute light curve (analytic) exiting...\n";
+            std::cerr << " ejecta analytic electrons were not evolved. Cannot evaluateShycnhrotronSpectrum light curve (analytic) exiting...\n";
             std::cerr << AT << " \n";
             exit(1);
         }
         if (!is_ejecta_obs_pars_set){
-            std::cerr << " ejecta observer parameters are not set. Cannot compute light curve (analytic) exiting...\n";
+            std::cerr << " ejecta observer parameters are not set. Cannot evaluateShycnhrotronSpectrum light curve (analytic) exiting...\n";
             std::cerr << AT << " \n";
             exit(1);
         }
@@ -3132,7 +3182,7 @@ public:
 
     }
     /// Evaluate shell total mass, volume, density
-    /// next three functions compute mass, volume and average density of the entire shell
+    /// next three functions evaluateShycnhrotronSpectrum mass, volume and average density of the entire shell
     double getShellMass(const double * Y_){
         double mtot = 0.;
         for (size_t ii=0; ii<n_active_shells; ++ii){

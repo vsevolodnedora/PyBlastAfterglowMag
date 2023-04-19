@@ -65,7 +65,7 @@ def reinterpolate_hist(thetas_pol_edges, mass_2d_hist, new_theta_len=None, dist=
     print("Rebinning historgram")
     if (new_theta_len is None):
         new_theta_len = len(thetas_pol_edges)
-    # if ()
+
     if dist == "pw":
         new_thetas_edges, new_theta_centers = _generate_grid_cthetas(new_theta_len - 1, theta0=np.pi / 2.)
     elif dist == "a":

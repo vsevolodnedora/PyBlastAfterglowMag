@@ -146,7 +146,7 @@ private:
             thetas_h0_pw[i] = theta_pw[i + 1];
         }
 
-        /// compute the number of phi cells in each 'theta' layer
+        /// evaluateShycnhrotronSpectrum the number of phi cells in each 'theta' layer
         std::vector<size_t> cil ( nlayers );
         for (size_t i = 0; i < nlayers; i++)
             cil[i] = CellsInLayer(i);
@@ -1432,7 +1432,7 @@ public:
 #endif
         }
         if (n_shells == 0){
-            std::cerr << "Zero velocity shells given. Nothing to compute. Exiting...\n Exiting...\n";
+            std::cerr << "Zero velocity shells given. Nothing to evaluateShycnhrotronSpectrum. Exiting...\n Exiting...\n";
             std::cerr << AT << "\n";
             exit(1);
         }

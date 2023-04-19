@@ -114,14 +114,14 @@ public:
             eos_i = 0.35 * ns_mass*ns_period*ns_radius; // SHOULD BE GIVEN! IF not: magnetar moment of inertia from Gompertz (2014) norm = 2./5
         }
 
-        /// compute omega0
+        /// evaluateShycnhrotronSpectrum omega0
         double Omega0; // Gompertz et al. 2014, MNRAS 438, 240-250 ; eq. (10)
         if (!std::isfinite(ns_period) or ns_period < 0.)
             Omega0 = std::sqrt( 2. * ns_crit_beta * e_bind / eos_i );
         else
             Omega0 = 2.*CGS::pi/ns_period;
         double P0 = 2*CGS::pi/Omega0;
-        /// compute Tem (dipole spin-down time) eq. (6) of Zhang & Meszaros (2001) [s]
+        /// evaluateShycnhrotronSpectrum Tem (dipole spin-down time) eq. (6) of Zhang & Meszaros (2001) [s]
         double time_spindown = (3.*CGS::c*CGS::c*CGS::c*eos_i) / (ns_b*ns_b*std::pow(ns_radius,6.)*Omega0*Omega0 );
         /// spin-down (plateu) luminocity; eq. (8) of Zhang & Meszaros (2001); [ergs/s]
         double L_em0 = (eos_i*Omega0*Omega0) / (2.*time_spindown);
@@ -129,7 +129,7 @@ public:
         double mu = ns_b * ns_radius*ns_radius*ns_radius;
         /// keplerian angular freq. [s^-1]
         double OmegaKep = std::sqrt(CGS::gravconst * ns_mass / (ns_radius*ns_radius*ns_radius));//**0.5
-        /// compute viscous timescale (two versions: Gompertz 2014 and Rrayand) [s]
+        /// evaluateShycnhrotronSpectrum viscous timescale (two versions: Gompertz 2014 and Rrayand) [s]
         double viscous_time = -1;
         if (useGompertz){
             viscous_time = disk_radius*disk_radius;
@@ -187,7 +187,7 @@ public:
         return mdot;
     }
     inline double radius_magnetospheric(double mdot, double r_lc){
-        /// compute magnetospheric radius
+        /// evaluateShycnhrotronSpectrum magnetospheric radius
         double r_mag = std::pow(p_pars->mu, 4./7.)
                        * std::pow(CGS::gravconst*p_pars->ns_mass, -1./7.)
                        * std::pow(mdot, -2./7.);
@@ -213,7 +213,7 @@ public:
     inline double torque_propeller(double omega, double fastness, double r_mag, double mdot){
         double e_rot = 0.5*p_pars->eos_i*omega*omega; // Rotational energy of the NS
         double beta = e_rot / std::abs(p_pars->e_bind); // beta = T/|W| parameter (Gompertz 2014)
-        /// compute accretion torque ( Accretion torque, taking into account the propeller model ) Eq (6-7) of Gompertz et al. 2014
+        /// evaluateShycnhrotronSpectrum accretion torque ( Accretion torque, taking into account the propeller model ) Eq (6-7) of Gompertz et al. 2014
         double n_acc = 0.;
         if ((omega > p_pars->omega_c) and (beta < p_pars->ns_crit_beta)){
             // if NS hasn't collapsed and bar-mode instability is still present
@@ -225,7 +225,7 @@ public:
         return n_acc ;
     }
     inline double torque_gws(double omega){
-        /// compute Gravitational wave spindown torque (Zhang and Meszaros 2001)
+        /// evaluateShycnhrotronSpectrum Gravitational wave spindown torque (Zhang and Meszaros 2001)
         double n_grav = -32./5. * CGS::gravconst
                         * std::pow(CGS::pi,6.)
                         * p_pars->eos_i*p_pars->eos_i
@@ -247,10 +247,10 @@ public:
         /// Compute light cylinder radius (for a given NS rotation)
         double r_lc = CGS::c/omega;
 
-        /// compute magnetospheric radius
+        /// evaluateShycnhrotronSpectrum magnetospheric radius
         double r_mag = radius_magnetospheric(mdot, r_lc);
 
-        /// compute corotation radius (for a given NS mass and spin)
+        /// evaluateShycnhrotronSpectrum corotation radius (for a given NS mass and spin)
         double r_corot =  std::pow(CGS::gravconst * p_pars->ns_mass / (omega*omega), 1./3.);
 
         double fastness = std::pow(r_mag / r_corot, 1.5);
@@ -262,10 +262,10 @@ public:
         /// Compute Dipole spindown torque. Eq (8) of Zhang and Meszaros 2001
         double n_dip = torque_dipol(omega, r_lc, r_mag);
 
-        /// compute accretion torque ( Accretion torque, taking into account the propeller model ) Eq (6-7) of Gompertz et al. 2014
+        /// evaluateShycnhrotronSpectrum accretion torque ( Accretion torque, taking into account the propeller model ) Eq (6-7) of Gompertz et al. 2014
         double n_acc = torque_propeller(omega, fastness, r_mag, mdot);
 
-        /// compute Gravitational wave spindown torque (Zhang and Meszaros 2001)
+        /// evaluateShycnhrotronSpectrum Gravitational wave spindown torque (Zhang and Meszaros 2001)
         double n_grav = torque_gws(omega);
 
         /// domega/dt
@@ -299,7 +299,7 @@ public:
         double r_mag = radius_magnetospheric(mdot, r_lc);
         double r_corot =  std::pow(CGS::gravconst * p_pars->ns_mass / (omega*omega), 1./3.);
         double fastness = std::pow(r_mag / r_corot, 1.5);
-        /// compute accretion torque ( Accretion torque, taking into account the propeller model ) Eq (6-7) of Gompertz et al. 2014
+        /// evaluateShycnhrotronSpectrum accretion torque ( Accretion torque, taking into account the propeller model ) Eq (6-7) of Gompertz et al. 2014
         double n_acc = torque_propeller(omega, fastness, r_mag, mdot);
         /// propeller luminocity (Gompertz et al. (2014))
         double lprop = - n_acc*omega - CGS::gravconst*p_pars->ns_mass*mdot/r_mag;
@@ -330,9 +330,9 @@ public:
         double fastness = std::pow(r_mag / r_corot, 1.5);
         /// Compute Dipole spindown torque. Eq (8) of Zhang and Meszaros 2001
         double n_dip = torque_dipol(omega, r_lc, r_mag);
-        /// compute accretion torque ( Accretion torque, taking into account the propeller model ) Eq (6-7) of Gompertz et al. 2014
+        /// evaluateShycnhrotronSpectrum accretion torque ( Accretion torque, taking into account the propeller model ) Eq (6-7) of Gompertz et al. 2014
         double n_acc = torque_propeller(omega, fastness, r_mag, mdot);
-        /// compute Gravitational wave spindown torque (Zhang and Meszaros 2001)
+        /// evaluateShycnhrotronSpectrum Gravitational wave spindown torque (Zhang and Meszaros 2001)
         double n_grav = torque_gws(omega);
         /// Dipole spindown luminosity
         double ldip = -n_dip*omega;
@@ -1059,7 +1059,8 @@ namespace PWNradiationMurase{
         }
     }
 
-    double f_gamma_esc(double e_gamma, double rho_ej, double delta_ej, double r_ej, double albd_fac, const int opacitymode) {
+    double f_gamma_esc(double e_gamma, double rho_ej, double delta_ej,
+                       double r_ej, double albd_fac, const int opacitymode) {
         double mu_e; /* electron mean molecular weight */
         //double Z_eff = 7.0; /* effective nuclear weight */
         /* this corresponds to C:O = 1:1 */
@@ -1307,7 +1308,7 @@ public:
             v_w = v_ej;
         }
 
-        // compute nebula energy \int(Lem * min(1, tau_T^ej * V_ej / c))dt Eq.[28] in Eq. 28 in Kashiyama+16
+        // evaluateShycnhrotronSpectrum nebula energy \int(Lem * min(1, tau_T^ej * V_ej / c))dt Eq.[28] in Eq. 28 in Kashiyama+16
         double dEnbdt = 0;
         if (tau_ej * (r_w / r_ej) > CGS::c / v_w){
             dEnbdt = (p_pars->eps_e * p_pars->curr_ldip

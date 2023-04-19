@@ -116,24 +116,6 @@ public:
 /// From https://github.com/bmargalit/thermal-synchrotron
 struct Margalit21 {
 
-//        static constexpr size_t n = 7;
-//        static inline Array temps(){
-//            return { 5e8, 1e9, 2e9, 4e9, 8e9, 1.6e10, 3.2e10 };
-//        }
-//        static inline Array alphas(){
-//            return { 0.0431, 1.121, 1.180, 1.045, 0.9774, 0.9768, 0.9788 };
-//        }
-//        static inline Array betas (){
-//            return {10.44, -10.65, -4.008, -0.1897, 1.160, 1.095, 1.021};
-//        }
-//        static inline Array gammas(){
-//            return {16.61, 9.169, 1.559, 0.0595, 0.2641, 0.8332, 1.031};
-//        }
-//        static inline Array Thetas(){
-//            return temps() * CGS::kB / (CGS::me * CGS::c * CGS::c);
-//        }
-
-
     /* Utility function defined in eq. (1), MQ21
     This is an approximate fitting function from Gammie & Popham (1998)
 
@@ -972,7 +954,7 @@ struct Dermer09{
             return brokenPowerLaw(gam, gmin, gb, gmax, p1, p2);
         };
 
-        // compute electron distribution normalisation
+        // evaluateShycnhrotronSpectrum electron distribution normalisation
         double k_e = nprim / Simpson38(gm, gM, 200, integrand_ele); // TODO replace with adative integrals
 
         // convolve the electron distribution with emission spectrum and itegrate
@@ -1089,9 +1071,6 @@ public:
 //    }
 };
 
-namespace Rad {
-    std::vector<std::string> m_names_{"em_pl", "em_th", "abs_pl", "abs_th", "em", "abs", "tau", "int"};
-}
 /// evaluate comoving emissivity and absorption for synchrotron mech.
 class SynchrotronAnalytic : public RadiationBase{
 /// methods
@@ -1099,7 +1078,7 @@ class SynchrotronAnalytic : public RadiationBase{
     enum METHODS_LFMIN { igmUprime, igmNakarPiran, igmJoh06, igmMAG21 };
     enum METHODS_SSA { iSSAoff, iSSAon };
     enum METHOD_NONRELDIST{ inone, iuseGm };
-    enum QQ { i_em_pl, i_em_th, i_abs_pl, i_abs_th, i_em, i_abs, i_tau, i_int };
+//    enum QQ { i_em_pl, i_em_th, i_abs_pl, i_abs_th, i_em, i_abs, i_tau, i_int };
     /// parameter container for the class
     struct Pars{
         // --- in
@@ -1115,30 +1094,25 @@ class SynchrotronAnalytic : public RadiationBase{
 //        METHODS_RAD method_comp_mode{};
 
         METHODS_SSA m_methods_ssa{};
-        QQ m_marg21opt_em = i_em_pl;
-        QQ m_marg21opt_abs = i_abs_pl;
+
         // --- out
         double B=-1, gamma_min=-1, gamma_max=-1, gamma_c=-1, n_prime=-1, accel_frac=-1.;
         double Theta=-1, z_cool=-1, x=-1;
-        static std::vector<std::string> listPars(){
-            return { "eps_e", "eps_b", "eps_t", "p", "ksi_n", "mu", "mu_e", "beta_min"};
-        }
-        static std::vector<std::string> listOpts(){
-            return { "method_synchrotron", "method_lf_min","method_nonreldist",
-                     "method_tau", "use_ssa", "emissivity", "absorption" };
-        }
 
 //        double freq1 = -1;
 //        double freq2 = -1;
 //        size_t nfreq = 0;
+        double em=0.,em_th=0.,em_pl=0.;
+        double abs=0.,abs_th=0.,abs_pl=0.;
     };
     std::unique_ptr<Pars> p_pars = nullptr;
     std::unique_ptr<logger> p_log = nullptr;
-    Vector m_data{};
+//    Vector m_data{};
     Vector m_gamma_arr{};
     Vector m_freq_arr_syn{};
     Vector m_tmp_arr1{};
     Vector m_tmp_arr2{};
+    /// -------------------------------------------------------
 public:
     ///
     SynchrotronAnalytic( int loglevel ){
@@ -1146,14 +1120,12 @@ public:
 //        p_pars = new Pars();
         p_pars = std::make_unique<Pars>();
         p_pars->lim_gm_to_1 = false;
-        m_data.resize( Rad::m_names_.size(), -1. );
+//        m_data.resize( Rad::m_names_.size(), -1. );
     }
     ~SynchrotronAnalytic(){ }
 //    Pars *& getPars(){ return p_pars; }
     std::unique_ptr<Pars> & getPars(){ return p_pars; }
     /// set model parameters
-    static auto listPars(){ return Pars::listPars(); }
-    static auto listOpts(){ return Pars::listOpts(); }
     void setPars(StrDbMap & pars, StrStrMap & opts){
         // set parameters
         p_pars->ksi_n = getDoublePar("ksi_n",pars,AT,p_log,1.,false);//pars.at("ksi_n");
@@ -1248,6 +1220,7 @@ public:
         if (tmp) p_pars->m_methods_ssa = SynchrotronAnalytic::METHODS_SSA::iSSAon;
         else p_pars->m_methods_ssa = SynchrotronAnalytic::METHODS_SSA::iSSAoff;
 
+#if 0
         opt = "emissivity";
         SynchrotronAnalytic::QQ val_em;
         if ( opts.find(opt) == opts.end() ) {
@@ -1296,7 +1269,7 @@ public:
         }
         p_pars->m_marg21opt_abs = val_abs;
         // ---
-
+#endif
         opt = "method_tau";
         METHOD_TAU methodTau;
         if ( opts.find(opt) == opts.end() ) {
@@ -1336,7 +1309,8 @@ public:
 
     }
     /// evaluate frequency independent quantities (critical LFs, Bfield, etc)
-    void precompute(const double epime, const double Gamma, const double Gamma_shock, const double t_e, const double n_prime) {
+    void evaluateElectronDistribution(const double epime, const double Gamma,
+                                      const double Gamma_shock, const double t_e, const double n_prime) {
         double beta = EQS::Beta(Gamma_shock);
         /// if velocity is too small shock may not be possible
         if (beta < p_pars->beta_min) {
@@ -1459,9 +1433,9 @@ public:
 
     }
     /// evaluate the comoving emissivity and absorption (frequency dependent)
-    void compute(const double ndens_e, const double n_e, const double acc_frac,
-                 const double B, double gm, const double gM, const double gc,
-                 const double Theta, const double z_cool, const double nuprime ){
+    void evaluateShycnhrotronSpectrum(double ndens_e, double n_e, double acc_frac,
+                                      double B, double gm, double gM, double gc,
+                                      double Theta, double z_cool, double nuprime ){
 
         // TODO WARNING I did replace n_prime with ne is absorption, but this might not be correct!!!
 
@@ -1472,7 +1446,7 @@ public:
 //        double n_prime = nprime * p_pars->ksi_n;
         double ne = ndens_e * p_pars->ksi_n;
 
-        /// compute synchrotron emissivity 'j' corrected for SSA, i.e., j * (1-e^-tau)/tau
+        /// evaluateShycnhrotronSpectrum synchrotron emissivity 'j' corrected for SSA, i.e., j * (1-e^-tau)/tau
         double x, em_th=0., em_pl=0., abs_th=0., abs_pl=0.; // for Margalit model
         if (p_pars->m_sychMethod == METHODS::iJOH06){
 
@@ -1614,7 +1588,7 @@ public:
                 double gb = gm < gc ? gc : gm;
                 return Dermer09::brokenPowerLaw(gam, gmin, gb, gmax, p1, p2);
             };
-            // compute electron distribution normalisation
+            // evaluateShycnhrotronSpectrum electron distribution normalisation
             double k_e = ne / Simpson38(gm, gM, 200, integrand_ele); // TODO replace with adative integrals
             // convolve the electron distribution with emission spectrum and itegrate
             auto integrand = [&](double gam){
@@ -1640,7 +1614,7 @@ public:
                     double gb = gm < gc ? gc : gm;
                     return Dermer09::brokenPowerLawSSA(gam, gmin, gb, gmax, p1, p2);
                 };
-                // compute electron distribution normalisation
+                // evaluateShycnhrotronSpectrum electron distribution normalisation
                 double k_e_ssa = ne / Simpson38(gm, gM, 200, integrand_ele_ssa); // TODO replace with adative integrals
                 // convolve the electron distribution with emission spectrum and itegrate
                 auto integrand_ssa = [&](double gam) {
@@ -1715,14 +1689,14 @@ public:
             exit(1);
         }
 
-        m_data[i_em_pl] = em_pl; // 1e-26
-        m_data[i_em_th] = em_th;
-        m_data[i_em] = em_pl + em_th;
+        p_pars->em_pl=em_pl;//m_data[i_em_pl] = em_pl; // 1e-26
+        p_pars->em_th=em_th;//m_data[i_em_th] = em_th;
+        p_pars->em=em_pl+em_th;//m_data[i_em] = em_pl + em_th;
 
         if (p_pars->m_methods_ssa!=iSSAoff) {
-            m_data[i_abs_th] = abs_th;
-            m_data[i_abs_pl] = abs_pl; // 1e-17
-            m_data[i_abs] = abs_th + abs_pl;
+            p_pars->abs_pl=abs_pl;//m_data[i_abs_th] = abs_th;
+            p_pars->abs_th=abs_th;//m_data[i_abs_pl] = abs_pl; // 1e-17
+            p_pars->abs=abs_pl+abs_th;//m_data[i_abs] = abs_th + abs_pl;
         }
 
         if (( em_pl < 0.) || (!std::isfinite( abs_pl )) ){
@@ -1740,64 +1714,8 @@ public:
                       << " z_cool = " << z_cool << "\n"
                       << " nuprime = " << nuprime << "\n";
             exit(1);
-
-            m_data[i_em_pl] = 0.;
-            m_data[i_em_th] = 0.;
-            m_data[i_em] = 0.;
-
-            if (p_pars->m_methods_ssa!=iSSAoff) {
-                m_data[i_abs_th] = -1;
-                m_data[i_abs_pl] = -1.;
-                m_data[i_abs] = -1.;
-            }
         }
-
-
-
-
     }
-    inline double get_em(){
-        QQ opt = p_pars->m_marg21opt_em;
-        double res = 0.;
-        if (opt == QQ::i_em){
-            return m_data[QQ::i_em];
-        }
-        if (opt == QQ::i_em_pl){
-            return m_data[QQ::i_em_pl];
-        }
-        if (opt == QQ::i_em_th){
-            return m_data[QQ::i_em_th];
-        }
-        (*p_log)(LOG_ERR,AT) << "should not be entered.\n";
-        exit(1);
-    }
-    inline double get_abs(){
-        QQ opt = p_pars->m_marg21opt_abs;
-        double res = 0.;
-        if (opt == QQ::i_abs){
-            return m_data[QQ::i_abs];
-        }
-        if (opt == QQ::i_abs_pl){
-            return m_data[QQ::i_abs_pl];
-        }
-        if (opt == QQ::i_abs_th){
-            return m_data[QQ::i_abs_th];
-        }
-        (*p_log)(LOG_ERR,AT) << "should not be entered.\n";
-        exit(1);
-    }
-    void addOptDepth(double abs, double dr, double beta_sh, double mu){
-        m_data[QQ::i_tau] = RadiationBase::optical_depth(abs,dr,mu,beta_sh);
-    }
-    void addIntensity(double dr, double beta_sh, double mu){
-//        std::cout << m_data[i_abs] << "\n";
-        m_data[QQ::i_tau] = RadiationBase::optical_depth(m_data[i_abs], dr, mu, beta_sh);
-        m_data[QQ::i_int] = RadiationBase::computeIntensity(m_data[i_em], m_data[QQ::i_tau], p_pars->method_tau);
-    }
-    inline Vector & getData(){return m_data;}
-    inline double getIntensity(){ return m_data[QQ::i_int]; }
-//    inline Array & getSpectrum(){ return m_spectrum; }
-//    inline Array & getFreqArr(){ return m_freq_grid; }
 
 };
 

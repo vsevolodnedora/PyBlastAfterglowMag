@@ -592,7 +592,8 @@ private:
                     ej_bws[il]->getBW(ish)->addOtherVars(it);
                 }
                 /// save shell order; thickness; optical depth etc...
-                ej_bws[il]->insertStatusInBWdata( it );
+                if (p_pars->p_ej->do_collision)
+                    ej_bws[il]->insertStatusInBWdata( it );
             }
         }
         if (p_pars->p_ej_pwn->run_pwn) {
@@ -638,6 +639,7 @@ private:
                             cumShell->getTempVec()[cumShell->getIdx()[ish]],
                             cumShell->getBW(ish)->getPars()->Ye0
                     );
+                    ej_bw->getPars()->facPSRdep = fac_psr_dep_tmp;
                     ej_bw->getPars()->dEinjdt = fac_psr_dep_tmp * total_sd;
                     total_sd = total_sd - fac_psr_dep_tmp * total_sd;
                 }

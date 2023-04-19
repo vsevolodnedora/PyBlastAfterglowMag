@@ -166,7 +166,7 @@ def prepare_kn_ej_id_2d(nlayers, corr_fpath, outfpath,
                         dist="pw"):
     thetas, cthetas, betas, masses = load_corr_file2(corr_fpath=corr_fpath,
                                             reinterpolate_theta=True,
-                                            new_theta_len=nlayers if nlayers > 0 else None,
+                                            new_theta_len=nlayers if ((not nlayers is None) and (nlayers > 0)) else None,
                                             dist=dist)
 
     # theta_corr, vinf_corr, mass_corr = clean_data_corr(thetas, betas, masses, remove_pi_over_2=True)

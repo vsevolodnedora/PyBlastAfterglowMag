@@ -23,9 +23,9 @@ A0 = -1
 s = -1
 r_ej = -1
 r_ism = -1
-n_ism = 0.005
-d_l = 1.2836512e+26
-z = 0.0099
+n_ism = 0.1
+d_l = 3.0857e+26
+z = 0.001
 theta_obs = 0
 
 * Settings
@@ -46,9 +46,9 @@ integrator = DOP853E
 * Parameters
 
 eps_e = 0.1
-eps_b = 0.01
+eps_b = 0.1
 eps_t = 0.0
-p = 2.16
+p = 2.5
 
 nlayers = 30
 mfac = 2.0
@@ -79,7 +79,7 @@ method_collision = none # none
 method_eats = piece-wise # piece-wise
 
 fname_dyn = dyn_kn_gauss.h5
-fname_light_curve = abs.h5
+fname_light_curve = lc_DD2_M135135_M0.h5
 fname_light_curve_layers = none
 fname_sky_map = skymap_kn.h5
 
@@ -101,10 +101,10 @@ method_dmdr = usingdthdr
 method_dgdr = our # !
 method_shock_vel = shockVel # !
 method_nonreldist = useGm # !
-method_synchrotron = Marg21 # !
+method_synchrotron = Joh06 # !
 method_tau = smooth
 use_ssa = yes
-method_lf_min = useTheta # !
+method_lf_min = useU_e # !
 method_ne = usenprime # ! useNe is better here! (that is what was used before)
 use_dens_prof_behind_jet_for_ejecta = no
 use_exp_rho_decay_as_floor = yes
