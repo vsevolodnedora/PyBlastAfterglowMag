@@ -1392,6 +1392,17 @@ public:
     void applyUnits( double * sol, size_t i ){
 
     }
+
+public:
+    void evalElectronDistribution(){
+        (*p_log)(LOG_ERR,AT)<<" not implemented\n";
+        exit(1);
+    }
+    void computeSynchrotronSpectrum(){
+        (*p_log)(LOG_ERR,AT)<<" not implemented\n";
+        exit(1);
+    }
+
 private:
 
     double facPSRdep(const double rho_ej, const double delta_ej,
@@ -1494,7 +1505,7 @@ public:
     }
     StrDbMap pwn_pars{}; StrStrMap pwn_opts{};
     std::string workingdir{};
-    bool run_pwn = false, save_pwn = false;
+    bool run_pwn = false, save_pwn = false, do_ele=false, do_lc=false, do_skymap=false, do_spec=false;
     std::vector<std::unique_ptr<PWNmodel>> & getPWNs(){return p_pwns;}
     std::unique_ptr<PWNmodel> & getPWN(size_t i){return p_pwns[i];}
     size_t m_nlayers = 0;
@@ -1530,6 +1541,8 @@ public:
             p_pwns[il]->setPars(pars, opts, ii_eq);
             ii_eq += p_pwns[il]->getNeq();
         }
+        // --------------------------------------------
+
     }
     void setInitConditions(double * m_InitData){
         for (size_t il=0; il<m_nlayers; il++) {
@@ -1592,6 +1605,47 @@ public:
 
     }
 
+    void evalPWNObservables(StrDbMap & main_pars){
+        do_ele = getBoolOpt("do_ele", pwn_opts, AT, p_log, false, true);
+        do_lc = getBoolOpt("do_lc", pwn_opts, AT, p_log, false, true);
+        do_skymap = getBoolOpt("do_skymap", pwn_opts, AT, p_log, false, true);
+        for (auto &key: {"n_ism", "d_l", "z", "theta_obs", "A0", "s", "r_ej", "r_ism"}) {
+            if (main_pars.find(key) == main_pars.end()) {
+                (*p_log)(LOG_ERR, AT) << " keyword '" << key << "' is not found in main parameters. \n";
+                exit(1);
+            }
+            pwn_pars[key] = main_pars.at(key);
+
+        }
+        /// ----------------------------------------------
+        if (do_ele) {
+            setPreComputeEjectaAnalyticElectronsPars(workingdir,
+                getStrOpt("fname_e_spec", pwn_opts, AT, p_log, "", true));
+        }
+        if (do_spec){
+            setPreComputeEjectaAnalyticSynchrotronPars(workingdir,
+                getStrOpt("fname_sync_spec", pwn_opts, AT, p_log, "", true));
+        }
+
+    }
+
+private:
+    void setPreComputeEjectaAnalyticElectronsPars(std::string workingdir,std::string fname){
+        (*p_log)(LOG_INFO,AT) << "Computing PWN electron dists...\n";
+        auto & models = getPWNs();
+        for (auto & model : models) {
+            model->evalElectronDistribution();
+            model->computeSynchrotronSpectrum();
+        }
+    };
+    void setPreComputeEjectaAnalyticSynchrotronPars(std::string workingdir,std::string fname){
+        (*p_log)(LOG_INFO,AT) << "Computing PWN electron dists...\n";
+        auto & models = getPWNs();
+        for (auto & model : models) {
+            model->evalElectronDistribution();
+            model->computeSynchrotronSpectrum();
+        }
+    };
 };
 
 #endif //SRC_MODEL_MAGNETAR_H
