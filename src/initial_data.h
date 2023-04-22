@@ -163,7 +163,7 @@ private:
         LoadH5 ldata;
         ldata.setFileName(path_to_table);
 
-//        size_t nshells=0, nlayers=0;
+//        size_t nshells=0, m_nlayers=0;
         if (use_1d_id){
             /// expect 1 shell with varying properties
             nshells = 1;
@@ -177,7 +177,7 @@ private:
             nlayers = m_data[0][0].size();
         }
         else{
-            /// expect N shells with varying properties [nshells; nlayers]
+            /// expect N shells with varying properties [nshells; m_nlayers]
             ldata.setVarName("mass");
             VecVector tmp = ldata.getData2Ddouble();
             nshells = tmp.size();
@@ -191,7 +191,7 @@ private:
             }
         }
         /// ---------------------------
-        (*p_log)(LOG_INFO,AT) << "Initial data loaded with nshells="<<nshells<<" nlayers="<<nlayers<<"\n";
+        (*p_log)(LOG_INFO,AT) << "Initial data loaded with nshells="<<nshells<<" m_nlayers="<<nlayers<<"\n";
         /// ---------------------------
         for (size_t ish = 0; ish < nshells; ish++){
             theta_wing = m_data[Q::itheta][ish][nlayers-1];
@@ -200,7 +200,7 @@ private:
             _init_pw_grid(ish, nlayers, theta_wing);
         }
         /// ---------------------------
-        (*p_log)(LOG_INFO,AT) << "Angular grids are initialized. nshells="<<nshells<<" nlayers="<<nlayers<<"\n";
+        (*p_log)(LOG_INFO,AT) << "Angular grids are initialized. nshells="<<nshells<<" m_nlayers="<<nlayers<<"\n";
         /// ---------------------------
         switch (method_eats) {
             case iadaptive:
@@ -568,7 +568,7 @@ public:
 //        std::cout<<m_theta_w<<"\n";
 //        exit(1);
 
-        nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
+        m_nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
 
     }
 
@@ -627,7 +627,7 @@ public:
             dist_M0_a[i] *= ( frac_of_solid_ang / 2. );
         }
 
-        nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
+        m_nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
 //        int a = 1;
 
         std::cout << dist_E0_pw << "\n";
@@ -668,7 +668,7 @@ public:
 //            exit(1);
 //        }
         m_method_eats = setEatsMethod(method_eats);
-        nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
+        m_nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
 
 //        n_layers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
 
@@ -704,7 +704,7 @@ public:
                          getDoublePar("M0c", pars, AT, p_log, -1, false),//(double)pars.at("M0"),
                          0.,
                          0.,
-                         nlayers,
+                         m_nlayers,
                          method_eats//pars.at("nlayers_pw")
             );
         }
@@ -759,7 +759,7 @@ public:
             exit(1);
         }
 
-//        nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
+//        m_nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
         (*p_log)(LOG_INFO,AT) << " setting " << opts.at("type") << " lateral structure\n";
     }
 
@@ -770,7 +770,7 @@ public:
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "LatStruct");
 
         m_method_eats = setEatsMethod(eats_method);
-//        nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
+//        m_nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
 
         if (dist_cthetas.empty() || dist_EEs.empty() || dist_Mom0s.empty()
             || dist_MM0s.empty() || dist_Ye.empty() || dist_s.empty()){
@@ -833,20 +833,20 @@ public:
 
             // set piece-wise
             nlayers_pw = dist_cthetas.size();
-            nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
-            dist_E0_pw.resize(nlayers);
-            dist_Ye_pw.resize(nlayers);
-            dist_s_pw.resize(nlayers);
-            dist_Mom0_pw.resize(nlayers);
-            dist_M0_pw.resize(nlayers);
+            m_nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
+            dist_E0_pw.resize(m_nlayers);
+            dist_Ye_pw.resize(m_nlayers);
+            dist_s_pw.resize(m_nlayers);
+            dist_Mom0_pw.resize(m_nlayers);
+            dist_M0_pw.resize(m_nlayers);
             setThetaGridPW();
             if ((!force_grid) &&
-                (cthetas0[0] != dist_cthetas[0] || cthetas0[nlayers - 1] != dist_cthetas[nlayers - 1])) {
-                dist_E0_pw.resize(nlayers);
-                dist_Ye_pw.resize(nlayers);
-                dist_s_pw.resize(nlayers);
-                dist_Mom0_pw.resize(nlayers);
-                dist_M0_pw.resize(nlayers);
+                (cthetas0[0] != dist_cthetas[0] || cthetas0[m_nlayers - 1] != dist_cthetas[m_nlayers - 1])) {
+                dist_E0_pw.resize(m_nlayers);
+                dist_Ye_pw.resize(m_nlayers);
+                dist_s_pw.resize(m_nlayers);
+                dist_Mom0_pw.resize(m_nlayers);
+                dist_M0_pw.resize(m_nlayers);
 
                 std::cerr << "force_grid=" << force_grid << "\n";
                 std::cerr << "dist_thetas.size()=" << dist_cthetas.size() << " cthetas0.size()=" << cthetas0.size()
@@ -855,9 +855,9 @@ public:
                 std::cerr << "cthetas0    = " << cthetas0 << "\n";
                 (*p_log)(LOG_ERR, AT) << "angular grid mismatch: "
                                       << "cthetas0[0]=" << cthetas0[0] << " != dist_thetas[0]=" << dist_cthetas[0]
-                                      << " OR cthetas[nlayers-1]=" << cthetas0[nlayers - 1]
-                                      << " != dist_thetas[nlayers_pw-1]=" << dist_cthetas[nlayers - 1]
-                                      << " [nlayers=" << nlayers << ", " << eats_method << "]\n";
+                                      << " OR cthetas[m_nlayers-1]=" << cthetas0[m_nlayers - 1]
+                                      << " != dist_thetas[nlayers_pw-1]=" << dist_cthetas[m_nlayers - 1]
+                                      << " [m_nlayers=" << m_nlayers << ", " << eats_method << "]\n";
 //            std::cerr << "Angular grid mismatch. Interpolating. No. Exititng...";
 //            std::cerr << AT << "\n";
                 exit(1);
@@ -890,7 +890,7 @@ public:
                 dist_s_pw = dist_s;
             }
 
-            for (size_t i = 0; i < nlayers; ++i) {
+            for (size_t i = 0; i < m_nlayers; ++i) {
                 dist_E0_pw[i] /= (double) CellsInLayer(i); // TODO remove it and make ID that includes it
                 dist_M0_pw[i] /= (double) CellsInLayer(i);
             }
@@ -921,7 +921,7 @@ public:
 
             setThetaGridA();
             if ((!force_grid) &&
-                (thetas_c[0] != dist_cthetas[0] || thetas_c[nlayers - 1] != dist_cthetas[nlayers - 1])) {
+                (thetas_c[0] != dist_cthetas[0] || thetas_c[m_nlayers - 1] != dist_cthetas[m_nlayers - 1])) {
                 std::cerr << "force_grid=" << force_grid << "\n";
                 std::cerr << "thetas_c.size()=" << dist_cthetas.size() << " thetas_c.size()=" << cthetas0.size()
                           << "\n";
@@ -929,9 +929,9 @@ public:
                 std::cerr << "thetas_c    = " << thetas_c << "\n";
                 (*p_log)(LOG_ERR, AT) << "angular grid mismatch: "
                                       << "thetas_c[0]=" << thetas_c[0] << " != dist_thetas[0]=" << dist_cthetas[0]
-                                      << " OR thetas_c[nlayers-1]=" << thetas_c[nlayers - 1]
-                                      << " != dist_thetas[nlayers_a-1]=" << dist_cthetas[nlayers - 1]
-                                      << " [nlayers=" << nlayers << ", " << eats_method << "]\n";
+                                      << " OR thetas_c[m_nlayers-1]=" << thetas_c[m_nlayers - 1]
+                                      << " != dist_thetas[nlayers_a-1]=" << dist_cthetas[m_nlayers - 1]
+                                      << " [m_nlayers=" << m_nlayers << ", " << eats_method << "]\n";
 //            std::cerr << "Angular grid mismatch. Interpolating. No. Exititng...";
 //            std::cerr << AT << "\n";
                 exit(1);
@@ -950,7 +950,7 @@ public:
             }
         }
 
-        nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
+        m_nlayers = (m_method_eats == i_pw) ? nlayers_pw : nlayers_a;
 
     }
 
@@ -973,23 +973,23 @@ public:
         return 2 * i_layer + 1;
     }
 
-    static Vector getCthetaArr(size_t nlayers, double theta_max){
-        Array thetas ( nlayers + 1 );
-        Vector cthetas0( nlayers );
-        for (size_t i = 0; i < nlayers + 1; i++){
-            double fac = (double)i / (double)nlayers;
+    static Vector getCthetaArr(size_t m_nlayers, double theta_max){
+        Array thetas ( m_nlayers + 1 );
+        Vector cthetas0( m_nlayers );
+        for (size_t i = 0; i < m_nlayers + 1; i++){
+            double fac = (double)i / (double)m_nlayers;
             thetas[i] = 2.0 * asin( fac * sin(theta_max / 2.0 ) );
         }
-        for (size_t i = 0; i < nlayers; ++i){
+        for (size_t i = 0; i < m_nlayers; ++i){
             cthetas0[i] = 0.5 * ( thetas[i+1] + thetas[i] );
         }
         return std::move(cthetas0);
     }
-    static Vector getThetaArr(size_t nlayers, double theta_max){
-        Vector thetas ( nlayers + 1 );
-        Vector cthetas0( nlayers );
-        for (size_t i = 0; i < nlayers + 1; i++){
-            double fac = (double)i / (double)nlayers;
+    static Vector getThetaArr(size_t m_nlayers, double theta_max){
+        Vector thetas ( m_nlayers + 1 );
+        Vector cthetas0( m_nlayers );
+        for (size_t i = 0; i < m_nlayers + 1; i++){
+            double fac = (double)i / (double)m_nlayers;
             thetas[i] = 2.0 * asin( fac * sin(theta_max / 2.0 ) );
         }
         return std::move(thetas);
@@ -1047,7 +1047,7 @@ public:
 
     METHODS method{};
     METHOD_eats m_method_eats{};
-    size_t nlayers{};
+    size_t m_nlayers{};
 
     size_t nlayers_a{};
     Vector dist_E0_a{};
@@ -1084,7 +1084,7 @@ private:
 public:
     enum METHODS { iPoly22Ej, iUniform, iCustom };
 
-    void initUniform(EjectaID & id, size_t nlayers, double mfac, std::string eats_method, unsigned loglevel){
+    void initUniform(EjectaID & id, size_t m_nlayers, double mfac, std::string eats_method, unsigned loglevel){
 
         Vector & dist_thetas0 = id.getTheta0();
         Vector & dist_cthetas0 = id.getCtheta0();
@@ -1151,7 +1151,7 @@ public:
                                       dist_mass[imom] * mfac,
                                       dist_ye[imom],
                                       dist_s[imom],
-                                      nlayers,
+                                      m_nlayers,
                                       eats_method);
         }
     }

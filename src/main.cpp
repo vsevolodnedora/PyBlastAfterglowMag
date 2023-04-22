@@ -176,6 +176,8 @@ public:
                 ixx++;
             }
         }
+        p_model->checkEvolution();
+
         (*p_log)(LOG_INFO, AT) << "evolution is completed\n";
     }
 
@@ -306,7 +308,7 @@ int main(int argc, char** argv) {
 
     pba.getEj()->computeAndOutputObservables(main_pars, main_opts);
 
-    pba.getEjPWN()->evalPWNObservables(main_pars);
+    pba.getEjPWN()->evalPWNObservables(main_pars, main_opts);
 
 }
 

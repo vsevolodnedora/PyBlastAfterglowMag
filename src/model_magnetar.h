@@ -759,7 +759,6 @@ public:
 
 };
 
-
 namespace PWNradiationMurase{
     /// maximum energy of electrons; Eq. (21) of Murase+15, but neglecting Y
     /// THe pair-limited lorentz -factor
@@ -1122,6 +1121,20 @@ namespace PWNradiationMurase{
 
 };
 
+namespace PWN{
+    /// All variables
+    enum Q {
+        // -- dynamics ---
+        itb, iRw, iEnb, iEpwn,
+
+    };
+    std::vector<std::string> m_vnames{
+            "tburst", "Rwing", "Enebula", "Epwn"
+    };
+}
+
+
+
 /// PWN model from Murase+2015
 class PWNmodel{
     struct Pars{
@@ -1173,15 +1186,7 @@ public:
         i_Epwn
     };
 
-    /// All variables
-    enum Q {
-        // -- dynamics ---
-        itb, iRw, iEnb, iEpwn,
 
-    };
-    std::vector<std::string> m_vnames{
-            "tburst", "Rwing", "Enebula", "Epwn"
-    };
 //    static constexpr size_t NVALS = 1; // number of variables to save
     inline Vector & operator[](unsigned ll){ return m_data[ll]; }
     inline double & operator()(size_t ivn, size_t ir){ return m_data[ivn][ir]; }
@@ -1191,7 +1196,7 @@ public:
         p_pars = std::make_unique<Pars>();
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "PWN");
         // ------------
-        m_data.resize(m_vnames.size());
+        m_data.resize(PWN::m_vnames.size());
         for (auto & arr : m_data)
             arr.resize(tarr.size(), 0.0);
     }
@@ -1206,6 +1211,8 @@ public:
 //        Array tmp2 (tmp.data(), tmp.size());
         return std::move(tmp);
     }
+    VecVector & getData(){ return m_data; }
+    Vector & getData(PWN::Q q){ return m_data[q]; }
 
     void updateOuterBoundary(Vector & r, Vector & beta, Vector & rho, Vector & tau, Vector & temp){
         if ((r[0] < 0) || (beta[0] < 0) || (rho[0] < 0) || (tau[0] < 0) || (temp[0] < 0)){
@@ -1277,10 +1284,10 @@ public:
     }
 
     void insertSolution( const double * sol, size_t it, size_t i ){
-        m_data[Q::itb][it] = m_tb_arr[it];
-        m_data[Q::iRw][it] = sol[i+Q_SOL::i_Rw];
-        m_data[Q::iEnb][it] = sol[i+Q_SOL::i_Enb];
-        m_data[Q::iEpwn][it] = sol[i+Q_SOL::i_Epwn];
+        m_data[PWN::Q::itb][it] = m_tb_arr[it];
+        m_data[PWN::Q::iRw][it] = sol[i+Q_SOL::i_Rw];
+        m_data[PWN::Q::iEnb][it] = sol[i+Q_SOL::i_Enb];
+        m_data[PWN::Q::iEpwn][it] = sol[i+Q_SOL::i_Epwn];
     }
 
     void evaluateRhs( double * out_Y, size_t i, double x, double const * Y ){
@@ -1330,8 +1337,8 @@ public:
     }
 
     void addOtherVariables( size_t it ){
-        double r_w = m_data[Q::iRw][it];
-        double u_b_pwn = 3.0*m_data[Q::iEpwn][it]/4.0/M_PI/r_w/r_w/r_w; // Eq.17 in Murase+15; Eq.34 in Kashiyama+16
+        double r_w = m_data[PWN::Q::iRw][it];
+        double u_b_pwn = 3.0*m_data[PWN::Q::iEpwn][it]/4.0/M_PI/r_w/r_w/r_w; // Eq.17 in Murase+15; Eq.34 in Kashiyama+16
         double b_pwn = pow(u_b_pwn*8.0*M_PI,0.5); //be careful: epsilon_B=epsilon_B^pre/8/PI for epsilon_B^pre used in Murase et al. 2018
     }
 
@@ -1497,6 +1504,10 @@ class PWNset{
     std::vector<std::unique_ptr<PWNmodel>> p_pwns{};
     std::unique_ptr<logger> p_log;
     int loglevel;
+    size_t m_nlayers = 0;
+    size_t m_nshells = 1;
+    bool is_obs_pars_set = false;
+    bool is_synch_computed = false;
 public:
     PWNset(int loglevel) : loglevel(loglevel){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "PWNset");
@@ -1505,10 +1516,9 @@ public:
     }
     StrDbMap pwn_pars{}; StrStrMap pwn_opts{};
     std::string workingdir{};
-    bool run_pwn = false, save_pwn = false, do_ele=false, do_lc=false, do_skymap=false, do_spec=false;
+    bool run_pwn = false, save_pwn = false, load_pwn = false, do_ele=false, do_lc=false, do_skymap=false, do_spec=false;
     std::vector<std::unique_ptr<PWNmodel>> & getPWNs(){return p_pwns;}
     std::unique_ptr<PWNmodel> & getPWN(size_t i){return p_pwns[i];}
-    size_t m_nlayers = 0;
     size_t getNeq(){
         if (!run_pwn){
             return 0;
@@ -1520,6 +1530,12 @@ public:
         size_t neq = m_nlayers * p_pwns[0]->getNeq();
         return neq;
     };
+    size_t nlayers() const {return run_pwn ? m_nlayers : 0;}
+    size_t nshells() const {return run_pwn ? m_nshells : 0;}
+    int ncells() const {
+//        return run_bws ? (int)ejectaStructs.structs[0].ncells : 0;
+        return (run_pwn || load_pwn) ? (int)id->ncells : 0;
+    }
     void setPars(StrDbMap & pars, StrStrMap & opts, std::string & working_dir, std::string parfilename,
                  Vector & tarr, size_t ii_eq, size_t n_layers){
         /// read pwn parameters of the pwn
@@ -1529,6 +1545,7 @@ public:
         if ((!pwn_pars.empty()) || (!pwn_pars.empty())) {
             run_pwn = getBoolOpt("run_pwn", pwn_opts, AT, p_log, false, true);
             save_pwn = getBoolOpt("save_pwn", pwn_opts, AT, p_log, false, true);
+            load_pwn = getBoolOpt("load_pwn", pwn_opts, AT, p_log, false, true);
         }
         else {
             (*p_log)(LOG_INFO, AT) << "PWN is not initialized and will not be considered.\n";
@@ -1543,15 +1560,18 @@ public:
         }
         // --------------------------------------------
 
+
     }
     void setInitConditions(double * m_InitData){
-        for (size_t il=0; il<m_nlayers; il++) {
+//        if (!run_pwn)
+//            return;
+        for (size_t il=0; il < m_nlayers; il++) {
             auto &ej_pwn = getPWNs()[il];
             ej_pwn->setInitConditions(m_InitData, ej_pwn->getPars()->iieq);
         }
     }
 
-    void savePWNEvolution(StrDbMap & main_pars){
+    void savePWNEvolution_old(StrDbMap & main_pars){
         if (!run_pwn)
             return;
 
@@ -1573,14 +1593,14 @@ public:
                         std::vector<double>>> tot_mag_out (pwn.size() );
         std::vector<std::string> tot_names {};
         std::vector<std::unordered_map<std::string,double>> group_attrs{};
-        auto & dyn_v_ns = pwn[0]->m_vnames;
+        auto & dyn_v_ns = PWN::m_vnames;
         auto t_arr = pwn[0]->getTbGrid(every_it);
         for (size_t i = 0; i < pwn.size(); i++) {
             tot_names.push_back("layer="+std::to_string(i));
             tot_mag_out[i].resize(dyn_v_ns.size() );
             for (size_t ivar = 0; ivar < dyn_v_ns.size(); ivar++){
                 for (size_t it = 0; it < pwn[i]->getTbGrid().size(); it = it + every_it)
-                    tot_mag_out[i][ivar].emplace_back((*pwn[i])[ static_cast<PWNmodel::Q>(ivar) ][it] );
+                    tot_mag_out[i][ivar].emplace_back((*pwn[i])[ static_cast<PWN::Q>(ivar) ][it] );
             }
             ///write attributes
             auto & model = pwn[i];
@@ -1594,7 +1614,7 @@ public:
 //    std::vector<std::string> other_names { "cthetas0" };
 
         std::unordered_map<std::string, double> attrs{
-                {"nlayers", pwn.size()}
+                {"m_nlayers", pwn.size()}
         };
         for (auto& [key, value]: main_pars) { attrs[key] = value; }
         for (auto& [key, value]: pwn_pars) { attrs[key] = value; }
@@ -1604,11 +1624,185 @@ public:
                                             workingdir+fname, attrs, group_attrs);
 
     }
+    void savePWNEvolution(std::string workingdir, std::string fname, size_t every_it,
+                          StrDbMap & main_pars, StrDbMap & ej_pars){
+        (*p_log)(LOG_INFO,AT) << "Saving Ejecta BW dynamics...\n";
 
-    void evalPWNObservables(StrDbMap & main_pars){
+        if (every_it < 1){
+            std::cerr << " every_it must be > 1; Given every_it="<<every_it<<" \n Exiting...\n";
+            std::cerr << AT << "\n";
+            exit(1);
+        }
+        auto & models = getPWNs();
+        auto & t_arr = models[0]->getTbGrid();
+        std::vector<std::vector<double>> tot_dyn_out ( nshells() * nlayers() * PWN::m_vnames.size() );
+        for (auto & arr : tot_dyn_out)
+            arr.resize(t_arr.size());
+        std::vector<std::string> arr_names{};
+        size_t ii = 0;
+        for (size_t ishell = 0; ishell < nshells(); ishell++){
+            for(size_t ilayer = 0; ilayer < nlayers(); ilayer++){
+                for (size_t ivar = 0; ivar < PWN::m_vnames.size(); ivar++) {
+                    arr_names.push_back("shell="+std::to_string(ishell)
+                                        +" layer="+std::to_string(ilayer)
+                                        +" key="+BW::m_vnames[ivar]);
+                    auto & pwn = models[ilayer];//->getBW(ishell);
+                    for (size_t it = 0; it < t_arr.size(); it++)
+                        tot_dyn_out[ii][it] = pwn->getData(static_cast<PWN::Q>(ivar))[it];
+                    size_t size = tot_dyn_out[ii].size();
+                    auto & x = tot_dyn_out[ii];
+                    ii++;
+                }
+            }
+        }
+
+
+
+        std::unordered_map<std::string, double> attrs{
+                {"nshells", nshells() },
+                {"m_nlayers", nlayers() },
+                {"ntimes", t_arr.size() },
+                {"ncells", ncells() }
+        };
+        for (auto& [key, value]: main_pars) { attrs[key] = value; }
+        for (auto& [key, value]: ej_pars) { attrs[key] = value; }
+        p_out->VectorOfVectorsH5(tot_dyn_out,arr_names,workingdir+fname,attrs);
+    }
+
+    /// INPUT
+    void loadPWNDynamics(std::string workingdir, std::string fname){
+        if (!std::experimental::filesystem::exists(workingdir+fname))
+            throw std::runtime_error("File not found. " + workingdir+fname);
+
+
+        Exception::dontPrint();
+        H5std_string FILE_NAME(workingdir+fname);
+        H5File file(FILE_NAME, H5F_ACC_RDONLY);
+        size_t nshells_ = (size_t)getDoubleAttr(file,"nshells");
+        size_t nlayers_ = (size_t)getDoubleAttr(file, "nlayers");
+        size_t ntimes_ = (size_t)getDoubleAttr(file, "ntimes");
+        if (nshells_ != nshells()){
+            (*p_log)(LOG_ERR,AT) << "Wring attribute: nshells_="<<nshells_<<" expected nshells="<<nshells()<<"\n";
+//            exit(1);
+        }
+        if (nlayers_ != nlayers()){
+            (*p_log)(LOG_ERR,AT) << "Wring attribute: nlayers_="<<nlayers_<<" expected nlayers_="<<nlayers()<<"\n";
+//            exit(1);
+        }
+//        if (ntimes_ != ()){
+//            (*p_log)(LOG_ERR,AT) << "Wring attribute: nlayers_="<<nlayers_<<" expected nlayers_="<<m_nlayers()<<"\n";
+//            exit(1);
+//        }
+        //        double ntimes = getDoubleAttr(file, "ntimes");
+        auto & models = getPWNs();
+        for (size_t ish = 0; ish < nshells(); ish++) {
+            for (size_t il = 0; il < nlayers(); il++) {
+                auto & bw = models[il];//->getBW(ish);
+                for (size_t ivar = 0; ivar < PWN::m_vnames.size(); ivar++) {
+                    std::string key = "shell=" + std::to_string(ish)
+                                      + " layer=" + std::to_string(il)
+                                      + " key=" + PWN::m_vnames[ivar];
+                    auto & vec = bw->getData()[static_cast<PWN::Q>(ivar)];
+                    if (!vec.empty()){
+                        (*p_log)(LOG_ERR,AT) << " container is not empty\n";
+                    }
+
+                    DataSet dataset = file.openDataSet(key);
+                    DataType datatype = dataset.getDataType();
+                    DataSpace dataspace = dataset.getSpace();
+                    const int npts = dataspace.getSimpleExtentNpoints();
+
+                    H5T_class_t classt = datatype.getClass();
+                    if ( classt != 1 )
+                    {
+                        std::cout << key << " is not a float... you can't save this as a float." << std::endl;
+                        exit(1);
+                    }
+                    FloatType ftype = dataset.getFloatType();
+                    H5std_string order_string;
+                    H5T_order_t order = ftype.getOrder( order_string);
+                    size_t size = ftype.getSize();
+//                    vec.resize(1);
+                    double * data = new double[npts];
+                    if ( order==0 && size == 4 )
+                    {
+                        std::cout << "NOTE: This is actually float data. We are casting to double" << std:: endl;
+                        dataset.read((double*)data, PredType::IEEE_F32LE); // Our standard integer
+                    }
+                    else if ( order == 0 && size == 8 )
+                        dataset.read(data, PredType::IEEE_F64LE);
+                    else if ( order == 1 && size == 4 )
+                    {
+                        std::cout << "NOTE: This is actually float data. We are casting to double" << std:: endl;
+                        dataset.read((double*)data, PredType::IEEE_F32BE);
+                    }
+                    else if ( order ==1 && size == 8 )
+                        dataset.read((double*)data, PredType::IEEE_F64BE);
+                    else
+                        std::cout << "Did not find data type" << std::endl;
+                    std::vector<double> v(data, data + npts);
+                    vec = std::move( v );
+//                    delete[] data;
+                    dataspace.close();
+                    datatype.close();
+                    dataset.close();
+
+                    if ( bw->getData()[static_cast<PWN::Q>(ivar)].empty() ){
+                        std::cout << key << " faild" << std::endl;
+                        exit(1);
+                    }
+                }
+                if (bw->getData()[PWN::iRw][0] == 0){
+                    (*p_log)(LOG_WARN,AT) << "Loaded not evolved shell [il="<<il<<", "<<"ish="<<ish<<"] \n";
+                }
+            }
+        }
+        file.close();
+//        if ( p_cumShells[0]->getBW(0)->getData()[BW::iR][0] == 0 ){
+//            std::cout << p_cumShells[0]->getBW(0)->getData()[BW::iR] << "\n";
+//            std::cout << " faild" << std::endl;
+//            exit(1);
+//        }
+
+#if 0
+        LoadH5 ldata;
+        ldata.setFileName(workingdir+fname);
+        ldata.setVarName("nshells");
+        double nshells = ldata.getDoubleAttr("nshells");
+        double m_nlayers = ldata.getDoubleAttr("m_nlayers");
+        auto & models = getShells();
+        for (size_t ish = 0; ish < nshells-1; ish++){
+            for (size_t il = 0; il < m_nlayers-1; il++){
+                auto & bw = models[il]->getBW(ish);
+                for (size_t ivar = 0; ivar < BW::m_vnames.size(); ivar++) {
+                    std::string key = "shell=" + std::to_string(ish)
+                                    + " layer=" + std::to_string(il)
+                                    + " key=" + BW::m_vnames[ivar];
+                    ldata.setVarName(BW::m_vnames[ivar]);
+                    bw->getData().emplace_back( std::move( ldata.getDataVDouble() ) );
+                    (*p_log)(LOG_INFO,AT) << "Reading: "<<key<<"\n";
+//                    bw->getData(static_cast<BW::Q>(ivar))
+//                        = std::move( ldata.getDataVDouble() );
+                }
+
+//                auto & bw = models[il]->getBW(ish);
+//                std::string
+//                bw->getData()[]
+            }
+        }
+#endif
+        (*p_log)(LOG_INFO,AT)<<" dynamics loaded successfully\n";
+
+    }
+
+    void evalPWNObservables(StrDbMap & main_pars, StrStrMap & main_opts){
         do_ele = getBoolOpt("do_ele", pwn_opts, AT, p_log, false, true);
         do_lc = getBoolOpt("do_lc", pwn_opts, AT, p_log, false, true);
         do_skymap = getBoolOpt("do_skymap", pwn_opts, AT, p_log, false, true);
+        /// -------------------------------------------
+        bool lc_freq_to_time = getBoolOpt("lc_use_freq_to_time",main_opts,AT,p_log,false,true);
+        Vector lc_freqs = makeVecFromString(getStrOpt("lc_freqs",main_opts,AT,p_log,"",true),p_log);
+        Vector lc_times = makeVecFromString(getStrOpt("lc_times",main_opts,AT,p_log,"",true), p_log);
         for (auto &key: {"n_ism", "d_l", "z", "theta_obs", "A0", "s", "r_ej", "r_ism"}) {
             if (main_pars.find(key) == main_pars.end()) {
                 (*p_log)(LOG_ERR, AT) << " keyword '" << key << "' is not found in main parameters. \n";
@@ -1627,6 +1821,14 @@ public:
                 getStrOpt("fname_sync_spec", pwn_opts, AT, p_log, "", true));
         }
 
+        if (do_lc){
+            computePWNlightcurve(
+                    workingdir,
+                    getStrOpt("fname_light_curve", pwn_opts, AT, p_log, "", true),
+                    getStrOpt("fname_light_curve_layers", pwn_opts, AT, p_log, "", true),
+                    lc_times, lc_freqs, main_pars, pwn_pars, lc_freq_to_time);
+        }
+        is_obs_pars_set = true;
     }
 
 private:
@@ -1635,17 +1837,137 @@ private:
         auto & models = getPWNs();
         for (auto & model : models) {
             model->evalElectronDistribution();
-            model->computeSynchrotronSpectrum();
         }
     };
     void setPreComputeEjectaAnalyticSynchrotronPars(std::string workingdir,std::string fname){
         (*p_log)(LOG_INFO,AT) << "Computing PWN electron dists...\n";
         auto & models = getPWNs();
         for (auto & model : models) {
-            model->evalElectronDistribution();
             model->computeSynchrotronSpectrum();
         }
+        is_synch_computed = true;
     };
+    void computePWNlightcurve(std::string workingdir,std::string fname, std::string fname_shells_layers,
+                              Vector lc_times, Vector lc_freqs, StrDbMap & main_pars, StrDbMap & ej_pars,
+                              bool lc_freq_to_time){
+
+        Vector _times, _freqs;
+        cast_times_freqs(lc_times,lc_freqs,_times,_freqs,lc_freq_to_time,p_log);
+
+        (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta light curve with analytic synchrotron...\n";
+
+        if (!is_synch_computed){
+            std::cerr << " ejecta analytic electrons were not evolved. Cannot evaluateShycnhrotronSpectrum light curve (analytic) exiting...\n";
+            std::cerr << AT << " \n";
+            exit(1);
+        }
+        if (!is_obs_pars_set){
+            std::cerr << " ejecta observer parameters are not set. Cannot evaluateShycnhrotronSpectrum light curve (analytic) exiting...\n";
+            std::cerr << AT << " \n";
+            exit(1);
+        }
+
+//        auto & tmp = getShells()[0]->getBW(0)->getSynchAnPtr();
+
+        std::vector< // layers / shells
+                std::vector< // options
+                        std::vector<double>>> // freqs*times
+        out {};
+
+        /// evaluate light curve
+        auto light_curve = evalPWNLightCurves( _times, _freqs);
+
+        /// save total lightcurve
+        size_t n = _times.size();
+        Vector total_fluxes (n, 0.0);
+        for (size_t itnu = 0; itnu < n; ++itnu) {
+            size_t ishil = 0;
+            for (size_t ishell = 0; ishell < nshells(); ++ishell) {
+                for (size_t ilayer = 0; ilayer < nlayers(); ++ilayer) {
+                    total_fluxes[itnu] += light_curve[ishell][ilayer][itnu];
+                    ishil++;
+                }
+            }
+        }
+        std::vector<std::string> other_names { "times", "freqs", "total_fluxes" };
+        VecVector out_data {_times, _freqs, total_fluxes};
+
+        std::unordered_map<std::string,double> attrs{ {"nshells", nshells()}, {"m_nlayers", nlayers()} };
+        for (auto& [key, value]: main_pars) { attrs[key] = value; }
+        for (auto& [key, value]: ej_pars) { attrs[key] = value; }
+        p_out->VectorOfVectorsH5(out_data, other_names, workingdir+fname,  attrs);
+
+
+        /// save light curve for each shell and layer
+        if (fname_shells_layers == "none")
+            return;
+        std::vector<std::string> group_names;
+        VecVector total_fluxes_shell_layer(nshells() * nlayers());
+        size_t ii = 0;
+        for (size_t ishell = 0; ishell < nshells(); ++ishell) {
+            for (size_t ilayer = 0; ilayer < nlayers(); ++ilayer) {
+                group_names.emplace_back("shell=" + std::to_string(ishell) + " layer=" + std::to_string(ilayer));
+                total_fluxes_shell_layer[ii].resize(n,0.);
+                for (size_t ifnu = 0; ifnu < n; ifnu++){
+                    total_fluxes_shell_layer[ii][ifnu] = light_curve[ishell][ilayer][ifnu];
+                }
+                ii++;
+            }
+        }
+        total_fluxes_shell_layer.emplace_back(_times);
+        total_fluxes_shell_layer.emplace_back(_freqs);
+        total_fluxes_shell_layer.emplace_back(total_fluxes);
+
+        group_names.emplace_back("times");
+        group_names.emplace_back("freqs");
+        group_names.emplace_back("total_fluxes");
+        p_out->VectorOfVectorsH5(total_fluxes_shell_layer, group_names, workingdir+fname,  attrs);
+    }
+
+private:
+
+    std::vector<VecVector> evalPWNLightCurves( Vector & obs_times, Vector & obs_freqs){
+        (*p_log)(LOG_INFO,AT)<<" starting ejecta light curve calculation\n";
+//        size_t nshells = p_cumShells->nshells();
+//        size_t m_nlayers = p_cumShells->m_nlayers();
+//        size_t ncells =  (int)p_cumShells->ncells();
+        std::vector<VecVector> light_curves(nshells()); // [ishell][i_layer][i_time]
+        for (auto & arr : light_curves){
+            size_t n_layers_ej = nlayers();//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStructs.structs[0].nlayers_pw : ejectaStructs.structs[0].nlayers_a ;
+            arr.resize(n_layers_ej);
+            for (auto & arrr : arr){
+                arrr.resize( obs_times.size(), 0. );
+            }
+        }
+        double flux_pj, flux_cj; size_t ii = 0;
+//        Image image;
+        Image image_i ( ncells() );
+        Image im_pj ( ncells() );
+        Image im_cj ( ncells() );
+        for (size_t ishell = 0; ishell < nshells(); ishell++){
+            image_i.clearData();
+            im_pj.clearData();
+            im_cj.clearData();
+//            auto &struc = ejectaStructs.structs[ishell];
+//            size_t n_layers_ej = ejectaStructs.structs[ishell].m_nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? struc.nlayers_pw : struc.nlayers_a ;
+            for (size_t ilayer = 0; ilayer < nlayers(); ilayer++) {
+                auto & model = getPWNs()[ilayer];//ejectaModels[ishell][ilayer];
+//                model->setEatsPars( pars, opts );
+                (*p_log)(LOG_INFO,AT)
+                        << " EJECTA LC ntimes=" << obs_times.size()
+                        << " vel_shell=" << ishell << "/" <<nshells()-1
+                        << " theta_layer=" << ilayer << "/" << nlayers()
+                        << " phi_cells=" << EjectaID2::CellsInLayer(ilayer) << "\n";
+                model->getRad()->evalForwardShockLightCurve(
+                        id->method_eats,
+                        image_i, im_pj, im_cj, light_curves[ishell][ilayer], obs_times, obs_freqs);
+                ii ++;
+            }
+        }
+        return std::move( light_curves );
+    }
+
+
 };
 
 #endif //SRC_MODEL_MAGNETAR_H

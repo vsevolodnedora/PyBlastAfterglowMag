@@ -725,7 +725,7 @@ public:
         return std::move(tmp);
     }
     size_t nlayers() const {
-//        return run_bws ? ejectaStructs.structs[0].nlayers : 0;
+//        return run_bws ? ejectaStructs.structs[0].m_nlayers : 0;
         return (run_bws||load_dyn) ? id->nlayers : 0;
     }
     size_t nshells() const {
@@ -931,7 +931,7 @@ public:
 //        double layer
 //        size_t n_acc = 0;
 //        for (size_t ish = 0; ish < ejectaStructs.nshells; ish++){
-//            for (size_t il = 0; il < ejectaStructs.structs[0].nlayers; il++){
+//            for (size_t il = 0; il < ejectaStructs.structs[0].m_nlayers; il++){
 //                if (p_cumShells[il]->getBW(ish)->getVal(RadBlastWave::Q::imom,(int)it) > mom) {
 //                    mom = p_cumShells[il]->getBW(ish)->getVal(RadBlastWave::Q::imom,(int)it) > mom;
 //                    fastest_l = il;
@@ -994,7 +994,7 @@ private:
         std::vector<std::vector<size_t>> n_empty_images;
         std::vector<size_t> n_empty_images_shells;
         size_t nshells_ = nshells();//ejectaStructs.nshells;
-        size_t n_layers_ej_ = nlayers();//ejectaStructs.structs[0].nlayers;
+        size_t n_layers_ej_ = nlayers();//ejectaStructs.structs[0].m_nlayers;
         if (n_layers_ej_ == 0){
             (*p_log)(LOG_ERR,AT)<<" no layers found to evolve!\n";
             exit(1);
@@ -1103,7 +1103,7 @@ private:
         do_eninj_inside_rhs = getBoolOpt("do_eninj_inside_rhs", opts, AT, p_log, "no", false);
 
         (*p_log)(LOG_INFO,AT) << "finished initializing ejecta. "
-                                 "nshells="<<nshells()<<" nlayers="<<nlayers()<<"\n";
+                                 "nshells="<<nshells()<<" m_nlayers="<<nlayers()<<"\n";
     }
 
     double ej_rtol = 1e-5;
@@ -1120,7 +1120,7 @@ private:
         }
 
 //        size_t nshells = p_cumShells->nshells();
-//        size_t nlayers = p_cumShells->nlayers();
+//        size_t m_nlayers = p_cumShells->m_nlayers();
 //        size_t ncells =  (int)p_cumShells->ncells();
 
         auto & models = getShells();
@@ -1171,7 +1171,7 @@ private:
         }
         std::unordered_map<std::string, double> attrs{
                 {"nshells", nshells() },
-                {"nlayers", nlayers() }
+                {"m_nlayers", nlayers() }
         };
 //        attrs.insert(ej_pars.begin(),ej_pars.end());
 //        attrs.insert(main_pars.begin(),main_pars.end());
@@ -1212,11 +1212,9 @@ private:
             }
         }
 
-
-
         std::unordered_map<std::string, double> attrs{
                 {"nshells", nshells() },
-                {"nlayers", nlayers() },
+                {"m_nlayers", nlayers() },
                 {"ntimes", t_arr.size() },
                 {"ncells", ncells() }
         };
@@ -1227,22 +1225,7 @@ private:
 
 
 
-    double getDoubleAttr(H5::H5File & h5File, std::string key){
-//        H5::H5File file{LoadH5::filename, H5F_ACC_RDONLY};
-        auto isatt = h5File.attrExists(key);
-        if (!isatt){
-            std::cout << AT << " attribute="<<key<<" does not exists\n";
-            exit(1);
-        }
-        auto att = h5File.openAttribute(key);
-        hsize_t lnSize = att.getStorageSize();
-        double* lpnBuffer = new double[lnSize];
-        H5::DataType lcType = att.getDataType();
-        att.read(lcType, lpnBuffer);
-        double val = *lpnBuffer;
-        delete [] lpnBuffer;
-        return val;
-    }
+
     /// INPUT
     void loadEjectaBWDynamics(std::string workingdir, std::string fname){
         if (!std::experimental::filesystem::exists(working_dir+fname))
@@ -1253,7 +1236,7 @@ private:
         H5std_string FILE_NAME(workingdir+fname);
         H5File file(FILE_NAME, H5F_ACC_RDONLY);
         size_t nshells_ = (size_t)getDoubleAttr(file,"nshells");
-        size_t nlayers_ = (size_t)getDoubleAttr(file, "nlayers");
+        size_t nlayers_ = (size_t)getDoubleAttr(file, "m_nlayers");
         size_t ntimes_ = (size_t)getDoubleAttr(file, "ntimes");
         if (nshells_ != nshells()){
             (*p_log)(LOG_ERR,AT) << "Wring attribute: nshells_="<<nshells_<<" expected nshells="<<nshells()<<"\n";
@@ -1264,7 +1247,7 @@ private:
 //            exit(1);
         }
 //        if (ntimes_ != ()){
-//            (*p_log)(LOG_ERR,AT) << "Wring attribute: nlayers_="<<nlayers_<<" expected nlayers_="<<nlayers()<<"\n";
+//            (*p_log)(LOG_ERR,AT) << "Wring attribute: nlayers_="<<nlayers_<<" expected nlayers_="<<m_nlayers()<<"\n";
 //            exit(1);
 //        }
         //        double ntimes = getDoubleAttr(file, "ntimes");
@@ -1343,10 +1326,10 @@ private:
         ldata.setFileName(workingdir+fname);
         ldata.setVarName("nshells");
         double nshells = ldata.getDoubleAttr("nshells");
-        double nlayers = ldata.getDoubleAttr("nlayers");
+        double m_nlayers = ldata.getDoubleAttr("m_nlayers");
         auto & models = getShells();
         for (size_t ish = 0; ish < nshells-1; ish++){
-            for (size_t il = 0; il < nlayers-1; il++){
+            for (size_t il = 0; il < m_nlayers-1; il++){
                 auto & bw = models[il]->getBW(ish);
                 for (size_t ivar = 0; ivar < BW::m_vnames.size(); ivar++) {
                     std::string key = "shell=" + std::to_string(ish)
@@ -1402,8 +1385,8 @@ private:
         std::vector<Image> tmp (nlayers_);
         for (auto & _tmp : tmp)
             _tmp.resize( ncells_ );
-        Image tmp_pj( ncells_); // std::vector<Image> tmp_pj (ejectaStructs.structs[0].nlayers);
-        Image tmp_cj( ncells_); // std::vector<Image> tmp_cj (ejectaStructs.structs[0].nlayers);
+        Image tmp_pj( ncells_); // std::vector<Image> tmp_pj (ejectaStructs.structs[0].m_nlayers);
+        Image tmp_cj( ncells_); // std::vector<Image> tmp_cj (ejectaStructs.structs[0].m_nlayers);
         for (size_t ishell = 0; ishell < nshells_; ishell++){
             for (auto & _tmp : tmp)
                 _tmp.clearData();
@@ -1446,7 +1429,7 @@ private:
                       << n_jet_empty_images << " layers. Specifically:\n";
                 for (size_t ish = 0; ish < n_empty_images_shells.size(); ish++) {
 //                auto & ejectaStruct = ejectaStructs.structs[n_empty_images_shells[ish]];
-//                size_t n_layers_ej = nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStruct.nlayers_pw : ejectaStruct.nlayers_a ;
+//                size_t n_layers_ej = m_nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStruct.nlayers_pw : ejectaStruct.nlayers_a ;
                     ccerr << "\t [ishell=" << n_empty_images_shells[ish] << " ilayer] = [ ";
                     for (size_t il = 0; il < n_empty_images[ish].size(); il++) {
                         ccerr << n_empty_images[ish][il] << " ";
@@ -1462,7 +1445,7 @@ private:
     std::vector<VecVector> evalEjectaLightCurves( Vector & obs_times, Vector & obs_freqs){
         (*p_log)(LOG_INFO,AT)<<" starting ejecta light curve calculation\n";
 //        size_t nshells = p_cumShells->nshells();
-//        size_t nlayers = p_cumShells->nlayers();
+//        size_t m_nlayers = p_cumShells->m_nlayers();
 //        size_t ncells =  (int)p_cumShells->ncells();
         std::vector<VecVector> light_curves(nshells()); // [ishell][i_layer][i_time]
         for (auto & arr : light_curves){
@@ -1483,7 +1466,7 @@ private:
             im_pj.clearData();
             im_cj.clearData();
 //            auto &struc = ejectaStructs.structs[ishell];
-//            size_t n_layers_ej = ejectaStructs.structs[ishell].nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? struc.nlayers_pw : struc.nlayers_a ;
+//            size_t n_layers_ej = ejectaStructs.structs[ishell].m_nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? struc.nlayers_pw : struc.nlayers_a ;
             for (size_t ilayer = 0; ilayer < nlayers(); ilayer++) {
                 auto & model = getShells()[ilayer];//ejectaModels[ishell][ilayer];
 //                model->setEatsPars( pars, opts );
@@ -1526,14 +1509,14 @@ public:
         auto & models = getShells();
 
 //        size_t nshells = nshells();
-//        size_t nlayers = p_cumShells->nlayers();
+//        size_t m_nlayers = p_cumShells->m_nlayers();
 //        size_t ncells =  (int)p_cumShells->ncells();
 
         (*p_log)(LOG_ERR,AT) << "Updating Ejecta observer pars...\n";
         size_t ii = 0;
         for (size_t ishell = 0; ishell < nshells(); ishell++) {
 //            auto &struc = ejectaStructs.structs[ishell];
-//            size_t n_layers_ej = struc.nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? struc.nlayers_pw : struc.nlayers_a ;
+//            size_t n_layers_ej = struc.m_nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? struc.nlayers_pw : struc.nlayers_a ;
             for (size_t ilayer = 0; ilayer < nlayers(); ilayer++) {
                 auto & model = getShells()[ilayer]->getBW(ishell);//ejectaModels[ishell][ilayer];
                 model->getRad()->updateObsPars(pars);
@@ -1676,7 +1659,7 @@ public:
         (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta light curve with analytic synchrotron...\n";
 
 //        size_t nshells = p_cumShells->nshells();
-//        size_t nlayers = p_cumShells->nlayers();
+//        size_t m_nlayers = p_cumShells->m_nlayers();
 //        size_t ncells =  (int)p_cumShells->ncells();
 
         if (!is_ejecta_anal_synch_computed){
@@ -1715,7 +1698,7 @@ public:
         std::vector<std::string> other_names { "times", "freqs", "total_fluxes" };
         VecVector out_data {_times, _freqs, total_fluxes};
 
-        std::unordered_map<std::string,double> attrs{ {"nshells", nshells()}, {"nlayers", nlayers()} };
+        std::unordered_map<std::string,double> attrs{ {"nshells", nshells()}, {"m_nlayers", nlayers()} };
         for (auto& [key, value]: main_pars) { attrs[key] = value; }
         for (auto& [key, value]: ej_pars) { attrs[key] = value; }
         p_out->VectorOfVectorsH5(out_data, other_names, workingdir+fname,  attrs);

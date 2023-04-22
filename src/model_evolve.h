@@ -274,7 +274,33 @@ public:
     }
 
     inline auto * pIntegrator() { return p_Integrator; }
-
+    void checkEvolution(){
+        if (p_pars->p_magnetar->run_magnetar) {
+//            p_pars->p_magnetar->addOtherVariables(it);
+        }
+        if (p_pars->p_grb->run_bws) {
+            auto &ej_bws = p_pars->p_grb->getShells();
+            for (size_t il = 0; il < ej_bws.size(); il++) {
+                for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
+                    ej_bws[il]->getBW(ish)->checkEvolution();
+                }
+            }
+        }
+        if (p_pars->p_ej->run_bws) {
+            auto &ej_bws = p_pars->p_ej->getShells();
+            for (size_t il = 0; il < ej_bws.size(); il++) {
+                for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
+                    ej_bws[il]->getBW(ish)->checkEvolution();
+                }
+            }
+        }
+        if (p_pars->p_ej_pwn->run_pwn) {
+            auto & pwns = p_pars->p_ej_pwn->getPWNs();
+            for (auto & pwn : pwns){
+//                pwn->addOtherVariables(it);
+            }
+        }
+    }
 private:
     void applyUnits(){
         size_t ii = 0;
@@ -501,29 +527,12 @@ private:
         return is_ok;
     }
     void insertSolution(size_t it){
-//        auto & magnetar = p_pars->p_magnetar;
-//        auto & jet_bws = p_pars->p_bws_jet;
-//        auto & ej_bws = p_pars->p_cumShells;
         size_t ii = 0;
         if (p_pars->p_magnetar->run_magnetar) {
             auto & magnetar = p_pars->p_magnetar;
             magnetar->insertSolution(m_CurSol, it, ii);
             ii += magnetar->getNeq();
         }
-#if 0
-        if (p_pars->p_grb->run_bws) {
-            if (p_pars->p_grb->nshells() > 1){
-                (*p_log)(LOG_ERR,AT)<<"not implemented\n";
-                exit(1);
-            }
-            auto & jet_bws = p_pars->p_grb->getShells()[0]->getBWs();
-//            auto & jet_bws = p_pars->p_grb->getBWs();
-            for (size_t i = 0; i < jet_bws.size(); i++) {
-                jet_bws[i]->insertSolution(m_CurSol, it, ii);
-                ii += jet_bws[i]->getNeq();
-            }
-        }
-#endif
         if (p_pars->p_grb->run_bws) {
             auto &ej_bws = p_pars->p_grb->getShells();
             for (size_t il=0; il<ej_bws.size(); il++){
@@ -533,10 +542,6 @@ private:
                     ii += SOL::neq;//ii += bw->getNeq();
                 }
             }
-//            for (size_t i = 0; i < p_pars->n_ej_bws; i++) {
-//                ej_bws[i]->insertSolution(m_CurSol, it, ii);
-//                ii += p_pars->n_eq_ej_bws;
-//            }
         }
         if (p_pars->p_ej->run_bws) {
             auto &ej_bws = p_pars->p_ej->getShells();
@@ -547,10 +552,6 @@ private:
                     ii += SOL::neq;//ii += bw->getNeq();
                 }
             }
-//            for (size_t i = 0; i < p_pars->n_ej_bws; i++) {
-//                ej_bws[i]->insertSolution(m_CurSol, it, ii);
-//                ii += p_pars->n_eq_ej_bws;
-//            }
         }
         if (p_pars->p_ej_pwn->run_pwn) {
             auto & pwns = p_pars->p_ej_pwn->getPWNs();
@@ -564,19 +565,6 @@ private:
         if (p_pars->p_magnetar->run_magnetar) {
             p_pars->p_magnetar->addOtherVariables(it);
         }
-#if 0
-        if (p_pars->p_grb->run_bws) {
-            if (p_pars->p_grb->nshells() > 1){
-                (*p_log)(LOG_ERR,AT)<<"not implemented\n";
-                exit(1);
-            }
-            auto & jet_bws = p_pars->p_grb->getShells()[0]->getBWs();
-//            auto & jet_bws = p_pars->p_grb->getBWs();
-            for (size_t i = 0; i < jet_bws.size(); i++) {
-                jet_bws[i]->addOtherVars( it );
-            }
-        }
-#endif
         if (p_pars->p_grb->run_bws) {
             auto &ej_bws = p_pars->p_grb->getShells();
             for (size_t il = 0; il < ej_bws.size(); il++) {
@@ -602,11 +590,8 @@ private:
                 pwn->addOtherVariables(it);
             }
         }
-
-//        for(size_t i = 0; i < p_pars->n_ej_bws; i++){
-//            p_pars->p_bws[i]->addOtherVars( it );
-//        }
     }
+
 
 private:
     static void updateEnergyInjectionToEjectaBWs(double ldip, double lacc, double * Y, void * pars){
@@ -908,7 +893,7 @@ private:
                             m_CurSol,p_pars);
 
                 /// update opacity and nuclear heating
-                for (size_t il = 0; il < p_pars->p_cumShells->nlayers(); il++) {
+                for (size_t il = 0; il < p_pars->p_cumShells->m_nlayers(); il++) {
                     for (size_t ish = 0; ish < p_pars->p_cumShells->nshells(); ish++) {
                         auto & bw = p_pars->p_cumShells->getShells()[il]->getBW(ish);
                         bw->updateNucAtomic( m_CurSol, t_grid[ix] );
@@ -1216,7 +1201,7 @@ private:
                 auto & pwn = p_pars->p_ej_pwn;
                 auto & ej_pwns = p_pars->p_ej_pwn->getPWNs();
                 auto & cumShells = p_pars->p_ej->getShells();
-                for (size_t il=0; il<pwn->m_nlayers; il++){
+                for (size_t il=0; il<pwn->nlayers(); il++){
                     /// Set PWN ODE ICs
                     ej_pwns[il]->updateMagnetar(ldip, lacc);
                     ej_pwns[il]->evaluateRhs(out_Y, ii, x, Y);
