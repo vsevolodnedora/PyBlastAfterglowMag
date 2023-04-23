@@ -47,7 +47,7 @@ def main():
 
     prepare_grb_ej_id_1d({"struct":"gaussian",
         "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
-        "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":350,"nlayers_a": 10}, type="pw",
+        "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":150,"nlayers_a": 10}, type="a",
         outfpath=workdir+"gauss_grb_id.h5")
 
     pba.run()
@@ -64,9 +64,11 @@ def main():
 
     ax.plot(pba.GRB.get_lc_times(), pba.GRB.get_lc_totalflux(freq=3.e9), ls='-', color="black", label="PBA")
     print(pba.GRB.get_lc_obj().keys())
+    print(pba.GRB.get_lc_obj().attrs.keys())
     for il in range(int(pba.GRB.get_lc_obj().attrs["nlayers"])):
         ax.plot(pba.GRB.get_lc_times(), pba.GRB.get_lc(freq=3.e9, ishell=0, ilayer=il), ls='-', color="gray")
 
+    print(pba.GRB.get_lc_totalflux(freq=3.e9))
     ax.grid()
     ax.legend()
     ax.set_xscale("log")

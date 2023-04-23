@@ -16,9 +16,6 @@
 #include "synchrotron_an.h"
 //#include "blastwave.h"
 
-enum METHODS_SHOCK_VEL { isameAsBW, ishockVel };
-enum METHOD_NE{ iusenprime, iuseNe };
-enum METHODS_RAD { icomovspec, iobservflux };
 
 static double check_emission_time( double t_e, double mu, double t_obs, Vector & mu_arr, int N ) {
     if(mu > mu_arr[N - 1]) {
@@ -40,14 +37,19 @@ static double check_emission_time( double t_e, double mu, double t_obs, Vector &
 class EATS{
     struct Pars{
         std::unique_ptr<logger> p_log = nullptr;
-        std::unique_ptr<SynchrotronAnalytic> p_syna = nullptr;
+//        std::unique_ptr<SynchrotronAnalytic> p_syna = nullptr;
         Pars(Vector & tburst, Vector & tt, Vector & r, Vector & theta, Vector & m_gam, Vector & m_bet,
              Vector & freq_arr, Vector & synch_em, Vector & synch_abs,
-             size_t i_end_r, size_t ish, size_t il, int loglevel, void * params)
+             size_t & i_end_r, size_t ish, size_t il, int loglevel, void * params)
             : m_tburst(tburst), m_tt(tt),  m_r(r), m_theta(theta), m_gam(m_gam), m_bet(m_bet),
-              m_freq_arr(freq_arr), m_synch_em(synch_em), m_synch_abs(synch_abs), m_params(params) {
-
-            m_mu.resize(m_tburst.size());
+              m_freq_arr(freq_arr), m_synch_em(synch_em), m_synch_abs(synch_abs), m_i_end_r(i_end_r),
+              m_params(params) {
+//            if (m_tburst.empty()){
+//                std::cerr << AT<< " empty array\n";
+//                exit(1);
+//            }
+//            nr = m_tburst.size();
+//            m_mu.resize(m_tburst.size());
 //            m_gam.resize(m_mom.size());
 //            m_bet.resize(m_mom.size());
 //            for (size_t i = 0; i < m_mom.size(); i++){
@@ -60,7 +62,7 @@ class EATS{
             m_i_end_r = i_end_r;
 //            nr = m_data[BW::Q::itburst].size();
             p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "EATS_pars");
-            p_syna = std::make_unique<SynchrotronAnalytic>(loglevel);
+//            p_syna = std::make_unique<SynchrotronAnalytic>(loglevel);
         }
         void * m_params;
         Vector & m_tburst; Vector & m_tt;
@@ -97,6 +99,12 @@ class EATS{
             sin_theta_obs = std::sin(theta_obs);
             obsangle = obs_angle;
             // ---
+            if (m_tburst.empty()){
+                std::cerr << AT<< " empty array\n";
+                exit(1);
+            }
+            nr = m_tburst.size();
+            m_mu.resize(m_tburst.size());
 //        p_eats->nr = p_pars->nr; // removing EATS_pars for simplicity
             for (size_t i = 0; i < nr; i++)
                 m_mu[i] = ( m_tburst[i] - t_obs / (1.0 + z) ) / m_r[i] * CGS::c;
@@ -165,35 +173,11 @@ class EATS{
             d_l = getDoublePar("d_l", pars, AT, p_log,-1, true);//pars.at("d_l");
             z = getDoublePar("z", pars, AT, p_log,-1, true);//pars.at("z");
 
-            freq1 = getDoublePar("freq1", pars, AT, p_log,1.e7, false);//pars.at("freq1");
-            freq2 = getDoublePar("freq2", pars, AT, p_log,1.e14, false);//pars.at("freq2");
-            nfreq = (size_t)getDoublePar("nfreq", pars, AT, p_log,100, false);//pars.at("nfreq");
+
+            counter_jet = getBoolOpt("counter_jet", opts, AT, p_log,true, false);
 
             // set options
             std::string opt;
-
-            opt = "method_ne";
-            METHOD_NE methodNe;
-            if ( opts.find(opt) == opts.end() ) {
-                (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-                methodNe = METHOD_NE::iuseNe;
-            }
-            else{
-                if(opts.at(opt) == "useNe")
-                    methodNe = METHOD_NE::iuseNe;
-                else if(opts.at(opt) == "usenprime")
-                    methodNe = METHOD_NE::iusenprime;
-                else{
-                    (*p_log)(LOG_ERR,AT) << " option for: " << opt
-                                         <<" given: " << opts.at(opt)
-                                         << " is not recognized. "
-                                         << "Possible options: "
-                                         << " useNe " << " usenprime " << "\n";
-//                std::cerr << AT << "\n";
-                    exit(1);
-                }
-            }
-            m_method_ne = methodNe;
 
             opt = "method_quad";
             METHODS_QUADRATURES methodsQuadratures;
@@ -217,65 +201,8 @@ class EATS{
             }
             method_quad = methodsQuadratures;
 
-            opt = "method_shock_vel";
-            METHODS_SHOCK_VEL methodsShockVel;
-            if ( opts.find(opt) == opts.end() ) {
-                (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-                methodsShockVel = METHODS_SHOCK_VEL::isameAsBW;
-            }
-            else{
-                if(opts.at(opt) == "sameAsBW")
-                    methodsShockVel = METHODS_SHOCK_VEL::isameAsBW;
-                else if(opts.at(opt) == "shockVel")
-                    methodsShockVel = METHODS_SHOCK_VEL::ishockVel;
-                else{
-                    (*p_log)(LOG_ERR,AT) << " option for: " << opt
-                                         <<" given: " << opts.at(opt)
-                                         << " is not recognized. "
-                                         << " Possible options: "
-                                         << " sameAsBW " << " shockVel " << "\n";
-//                std::cerr << AT << "\n";
-                    exit(1);
-                }
-            }
-            method_shock_vel = methodsShockVel;
-
-            counter_jet = getBoolOpt("counter_jet", opts, AT, p_log,true, false);
-
-            opt = "method_comp_mode";
-            METHODS_RAD methodCompMode;
-            if ( opts.find(opt) == opts.end() ) {
-                (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-                methodCompMode = METHODS_RAD::iobservflux;
-            }
-            else{
-                if(opts.at(opt) == "observFlux")
-                    methodCompMode = METHODS_RAD::iobservflux;
-                else if(opts.at(opt) == "comovSpec")
-                    methodCompMode = METHODS_RAD::icomovspec;
-                else{
-                    (*p_log)(LOG_ERR,AT) << AT << " option for: " << opt
-                                         <<" given: " << opts.at(opt)
-                                         << " is not recognized. "
-                                         << "Possible options: "
-                                         << " observFlux " << " comovSpec " << "\n";
-                    exit(1);
-                }
-            }
-            m_method_rad = methodCompMode;
-
-            m_freq_arr = TOOLS::MakeLogspaceVec(log10(freq1), log10(freq2),(int)nfreq);
-            if (m_method_rad == METHODS_RAD::icomovspec){
-                (*p_log)(LOG_INFO,AT) << " allocating comoving spectrum array (fs) "
-                                      << " freqs="<<m_freq_arr.size() << " by radii=" << nr << " Spec. grid="
-                                      << m_freq_arr.size() * nr << "\n";
-                m_synch_em.resize( m_freq_arr.size() * nr );
-                m_synch_abs.resize( m_freq_arr.size() * nr );
-            }
-
-
             /// set synchrotron parameters
-            p_syna->setPars(pars, opts);
+//            p_syna->setPars(pars, opts);
 
         }
         void updateObsPars(StrDbMap & pars){
@@ -286,7 +213,7 @@ class EATS{
         }
 
         /// -------------------------------------------------------------------------------
-        size_t ishell = 0, ilayer = 0;  size_t nlayers = 0; size_t m_i_end_r = 0;
+        size_t ishell = 0, ilayer = 0;  size_t nlayers = 0; size_t & m_i_end_r;
         double theta_c_l = -1.;
         double theta_c_h = -1.;
         double theta_w = -1.;
@@ -296,11 +223,15 @@ class EATS{
         double (* obsangle)(const double &, const double &, const double &) = nullptr;
         double (* im_xxs)( const double &, const double &, const double & ) = nullptr;
         double (* im_yys)( const double &, const double &, const double & ) = nullptr;
-        // ---
+        // -----------------------------
         void (* fluxFunc)(
                 double & flux_dens, double & r, double & ctheta,
                 size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
                 Vector ttobs, void * params
+                ) = nullptr;
+        void (* fluxFuncA)(
+                double & flux_dens, double & r, double & ctheta,
+                size_t ia, size_t ib, double mu, double t_e, double t_obs, double nu_obs, void * params
                 ) = nullptr;
         // --- for adaptive quad. method
         int nmax_phi=-1, nmax_theta=-1;
@@ -319,9 +250,7 @@ class EATS{
         double freq1=-1.0, freq2=-1.0;
         size_t nfreq=0;
         METHODS_QUADRATURES method_quad{};
-        METHODS_SHOCK_VEL method_shock_vel{};
-        METHOD_NE m_method_ne{};
-        METHODS_RAD m_method_rad{};
+
 //        METHOD_TAU method_tau{};
         bool counter_jet = true;
         int spread_method = 1; // TODO this is the only option!
@@ -367,7 +296,9 @@ public:
                                         Vector ttobs, void * params )){
         p_pars->fluxFunc = fluxFunc;
     }
-    void setFluxFuncA(void (* fluxFuncA)(  )){
+    void setFluxFuncA(void (* fluxFuncA)( double & flux_dens, double & r, double & ctheta,
+                                          size_t ia, size_t ib, double mu, double t_e,
+                                          double t_obs, double nu_obs, void * params )){
         p_pars->fluxFuncA = fluxFuncA;
     }
     void updateObsPars(StrDbMap & pars){p_pars->updateObsPars(pars);}
@@ -994,7 +925,7 @@ private:
     static double integrand( double i_cos_theta, double i_phi, void* params ){
 
         auto * p_pars = (struct Pars *) params; // removing EATS_pars for simplicity
-        auto & p_syna = p_pars->p_syna;//->getAnSynch();
+//        auto & p_syna = p_pars->p_syna;//->getAnSynch();
 //        auto * p_log = p_ params;
 //        auto & m_data = p_pars->m_data;
         auto & tburst = p_pars->m_tburst;//m_data[BW::Q::itburst];
@@ -1014,7 +945,7 @@ private:
         p_pars->o_phi = i_phi;
         p_pars->o_theta = a_theta;
 
-        double dFnu = 0.;
+//        double dFnu = 0.;
         size_t ia = findIndex(mu, mu_arr, p_pars->nr);
         size_t ib = ia + 1;
         /// interpolate the time in comobing frame that corresponds to the t_obs in observer frame
@@ -1026,10 +957,11 @@ private:
 //            std::cerr << AT  << "Error t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";
             return 0.;
         }
-
-        double flux_dens = 0;
-        p_pars->fluxFuncA(flux_dens);
-
+        /// -----------------------------------------
+        double flux_dens = 0, r = 0, ctheta=0.;
+        p_pars->fluxFuncA(flux_dens, r, ctheta,
+                          ia, ib, mu, t_e, p_pars->t_obs, p_pars->nu_obs, p_pars->m_params);
+        /// ----------------------------------------
 #if 0
         /// Observed flux density evaluation (interpolate comoving spectrum)
         if (p_pars->m_method_rad == METHODS_RAD::icomovspec){
@@ -1249,7 +1181,7 @@ private:
 
         }
 #endif
-        return dFnu;
+        return flux_dens;
 
     }
     static double costheta_integrand( double aomct, void* params ){

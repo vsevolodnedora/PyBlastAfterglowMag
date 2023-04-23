@@ -1437,6 +1437,11 @@ public:
                                       double B, double gm, double gM, double gc,
                                       double Theta, double z_cool, double nuprime ){
 
+        if (!std::isfinite(gm)||!std::isfinite(gc)||!std::isfinite(ndens_e)){
+            (*p_log)(LOG_ERR,AT)<<" nans is synchrotron spectum\n";
+            exit(1);
+        }
+
         // TODO WARNING I did replace n_prime with ne is absorption, but this might not be correct!!!
 
         double p = p_pars->p;

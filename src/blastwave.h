@@ -26,11 +26,16 @@ enum METHOD_dmdr{ iusingA, iusingdthdR, iNodmdr };
 enum METHOD_dgdr{ iour, ipeer };
 
 enum METHODS_RAD { icomovspec, iobservflux };
+enum METHODS_SHOCK_VEL { isameAsBW, ishockVel };
+enum METHOD_NE{ iusenprime, iuseNe };
 
 struct Pars{
 
-    Pars(VecVector & data) : m_data(data){}
+    Pars(VecVector & data,unsigned loglevel) : m_data(data){
+        p_log = std::make_unique<logger>(std::cout,std::cerr,loglevel,"Pars");
+    }
     std::unique_ptr<SynchrotronAnalytic> p_syna = nullptr;
+    std::unique_ptr<logger> p_log;
     Vector m_freq_arr{}; Vector m_synch_em{}; Vector m_synch_abs{};
     VecVector & m_data;
 
@@ -63,8 +68,8 @@ struct Pars{
     double ncells = -1.;
     double ctheta0 = -1.;
 //        double theta_h0 = -1;
-    double theta_c_l = -1.;
-    double theta_c_h = -1.;
+//    double theta_c_l = -1.;
+//    double theta_c_h = -1.;
     double theta_w = -1.;
     double theta_max=-1.;
     /// deceleration radius
@@ -136,7 +141,11 @@ struct Pars{
 
     /// ----------------------------
     double d_l=-1.;
+    double theta_obs=-1.;
     double z=-1.;
+    METHODS_SHOCK_VEL method_shock_vel{};
+    METHOD_NE m_method_ne{};
+    METHODS_RAD m_method_rad{};
 
 };
 
@@ -1814,9 +1823,26 @@ public:
     BlastWave(Vector & tb_arr, size_t ishell, size_t ilayer, int loglevel )
             : m_tb_arr(tb_arr), m_loglevel(loglevel) {
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BW");
+        /// First: resize the container
+        if (m_data.empty()){
+            m_data.resize( BW::NVALS );
+        }
+        /// Check if contener will be filled by evolving or loading
+        if (m_tb_arr.empty()){
+            // REMOVING LOGGER
+            (*p_log)(LOG_WARN,AT) << " Time grid was not initialized\n";
+//            std::cerr << AT  << "\n";
+//            exit(1);
+        }
+        /// if no evolution required; do not allocate memory for each variable
+        if (m_data[BW::Q::itburst].size() < 1) {
+            for (auto & arr : m_data) {
+                arr.resize( tb_arr.size(), 0.0);
+            }
+        }
         // ---------------------- Methods
 //        p_pars = std::make_unique<Pars>(); //
-        p_pars = new Pars(m_data); //
+        p_pars = new Pars(m_data, loglevel); //
         p_spread = std::make_unique<LatSpread>();
         p_eos = std::make_unique<EOSadi>();
         p_dens = std::make_unique<RhoISM>(loglevel);
@@ -1833,29 +1859,14 @@ public:
                                            p_pars->m_freq_arr, p_pars->m_synch_em, p_pars->m_synch_abs,
                                            p_pars->i_end_r, ishell, ilayer, loglevel, p_pars);
         p_eats_fs->setFluxFunc(fluxDensPW);
+        p_eats_fs->setFluxFuncA(fluxDensA);
         /// ----------------------
+        p_pars->nr = m_tb_arr.size();
         p_pars->ilayer = ilayer;
         p_pars->ishell = ishell;
         ish = ishell;
         il = ilayer;
-        /// First: resize the container
-        if (m_data.empty()){
-            m_data.resize( BW::NVALS );
-        }
-        /// Check if contener will be filled by evolving or loading
-        if (m_tb_arr.empty()){
-            // REMOVING LOGGER
-            (*p_log)(LOG_WARN,AT) << " Time grid is not initialized\n";
-//            std::cerr << AT  << "\n";
-            return;
-        }
-        /// if no evolution required; do not allocate memory for each variable
-        p_pars->nr = m_tb_arr.size();
-        if (m_data[BW::Q::itburst].size() < 1) {
-            for (auto & arr : m_data) {
-                arr.resize( p_pars->nr, 0.0);
-            }
-        }
+
     }
     ~BlastWave(){delete p_pars;}
     void setAllParametersForOneLayer(std::unique_ptr<EjectaID2> & id,
@@ -2192,8 +2203,8 @@ public:
                 p_pars->theta_b0  = id->theta_wing;//latStruct.m_theta_w; // theta_b0
                 p_pars->ctheta0   = id->get(ish,il,EjectaID2::Q::ictheta); //TODO !! 0.5 * (latStruct.theta_pw[ilayer] + latStruct.theta_pw[ilayer]);
 //        p_pars->theta_h0= theta_c_h;
-                p_pars->theta_c_l = 0.;//id->get(ish,il,EjectaID2::Q::itheta_c_l);//latStruct.theta_pw[ilayer];//theta_c_l;
-                p_pars->theta_c_h = 0.,//id->get(ish,il,EjectaID2::Q::itheta_c_h);//latStruct.theta_pw[ilayer];
+//                p_pars->theta_c_l = 0.;//id->get(ish,il,EjectaID2::Q::itheta_c_l);//latStruct.theta_pw[ilayer];//theta_c_l;
+//                p_pars->theta_c_h = 0.,//id->get(ish,il,EjectaID2::Q::itheta_c_h);//latStruct.theta_pw[ilayer];
                 p_pars->theta_w   = id->theta_wing;//latStruct.m_theta_w; //
                 p_pars->theta_max = theta_max;
                 p_pars->ncells    = (double)id->ncells;//(double) latStruct.ncells;
@@ -2252,8 +2263,8 @@ public:
                 p_pars->theta_b0= id->get(ish,il,EjectaID2::Q::itheta_c_h);//latStruct.thetas_c_h[ilayer];
                 p_pars->ctheta0 = id->get(ish,il,EjectaID2::Q::ictheta); // TODO 0.5 * (latStruct.thetas_c_l[ilayer] + latStruct.thetas_c_h[ilayer]);
 //        p_pars->theta_h0= theta_c_h;
-                p_pars->theta_c_l = id->get(ish,il,EjectaID2::Q::itheta_c_l);//latStruct.thetas_c_l[ilayer];
-                p_pars->theta_c_h = id->get(ish,il,EjectaID2::Q::itheta_c_h);//latStruct.thetas_c_h[ilayer];
+//                p_pars->theta_c_l = id->get(ish,il,EjectaID2::Q::itheta_c_l);//latStruct.thetas_c_l[ilayer];
+//                p_pars->theta_c_h = id->get(ish,il,EjectaID2::Q::itheta_c_h);//latStruct.thetas_c_h[ilayer];
                 p_pars->theta_w = 0.; //
                 p_pars->theta_max = theta_max;
                 p_pars->ncells  = 1.;
@@ -2292,6 +2303,115 @@ public:
         }
 
 
+        ///
+        // set options
+//        std::string opt;
+
+        opt = "method_ne";
+        METHOD_NE methodNe;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            methodNe = METHOD_NE::iuseNe;
+        }
+        else{
+            if(opts.at(opt) == "useNe")
+                methodNe = METHOD_NE::iuseNe;
+            else if(opts.at(opt) == "usenprime")
+                methodNe = METHOD_NE::iusenprime;
+            else{
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
+                                     <<" given: " << opts.at(opt)
+                                     << " is not recognized. "
+                                     << "Possible options: "
+                                     << " useNe " << " usenprime " << "\n";
+//                std::cerr << AT << "\n";
+                exit(1);
+            }
+        }
+        p_pars->m_method_ne = methodNe;
+
+        opt = "method_shock_vel";
+        METHODS_SHOCK_VEL methodsShockVel;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            methodsShockVel = METHODS_SHOCK_VEL::isameAsBW;
+        }
+        else{
+            if(opts.at(opt) == "sameAsBW")
+                methodsShockVel = METHODS_SHOCK_VEL::isameAsBW;
+            else if(opts.at(opt) == "shockVel")
+                methodsShockVel = METHODS_SHOCK_VEL::ishockVel;
+            else{
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
+                                     <<" given: " << opts.at(opt)
+                                     << " is not recognized. "
+                                     << " Possible options: "
+                                     << " sameAsBW " << " shockVel " << "\n";
+//                std::cerr << AT << "\n";
+                exit(1);
+            }
+        }
+        p_pars->method_shock_vel = methodsShockVel;
+
+        opt = "method_comp_mode";
+        METHODS_RAD methodCompMode;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            methodCompMode = METHODS_RAD::iobservflux;
+        }
+        else{
+            if(opts.at(opt) == "observFlux")
+                methodCompMode = METHODS_RAD::iobservflux;
+            else if(opts.at(opt) == "comovSpec")
+                methodCompMode = METHODS_RAD::icomovspec;
+            else{
+                (*p_log)(LOG_ERR,AT) << AT << " option for: " << opt
+                                     <<" given: " << opts.at(opt)
+                                     << " is not recognized. "
+                                     << "Possible options: "
+                                     << " observFlux " << " comovSpec " << "\n";
+                exit(1);
+            }
+        }
+        p_pars->m_method_rad = methodCompMode;
+
+        double freq1 = getDoublePar("freq1", pars, AT, p_log,1.e7, false);//pars.at("freq1");
+        double freq2 = getDoublePar("freq2", pars, AT, p_log,1.e14, false);//pars.at("freq2");
+        size_t nfreq = (size_t)getDoublePar("nfreq", pars, AT, p_log,100, false);//pars.at("nfreq");
+
+        p_pars->m_freq_arr = TOOLS::MakeLogspaceVec(log10(freq1), log10(freq2),(int)nfreq);
+        if (p_pars->m_method_rad == METHODS_RAD::icomovspec){
+            (*p_log)(LOG_INFO,AT) << " allocating comoving spectrum array (fs) "
+                                  << " freqs="<<p_pars->m_freq_arr.size() << " by radii=" << p_pars->nr << " Spec. grid="
+                                  << p_pars->m_freq_arr.size() * p_pars->nr << "\n";
+            p_pars->m_synch_em.resize( p_pars->m_freq_arr.size() * p_pars->nr );
+            p_pars->m_synch_abs.resize( p_pars->m_freq_arr.size() *p_pars->nr );
+        }
+
+        p_pars->theta_obs = getDoublePar("theta_obs", pars, AT, p_log,-1, true);//pars.at("theta_obs");
+        p_pars->d_l = getDoublePar("d_l", pars, AT, p_log,-1, true);//pars.at("d_l");
+        p_pars->z = getDoublePar("z", pars, AT, p_log,-1, true);//pars.at("z");
+        switch (id->method_eats) {
+            case EjectaID2::iadaptive:
+                p_eats_fs->setEatsPars(
+                        pars,opts,id->nlayers,id->get(ish,il,EjectaID2::Q::ictheta),
+                        id->get(ish,il,EjectaID2::Q::itheta_c_l),id->get(ish,il,EjectaID2::Q::itheta_c_h),id->theta_wing,
+                        getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false));
+
+                break;
+            case EjectaID2::ipiecewise:
+                p_eats_fs->setEatsPars(
+                        pars,opts,id->nlayers,id->get(ish,il,EjectaID2::Q::ictheta),
+                        id->get(ish,il,EjectaID2::Q::itheta_c_l),
+                        id->get(ish,il,EjectaID2::Q::itheta_c_h),0.,
+                        getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false));
+
+                break;
+        }
+
+        p_pars->p_syna->setPars(pars, opts);
+
+
 
 
 //        std::cout << " ["<<bw_obj.getPars()->ishell<<", "<<bw_obj.getPars()->ilayer<<"] "
@@ -2308,7 +2428,7 @@ public:
     std::unique_ptr<RhoISM> & getDensIsm(){ return p_dens; }
     std::unique_ptr<SedovTaylor> & getSedov(){ return p_sedov; }
     std::unique_ptr<BlandfordMcKee2> & getBM(){ return p_bm; }
-//    std::unique_ptr<BlastWaveRadiation> & getRad(){ return p_rad; }
+    std::unique_ptr<EATS> & getFsEATS(){ return p_eats_fs; }
     // --------------------------------------------------------
     void updateNucAtomic( double * sol, const double t ){
         p_nuc->update(
@@ -2476,6 +2596,8 @@ public:
     /// check the evolution result
     void checkEvolution(){
         /// limit the evaluation to the latest 'R' that is not 0 (before termination)
+        if (p_pars->end_evolution)
+            return;
         size_t nr = m_data[BW::Q::iR].size();
         size_t i_end_r = nr;
         for(size_t ir = 0; ir < nr; ++ir){
@@ -2485,8 +2607,9 @@ public:
             }
         }
         if (i_end_r == 0){
-            (*p_log)(LOG_ERR,AT) << " i_end_r = " << i_end_r << "\n";
-            exit(1);
+            (*p_log)(LOG_ERR,AT) << "[il="<< p_pars->ilayer << ", il="<< p_pars->ishell
+                                            << "] Blastwave was not evolved: i_end_r = " << i_end_r << "\n";
+//            exit(1);
         }
         p_pars->i_end_r = i_end_r;
     }
@@ -4055,7 +4178,7 @@ public:
         }
     }
     void computeForwardShockSynchrotronAnalyticSpectrum(){
-        if (m_method_rad==METHODS_RAD::icomovspec) {
+        if (p_pars->m_method_rad==METHODS_RAD::icomovspec) {
             (*p_log)(LOG_INFO,AT) << " computing analytic comoving spectrum\n";
             for (size_t it = 0; it < p_pars->nr; ++it) {
                 //        auto & p_eats = p_pars; // removing EATS_pars for simplicity
@@ -4247,7 +4370,7 @@ public:
                 double thick_tau = EQS::shock_delta(r,GammaSh); // TODO this is added becasue in Johanneson Eq. I use ncells
                 flux_dens = shock_synchrotron_flux_density(Gamma, GammaSh, m2, rho2, frac, B, gm, gM, gc,
                                                       Theta, z_cool, t_obs, mu,
-                                                      r, thick,  thick_tau, p_pars);
+                                                      r, thick,  thick_tau, nu_obs, p_pars);
             }
             flux_dens *= (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
 
@@ -4332,15 +4455,16 @@ public:
         }
         else{
             double R = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::iR]);
-//            if (!std::isfinite(R)) {
-//                (*p_pars->p_log)(LOG_ERR,AT) << " R is NAN in integrand for radiation" << "\n";
-//                // REMOVING LOGGER
-////            std::cerr  << "R = " << R << "\n";
-////            std::cout << " R = " << m_data[BW::Q::iR] << "\n";
-////            std::cout << " Gamma= " << m_data[BW::Q::iGamma] << "\n";
-////            std::cerr << AT << "\n";
+            if (!std::isfinite(R)) {
+                (*p_pars->p_log)(LOG_ERR,AT) << " R is NAN in integrand for radiation" << "\n";
+                // REMOVING LOGGER
+//            std::cerr  << "R = " << R << "\n";
+//            std::cout << " R = " << m_data[BW::Q::iR] << "\n";
+//            std::cout << " Gamma= " << m_data[BW::Q::iGamma] << "\n";
+//            std::cerr << AT << "\n";
 //                return 0.;
-//            }
+                exit(1);
+            }
 
             double rho = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::irho]);
             double Gamma = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst],
@@ -4367,7 +4491,8 @@ public:
             double z_cool = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst],
                                          m_data[BW::Q::iz_cool]);
 
-            if (rho < 0. || Gamma < 1. || U_p < 0. || theta <= 0. || rho2 < 0. || thick <= 0.) {
+            if (rho < 0. || Gamma < 1. || !std::isfinite(Gamma)
+                || U_p < 0. || theta <= 0. || rho2 < 0. || thick <= 0.) {
                 std::cerr << " wrong value in interpolation to EATS surface  \n"
                                              << " R = " << R << "\n"
                                              << " rho = " << rho << "\n"
@@ -4384,7 +4509,7 @@ public:
             flux_dens = shock_synchrotron_flux_density(Gamma, GammaSh, m2, rho2,
                                                   frac, B, gm, gM, gc, Theta, z_cool,
                                                   t_e, mu, R, thick, thick, nu_obs, params);
-//            dFnu*=(p_pars->d_l*p_pars->d_l*2.);
+//            flux_dens*=(p_pars->d_l*p_pars->d_l*2.);
 #if 0
             /* -- Reverse shock --- */
             double dFnu_rs = 0.0;

@@ -1532,10 +1532,10 @@ public:
     };
     size_t nlayers() const {return run_pwn ? m_nlayers : 0;}
     size_t nshells() const {return run_pwn ? m_nshells : 0;}
-    int ncells() const {
+//    int ncells() const {
 //        return run_bws ? (int)ejectaStructs.structs[0].ncells : 0;
-        return (run_pwn || load_pwn) ? (int)id->ncells : 0;
-    }
+//        return (run_pwn || load_pwn) ? (int)id->ncells : 0;
+//    }
     void setPars(StrDbMap & pars, StrStrMap & opts, std::string & working_dir, std::string parfilename,
                  Vector & tarr, size_t ii_eq, size_t n_layers){
         /// read pwn parameters of the pwn
@@ -1624,9 +1624,12 @@ public:
                                             workingdir+fname, attrs, group_attrs);
 
     }
-    void savePWNEvolution(std::string workingdir, std::string fname, size_t every_it,
-                          StrDbMap & main_pars, StrDbMap & ej_pars){
-        (*p_log)(LOG_INFO,AT) << "Saving Ejecta BW dynamics...\n";
+    void savePWNEvolution(StrDbMap & main_pars){
+        if (!run_pwn)
+            return;
+        (*p_log)(LOG_INFO,AT) << "Saving PWN BW dynamics...\n";
+        auto fname = getStrOpt("fname_pwn", pwn_opts, AT, p_log, "", true);
+        size_t every_it = (int)getDoublePar("save_pwn_every_it", pwn_pars, AT, p_log, 1, true);
 
         if (every_it < 1){
             std::cerr << " every_it must be > 1; Given every_it="<<every_it<<" \n Exiting...\n";
@@ -1662,10 +1665,10 @@ public:
                 {"nshells", nshells() },
                 {"m_nlayers", nlayers() },
                 {"ntimes", t_arr.size() },
-                {"ncells", ncells() }
+//                {"ncells", ncells() }
         };
         for (auto& [key, value]: main_pars) { attrs[key] = value; }
-        for (auto& [key, value]: ej_pars) { attrs[key] = value; }
+        for (auto& [key, value]: pwn_pars) { attrs[key] = value; }
         p_out->VectorOfVectorsH5(tot_dyn_out,arr_names,workingdir+fname,attrs);
     }
 
@@ -1796,6 +1799,8 @@ public:
     }
 
     void evalPWNObservables(StrDbMap & main_pars, StrStrMap & main_opts){
+        if (!(run_pwn || load_pwn))
+            return;
         do_ele = getBoolOpt("do_ele", pwn_opts, AT, p_log, false, true);
         do_lc = getBoolOpt("do_lc", pwn_opts, AT, p_log, false, true);
         do_skymap = getBoolOpt("do_skymap", pwn_opts, AT, p_log, false, true);
@@ -1925,9 +1930,15 @@ private:
     }
 
 private:
-
     std::vector<VecVector> evalPWNLightCurves( Vector & obs_times, Vector & obs_freqs){
+
+
         (*p_log)(LOG_INFO,AT)<<" starting ejecta light curve calculation\n";
+        (*p_log)(LOG_ERR,AT)<<" not implemented\n";
+        std::vector<VecVector> light_curves{};
+        exit(1);
+#if 0
+
 //        size_t nshells = p_cumShells->nshells();
 //        size_t m_nlayers = p_cumShells->m_nlayers();
 //        size_t ncells =  (int)p_cumShells->ncells();
@@ -1964,9 +1975,9 @@ private:
                 ii ++;
             }
         }
+#endif
         return std::move( light_curves );
     }
-
 
 };
 

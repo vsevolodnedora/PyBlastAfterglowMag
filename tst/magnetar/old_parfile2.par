@@ -110,7 +110,7 @@ eps_t = 1.0
 p = 2.05
 ksi_n = 1.
 
-nlayers = 30
+m_nlayers = 30
 mfac = 2.0
 
 which_jet_layer_to_use = 1e5

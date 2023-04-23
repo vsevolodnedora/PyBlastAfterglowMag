@@ -964,16 +964,17 @@ private:
                 for (size_t ish = 0; ish < nshells(); ish++){
                     auto & bw = p_cumShells[il]->getBW(ish);
                     bw->setAllParametersForOneLayer(id, pars, opts, il, ii_eq);
+#if 0
                     switch (id->method_eats) {
                         case EjectaID2::iadaptive:
-                            bw->getRad()->setEatsPars(
+                            bw->getFsEATS()->setEatsPars(
                                     pars,opts,id->nlayers,id->get(ish,il,EjectaID2::Q::ictheta),
                                     0.,0.,id->theta_wing,
                                     getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false));
 
                             break;
                         case EjectaID2::ipiecewise:
-                            bw->getRad()->setEatsPars(
+                            bw->getFsEATS()->setEatsPars(
                                     pars,opts,id->nlayers,id->get(ish,il,EjectaID2::Q::ictheta),
                                     id->get(ish,il,EjectaID2::Q::itheta_c_l),
                                     id->get(ish,il,EjectaID2::Q::itheta_c_h),0.,
@@ -981,6 +982,7 @@ private:
 
                             break;
                     }
+#endif
                     ii_eq += SOL::neq;//bw->getNeq();
                 }
             }
@@ -1012,6 +1014,7 @@ private:
                 auto & bw = p_cumShells[il]->getBW(ish);
 //                auto & struc = ejectaStructs.structs[ish];
                 bw->setAllParametersForOneLayer(id, pars, opts, il, ii_eq);
+#if 0
                 switch (id->method_eats) {
                     case EjectaID2::iadaptive:
                         bw->getRad()->setEatsPars(
@@ -1029,6 +1032,7 @@ private:
 
                         break;
                 }
+#endif
 
 /// Override the layer-to-use
                 if (bw->getPars()->which_jet_layer_to_use == 0){
@@ -1103,7 +1107,7 @@ private:
         do_eninj_inside_rhs = getBoolOpt("do_eninj_inside_rhs", opts, AT, p_log, "no", false);
 
         (*p_log)(LOG_INFO,AT) << "finished initializing ejecta. "
-                                 "nshells="<<nshells()<<" m_nlayers="<<nlayers()<<"\n";
+                                 "nshells="<<nshells()<<" nlayers="<<nlayers()<<"\n";
     }
 
     double ej_rtol = 1e-5;
@@ -1151,8 +1155,8 @@ private:
                         {"ishell",bw->getPars()->ishell},
                         {"ctheta0",bw->getPars()->ctheta0},
                         {"E0",bw->getPars()->E0},
-                        {"theta_c_l",bw->getPars()->theta_c_l},
-                        {"theta_c_h",bw->getPars()->theta_c_h},
+//                        {"theta_c_l",bw->getPars()->theta_c_l},
+//                        {"theta_c_h",bw->getPars()->theta_c_h},
                         {"eps_rad",bw->getPars()->eps_rad},
                         {"entry_time",bw->getPars()->entry_time},
                         {"entry_r",bw->getPars()->entry_r},
@@ -1171,7 +1175,7 @@ private:
         }
         std::unordered_map<std::string, double> attrs{
                 {"nshells", nshells() },
-                {"m_nlayers", nlayers() }
+                {"nlayers", nlayers() }
         };
 //        attrs.insert(ej_pars.begin(),ej_pars.end());
 //        attrs.insert(main_pars.begin(),main_pars.end());
@@ -1214,7 +1218,7 @@ private:
 
         std::unordered_map<std::string, double> attrs{
                 {"nshells", nshells() },
-                {"m_nlayers", nlayers() },
+                {"nlayers", nlayers() },
                 {"ntimes", t_arr.size() },
                 {"ncells", ncells() }
         };
@@ -1236,7 +1240,7 @@ private:
         H5std_string FILE_NAME(workingdir+fname);
         H5File file(FILE_NAME, H5F_ACC_RDONLY);
         size_t nshells_ = (size_t)getDoubleAttr(file,"nshells");
-        size_t nlayers_ = (size_t)getDoubleAttr(file, "m_nlayers");
+        size_t nlayers_ = (size_t)getDoubleAttr(file, "nlayers");
         size_t ntimes_ = (size_t)getDoubleAttr(file, "ntimes");
         if (nshells_ != nshells()){
             (*p_log)(LOG_ERR,AT) << "Wring attribute: nshells_="<<nshells_<<" expected nshells="<<nshells()<<"\n";
@@ -1312,6 +1316,7 @@ private:
                 if (bw->getData()[BW::iR][0] == 0){
                     (*p_log)(LOG_WARN,AT) << "Loaded not evolved shell [il="<<il<<", "<<"ish="<<ish<<"] \n";
                 }
+                bw->checkEvolution();
             }
         }
         file.close();
@@ -1360,7 +1365,7 @@ private:
 
         for(size_t il = 0; il < nlayers_; il++){
             for (size_t ish = 0; ish < nshells_; ish++) {
-                p_cumShells[il]->getBW(ish)->getRad();
+                p_cumShells[il]->getBW(ish)->getFsEATS();
             }
         }
 
@@ -1401,7 +1406,7 @@ private:
 //                tmp.emplace_back( model->evalImagePW(obs_time, obs_freq) );
 //                auto & x1 = model->getBW(ishell);
 //                auto & x2 = x1->getRad();
-                auto & bw_rad = p_cumShells[ilayer]->getBW(ishell)->getRad();
+                auto & bw_rad = p_cumShells[ilayer]->getBW(ishell)->getFsEATS();
                 bw_rad->evalImagePW(tmp[ilayer], tmp_pj, tmp_cj, obs_time, obs_freq);
 
 //                std::cout<<"ish="<<ishell<<" il="<<ilayer<<" pj="<<tmp_pj.m_f_tot<<" cj="<<tmp_cj.m_f_tot<<"\n";
@@ -1475,7 +1480,7 @@ private:
                         << " vel_shell="<<ishell<<"/"<<nshells()-1
                         << " theta_layer="<<ilayer<<"/"<<nlayers()
                         << " phi_cells="<<EjectaID2::CellsInLayer(ilayer)<<"\n";
-                model->getBW(ishell)->getRad()->evalForwardShockLightCurve(
+                model->getBW(ishell)->getFsEATS()->evalForwardShockLightCurve(
                         id->method_eats,
                         image_i, im_pj, im_cj, light_curves[ishell][ilayer], obs_times, obs_freqs);
                 ii ++;
@@ -1497,8 +1502,8 @@ public:
         auto & models = getShells();
         for (auto & model : models) {
             for (auto & bw : model->getBWs()) {
-                bw->getRad()->computeForwardShockElectronAnalyticVars();
-                bw->getRad()->computeForwardShockSynchrotronAnalyticSpectrum();
+                bw->computeForwardShockElectronAnalyticVars();
+                bw->computeForwardShockSynchrotronAnalyticSpectrum();
             }
         }
         is_ejecta_anal_synch_computed = true;
@@ -1519,7 +1524,7 @@ public:
 //            size_t n_layers_ej = struc.m_nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? struc.nlayers_pw : struc.nlayers_a ;
             for (size_t ilayer = 0; ilayer < nlayers(); ilayer++) {
                 auto & model = getShells()[ilayer]->getBW(ishell);//ejectaModels[ishell][ilayer];
-                model->getRad()->updateObsPars(pars);
+                model->getFsEATS()->updateObsPars(pars);
                 ii++;
             }
         }
@@ -1698,7 +1703,7 @@ public:
         std::vector<std::string> other_names { "times", "freqs", "total_fluxes" };
         VecVector out_data {_times, _freqs, total_fluxes};
 
-        std::unordered_map<std::string,double> attrs{ {"nshells", nshells()}, {"m_nlayers", nlayers()} };
+        std::unordered_map<std::string,double> attrs{ {"nshells", nshells()}, {"nlayers", nlayers()} };
         for (auto& [key, value]: main_pars) { attrs[key] = value; }
         for (auto& [key, value]: ej_pars) { attrs[key] = value; }
         p_out->VectorOfVectorsH5(out_data, other_names, workingdir+fname,  attrs);

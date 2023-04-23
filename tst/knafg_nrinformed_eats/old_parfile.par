@@ -73,7 +73,7 @@ eps_b = 0.01
 eps_t = 0.0
 p = 2.16
 
-nlayers = 30
+m_nlayers = 30
 mfac = 2.0
 
 which_jet_layer_to_use = 1e5

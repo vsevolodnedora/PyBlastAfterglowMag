@@ -50,7 +50,7 @@ eps_b = 0.01
 eps_t = 1.0
 p = 2.05
 
-nlayers = 100
+m_nlayers = 100
 mfac = 2.0
 save_dyn_every_it = 1
 
