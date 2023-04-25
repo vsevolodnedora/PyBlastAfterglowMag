@@ -1097,7 +1097,7 @@ public:
 //                image(Image::itheta0, i) = theta;
 //                image(Image::itt, i) = tt;
 //                image(Image::iB, i) = B;
-//                image(Image::itb, i) = tb;
+//                image(Image::itburst, i) = tb;
 //                image(Image::igc, i) = gc;
 //                image(Image::igm, i) = gm;
             }
@@ -1821,7 +1821,7 @@ public:
 //    enum QS { iR, iRsh, itt, itcomov, imom, iEint2, itheta, iErad2, iEsh2, iEad2, iM2 };
     enum CASES { i_INSIDE_BEHIND, i_OUTSIDE_BEHIND, i_INSIDE_ABOVE, i_OUTSIDE_ABOVE, i_AT_ZERO_INSIDE };
     BlastWave(Vector & tb_arr, size_t ishell, size_t ilayer, int loglevel )
-            : m_tb_arr(tb_arr), m_loglevel(loglevel) {
+                : m_tb_arr(tb_arr), m_loglevel(loglevel) {
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BW");
         /// First: resize the container
         if (m_data.empty()){
@@ -2569,7 +2569,7 @@ public:
         // ***************************************
         ic_arr[i + SOL::QS::iR]      = m_tb_arr[0] * beta0 * CGS::c;
         ic_arr[i + SOL::QS::iRsh]    = m_tb_arr[0] * EQS::Beta(GammaSh0) * CGS::c;
-        ic_arr[i + SOL::QS::itt]     = EQS::init_elapsed_time(p_pars->R0, p_pars->Gamma0, use_spread);
+        ic_arr[i + SOL::QS::itt]     = EQS::init_elapsed_time(p_pars->R0, p_pars->mom0, use_spread);
         ic_arr[i + SOL::QS::itcomov] = p_pars->R0 / (beta0 * p_pars->Gamma0 * CGS::c);
         ic_arr[i + SOL::QS::iEint2]  = (p_pars->Gamma0 - 1. ) * m_M20 / p_pars->M0;  //TODO Isnt it just E0 / m_M0 ???? As M0 = E0 * cgs.c ** -2 / Gamma0
         ic_arr[i + SOL::QS::iEint2]  += p_pars->Eint0 / p_pars->M0 / CGS::c / CGS::c; // add initial internal energy
@@ -2606,11 +2606,11 @@ public:
                 break;
             }
         }
-        if (i_end_r == 0){
-            (*p_log)(LOG_ERR,AT) << "[il="<< p_pars->ilayer << ", il="<< p_pars->ishell
-                                            << "] Blastwave was not evolved: i_end_r = " << i_end_r << "\n";
+//        if (i_end_r == 0){
+//            (*p_log)(LOG_ERR,AT) << "[il="<< p_pars->ilayer << ", ish="<< p_pars->ishell
+//                                            << "] Blastwave was not evolved: i_end_r = " << i_end_r << "\n";
 //            exit(1);
-        }
+//        }
         p_pars->i_end_r = i_end_r;
     }
     /// add the current solution 'sol' to the 'm_data' which is Vector of Arrays (for all variables)
@@ -2917,12 +2917,16 @@ public:
         // -- Energy equation
         double dEint2dR = dEsh2dR + dEad2dR - dErad2dR; // / (m_pars.M0 * c ** 2)
         double dtcomov_dR = 1.0 / beta / Gamma / CGS::c;
+#if 0
         double dttdr = 0.;
         if (p_spread->m_method != LatSpread::METHODS::iNULL)
             dttdr = 1. / (CGS::c * beta) * sqrt(1. + R * R * dthetadr * dthetadr) - (1. / CGS::c);
         else
             dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
         dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
+#endif
+        bool spread = p_spread->m_method != LatSpread::METHODS::iNULL;
+        double dttdr = EQS::evalElapsedTime(R,mom,dthetadr,spread);
         // ****************************************
 
         if (!std::isfinite(dRdt) || !std::isfinite(dGammadR) || !std::isfinite(dlnV2dR) || !std::isfinite(dthetadr)) {
@@ -3210,12 +3214,14 @@ public:
 //        }
 
         double dtcomov_dR = 1.0 / beta / Gamma / CGS::c;
-        double dttdr;
+//        double dttdr;
 //        if (p_spread->m_method != LatSpread::METHODS::iNULL)
 //            dttdr = 1. / (CGS::c * beta) * sqrt(1. + R * R * dthetadr * dthetadr) - (1. / CGS::c);
 //        else
 //            dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
-        dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
+//        dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
+        bool spread = p_spread->m_method != LatSpread::METHODS::iNULL;
+        double dttdr = EQS::evalElapsedTime(R,mom,dthetadr,spread);
         // ****************************************
 //        if (!std::isfinite(Gamma) ||
 //        !std::isfinite(beta) //||
@@ -4089,10 +4095,14 @@ public:
 //        auto & p_eats = p_pars; // removing EATS_pars for simplicity
         auto & p_syna = p_pars->p_syna;
         if ((m_data[BW::Q::ibeta][it] < p_syna->getPars()->beta_min)){
+            if (p_pars->i_end_r > it-1)
+                p_pars->i_end_r = it-1;
             return;
         }
         if ((m_data[BW::Q::iCSCBM][it] >= m_data[BW::Q::ibeta][it])){
             m_data[BW::Q::iB][it] = 0.;
+            if (p_pars->i_end_r > it-1)
+                p_pars->i_end_r = it-1;
             return;
         }
         // no ISM case -> no electron acceleration
@@ -4165,16 +4175,18 @@ public:
 //                std::cout << nr<<"\n";
             addComputeForwardShockMicrophysics(it);
         }
-
-        if (p_pars->n_fialed_electrons == p_pars->nr-1){
-            (*p_log)(LOG_ERR,AT) << " Electron calculation failed for all iterations. Exiting...\n";
+        /// check if electron spectrum failed for any reason
+        if ((m_data[BW::Q::iR][0]>0)&&(p_pars->n_fialed_electrons == p_pars->nr)&&(!p_pars->end_evolution)){
+            (*p_log)(LOG_ERR,AT)
+                << "[il="<<p_pars->ilayer<<", ish="<<p_pars->ishell<<"] "
+                << " Electron calculation failed for all iterations. Exiting...\n";
             exit(1);
         }
-
-        else if (p_pars->n_fialed_electrons != 0){
-            (*p_log)(LOG_ERR,AT) <<" Electron calculation failed for n=" << p_pars->n_fialed_electrons
-                                 << " iterations starting from it=" << p_pars->i0_failed_elecctrons<<"\n";
-//            exit(1);
+        else if ((m_data[BW::Q::iR][0]>0)&&(p_pars->n_fialed_electrons > 0)&&(p_pars->n_fialed_electrons < p_pars->nr)){
+            (*p_log)(LOG_ERR,AT)
+                << "[il="<<p_pars->ilayer<<", ish="<<p_pars->ishell<<"] "
+                <<" Electron calculation failed for n=" << p_pars->n_fialed_electrons
+                << " iterations starting from it=" << p_pars->i0_failed_elecctrons<<"\n";
         }
     }
     void computeForwardShockSynchrotronAnalyticSpectrum(){
@@ -4241,6 +4253,8 @@ public:
 
         auto * p_pars = (struct Pars *) params;
         auto & m_data = p_pars->m_data;
+        if (p_pars->i_end_r==0)
+            return;
 
         if (p_pars->m_method_rad == METHODS_RAD::icomovspec) {
             Interp2d int_em(p_pars->m_freq_arr, m_data[BW::Q::iR], p_pars->m_synch_em);
@@ -4319,6 +4333,13 @@ public:
             double tb = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::itburst]);
             double tt = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::itt]);
             double cs = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iCSCBM]);
+
+            if ((!std::isfinite(gm))||(!std::isfinite(B))||(!std::isfinite(m2))){
+                (*p_pars->p_log)(LOG_ERR,AT)
+                    <<"[ish="<<p_pars->ishell<<", "<<"il="<<p_pars->ilayer<<"] "
+                    <<" nans in flux func PW\n";
+                exit(1);
+            }
 
             double dFnu = 0.;
             if ((m_data[BW::Q::iB][ia] == 0.) || (m_data[BW::Q::iB][ib] == 0.)){
@@ -4617,7 +4638,6 @@ public:
 #endif
         return flux_dens;
     }
-
 
 };
 

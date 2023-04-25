@@ -82,9 +82,9 @@ public:
         p_pars = std::make_unique<Pars>();
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "PyBlastAfterglow");
         p_mag = std::make_unique<Magnetar>(loglevel);
-        p_ej_pwn = std::make_unique<PWNset>(loglevel);
         p_grb = std::make_unique<Ejecta>(t_grid, loglevel);
         p_ej  = std::make_unique<Ejecta>(t_grid, loglevel);
+        p_ej_pwn = std::make_unique<PWNset>(loglevel, p_ej); // depends on ang.struct. of the ejecta
     }
 
     void setModelPars(StrDbMap pars, StrStrMap opts) {
@@ -205,10 +205,10 @@ int main(int argc, char** argv) {
 //        working_dir = "../tst/grbafg_tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/knafg_nrinformed/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/knafg_nrinformed_eats/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-//        working_dir = "../tst/magnetar/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../tst/magnetar/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_tophat_wind/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-        working_dir = "../tst/knafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/knafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../projects/grbtophat_parallel/"; parfilename="tophat_EisoC500_Gamma0c1000_thetaC50_thetaW50_theta00_nism10_p22_epse05_epsb05_parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../projects/grbgauss_mcmc/working/"; parfilename="tophat_7549a8d74ce86fc502b087d8eb0e341656ee536a.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/problems/"; parfilename="tst.par"; loglevel=LOG_INFO;
@@ -283,7 +283,8 @@ int main(int argc, char** argv) {
                  "# --------------------------- END ---------------------------");
     size_t ii_eq = pba.getMag()->getNeq() + pba.getGRB()->getNeq();
     size_t nlayers_jet = pba.getGRB()->nlayers();
-    pba.getEj()->setPars(kn_pars,kn_opts,working_dir,parfilename,main_pars,ii_eq,nlayers_jet);
+    pba.getEj()->setPars(kn_pars,kn_opts,working_dir,parfilename,
+                         main_pars,ii_eq,nlayers_jet);
 
 
     StrDbMap pwn_pars; StrStrMap pwn_opts;
@@ -292,7 +293,7 @@ int main(int argc, char** argv) {
                  "# --------------------------- END ---------------------------");
     size_t ii_eq_ = pba.getMag()->getNeq() + pba.getGRB()->getNeq() + pba.getEj()->getNeq();
     pba.getEjPWN()->setPars(pwn_pars,pwn_opts,working_dir,parfilename,
-                            pba.getTburst(),ii_eq_,pba.getEj()->nlayers());
+                            pba.getTburst(),main_pars,ii_eq_);
 
     (*p_log)(LOG_INFO, AT) << "Initialization finished [" << timer.checkPoint() << " s]" << "\n";
 
@@ -300,15 +301,13 @@ int main(int argc, char** argv) {
 
     (*p_log)(LOG_INFO, AT) << "evolution finished [" << timer.checkPoint() << " s]" << "\n";
 
-    pba.getMag()->saveMagnetarEvolution();
-
-    pba.getEjPWN()->savePWNEvolution(main_pars);
+//    pba.getMag()->saveMagnetarEvolution();
 
     pba.getGRB()->computeAndOutputObservables(main_pars, main_opts);
 
     pba.getEj()->computeAndOutputObservables(main_pars, main_opts);
 
-    pba.getEjPWN()->evalPWNObservables(main_pars, main_opts);
+    pba.getEjPWN()->computeAndOutputObservables(main_pars,main_opts);
 
 }
 

@@ -13,7 +13,7 @@
 * Parameters
 
 tb0 = 1.e3
-tb1 = 1.e11
+tb1 = 1.e15
 ntb = 1000
 iout = 1
 rtol = 1e-8
@@ -31,7 +31,7 @@ theta_obs = 0
 * Settings
 
 lc_freqs = array 3.e9
-lc_times = array logspace 1.e4 1.e10 150
+lc_times = array logspace 1.e4 1.e9 150
 lc_use_freq_to_time = no
 
 skymap_freqs = array 1e9 1e18
@@ -64,11 +64,12 @@ freq2 = 1.e12
 nfreq = 100
 
 rtol_adapt = 1e-5
+save_dyn_every_it = 1
 
 * Settings
 
 run_bws = yes
-save_dynamics = no
+save_dynamics = yes
 load_dynamics = no
 do_ele = yes
 do_spec = no

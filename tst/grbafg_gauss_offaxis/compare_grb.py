@@ -30,6 +30,8 @@ except ImportError:
     except ImportError:
         raise ImportError("Cannot import PyBlastAfterglowMag")
 
+
+
 afterglowpy = True
 
 try:

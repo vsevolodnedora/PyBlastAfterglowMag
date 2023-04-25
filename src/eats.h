@@ -37,32 +37,17 @@ static double check_emission_time( double t_e, double mu, double t_obs, Vector &
 class EATS{
     struct Pars{
         std::unique_ptr<logger> p_log = nullptr;
-//        std::unique_ptr<SynchrotronAnalytic> p_syna = nullptr;
         Pars(Vector & tburst, Vector & tt, Vector & r, Vector & theta, Vector & m_gam, Vector & m_bet,
              Vector & freq_arr, Vector & synch_em, Vector & synch_abs,
              size_t & i_end_r, size_t ish, size_t il, int loglevel, void * params)
             : m_tburst(tburst), m_tt(tt),  m_r(r), m_theta(theta), m_gam(m_gam), m_bet(m_bet),
               m_freq_arr(freq_arr), m_synch_em(synch_em), m_synch_abs(synch_abs), m_i_end_r(i_end_r),
               m_params(params) {
-//            if (m_tburst.empty()){
-//                std::cerr << AT<< " empty array\n";
-//                exit(1);
-//            }
-//            nr = m_tburst.size();
-//            m_mu.resize(m_tburst.size());
-//            m_gam.resize(m_mom.size());
-//            m_bet.resize(m_mom.size());
-//            for (size_t i = 0; i < m_mom.size(); i++){
-//                m_gam[i] = GamFromMom(m_mom[i]);
-//                m_bet[i] = BetFromMom(m_mom[i]);
-//            }
 
             ishell = ish;
             ilayer= il;
             m_i_end_r = i_end_r;
-//            nr = m_data[BW::Q::itburst].size();
             p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "EATS_pars");
-//            p_syna = std::make_unique<SynchrotronAnalytic>(loglevel);
         }
         void * m_params;
         Vector & m_tburst; Vector & m_tt;
@@ -125,7 +110,8 @@ class EATS{
                                       << " R[0]=" << m_r[0]
                                       << "\n";
             }
-
+            if (ttobs.empty())
+                ttobs.resize( m_r.size(), std::numeric_limits<double>::max() );
 
             //        std::cerr << AT
 //                  << "Observables for Gamma0=[" << (p_pars->p_dyn)->getData()[(*p_pars->p_dyn).Q::iGamma][0] << ", " << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::iGamma][p_pars->nr - 1] << "] "
@@ -172,7 +158,6 @@ class EATS{
             theta_obs = getDoublePar("theta_obs", pars, AT, p_log,-1, true);//pars.at("theta_obs");
             d_l = getDoublePar("d_l", pars, AT, p_log,-1, true);//pars.at("d_l");
             z = getDoublePar("z", pars, AT, p_log,-1, true);//pars.at("z");
-
 
             counter_jet = getBoolOpt("counter_jet", opts, AT, p_log,true, false);
 
@@ -223,6 +208,7 @@ class EATS{
         double (* obsangle)(const double &, const double &, const double &) = nullptr;
         double (* im_xxs)( const double &, const double &, const double & ) = nullptr;
         double (* im_yys)( const double &, const double &, const double & ) = nullptr;
+        Vector ttobs{}; // for PW eats only
         // -----------------------------
         void (* fluxFunc)(
                 double & flux_dens, double & r, double & ctheta,
@@ -276,8 +262,8 @@ private:
 public:
     /// ----------------------------------------------------------------------------------------------
     EATS(Vector & tburst, Vector & tt, Vector & r, Vector & theta,Vector & m_gam, Vector & m_bet,
-                       Vector & freq_arr, Vector & synch_em, Vector & synch_abs,
-                       size_t & i_end_r, size_t ish, size_t il, int loglevel, void * params){
+         Vector & freq_arr, Vector & synch_em, Vector & synch_abs,
+         size_t & i_end_r, size_t ish, size_t il, int loglevel, void * params){
         p_pars = new Pars(tburst,tt,r,theta,m_gam,m_bet,freq_arr,synch_em,synch_abs,
                           i_end_r,ish,il,loglevel,params);
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "EATS");
@@ -345,8 +331,6 @@ public:
                          double (*im_xxs)( const double &, const double &, const double & ),
                          double (*im_yys)( const double &, const double &, const double & )){
 
-//        auto & p_syna = p_pars->p_rs->getAnSynch();
-//        auto & m_data = p_pars->m_data;
         if ((p_pars->m_r[0] == 0.) && (p_pars->m_gam[0] == 0.)){
             (*p_log)(LOG_WARN,AT) << " [ishell=" << p_pars->ishell << " ilayer="<<p_pars->ilayer << "] "
                                   << " R[0]=0. Seems not evolved -> returning empty image." << "\n";
@@ -356,76 +340,47 @@ public:
         parsPars(t_obs, nu_obs, 0., 0., 0., 0., obs_angle);
         check_pars();
 
+//        Vector ttobs( p_pars->m_r.size(), std::numeric_limits<double>::max() );
+        Vector cphis = EjectaID2::getCphiGridPW( p_pars->ilayer );
+
         double flux = 0.;
-//        if (p_pars->end_evolution){
-//            (*p_log)(LOG_WARN,AT)
-//                    << "[ish=" << p_pars->ishell << ", il="<<p_pars->ilayer << "] "
-//                    << " Evolution was terminated at ix="<<p_pars->comp_ix<<" "
-//                    << " Error might occure here... [TODO] Check if limited calcs to this ix works..\n";
-//        }
-        Vector ttobs( p_pars->m_r.size(), std::numeric_limits<double>::max() );
-        Vector cphis = EjectaID2::getCphiGridPW(p_pars->ilayer);
-
-//        /// limit the evaluation to the latest 'R' that is not 0 (before termination)
-//        size_t nr = p_pars->m_r.size();
-//        size_t i_end_r = nr;
-//        for(size_t ir = 0; ir < nr; ++ir){
-//            if (p_pars->m_r[ir] == 0.) {
-//                i_end_r = ir;
-//                break;
-//            }
-//        }
-//        if (i_end_r == 0){
-//            (*p_log)(LOG_ERR,AT) << " i_end_r = " << i_end_r << "\n";
-//            exit(1);
-//        }
-
-//        Vector mu_arr (cphis.size(),0.0);
-//        for (size_t k = 0; k < cphis.size(); k++) {
-//            double _phi_cell = cphis[k];
-//            double _ctheta_cell = p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
-//            mu_arr[k] = obs_angle(_ctheta_cell, _phi_cell, p_pars->theta_obs);
-//        }
-
-        /// TODO make it so after some 'phi' the loop stops -- speed up the calculation
         for (size_t i = 0; i < cphis.size(); i++) {
             double phi_cell = cphis[i];
             double ctheta_cell = p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
             double mu = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
-//                double mu = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
             for (size_t i_ = 0; i_ < p_pars->m_i_end_r; i_++) {
-                ttobs[i_] = p_pars->m_tt[i_] + p_pars->m_r[i_] / CGS::c * (1.0 - mu);
+                p_pars->ttobs[i_] = p_pars->m_tt[i_] + p_pars->m_r[i_] / CGS::c * (1.0 - mu);
             }
             /// check if req. obs time is outside of the evolved times (throw error)
-            if (t_obs < ttobs[0]) {
+            if (t_obs < p_pars->ttobs[0]) {
                 (*p_log)(LOG_ERR, AT) << " time grid starts too late "
-                                      << " t_grid[0]=" << ttobs[0] << " while requested obs.time=" << t_obs << "\n"
+                                      << " t_grid[0]=" << p_pars->ttobs[0] << " while requested obs.time=" << t_obs << "\n"
                                       << " extend the grid to earlier time or request tobs at later times\n"
                                       << " Exiting...\n";
                 exit(1);
             }
-            if ((p_pars->m_i_end_r == p_pars->nr) && (t_obs > ttobs[p_pars->m_i_end_r - 1])) {
+            if ((p_pars->m_i_end_r == p_pars->nr) && (t_obs > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
                 (*p_log)(LOG_ERR, AT) << " time grid ends too early. "
-                                      << " t_grid[i_end_r-1]=" << ttobs[p_pars->m_i_end_r - 1]
+                                      << " t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
                                       << " while requested obs.time=" << t_obs << "\n"
                                       << " extend the grid to later time or request tobs at earlier times\n"
                                       << " Exiting...\n";
 //                    std::cout << ttobs << std::endl;
                 exit(1);
             }
-            else if ((p_pars->m_i_end_r < p_pars->nr) && (t_obs > ttobs[p_pars->m_i_end_r - 1])) {
+            else if ((p_pars->m_i_end_r < p_pars->nr) && (t_obs > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
                 (*p_log)(LOG_WARN, AT) << " time grid was shorten to i=" << p_pars->m_i_end_r
                                        << " from nr=" << p_pars->nr
-                                       << " and now ends at t_grid[i_end_r-1]=" << ttobs[p_pars->m_i_end_r - 1]
+                                       << " and now ends at t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
                                        << " while t_obs=" << t_obs << "\n";
                 continue;
             }
             /// locate closest evolution points to the requested obs. time
-            size_t ia = findIndex(t_obs, ttobs, ttobs.size());
+            size_t ia = findIndex(t_obs, p_pars->ttobs, p_pars->ttobs.size());
             if (ia >= p_pars->m_i_end_r - 1) continue; // ??
             size_t ib = ia + 1;
             /// interpolate the exact radial position of the blast that corresponds to the req. obs time
-            double r = interpSegLog(ia, ib, t_obs, ttobs, p_pars->m_r);
+            double r = interpSegLog(ia, ib, t_obs, p_pars->ttobs, p_pars->m_r);
             //  double r = ( Interp1d(ttobs, m_data[BW::Q::iR] ) ).Interpolate(t_obs, mth );
             if ((r <= 0.0) || !std::isfinite(r)) {
                 (*p_log)(LOG_ERR, AT) << " R <= 0. Extend R grid (increasing R0, R1). "
@@ -433,16 +388,14 @@ public:
                                       << p_pars->m_r[0] << ", "
                                       << p_pars->m_r[p_pars->nr - 1] << "] "
                                       << "and tobs arr ["
-                                      << ttobs[0] << ", " << ttobs[p_pars->nr - 1]
+                                      << p_pars->ttobs[0] << ", " << p_pars->ttobs[p_pars->nr - 1]
                                       << "] while the requried obs_time=" << p_pars->t_obs
                                       << "\n";
                 break;
             }
             /// ----------------------------------------------------
             double flux_dens; double ctheta;
-            p_pars->fluxFunc(flux_dens, r, ctheta,
-                             ia, ib, mu, t_obs, nu_obs,
-                             ttobs, p_pars->m_params);
+            p_pars->fluxFunc(flux_dens, r, ctheta, ia, ib, mu, t_obs, nu_obs, p_pars->ttobs, p_pars->m_params);
             /// ----------------------------------------------------
             flux += flux_dens;
             image(Image::iintens, i) =
@@ -711,7 +664,7 @@ public:
 //                image(Image::itheta0, i) = theta;
 //                image(Image::itt, i) = tt;
 //                image(Image::iB, i) = B;
-//                image(Image::itb, i) = tb;
+//                image(Image::itburst, i) = tb;
 //                image(Image::igc, i) = gc;
 //                image(Image::igm, i) = gm;
             }
@@ -721,13 +674,10 @@ public:
     }
     /// get the observed flux density distrib 'image' for 2 projections for given time, freq, angle, distance, red shift
     void computeImagePW(Image & im_pj, Image & im_cj, double obs_time, double obs_freq){
-        size_t cells_in_layer = EjectaID2::CellsInLayer(p_pars->ilayer);
         /// evaluateShycnhrotronSpectrum image for primary jet and counter jet
         evalImageFromPW(im_pj, obs_time, obs_freq, obsAngle, imageXXs, imageYYs);
         if (p_pars->counter_jet) // p_eats->counter_jet
             evalImageFromPW(im_cj, obs_time, obs_freq, obsAngleCJ, imageXXsCJ, imageYYsCJ);
-//        auto x = im_pj.m_f_tot+im_pj.m_f_tot;
-//        std::cout<<x<<"\n";
     }
 
 

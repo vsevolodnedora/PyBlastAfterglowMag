@@ -13,10 +13,10 @@
 * Parameters
 
 tb0 = 1.e3
-tb1 = 1.e11
-ntb = 1000
-iout = 1
-rtol = 1e-12
+tb1 = 1.e13
+ntb = 10000
+iout = 10
+rtol = 3e-14
 nmax = 1000
 
 A0 = -1
@@ -37,7 +37,7 @@ lc_use_freq_to_time = no
 skymap_freqs = array 1e9
 skymap_times = array 20736000
 
-integrator = DOP853E
+integrator = DOP853
 
 # --------------------------- END ---------------------------
 #
@@ -65,7 +65,7 @@ fnu_min_frac = 1e-4
 * Settings
 
 run_bws = yes
-save_dynamics = no
+save_dynamics = yes
 load_dynamics = no
 do_ele = yes
 do_spec = no

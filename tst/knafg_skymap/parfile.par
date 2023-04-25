@@ -13,7 +13,7 @@
 * Parameters
 
 tb0 = 1.e3
-tb1 = 1.e11
+tb1 = 5.e10
 ntb = 1000
 iout = 1
 rtol = 1e-8
@@ -68,9 +68,9 @@ rtol_adapt = 1e-5
 
 * Settings
 
-run_bws = no
-load_dynamics = yes
-save_dynamics = no
+run_bws = yes
+load_dynamics = no
+save_dynamics = yes
 do_ele = yes
 do_spec = no
 do_lc = no

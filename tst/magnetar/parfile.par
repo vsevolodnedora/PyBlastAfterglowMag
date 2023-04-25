@@ -74,7 +74,10 @@ save_pwn_every_it = 1
 
 * Settings
 
+do_lc = no
+do_skymap = no
 run_pwn = yes
+load_pwn = no
 save_pwn = yes
 fname_pwn = pwn.h5
 

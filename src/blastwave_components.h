@@ -23,6 +23,9 @@ inline namespace EQS{
     inline double BetFromMom(const double mom){
         return mom / EQS::GamFromMom(mom);
     }
+    inline double MomFromBeta(const double beta){
+        return beta*beta/std::sqrt(1.-beta*beta);
+    }
 
     /*
  * Compute velocity in [c] from Lorentz Factor 'iGamma'
@@ -128,26 +131,40 @@ inline namespace EQS{
     /*
      * Compute time in the lab frame
      */
-    double init_elapsed_time(const double &r0, const double &Gamma0, const bool &use_spread){
-        double beta0 = Beta(Gamma0);
+    double init_elapsed_time(const double &r0, const double &mom0, const bool &use_spread){
+//        double beta0 = Beta(Gamma0);
         double result;
+        double xx = 1. + mom0*mom0*mom0/(std::sqrt(1.+mom0*mom0));//Gamma0 * Gamma0 * beta0;
+        double beta0 = BetFromMom(mom0);
         if (use_spread){
             double dThetadr0 = 0.0;
             result= r0 / (CGS::c * beta0) * (sqrt(1. + r0 * r0 * dThetadr0 * dThetadr0)) - r0 / CGS::c;
         } else {
-            result= r0 / (CGS::c * Gamma0 * Gamma0 * beta0 * (1.0 + beta0));
+            result= r0 / (CGS::c * xx * (1.0 + beta0));
         }
         if (result!=result){
             std::cerr<<AT<<" Failed to init TT"
                      <<" i="<<0
                      <<" Rs[0]"<<r0
-                     <<" Gamma[0]"<<Gamma0
+                     <<" mom0[0]"<<mom0
                      <<" use_spread="<<use_spread
                      <<" result[0]="<<result
                      <<" \n";
             exit(1);
         }
         return result;
+    }
+
+    double evalElapsedTime(double R, double mom, double dthetadr, bool spread){
+        double xx = 1. + mom*mom*mom/(std::sqrt(1.+mom*mom));
+        double beta = BetFromMom(mom);
+        double dttdr = 0.;
+        if (spread)
+            dttdr = 1. / (CGS::c * beta) * sqrt(1. + R * R * dthetadr * dthetadr) - (1. / CGS::c);
+        else
+            dttdr = 1. / (CGS::c * xx * (1. + beta));
+//        double dttdr = 1. / (CGS::c * xx * (1. + beta));
+        return dttdr;
     }
 
     /*

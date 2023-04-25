@@ -10,6 +10,8 @@
 #include "utilitites/utils.h"
 #include "utilitites/interpolators.h"
 
+#include "model_ejecta.h"
+
 class Magnetar_OLD{
     struct Pars{
         size_t iieq = 0;
@@ -1125,11 +1127,11 @@ namespace PWN{
     /// All variables
     enum Q {
         // -- dynamics ---
-        itb, iRw, iEnb, iEpwn,
+        itburst, itt, iR, imom, itheta, iGamma, ibeta, iEnb, iEpwn,
 
     };
     std::vector<std::string> m_vnames{
-            "tburst", "Rwing", "Enebula", "Epwn"
+            "tburst", "tt", "Rw", "mom", "theta", "Gamma", "beta", "Enebula", "Epwn"
     };
 }
 
@@ -1138,9 +1140,17 @@ namespace PWN{
 /// PWN model from Murase+2015
 class PWNmodel{
     struct Pars{
+        Pars(VecVector & data, unsigned loglevel) : m_data(data){
+            p_log = std::make_unique<logger>(std::cout,std::cerr,loglevel,"PWN Pars");
+        }
+//        std::unique_ptr<SynchrotronAnalytic> p_syna = nullptr;
+        std::unique_ptr<logger> p_log;
+        Vector m_freq_arr{}; Vector m_synch_em{}; Vector m_synch_abs{};
+        VecVector & m_data;
+        double ctheta0=-1.;
         // --------------
         size_t iieq{};
-        double radius_w0{};
+        double Rw0{};
         double vel_w0{};
         // ---------------
         double eps_e{};
@@ -1167,12 +1177,15 @@ class PWNmodel{
     Vector m_tb_arr;
     VecVector m_data{}; // container for the solution of the evolution
     std::unique_ptr<logger> p_log;
-    std::unique_ptr<Pars> p_pars;
+//    std::unique_ptr<Pars> p_pars;
+    Pars * p_pars = nullptr;
+    std::unique_ptr<EATS> p_eats;
     Vector frac_psr_dep_{};
+    size_t m_ilayer=0;size_t m_ishell=0;size_t m_ncells=0;
 public:
     bool run_pwn = false;
     /// RHS pars
-    const static int neq = 3;
+    const static int neq = 5;
     std::vector<std::string> vars {  };
     size_t getNeq() const {
         if (!run_pwn)
@@ -1182,24 +1195,43 @@ public:
     }
     enum Q_SOL {
         i_Rw, // Wind radius (PWN radius)
+        i_mom,
+        i_tt,
         i_Enb, // PWN total energy
         i_Epwn
     };
-
 
 //    static constexpr size_t NVALS = 1; // number of variables to save
     inline Vector & operator[](unsigned ll){ return m_data[ll]; }
     inline double & operator()(size_t ivn, size_t ir){ return m_data[ivn][ir]; }
 
-    PWNmodel( Vector & tarr, int loglevel ) : m_tb_arr(tarr) {// : m_mag_time(t_grid) {
+    PWNmodel( Vector & tarr, double ctheta0, size_t ilayer, size_t ishell, size_t ncells, int loglevel )
+            : m_tb_arr(tarr) {// : m_mag_time(t_grid) {
         run_pwn = true;
-        p_pars = std::make_unique<Pars>();
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "PWN");
         // ------------
         m_data.resize(PWN::m_vnames.size());
         for (auto & arr : m_data)
             arr.resize(tarr.size(), 0.0);
+        p_pars = new Pars(m_data, loglevel);//std::make_unique<Pars>();
+        p_pars->ctheta0 = ctheta0;
+        m_ilayer = ilayer;
+        m_ishell = ishell;
+        m_ncells = ncells;
+        /// ----------
+        // Vector & tburst, Vector & tt, Vector & r, Vector & theta,Vector & m_gam, Vector & m_bet,
+        // Vector & freq_arr, Vector & synch_em, Vector & synch_abs,
+        // size_t & i_end_r, size_t ish, size_t il, int loglevel, void * params
+        size_t i_end_r = m_data[PWN::Q::itburst].size();
+        p_eats = std::make_unique<EATS>(m_data[PWN::Q::itburst],
+                                        m_data[PWN::Q::itt], m_data[PWN::Q::iR], m_data[PWN::Q::itheta],
+                                        m_data[PWN::Q::iGamma],m_data[PWN::Q::ibeta],
+                                        p_pars->m_freq_arr, p_pars->m_synch_em, p_pars->m_synch_abs,
+                                        i_end_r, 0, layer(), loglevel, p_pars);
+        p_eats->setFluxFunc(fluxDensPW);
     }
+
+    std::unique_ptr<EATS> & getRad(){ return p_eats; }
 
     Vector & getTbGrid() { return m_tb_arr; }
     Vector getTbGrid(size_t every_it) {
@@ -1213,6 +1245,10 @@ public:
     }
     VecVector & getData(){ return m_data; }
     Vector & getData(PWN::Q q){ return m_data[q]; }
+
+    size_t layer() const { return m_ilayer; }
+    size_t shell() const { return m_ishell; }
+    size_t ncells() const { return m_ncells; }
 
     void updateOuterBoundary(Vector & r, Vector & beta, Vector & rho, Vector & tau, Vector & temp){
         if ((r[0] < 0) || (beta[0] < 0) || (rho[0] < 0) || (tau[0] < 0) || (temp[0] < 0)){
@@ -1255,9 +1291,8 @@ public:
         double albd_fac = getDoublePar("albd_fac",pars,AT,p_log,-1,true); // initial albedo fraction
         double gamma_b = getDoublePar("gamma_b",pars,AT,p_log,-1,true); //break Lorentz factor of electron injection spectrum
         int iterations = (int)getDoublePar("iters",pars,AT,p_log,-1,true); //iterations for absorption spectrum calcs
-//        int nthreads_frac = (int)getDoublePar("nthreads_frac",pars,AT,p_log,-1,true); //iterations for absorption spectrum calcs
         // **************************************
-        p_pars->radius_w0 = radius_wind_0;
+        p_pars->Rw0 = radius_wind_0;
         p_pars->vel_w0 = vel_wind0;
         p_pars->eps_e = eps_e;
         p_pars->eps_mag = eps_mag;
@@ -1272,20 +1307,26 @@ public:
 
     }
 
-    std::unique_ptr<Pars> & getPars(){ return p_pars; }
+//    std::unique_ptr<Pars> & getPars(){ return p_pars; }
+    Pars *& getPars(){ return p_pars; }
 
     void setInitConditions( double * arr, size_t i ) {
-        arr[i + Q_SOL::i_Rw] = p_pars->radius_w0;
+        double beta0 = p_pars->Rw0 / m_tb_arr[0] / CGS::c; // m_tb_arr[0] * beta0 * CGS::c;
+        double mom0 = MomFromBeta(beta0);
+        arr[i + Q_SOL::i_Rw] = p_pars->Rw0;
+        arr[i + Q_SOL::i_mom] = mom0;
         arr[i + Q_SOL::i_Enb] = p_pars->eps_e * p_pars->curr_ldip
-                             + p_pars->eps_th * p_pars->curr_lacc;
+                              + p_pars->eps_th * p_pars->curr_lacc;
         arr[i + Q_SOL::i_Epwn] = p_pars->eps_mag * p_pars->curr_ldip;
+        arr[i + Q_SOL::i_tt] = EQS::init_elapsed_time(p_pars->Rw0,
+                               mom0, false);
         p_pars->b_pwn = evalCurrBpwn(arr);
         p_pars->is_init = true;
     }
 
     void insertSolution( const double * sol, size_t it, size_t i ){
-        m_data[PWN::Q::itb][it] = m_tb_arr[it];
-        m_data[PWN::Q::iRw][it] = sol[i+Q_SOL::i_Rw];
+        m_data[PWN::Q::itburst][it] = m_tb_arr[it];
+        m_data[PWN::Q::iR][it] = sol[i + Q_SOL::i_Rw];
         m_data[PWN::Q::iEnb][it] = sol[i+Q_SOL::i_Enb];
         m_data[PWN::Q::iEpwn][it] = sol[i+Q_SOL::i_Epwn];
     }
@@ -1294,6 +1335,7 @@ public:
         double r_w = Y[i + Q_SOL::i_Rw];
         double e_nb = Y[i + Q_SOL::i_Enb];
         double e_pwn = Y[i + Q_SOL::i_Epwn];
+        double mom = Y[i + Q_SOL::i_mom];
         // ******************************************
 
         // ******************************************
@@ -1330,16 +1372,24 @@ public:
         double tdyn = r_ej / v_ej;
         double dEpwndt = p_pars->eps_mag * p_pars->curr_ldip - e_pwn / tdyn;
 
+        double dttdr = EQS::evalElapsedTime(r_w,mom,0., false);
+        double drdt = v_w + r_w / x;
         /// Using pressure equilibrium, Pmag = Prad; Following approach (see Eq. 28 in Kashiyama+16)
-        out_Y[i + Q_SOL::i_Rw] = v_w + r_w / x;
+        out_Y[i + Q_SOL::i_Rw] = drdt;
+        out_Y[i + Q_SOL::i_mom] = EQS::MomFromBeta( drdt / CGS::c);
+        out_Y[i + Q_SOL::i_tt] = dttdr*drdt;
         out_Y[i + Q_SOL::i_Enb] = dEnbdt;
         out_Y[i + Q_SOL::i_Epwn] = dEpwndt;
     }
 
     void addOtherVariables( size_t it ){
-        double r_w = m_data[PWN::Q::iRw][it];
+        double r_w = m_data[PWN::Q::iR][it];
         double u_b_pwn = 3.0*m_data[PWN::Q::iEpwn][it]/4.0/M_PI/r_w/r_w/r_w; // Eq.17 in Murase+15; Eq.34 in Kashiyama+16
         double b_pwn = pow(u_b_pwn*8.0*M_PI,0.5); //be careful: epsilon_B=epsilon_B^pre/8/PI for epsilon_B^pre used in Murase et al. 2018
+        /// --------------------------------------------
+        m_data[PWN::Q::iGamma][it] = EQS::GamFromMom(m_data[PWN::Q::imom][it]);
+        m_data[PWN::Q::ibeta][it] = EQS::GamFromMom(m_data[PWN::Q::ibeta][it]);
+        m_data[PWN::Q::ibeta][it] = p_pars->ctheta0;
     }
 
     /// Get current PWN magnetic field
@@ -1410,7 +1460,7 @@ public:
         exit(1);
     }
 
-private:
+private: // -------- RADIATION ----------
 
     double facPSRdep(const double rho_ej, const double delta_ej,
                      const double T_ej, const int opacitymode){
@@ -1494,25 +1544,34 @@ private:
         return frac_psr_dep_tmp;
     }
 
+public:
+    static void fluxDensPW(double & flux_dens, double & r, double & ctheta,
+                           size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
+                           Vector ttobs, void * params){
 
+    }
 
 };
 
 /// Container for independent layers of PWN model
 class PWNset{
+    std::unique_ptr<Ejecta> & p_ej;
     std::unique_ptr<Output> p_out = nullptr;
     std::vector<std::unique_ptr<PWNmodel>> p_pwns{};
     std::unique_ptr<logger> p_log;
     int loglevel;
     size_t m_nlayers = 0;
     size_t m_nshells = 1;
+    size_t m_ncells = 0;
     bool is_obs_pars_set = false;
     bool is_synch_computed = false;
 public:
-    PWNset(int loglevel) : loglevel(loglevel){
+    PWNset(int loglevel, std::unique_ptr<Ejecta> & p_ej) : loglevel(loglevel), p_ej(p_ej){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "PWNset");
         p_out = std::make_unique<Output>(loglevel);
-
+        m_nlayers = p_ej->nlayers();
+        m_nshells = p_ej->nshells();
+        m_ncells = p_ej->ncells();
     }
     StrDbMap pwn_pars{}; StrStrMap pwn_opts{};
     std::string workingdir{};
@@ -1532,34 +1591,50 @@ public:
     };
     size_t nlayers() const {return run_pwn ? m_nlayers : 0;}
     size_t nshells() const {return run_pwn ? m_nshells : 0;}
-//    int ncells() const {
+    int ncells() const {
 //        return run_bws ? (int)ejectaStructs.structs[0].ncells : 0;
-//        return (run_pwn || load_pwn) ? (int)id->ncells : 0;
-//    }
+        return (run_pwn || load_pwn) ? (int)m_ncells : 0;
+    }
     void setPars(StrDbMap & pars, StrStrMap & opts, std::string & working_dir, std::string parfilename,
-                 Vector & tarr, size_t ii_eq, size_t n_layers){
+                 Vector & tarr, StrDbMap & main_pars, size_t ii_eq){
         /// read pwn parameters of the pwn
         pwn_pars = pars;
         pwn_opts = opts;
         workingdir = working_dir;
+        m_nlayers = p_ej->nlayers(); // as ejecta is  set later
+        m_nshells = p_ej->nshells();
         if ((!pwn_pars.empty()) || (!pwn_pars.empty())) {
             run_pwn = getBoolOpt("run_pwn", pwn_opts, AT, p_log, false, true);
             save_pwn = getBoolOpt("save_pwn", pwn_opts, AT, p_log, false, true);
             load_pwn = getBoolOpt("load_pwn", pwn_opts, AT, p_log, false, true);
+//            do_ele = getBoolOpt("do_ele", grb_opts, AT, p_log, false, true);
+//            do_spec = getBoolOpt("do_spec", grb_opts, AT, p_log, false, true);
+            do_lc = getBoolOpt("do_lc", pwn_opts, AT, p_log, false, true);
+            do_skymap = getBoolOpt("do_skymap", pwn_opts, AT, p_log, false, true);
         }
         else {
             (*p_log)(LOG_INFO, AT) << "PWN is not initialized and will not be considered.\n";
         }
         if (!run_pwn)
             return;
-        m_nlayers = n_layers;
-        for(size_t il = 0; il < n_layers; il++) {
-            p_pwns.push_back( std::make_unique<PWNmodel>( tarr, loglevel ) );
+        for(size_t il = 0; il < nlayers(); il++) {
+            p_pwns.push_back( std::make_unique<PWNmodel>( tarr,
+                                                          p_ej->getShells()[il]->getBW(0)->getPars()->ctheta0,
+                                                          p_ej->getShells()[il]->getBW(0)->getPars()->ilayer,
+                                                          0,
+                                                          p_ej->getShells()[il]->getBW(0)->getPars()->ncells,
+                                                          loglevel ) );
             p_pwns[il]->setPars(pars, opts, ii_eq);
             ii_eq += p_pwns[il]->getNeq();
         }
         // --------------------------------------------
-
+        for (auto &key: {"n_ism", "d_l", "z", "theta_obs", "A0", "s", "r_ej", "r_ism"}) {
+            if (main_pars.find(key) == main_pars.end()) {
+                (*p_log)(LOG_ERR, AT) << " keyword '" << key << "' is not found in main parameters. \n";
+                exit(1);
+            }
+            pwn_pars[key] = main_pars.at(key);
+        }
 
     }
     void setInitConditions(double * m_InitData){
@@ -1605,7 +1680,7 @@ public:
             ///write attributes
             auto & model = pwn[i];
             std::unordered_map<std::string,double> group_attr{
-                    {"radius_w0",model->getPars()->radius_w0},
+                    {"Rw0",model->getPars()->Rw0},
                     {"every_it",every_it}
             };
             group_attrs.emplace_back( group_attr );
@@ -1624,9 +1699,9 @@ public:
                                             workingdir+fname, attrs, group_attrs);
 
     }
-    void savePWNEvolution(StrDbMap & main_pars){
-        if (!run_pwn)
-            return;
+
+    /// output
+    void savePWNdyn(StrDbMap & main_pars){
         (*p_log)(LOG_INFO,AT) << "Saving PWN BW dynamics...\n";
         auto fname = getStrOpt("fname_pwn", pwn_opts, AT, p_log, "", true);
         size_t every_it = (int)getDoublePar("save_pwn_every_it", pwn_pars, AT, p_log, 1, true);
@@ -1659,8 +1734,6 @@ public:
             }
         }
 
-
-
         std::unordered_map<std::string, double> attrs{
                 {"nshells", nshells() },
                 {"m_nlayers", nlayers() },
@@ -1673,11 +1746,10 @@ public:
     }
 
     /// INPUT
-    void loadPWNDynamics(std::string workingdir, std::string fname){
+    void loadPWNDynamics(){
+        auto fname = getStrOpt("fname_pwn", pwn_opts, AT, p_log, "", true);
         if (!std::experimental::filesystem::exists(workingdir+fname))
             throw std::runtime_error("File not found. " + workingdir+fname);
-
-
         Exception::dontPrint();
         H5std_string FILE_NAME(workingdir+fname);
         H5File file(FILE_NAME, H5F_ACC_RDONLY);
@@ -1755,7 +1827,7 @@ public:
                         exit(1);
                     }
                 }
-                if (bw->getData()[PWN::iRw][0] == 0){
+                if (bw->getData()[PWN::iR][0] == 0){
                     (*p_log)(LOG_WARN,AT) << "Loaded not evolved shell [il="<<il<<", "<<"ish="<<ish<<"] \n";
                 }
             }
@@ -1798,53 +1870,48 @@ public:
 
     }
 
-    void evalPWNObservables(StrDbMap & main_pars, StrStrMap & main_opts){
-        if (!(run_pwn || load_pwn))
-            return;
-        do_ele = getBoolOpt("do_ele", pwn_opts, AT, p_log, false, true);
-        do_lc = getBoolOpt("do_lc", pwn_opts, AT, p_log, false, true);
-        do_skymap = getBoolOpt("do_skymap", pwn_opts, AT, p_log, false, true);
-        /// -------------------------------------------
-        bool lc_freq_to_time = getBoolOpt("lc_use_freq_to_time",main_opts,AT,p_log,false,true);
-        Vector lc_freqs = makeVecFromString(getStrOpt("lc_freqs",main_opts,AT,p_log,"",true),p_log);
-        Vector lc_times = makeVecFromString(getStrOpt("lc_times",main_opts,AT,p_log,"",true), p_log);
-        for (auto &key: {"n_ism", "d_l", "z", "theta_obs", "A0", "s", "r_ej", "r_ism"}) {
-            if (main_pars.find(key) == main_pars.end()) {
-                (*p_log)(LOG_ERR, AT) << " keyword '" << key << "' is not found in main parameters. \n";
-                exit(1);
-            }
-            pwn_pars[key] = main_pars.at(key);
+    void computeAndOutputObservables(StrDbMap & main_pars, StrStrMap & main_opts){
+        if (run_pwn || load_pwn) {
+            bool lc_freq_to_time = getBoolOpt("lc_use_freq_to_time",main_opts,AT,p_log,false,true);
+            Vector lc_freqs = makeVecFromString(getStrOpt("lc_freqs",main_opts,AT,p_log,"",true),p_log);
+            Vector lc_times = makeVecFromString(getStrOpt("lc_times",main_opts,AT,p_log,"",true), p_log);
+            Vector skymap_freqs = makeVecFromString(getStrOpt("skymap_freqs",main_opts,AT,p_log,"",true), p_log);
+            Vector skymap_times = makeVecFromString(getStrOpt("skymap_times",main_opts,AT,p_log,"",true), p_log);
 
-        }
-        /// ----------------------------------------------
-        if (do_ele) {
-            setPreComputeEjectaAnalyticElectronsPars(workingdir,
-                getStrOpt("fname_e_spec", pwn_opts, AT, p_log, "", true));
-        }
-        if (do_spec){
-            setPreComputeEjectaAnalyticSynchrotronPars(workingdir,
-                getStrOpt("fname_sync_spec", pwn_opts, AT, p_log, "", true));
-        }
+            if (save_pwn)
+                savePWNdyn(main_pars);
 
-        if (do_lc){
-            computePWNlightcurve(
-                    workingdir,
-                    getStrOpt("fname_light_curve", pwn_opts, AT, p_log, "", true),
-                    getStrOpt("fname_light_curve_layers", pwn_opts, AT, p_log, "", true),
-                    lc_times, lc_freqs, main_pars, pwn_pars, lc_freq_to_time);
+            if (load_pwn)
+                loadPWNDynamics();
+
+            if (do_ele)
+                setPreComputePWNAnalyticElectronsPars(workingdir,
+                    getStrOpt("fname_e_spec", pwn_opts, AT, p_log, "", true));
+
+            if (do_spec)
+                setPreComputePWNAnalyticSynchrotronPars(workingdir,
+                    getStrOpt("fname_sync_spec", pwn_opts, AT, p_log, "", true));
+
+            if (do_lc)
+                computePWNlightcurve(
+                        workingdir,
+                        getStrOpt("fname_light_curve", pwn_opts, AT, p_log, "", true),
+                        getStrOpt("fname_light_curve_layers", pwn_opts, AT, p_log, "", true),
+                        lc_times, lc_freqs, main_pars, pwn_pars, lc_freq_to_time);
+
+            is_obs_pars_set = true;
         }
-        is_obs_pars_set = true;
     }
 
 private:
-    void setPreComputeEjectaAnalyticElectronsPars(std::string workingdir,std::string fname){
+    void setPreComputePWNAnalyticElectronsPars(std::string workingdir,std::string fname){
         (*p_log)(LOG_INFO,AT) << "Computing PWN electron dists...\n";
         auto & models = getPWNs();
         for (auto & model : models) {
             model->evalElectronDistribution();
         }
     };
-    void setPreComputeEjectaAnalyticSynchrotronPars(std::string workingdir,std::string fname){
+    void setPreComputePWNAnalyticSynchrotronPars(std::string workingdir,std::string fname){
         (*p_log)(LOG_INFO,AT) << "Computing PWN electron dists...\n";
         auto & models = getPWNs();
         for (auto & model : models) {
@@ -1930,14 +1997,14 @@ private:
     }
 
 private:
-    std::vector<VecVector> evalPWNLightCurves( Vector & obs_times, Vector & obs_freqs){
+    std::vector<VecVector> evalPWNLightCurves( Vector & obs_times, Vector & obs_freqs ){
 
 
         (*p_log)(LOG_INFO,AT)<<" starting ejecta light curve calculation\n";
         (*p_log)(LOG_ERR,AT)<<" not implemented\n";
-        std::vector<VecVector> light_curves{};
+//        std::vector<VecVector> light_curves{};
         exit(1);
-#if 0
+#if 1
 
 //        size_t nshells = p_cumShells->nshells();
 //        size_t m_nlayers = p_cumShells->m_nlayers();
@@ -1946,9 +2013,9 @@ private:
         for (auto & arr : light_curves){
             size_t n_layers_ej = nlayers();//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStructs.structs[0].nlayers_pw : ejectaStructs.structs[0].nlayers_a ;
             arr.resize(n_layers_ej);
-            for (auto & arrr : arr){
+            for (auto & arrr : arr)
                 arrr.resize( obs_times.size(), 0. );
-            }
+
         }
         double flux_pj, flux_cj; size_t ii = 0;
 //        Image image;
@@ -1970,7 +2037,7 @@ private:
                         << " theta_layer=" << ilayer << "/" << nlayers()
                         << " phi_cells=" << EjectaID2::CellsInLayer(ilayer) << "\n";
                 model->getRad()->evalForwardShockLightCurve(
-                        id->method_eats,
+                        p_ej->getId()->method_eats,
                         image_i, im_pj, im_cj, light_curves[ishell][ilayer], obs_times, obs_freqs);
                 ii ++;
             }
