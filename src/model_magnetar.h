@@ -772,7 +772,7 @@ namespace PWNradiationMurase{
     static double e_gamma_max(const double b_pwn) {
         return gamma_e_max(b_pwn)*CGS::M_ELEC*CGS::c*CGS::c;
     }
-    /// maximum energy of photons limited by gamma-gamma
+    /// maximum energy of photons limited by gamma-gamma. Eq.42
     static double e_gamma_gamma_ani(const double T_ej) {
         return pow(CGS::M_ELEC*CGS::c*CGS::c,2.0)/2.0/CGS::K_B/T_ej;
     }
@@ -1174,7 +1174,7 @@ class PWNmodel{
         double b_pwn=-1;
         bool is_init = false;
     };
-    Vector m_tb_arr;
+//    Vector m_tb_arr;
     VecVector m_data{}; // container for the solution of the evolution
     std::unique_ptr<logger> p_log;
 //    std::unique_ptr<Pars> p_pars;
@@ -1182,6 +1182,8 @@ class PWNmodel{
     std::unique_ptr<EATS> p_eats;
     Vector frac_psr_dep_{};
     size_t m_ilayer=0;size_t m_ishell=0;size_t m_ncells=0;
+    std::unique_ptr<BlastWave> & p_bw;
+    unsigned m_loglevel{};
 public:
     bool run_pwn = false;
     /// RHS pars
@@ -1205,19 +1207,21 @@ public:
     inline Vector & operator[](unsigned ll){ return m_data[ll]; }
     inline double & operator()(size_t ivn, size_t ir){ return m_data[ivn][ir]; }
 
-    PWNmodel( Vector & tarr, double ctheta0, size_t ilayer, size_t ishell, size_t ncells, int loglevel )
-            : m_tb_arr(tarr) {// : m_mag_time(t_grid) {
+    PWNmodel( //Vector & tarr, double ctheta0, size_t ilayer, size_t ishell, size_t ncells, int loglevel,
+              std::unique_ptr<BlastWave> & pp_bw)
+            : p_bw(pp_bw) {// : m_mag_time(t_grid) {
         run_pwn = true;
-        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "PWN");
+        m_loglevel = p_bw->getPars()->loglevel;
+        p_log = std::make_unique<logger>(std::cout, std::cerr, m_loglevel, "PWN");
         // ------------
         m_data.resize(PWN::m_vnames.size());
         for (auto & arr : m_data)
-            arr.resize(tarr.size(), 0.0);
-        p_pars = new Pars(m_data, loglevel);//std::make_unique<Pars>();
-        p_pars->ctheta0 = ctheta0;
-        m_ilayer = ilayer;
-        m_ishell = ishell;
-        m_ncells = ncells;
+            arr.resize(p_bw->ntb(), 0.0);
+        p_pars = new Pars(m_data, m_loglevel);//std::make_unique<Pars>();
+        p_pars->ctheta0 = p_bw->getPars()->ctheta0;
+        m_ilayer = p_bw->getPars()->ilayer;
+        m_ishell = p_bw->getPars()->ishell;
+        m_ncells = (size_t) p_bw->getPars()->ncells;
         /// ----------
         // Vector & tburst, Vector & tt, Vector & r, Vector & theta,Vector & m_gam, Vector & m_bet,
         // Vector & freq_arr, Vector & synch_em, Vector & synch_abs,
@@ -1227,22 +1231,13 @@ public:
                                         m_data[PWN::Q::itt], m_data[PWN::Q::iR], m_data[PWN::Q::itheta],
                                         m_data[PWN::Q::iGamma],m_data[PWN::Q::ibeta],
                                         p_pars->m_freq_arr, p_pars->m_synch_em, p_pars->m_synch_abs,
-                                        i_end_r, 0, layer(), loglevel, p_pars);
+                                        i_end_r, 0, layer(), m_loglevel, p_pars);
         p_eats->setFluxFunc(fluxDensPW);
     }
 
     std::unique_ptr<EATS> & getRad(){ return p_eats; }
 
-    Vector & getTbGrid() { return m_tb_arr; }
-    Vector getTbGrid(size_t every_it) {
-        if ((every_it == 1)||(every_it==0)) return m_tb_arr;
-        Vector tmp{};
-        for (size_t it = 0; it < m_tb_arr.size(); it = it + every_it){
-            tmp.push_back(m_tb_arr[it]);
-        }
-//        Array tmp2 (tmp.data(), tmp.size());
-        return std::move(tmp);
-    }
+    Vector & getTbGrid() { return p_bw->getTbGrid(); }
     VecVector & getData(){ return m_data; }
     Vector & getData(PWN::Q q){ return m_data[q]; }
 
@@ -1284,7 +1279,7 @@ public:
     void setPars(StrDbMap & pars, StrStrMap & opts, size_t iieq){
         double radius_wind_0 = getDoublePar("Rw0",pars,AT,p_log,-1,true); // PWN radius at t=0; [km]
 //        radius_wind_0 *= (1000. * 100); // km -> cm
-        double vel_wind0 = radius_wind_0 / m_tb_arr[0]; // initial wind velocity
+        double vel_wind0 = radius_wind_0 / p_bw->getTbGrid()[0]; // initial wind velocity
         double eps_e = getDoublePar("eps_e",pars,AT,p_log,-1,true); // electron acceleration efficiency
         double eps_mag = getDoublePar("eps_mag",pars,AT,p_log,-1,true); // magnetic field efficiency
         double epsth0 = getDoublePar("eps_th",pars,AT,p_log,-1,true); // initial absorption fraction
@@ -1311,7 +1306,7 @@ public:
     Pars *& getPars(){ return p_pars; }
 
     void setInitConditions( double * arr, size_t i ) {
-        double beta0 = p_pars->Rw0 / m_tb_arr[0] / CGS::c; // m_tb_arr[0] * beta0 * CGS::c;
+        double beta0 = p_pars->Rw0 / p_bw->getTbGrid()[0] / CGS::c; // m_tb_arr[0] * beta0 * CGS::c;
         double mom0 = MomFromBeta(beta0);
         arr[i + Q_SOL::i_Rw] = p_pars->Rw0;
         arr[i + Q_SOL::i_mom] = mom0;
@@ -1325,7 +1320,7 @@ public:
     }
 
     void insertSolution( const double * sol, size_t it, size_t i ){
-        m_data[PWN::Q::itburst][it] = m_tb_arr[it];
+        m_data[PWN::Q::itburst][it] = p_bw->getTbGrid()[it];
         m_data[PWN::Q::iR][it] = sol[i + Q_SOL::i_Rw];
         m_data[PWN::Q::iEnb][it] = sol[i+Q_SOL::i_Enb];
         m_data[PWN::Q::iEpwn][it] = sol[i+Q_SOL::i_Epwn];
@@ -1420,7 +1415,7 @@ public:
         int opacitymode=0; //0=iron, 1=Y_e~0.3-0.5, 2=Y_e~0.1-0.2, 3=CO
         if (Ye <= 0.2)
             opacitymode = 2;
-        else if (Ye > 0.2 or Ye < 0.3)
+        else if ((Ye > 0.2) or (Ye < 0.3))
             opacitymode = 1;
         else if (Ye >= 0.3)
             opacitymode = 0;
@@ -1548,7 +1543,9 @@ public:
     static void fluxDensPW(double & flux_dens, double & r, double & ctheta,
                            size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
                            Vector ttobs, void * params){
-
+        double nu_erg = nu_obs*4.1356655385381E-15*CGS::EV_TO_ERG;
+        double b_
+        fnu = PWNradiationMurase::spec_non_thermal(nu_erg, b_pwn, gamma_b, T_ej);
     }
 
 };
@@ -1618,12 +1615,8 @@ public:
         if (!run_pwn)
             return;
         for(size_t il = 0; il < nlayers(); il++) {
-            p_pwns.push_back( std::make_unique<PWNmodel>( tarr,
-                                                          p_ej->getShells()[il]->getBW(0)->getPars()->ctheta0,
-                                                          p_ej->getShells()[il]->getBW(0)->getPars()->ilayer,
-                                                          0,
-                                                          p_ej->getShells()[il]->getBW(0)->getPars()->ncells,
-                                                          loglevel ) );
+//            auto & _x = p_ej->getShells()[il]->getBottomBW();
+            p_pwns.push_back( std::make_unique<PWNmodel>( p_ej->getShells()[il]->getBW(0)) );
             p_pwns[il]->setPars(pars, opts, ii_eq);
             ii_eq += p_pwns[il]->getNeq();
         }
@@ -1645,7 +1638,7 @@ public:
             ej_pwn->setInitConditions(m_InitData, ej_pwn->getPars()->iieq);
         }
     }
-
+#if 0
     void savePWNEvolution_old(StrDbMap & main_pars){
         if (!run_pwn)
             return;
@@ -1699,7 +1692,7 @@ public:
                                             workingdir+fname, attrs, group_attrs);
 
     }
-
+#endif
     /// output
     void savePWNdyn(StrDbMap & main_pars){
         (*p_log)(LOG_INFO,AT) << "Saving PWN BW dynamics...\n";

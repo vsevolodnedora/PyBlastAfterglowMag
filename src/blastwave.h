@@ -95,7 +95,7 @@ struct Pars{
     size_t ishell = 0;
     size_t ii_eq = 0;
     size_t i_end_r = 0.; // index of R when evolution has stopped (for EATS)
-
+    unsigned loglevel = 0;
 
     // --- PARS FOR INTERACTION WITH OTHER MODELS
     bool entry = false; // has this BW entered the 'void' left by another
@@ -1810,10 +1810,12 @@ protected:
 //    std::unique_ptr<Pars> p_pars = nullptr;
 //    std::unique_ptr<EatsPars> p_eats_pars = nullptr;
     std::unique_ptr<EATS> p_eats_fs = nullptr;
-    int m_loglevel;
+//    int m_loglevel;
     size_t ish = 0;
     size_t il = 0;
 public:
+    bool is_initialized = false;
+
     // RHS settings
 //    const static int neq = 11;
 //    std::vector<std::string> vars { "R", "Rsh", "tt", "tcomov", "mom", "Eint2", "theta", "Erad2", "Esh2", "Ead2", "M2" };
@@ -1821,7 +1823,7 @@ public:
 //    enum QS { iR, iRsh, itt, itcomov, imom, iEint2, itheta, iErad2, iEsh2, iEad2, iM2 };
     enum CASES { i_INSIDE_BEHIND, i_OUTSIDE_BEHIND, i_INSIDE_ABOVE, i_OUTSIDE_ABOVE, i_AT_ZERO_INSIDE };
     BlastWave(Vector & tb_arr, size_t ishell, size_t ilayer, int loglevel )
-                : m_tb_arr(tb_arr), m_loglevel(loglevel) {
+                : m_tb_arr(tb_arr){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BW");
         /// First: resize the container
         if (m_data.empty()){
@@ -1861,12 +1863,13 @@ public:
         p_eats_fs->setFluxFunc(fluxDensPW);
         p_eats_fs->setFluxFuncA(fluxDensA);
         /// ----------------------
+        p_pars->loglevel = loglevel;
         p_pars->nr = m_tb_arr.size();
         p_pars->ilayer = ilayer;
         p_pars->ishell = ishell;
         ish = ishell;
         il = ilayer;
-
+        is_initialized = true;
     }
     ~BlastWave(){delete p_pars;}
     void setAllParametersForOneLayer(std::unique_ptr<EjectaID2> & id,
@@ -3464,6 +3467,7 @@ public:
     }
 
     // ---------------------------------------------------------
+    size_t ntb() const { return m_tb_arr.size(); }
     Vector & getTbGrid() {return m_tb_arr;}
     Vector getTbGrid(size_t every_it) {
         if ((every_it == 1)||(every_it==0)) return m_tb_arr;
