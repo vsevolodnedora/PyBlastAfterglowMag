@@ -68,8 +68,8 @@ struct Pars{
     double ncells = -1.;
     double ctheta0 = -1.;
 //        double theta_h0 = -1;
-//    double theta_c_l = -1.;
-//    double theta_c_h = -1.;
+    double theta_c_l = -1.;
+    double theta_c_h = -1.;
     double theta_w = -1.;
     double theta_max=-1.;
     /// deceleration radius
@@ -1822,8 +1822,7 @@ public:
 //
 //    enum QS { iR, iRsh, itt, itcomov, imom, iEint2, itheta, iErad2, iEsh2, iEad2, iM2 };
     enum CASES { i_INSIDE_BEHIND, i_OUTSIDE_BEHIND, i_INSIDE_ABOVE, i_OUTSIDE_ABOVE, i_AT_ZERO_INSIDE };
-    BlastWave(Vector & tb_arr, size_t ishell, size_t ilayer, int loglevel )
-                : m_tb_arr(tb_arr){
+    BlastWave(Vector & tb_arr, size_t ishell, size_t ilayer, int loglevel ) : m_tb_arr(tb_arr){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BW");
         /// First: resize the container
         if (m_data.empty()){
@@ -2394,24 +2393,33 @@ public:
         p_pars->theta_obs = getDoublePar("theta_obs", pars, AT, p_log,-1, true);//pars.at("theta_obs");
         p_pars->d_l = getDoublePar("d_l", pars, AT, p_log,-1, true);//pars.at("d_l");
         p_pars->z = getDoublePar("z", pars, AT, p_log,-1, true);//pars.at("z");
-        switch (id->method_eats) {
-            case EjectaID2::iadaptive:
-                p_eats_fs->setEatsPars(
-                        pars,opts,id->nlayers,id->get(ish,il,EjectaID2::Q::ictheta),
-                        id->get(ish,il,EjectaID2::Q::itheta_c_l),id->get(ish,il,EjectaID2::Q::itheta_c_h),id->theta_wing,
-                        getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false));
-
-                break;
-            case EjectaID2::ipiecewise:
-                p_eats_fs->setEatsPars(
-                        pars,opts,id->nlayers,id->get(ish,il,EjectaID2::Q::ictheta),
-                        id->get(ish,il,EjectaID2::Q::itheta_c_l),
-                        id->get(ish,il,EjectaID2::Q::itheta_c_h),0.,
-                        getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false));
-
-                break;
-        }
-
+        p_pars->theta_c_l = id->get(ish,il,EjectaID2::Q::itheta_c_l);
+        p_pars->theta_c_h = id->get(ish,il,EjectaID2::Q::itheta_c_h);
+        p_pars->theta_max = getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false);
+//        switch (id->method_eats) {
+//            case EjectaID2::iadaptive:
+//                p_eats_fs->setEatsPars(
+//                        pars,opts,id->nlayers,id->get(ish,il,EjectaID2::Q::ictheta),
+//                        id->get(ish,il,EjectaID2::Q::itheta_c_l),
+//                        id->get(ish,il,EjectaID2::Q::itheta_c_h),
+//                        id->theta_wing,
+//                        getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false));
+//                break;
+//            case EjectaID2::ipiecewise:
+//                p_eats_fs->setEatsPars(
+//                        pars,opts,id->nlayers,id->get(ish,il,EjectaID2::Q::ictheta),
+//                        id->get(ish,il,EjectaID2::Q::itheta_c_l),
+//                        id->get(ish,il,EjectaID2::Q::itheta_c_h),
+//                        id->theta_wing,
+//                        getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false));
+//                break;
+//        }
+        p_eats_fs->setEatsPars(
+                pars,opts,id->nlayers,id->get(ish,il,EjectaID2::Q::ictheta),
+                id->get(ish,il,EjectaID2::Q::itheta_c_l),
+                id->get(ish,il,EjectaID2::Q::itheta_c_h),
+                id->theta_wing,
+                getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false));
         p_pars->p_syna->setPars(pars, opts);
 
 

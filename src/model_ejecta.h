@@ -694,7 +694,7 @@ public:
     bool do_nuc = false;
     bool is_ejecta_obs_pars_set = false;
     bool is_ejecta_anal_synch_computed = false;
-    StrDbMap grb_pars; StrStrMap grb_opts;
+    StrDbMap m_pars; StrStrMap m_opts;
     std::string working_dir{}; std::string parfilename{};
     Ejecta(Vector & t_arr, int loglevel) : t_arr(t_arr), m_loglevel(loglevel){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "Ejecta");
@@ -740,7 +740,8 @@ public:
     }
     int ncells() const {
 //        return run_bws ? (int)ejectaStructs.structs[0].ncells : 0;
-        return (run_bws||load_dyn) ? (int)id->ncells : 0;
+        return (run_bws || load_dyn) ? (int)id->ncells : 0;
+        int x = 1;
     }
     std::vector<std::unique_ptr<CumulativeShell>> & getShells(){
         if (p_cumShells.empty()){
@@ -756,42 +757,42 @@ public:
                  StrDbMap & main_pars, size_t ii_eq, size_t iljet){
         working_dir = working_dir_;
         parfilename = parfilename_;
-        grb_pars = pars;
-        grb_opts = opts;
+        m_pars = pars;
+        m_opts = opts;
         /// read GRB afterglow parameters
-//        StrDbMap grb_pars; StrStrMap grb_opts;
+//        StrDbMap m_pars; StrStrMap m_opts;
 //        run_bws=false; bool save_dyn=false, do_ele=false, do_spec=false, do_lc=false, do_skymap=false;
-        if ((!grb_pars.empty()) || (!grb_opts.empty())) {
-            run_bws = getBoolOpt("run_bws", grb_opts, AT, p_log, false, true);
-            save_dyn = getBoolOpt("save_dynamics", grb_opts, AT, p_log, false, true);
-            load_dyn = getBoolOpt("load_dynamics", grb_opts, AT, p_log, false, true);
-            do_ele = getBoolOpt("do_ele", grb_opts, AT, p_log, false, true);
-            do_spec = getBoolOpt("do_spec", grb_opts, AT, p_log, false, true);
-            do_lc = getBoolOpt("do_lc", grb_opts, AT, p_log, false, true);
-            do_skymap = getBoolOpt("do_skymap", grb_opts, AT, p_log, false, true);
+        if ((!m_pars.empty()) || (!m_opts.empty())) {
+            run_bws = getBoolOpt("run_bws", m_opts, AT, p_log, false, true);
+            save_dyn = getBoolOpt("save_dynamics", m_opts, AT, p_log, false, true);
+            load_dyn = getBoolOpt("load_dynamics", m_opts, AT, p_log, false, true);
+            do_ele = getBoolOpt("do_ele", m_opts, AT, p_log, false, true);
+            do_spec = getBoolOpt("do_spec", m_opts, AT, p_log, false, true);
+            do_lc = getBoolOpt("do_lc", m_opts, AT, p_log, false, true);
+            do_skymap = getBoolOpt("do_skymap", m_opts, AT, p_log, false, true);
             for (auto &key: {"n_ism", "d_l", "z", "theta_obs", "A0", "s", "r_ej", "r_ism"}) {
                 if (main_pars.find(key) == main_pars.end()) {
                     (*p_log)(LOG_ERR, AT) << " keyword '" << key << "' is not found in main parameters. \n";
                     exit(1);
                 }
-                grb_pars[key] = main_pars.at(key);
+                m_pars[key] = main_pars.at(key);
             }
-            grb_opts["workingdir"] = working_dir; // For loading Nuclear Heating table
+            m_opts["workingdir"] = working_dir; // For loading Nuclear Heating table
             if (run_bws || load_dyn) {
-                std::string fname_ejecta_id = getStrOpt("fname_ejecta_id", grb_opts, AT, p_log, "", true);
-                bool use_1d_id = getBoolOpt("use_1d_id", grb_opts, AT, p_log, false, true);
+                std::string fname_ejecta_id = getStrOpt("fname_ejecta_id", m_opts, AT, p_log, "", true);
+                bool use_1d_id = getBoolOpt("use_1d_id", m_opts, AT, p_log, false, true);
                 if (!std::experimental::filesystem::exists(working_dir + fname_ejecta_id)) {
                     (*p_log)(LOG_ERR, AT) << " File not found. " + working_dir + fname_ejecta_id << "\n";
                     exit(1);
                 }
                 id = std::make_unique<EjectaID2>(
                         working_dir + fname_ejecta_id,
-                        getStrOpt("method_eats",grb_opts,AT,p_log,"", true),
-                        getBoolOpt("use_1d_id", grb_opts, AT, p_log, false, true),
-                        getBoolOpt("load_r0", grb_opts, AT, p_log, false, true),
+                        getStrOpt("method_eats", m_opts, AT, p_log, "", true),
+                        getBoolOpt("use_1d_id", m_opts, AT, p_log, false, true),
+                        getBoolOpt("load_r0", m_opts, AT, p_log, false, true),
                         t_arr[0],
                         m_loglevel );
-                setEjectaBwPars(grb_pars, grb_opts, ii_eq, iljet);
+                setEjectaBwPars(m_pars, m_opts, ii_eq, iljet);
             }
         }
         else{
@@ -811,12 +812,12 @@ public:
             if (save_dyn)
                 saveEjectaBWsDynamics(
                         working_dir,
-                        getStrOpt("fname_dyn", grb_opts, AT, p_log, "", true),
-                        (int)getDoublePar("save_dyn_every_it", grb_pars, AT, p_log, 1, true),
-                        main_pars, grb_pars);
+                        getStrOpt("fname_dyn", m_opts, AT, p_log, "", true),
+                        (int)getDoublePar("save_dyn_every_it", m_pars, AT, p_log, 1, true),
+                        main_pars, m_pars);
             if (load_dyn)
                 loadEjectaBWDynamics(working_dir,
-                                     getStrOpt("fname_dyn", grb_opts, AT, p_log, "", true));
+                                     getStrOpt("fname_dyn", m_opts, AT, p_log, "", true));
 
             if (do_ele)
                 setPreComputeEjectaAnalyticElectronsPars();
@@ -825,16 +826,16 @@ public:
             if (do_lc) {
                 computeSaveEjectaLightCurveAnalytic(
                         working_dir,
-                        getStrOpt("fname_light_curve", grb_opts, AT, p_log, "", true),
-                        getStrOpt("fname_light_curve_layers", grb_opts, AT, p_log, "", true),
-                        lc_times, lc_freqs, main_pars, grb_pars, lc_freq_to_time);
+                        getStrOpt("fname_light_curve", m_opts, AT, p_log, "", true),
+                        getStrOpt("fname_light_curve_layers", m_opts, AT, p_log, "", true),
+                        lc_times, lc_freqs, main_pars, m_pars, lc_freq_to_time);
 //                    (*p_log)(LOG_INFO, AT) << "jet analytic synch. light curve finished [" << timer.checkPoint() << " s]" << "\n";
             }
             if (do_skymap)
                 computeSaveEjectaSkyImagesAnalytic(
                         working_dir,
-                        getStrOpt("fname_sky_map", grb_opts, AT, p_log, "", true),
-                        skymap_times, skymap_freqs, main_pars, grb_pars);
+                        getStrOpt("fname_sky_map", m_opts, AT, p_log, "", true),
+                        skymap_times, skymap_freqs, main_pars, m_pars);
 //                    (*p_log)(LOG_INFO, AT) << "jet analytic synch. sky map finished [" << timer.checkPoint() << " s]" << "\n";
 
         }

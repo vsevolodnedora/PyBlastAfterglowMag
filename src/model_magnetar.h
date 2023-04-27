@@ -403,6 +403,18 @@ public:
     }
 };
 
+namespace MAG{
+    /// All variables
+    enum Q {
+        // -- dynamics ---
+        itb, iOmega, ildip, ilacc
+
+    };
+    std::vector<std::string> m_vnames{
+            "tburst", "omega", "ildip", "ilacc"
+    };
+}
+
 class Magnetar{
     struct Pars{
 
@@ -430,15 +442,7 @@ public:
         iomega,
     };
 
-    /// All variables
-    enum Q {
-        // -- dynamics ---
-        itb, iOmega, ildip, ilacc
 
-    };
-    std::vector<std::string> m_vnames{
-            "tburst", "omega", "ildip", "ilacc"
-    };
 //    static constexpr size_t NVALS = 1; // number of variables to save
     inline Vector & operator[](unsigned ll){ return m_data[ll]; }
     inline double & operator()(size_t ivn, size_t ir){ return m_data[ivn][ir]; }
@@ -459,7 +463,7 @@ public:
 //        Vector tmp2 (tmp.data(), tmp.size());
         return std::move(tmp);
     }
-    double getMagValInt(Q vname, double tb){
+    double getMagValInt(MAG::Q vname, double tb){
         if (!std::isfinite(tb)){
             (*p_log)(LOG_ERR,AT)<<" nan in tb!"<<"\n";
             exit(1);
@@ -486,8 +490,8 @@ public:
         if (!std::isfinite(val)){
             (*p_log)(LOG_ERR,AT)
                 << " nan in interpolated value; vname="<<vname<<" tb="<<tb
-                << " ia="<<ia<<" ib="<<ib<<" m_data["<<m_vnames[vname]<<"]["<<ia<<"]="<<m_data[vname][ia]
-                << " m_data["<<m_vnames[vname]<<"]["<<ib<<"]="<<m_data[vname][ib]
+                << " ia="<<ia<<" ib="<<ib<<" m_data["<<MAG::m_vnames[vname]<<"]["<<ia<<"]="<<m_data[vname][ia]
+                << " m_data["<<MAG::m_vnames[vname]<<"]["<<ib<<"]="<<m_data[vname][ib]
                 << "\n";
             std::cout << m_mag_time << "\n";
             std::cout << m_data[vname] << "\n";
@@ -498,21 +502,21 @@ public:
 
     /// --------- LOAD MAGNETAR -------------
 
-    void loadMagnetarEvolution(Q vname, Vector values){
+    void loadMagnetarEvolution(MAG::Q vname, Vector values){
         load_magnetar = true;
         // *************************************
         if ((m_mag_time.size() == 0) || (m_mag_time.size() != values.size()))
             m_mag_time.resize(values.size(), 0.0 );
         // *************************************
         if (m_data.empty()) {
-            m_data.resize(m_vnames.size());
+            m_data.resize(MAG::m_vnames.size());
             for (auto &arr: m_data)
                 arr.resize(m_mag_time.size());
         }
         // **************************************
         mth = InterpBase::select("linear",p_log);
         // **************************************
-        if (vname == Q::itb)
+        if (vname == MAG::Q::itb)
             m_mag_time = values;
 //            vecToArr(values, m_mag_time);
         else
@@ -523,7 +527,8 @@ public:
     }
 
     /// ------- EVOLVE MAGNETAR -------------
-    void setPars(StrDbMap & pars, StrStrMap & opts, std::string working_dir, std::string parfilename, Vector ej_tarr){
+    void setPars(StrDbMap & pars, StrStrMap & opts,
+                 std::string working_dir, std::string parfilename, Vector ej_tarr){
         mag_pars = pars;
         mag_opts = opts;
 
@@ -543,9 +548,9 @@ public:
                 }
                 /// load the magnetar evolution h5 file and parse the key quantity to magnetar class
                 ReadMagnetarEvolutionFile dfile(working_dir + fname_magnetar_ev, m_loglevel);
-                loadMagnetarEvolution(Magnetar::Q::itb, dfile.get("time"));
-                loadMagnetarEvolution(Magnetar::Q::ildip, dfile.get("ldip"));
-                loadMagnetarEvolution(Magnetar::Q::ilacc, dfile.get("lacc"));
+                loadMagnetarEvolution(MAG::Q::itb, dfile.get("time"));
+                loadMagnetarEvolution(MAG::Q::ildip, dfile.get("ldip"));
+                loadMagnetarEvolution(MAG::Q::ilacc, dfile.get("lacc"));
                 /// check if time grids mismatch
                 if (getTbGrid()[0] > ej_tarr[0]) {
                     (*p_log)(LOG_ERR, AT)
@@ -1127,22 +1132,25 @@ namespace PWN{
     /// All variables
     enum Q {
         // -- dynamics ---
-        itburst, itt, iR, imom, itheta, iGamma, ibeta, iEnb, iEpwn,
+        itburst, itt, iR, imom, itheta, iGamma, ibeta, iEnb, iEpwn, iB,
 
     };
     std::vector<std::string> m_vnames{
-            "tburst", "tt", "Rw", "mom", "theta", "Gamma", "beta", "Enebula", "Epwn"
+            "tburst", "tt", "Rw", "mom", "theta", "Gamma", "beta", "Enebula", "Epwn", "B"
     };
 }
-
-
 
 /// PWN model from Murase+2015
 class PWNmodel{
     struct Pars{
-        Pars(VecVector & data, unsigned loglevel) : m_data(data){
+        Pars(std::unique_ptr<Magnetar> & pp_mag,
+             std::unique_ptr<BlastWave> & pp_bw,
+             VecVector & data, unsigned loglevel)
+             : p_mag(pp_mag), p_bw(pp_bw), m_data(data) {
             p_log = std::make_unique<logger>(std::cout,std::cerr,loglevel,"PWN Pars");
         }
+        std::unique_ptr<BlastWave> & p_bw;
+        std::unique_ptr<Magnetar> & p_mag;
 //        std::unique_ptr<SynchrotronAnalytic> p_syna = nullptr;
         std::unique_ptr<logger> p_log;
         Vector m_freq_arr{}; Vector m_synch_em{}; Vector m_synch_abs{};
@@ -1151,7 +1159,7 @@ class PWNmodel{
         // --------------
         size_t iieq{};
         double Rw0{};
-        double vel_w0{};
+//        double vel_w0{};
         // ---------------
         double eps_e{};
         double eps_mag{};
@@ -1173,6 +1181,10 @@ class PWNmodel{
         // --------------
         double b_pwn=-1;
         bool is_init = false;
+        // -------------
+        double d_l=-1.;
+        double theta_obs=-1.;
+        double z=-1.;
     };
 //    Vector m_tb_arr;
     VecVector m_data{}; // container for the solution of the evolution
@@ -1183,14 +1195,16 @@ class PWNmodel{
     Vector frac_psr_dep_{};
     size_t m_ilayer=0;size_t m_ishell=0;size_t m_ncells=0;
     std::unique_ptr<BlastWave> & p_bw;
+    std::unique_ptr<Magnetar> & p_mag;
     unsigned m_loglevel{};
 public:
-    bool run_pwn = false;
+    size_t i_end_r = 0;
+    bool run_pwn = false; bool load_pwn = false;
     /// RHS pars
     const static int neq = 5;
     std::vector<std::string> vars {  };
     size_t getNeq() const {
-        if (!run_pwn)
+        if (run_pwn)
             return 0;
         else
             return neq;
@@ -1208,16 +1222,18 @@ public:
     inline double & operator()(size_t ivn, size_t ir){ return m_data[ivn][ir]; }
 
     PWNmodel( //Vector & tarr, double ctheta0, size_t ilayer, size_t ishell, size_t ncells, int loglevel,
-              std::unique_ptr<BlastWave> & pp_bw)
-            : p_bw(pp_bw) {// : m_mag_time(t_grid) {
-        run_pwn = true;
+            std::unique_ptr<Magnetar> & pp_mag,
+            std::unique_ptr<BlastWave> & pp_bw,
+            bool allocate)
+            : p_mag(pp_mag), p_bw(pp_bw) {// : m_mag_time(t_grid) {
         m_loglevel = p_bw->getPars()->loglevel;
         p_log = std::make_unique<logger>(std::cout, std::cerr, m_loglevel, "PWN");
         // ------------
         m_data.resize(PWN::m_vnames.size());
         for (auto & arr : m_data)
-            arr.resize(p_bw->ntb(), 0.0);
-        p_pars = new Pars(m_data, m_loglevel);//std::make_unique<Pars>();
+            if (allocate)
+                arr.resize(p_bw->ntb(), 0.0);
+        p_pars = new Pars(pp_mag, pp_bw, m_data, m_loglevel);//std::make_unique<Pars>();
         p_pars->ctheta0 = p_bw->getPars()->ctheta0;
         m_ilayer = p_bw->getPars()->ilayer;
         m_ishell = p_bw->getPars()->ishell;
@@ -1226,7 +1242,7 @@ public:
         // Vector & tburst, Vector & tt, Vector & r, Vector & theta,Vector & m_gam, Vector & m_bet,
         // Vector & freq_arr, Vector & synch_em, Vector & synch_abs,
         // size_t & i_end_r, size_t ish, size_t il, int loglevel, void * params
-        size_t i_end_r = m_data[PWN::Q::itburst].size();
+        i_end_r = m_data[PWN::Q::itburst].size();
         p_eats = std::make_unique<EATS>(m_data[PWN::Q::itburst],
                                         m_data[PWN::Q::itt], m_data[PWN::Q::iR], m_data[PWN::Q::itheta],
                                         m_data[PWN::Q::iGamma],m_data[PWN::Q::ibeta],
@@ -1236,7 +1252,7 @@ public:
     }
 
     std::unique_ptr<EATS> & getRad(){ return p_eats; }
-
+    std::unique_ptr<BlastWave> & getBoundaryBW( ){ return p_bw; }
     Vector & getTbGrid() { return p_bw->getTbGrid(); }
     VecVector & getData(){ return m_data; }
     Vector & getData(PWN::Q q){ return m_data[q]; }
@@ -1276,19 +1292,22 @@ public:
     }
 
     /// ------- PWN -------------
-    void setPars(StrDbMap & pars, StrStrMap & opts, size_t iieq){
+    void setPars(StrDbMap & pars, StrStrMap & opts, StrDbMap main_pars, size_t iieq){
         double radius_wind_0 = getDoublePar("Rw0",pars,AT,p_log,-1,true); // PWN radius at t=0; [km]
 //        radius_wind_0 *= (1000. * 100); // km -> cm
-        double vel_wind0 = radius_wind_0 / p_bw->getTbGrid()[0]; // initial wind velocity
+
+//        double vel_wind0 = radius_wind_0 / p_bw->getData(BW::Q::itburst)[0]; // initial wind velocity
         double eps_e = getDoublePar("eps_e",pars,AT,p_log,-1,true); // electron acceleration efficiency
         double eps_mag = getDoublePar("eps_mag",pars,AT,p_log,-1,true); // magnetic field efficiency
         double epsth0 = getDoublePar("eps_th",pars,AT,p_log,-1,true); // initial absorption fraction
         double albd_fac = getDoublePar("albd_fac",pars,AT,p_log,-1,true); // initial albedo fraction
         double gamma_b = getDoublePar("gamma_b",pars,AT,p_log,-1,true); //break Lorentz factor of electron injection spectrum
         int iterations = (int)getDoublePar("iters",pars,AT,p_log,-1,true); //iterations for absorption spectrum calcs
+        run_pwn = getBoolOpt("run_pwn", opts, AT, p_log, false, true);
+        load_pwn = getBoolOpt("load_pwn", opts, AT, p_log, false, true);
         // **************************************
         p_pars->Rw0 = radius_wind_0;
-        p_pars->vel_w0 = vel_wind0;
+//        p_pars->vel_w0 = vel_wind0;
         p_pars->eps_e = eps_e;
         p_pars->eps_mag = eps_mag;
         p_pars->eps_th = epsth0;
@@ -1299,7 +1318,23 @@ public:
 //        p_pars->nthreads_for_frac = nthreads_frac;
         // *************************************
         frac_psr_dep_.resize(p_pars->iterations + 1, 0.0);
-
+        //-------------------------------------
+        for (auto &key: {"n_ism", "d_l", "z", "theta_obs", "A0", "s", "r_ej", "r_ism"}) {
+            if (main_pars.find(key) == main_pars.end()) {
+                (*p_log)(LOG_ERR, AT) << " keyword '" << key << "' is not found in main parameters. \n";
+                exit(1);
+            }
+            pars[key] = main_pars.at(key);
+        }
+        /// -----------------------------------
+        p_pars->theta_obs = getDoublePar("theta_obs", pars, AT, p_log,-1, true);//pars.at("theta_obs");
+        p_pars->d_l = getDoublePar("d_l", pars, AT, p_log,-1, true);//pars.at("d_l");
+        p_pars->z = getDoublePar("z", pars, AT, p_log,-1, true);//pars.at("z");
+        p_eats->setEatsPars(
+                pars,opts,p_bw->getPars()->nlayers,p_bw->getPars()->ctheta0,
+                p_bw->getPars()->theta_c_l,p_bw->getPars()->theta_c_h,p_bw->getPars()->theta_w,p_bw->getPars()->theta_max);
+        i_end_r = m_data[PWN::Q::itburst].size(); // update for eats
+//        int i = 1;
     }
 
 //    std::unique_ptr<Pars> & getPars(){ return p_pars; }
@@ -1324,6 +1359,8 @@ public:
         m_data[PWN::Q::iR][it] = sol[i + Q_SOL::i_Rw];
         m_data[PWN::Q::iEnb][it] = sol[i+Q_SOL::i_Enb];
         m_data[PWN::Q::iEpwn][it] = sol[i+Q_SOL::i_Epwn];
+        m_data[PWN::Q::itt][it] = sol[i+Q_SOL::i_tt];
+        m_data[PWN::Q::imom][it] = sol[i+Q_SOL::i_mom];
     }
 
     void evaluateRhs( double * out_Y, size_t i, double x, double const * Y ){
@@ -1367,7 +1404,7 @@ public:
         double tdyn = r_ej / v_ej;
         double dEpwndt = p_pars->eps_mag * p_pars->curr_ldip - e_pwn / tdyn;
 
-        double dttdr = EQS::evalElapsedTime(r_w,mom,0., false);
+        double dttdr = EQS::evalElapsedTime(r_w, mom,0., false);
         double drdt = v_w + r_w / x;
         /// Using pressure equilibrium, Pmag = Prad; Following approach (see Eq. 28 in Kashiyama+16)
         out_Y[i + Q_SOL::i_Rw] = drdt;
@@ -1382,14 +1419,15 @@ public:
         double u_b_pwn = 3.0*m_data[PWN::Q::iEpwn][it]/4.0/M_PI/r_w/r_w/r_w; // Eq.17 in Murase+15; Eq.34 in Kashiyama+16
         double b_pwn = pow(u_b_pwn*8.0*M_PI,0.5); //be careful: epsilon_B=epsilon_B^pre/8/PI for epsilon_B^pre used in Murase et al. 2018
         /// --------------------------------------------
+        m_data[PWN::Q::iB][it] = b_pwn;
         m_data[PWN::Q::iGamma][it] = EQS::GamFromMom(m_data[PWN::Q::imom][it]);
-        m_data[PWN::Q::ibeta][it] = EQS::GamFromMom(m_data[PWN::Q::ibeta][it]);
-        m_data[PWN::Q::ibeta][it] = p_pars->ctheta0;
+        m_data[PWN::Q::ibeta][it] = EQS::BetFromMom(m_data[PWN::Q::imom][it]);
+        m_data[PWN::Q::itheta][it] = p_pars->ctheta0;
     }
 
     /// Get current PWN magnetic field
     double evalCurrBpwn(const double * Y){
-        if (!run_pwn)
+        if (run_pwn)
             return 0.;
         double r_w = Y[p_pars->iieq + Q_SOL::i_Rw];
         double u_b_pwn = 3.0*Y[p_pars->iieq + Q_SOL::i_Epwn]/4.0/M_PI/r_w/r_w/r_w; // Eq.17 in Murase+15; Eq.34 in Kashiyama+16
@@ -1543,32 +1581,54 @@ public:
     static void fluxDensPW(double & flux_dens, double & r, double & ctheta,
                            size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
                            Vector ttobs, void * params){
+        auto * p_pars = (struct Pars *) params;
+        auto & p_ej = p_pars->p_bw;
+        auto & p_mag = p_pars->p_mag;
+        auto & m_data = p_pars->m_data;
+//        if (p_pars->i_end_r==0)
+//            return;
+
+        double Gamma = interpSegLog(ia, ib, t_obs, ttobs, m_data[PWN::Q::iGamma]);
+        double b_pwn = interpSegLog(ia, ib, t_obs, ttobs, m_data[PWN::Q::iB]);
+        double temp = interpSegLog(ia, ib, t_obs, ttobs, p_ej->getData(BW::Q::iEJtemp));
+        double tburst = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::itburst]);
+        double l_dip = p_mag->getMagValInt(MAG::Q::ildip, tburst);
+        double l_acc = p_mag->getMagValInt(MAG::Q::ilacc, tburst);
+
+        double beta = EQS::Beta(Gamma);
+        double a = 1.0 - beta * mu; // beaming factor
+        double delta_D = Gamma * a; // doppler factor
+        double nuprime = (1.0 + p_pars->z ) * nu_obs * delta_D;
         double nu_erg = nu_obs*4.1356655385381E-15*CGS::EV_TO_ERG;
-        double b_
-        fnu = PWNradiationMurase::spec_non_thermal(nu_erg, b_pwn, gamma_b, T_ej);
+        double gamma_b = 1.0e5; /* break Lorentz factor of electron injection spectrum */
+        double spec = PWNradiationMurase::spec_non_thermal(nu_erg, b_pwn, gamma_b, temp);
+        double f_gamma_esc_x = 1.;
+        double lum = p_pars->eps_e*(l_dip+l_acc)*spec*f_gamma_esc_x*nu_erg;
+        int x = 1;
     }
 
 };
 
 /// Container for independent layers of PWN model
 class PWNset{
+    std::unique_ptr<Magnetar> & p_mag;
     std::unique_ptr<Ejecta> & p_ej;
     std::unique_ptr<Output> p_out = nullptr;
     std::vector<std::unique_ptr<PWNmodel>> p_pwns{};
     std::unique_ptr<logger> p_log;
     int loglevel;
-    size_t m_nlayers = 0;
-    size_t m_nshells = 1;
-    size_t m_ncells = 0;
+//    size_t m_nlayers = 0;
+//    size_t m_nshells = 1;
+//    size_t m_ncells = 0;
     bool is_obs_pars_set = false;
-    bool is_synch_computed = false;
+//    bool is_synch_computed = false;
 public:
-    PWNset(int loglevel, std::unique_ptr<Ejecta> & p_ej) : loglevel(loglevel), p_ej(p_ej){
+    PWNset(std::unique_ptr<Magnetar> & p_mag, std::unique_ptr<Ejecta> & p_ej, int loglevel) : p_mag(p_mag), p_ej(p_ej), loglevel(loglevel){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "PWNset");
         p_out = std::make_unique<Output>(loglevel);
-        m_nlayers = p_ej->nlayers();
-        m_nshells = p_ej->nshells();
-        m_ncells = p_ej->ncells();
+//        m_nlayers = p_ej->nlayers();
+//        m_nshells = p_ej->nshells();
+//        m_ncells = p_ej->ncells();
     }
     StrDbMap pwn_pars{}; StrStrMap pwn_opts{};
     std::string workingdir{};
@@ -1583,14 +1643,14 @@ public:
             (*p_log)(LOG_ERR,AT) << "PWN is not initialized\n";
             exit(1);
         }
-        size_t neq = m_nlayers * p_pwns[0]->getNeq();
+        size_t neq = nlayers() * p_pwns[0]->getNeq();
         return neq;
     };
-    size_t nlayers() const {return run_pwn ? m_nlayers : 0;}
-    size_t nshells() const {return run_pwn ? m_nshells : 0;}
+    size_t nlayers() const {return (run_pwn||load_pwn) ? p_ej->nlayers() : 0;}
+    size_t nshells() const {return 1;}//{return (run_pwn||load_pwn) ? p_ej->nshells() : 0;}
     int ncells() const {
 //        return run_bws ? (int)ejectaStructs.structs[0].ncells : 0;
-        return (run_pwn || load_pwn) ? (int)m_ncells : 0;
+        return (run_pwn || load_pwn) ? (int)p_ej->ncells() : 0;
     }
     void setPars(StrDbMap & pars, StrStrMap & opts, std::string & working_dir, std::string parfilename,
                  Vector & tarr, StrDbMap & main_pars, size_t ii_eq){
@@ -1598,26 +1658,27 @@ public:
         pwn_pars = pars;
         pwn_opts = opts;
         workingdir = working_dir;
-        m_nlayers = p_ej->nlayers(); // as ejecta is  set later
-        m_nshells = p_ej->nshells();
+//        m_nlayers = p_ej->nlayers(); // as ejecta is  set later
+//        m_nshells = p_ej->nshells();
         if ((!pwn_pars.empty()) || (!pwn_pars.empty())) {
             run_pwn = getBoolOpt("run_pwn", pwn_opts, AT, p_log, false, true);
             save_pwn = getBoolOpt("save_pwn", pwn_opts, AT, p_log, false, true);
             load_pwn = getBoolOpt("load_pwn", pwn_opts, AT, p_log, false, true);
-//            do_ele = getBoolOpt("do_ele", grb_opts, AT, p_log, false, true);
-//            do_spec = getBoolOpt("do_spec", grb_opts, AT, p_log, false, true);
+//            do_ele = getBoolOpt("do_ele", m_opts, AT, p_log, false, true);
+//            do_spec = getBoolOpt("do_spec", m_opts, AT, p_log, false, true);
             do_lc = getBoolOpt("do_lc", pwn_opts, AT, p_log, false, true);
             do_skymap = getBoolOpt("do_skymap", pwn_opts, AT, p_log, false, true);
         }
         else {
             (*p_log)(LOG_INFO, AT) << "PWN is not initialized and will not be considered.\n";
         }
-        if (!run_pwn)
+        if (!(run_pwn || load_pwn))
             return;
         for(size_t il = 0; il < nlayers(); il++) {
 //            auto & _x = p_ej->getShells()[il]->getBottomBW();
-            p_pwns.push_back( std::make_unique<PWNmodel>( p_ej->getShells()[il]->getBW(0)) );
-            p_pwns[il]->setPars(pars, opts, ii_eq);
+            p_pwns.push_back( std::make_unique<PWNmodel>( p_mag, p_ej->getShells()[il]->getBW(0),
+                                                          run_pwn) );
+            p_pwns[il]->setPars(pars, opts, main_pars, ii_eq);
             ii_eq += p_pwns[il]->getNeq();
         }
         // --------------------------------------------
@@ -1633,7 +1694,7 @@ public:
     void setInitConditions(double * m_InitData){
 //        if (!run_pwn)
 //            return;
-        for (size_t il=0; il < m_nlayers; il++) {
+        for (size_t il=0; il < nlayers(); il++) {
             auto &ej_pwn = getPWNs()[il];
             ej_pwn->setInitConditions(m_InitData, ej_pwn->getPars()->iieq);
         }
@@ -1716,7 +1777,7 @@ public:
                 for (size_t ivar = 0; ivar < PWN::m_vnames.size(); ivar++) {
                     arr_names.push_back("shell="+std::to_string(ishell)
                                         +" layer="+std::to_string(ilayer)
-                                        +" key="+BW::m_vnames[ivar]);
+                                        +" key="+PWN::m_vnames[ivar]);
                     auto & pwn = models[ilayer];//->getBW(ishell);
                     for (size_t it = 0; it < t_arr.size(); it++)
                         tot_dyn_out[ii][it] = pwn->getData(static_cast<PWN::Q>(ivar))[it];
@@ -1729,7 +1790,7 @@ public:
 
         std::unordered_map<std::string, double> attrs{
                 {"nshells", nshells() },
-                {"m_nlayers", nlayers() },
+                {"nlayers", nlayers() },
                 {"ntimes", t_arr.size() },
 //                {"ncells", ncells() }
         };
@@ -1765,12 +1826,12 @@ public:
         auto & models = getPWNs();
         for (size_t ish = 0; ish < nshells(); ish++) {
             for (size_t il = 0; il < nlayers(); il++) {
-                auto & bw = models[il];//->getBW(ish);
+                auto & pwn = models[il];//->getBW(ish);
                 for (size_t ivar = 0; ivar < PWN::m_vnames.size(); ivar++) {
                     std::string key = "shell=" + std::to_string(ish)
                                       + " layer=" + std::to_string(il)
                                       + " key=" + PWN::m_vnames[ivar];
-                    auto & vec = bw->getData()[static_cast<PWN::Q>(ivar)];
+                    auto & vec = pwn->getData()[static_cast<PWN::Q>(ivar)];
                     if (!vec.empty()){
                         (*p_log)(LOG_ERR,AT) << " container is not empty\n";
                     }
@@ -1815,14 +1876,16 @@ public:
                     datatype.close();
                     dataset.close();
 
-                    if ( bw->getData()[static_cast<PWN::Q>(ivar)].empty() ){
+                    if ( pwn->getData()[static_cast<PWN::Q>(ivar)].empty() ){
                         std::cout << key << " faild" << std::endl;
                         exit(1);
                     }
                 }
-                if (bw->getData()[PWN::iR][0] == 0){
+                if (pwn->getData()[PWN::iR][0] == 0){
                     (*p_log)(LOG_WARN,AT) << "Loaded not evolved shell [il="<<il<<", "<<"ish="<<ish<<"] \n";
                 }
+                pwn->i_end_r = pwn->getData()[PWN::iR].size(); // update for eats
+//        int i = 1;
             }
         }
         file.close();
@@ -1865,6 +1928,7 @@ public:
 
     void computeAndOutputObservables(StrDbMap & main_pars, StrStrMap & main_opts){
         if (run_pwn || load_pwn) {
+            is_obs_pars_set = true;
             bool lc_freq_to_time = getBoolOpt("lc_use_freq_to_time",main_opts,AT,p_log,false,true);
             Vector lc_freqs = makeVecFromString(getStrOpt("lc_freqs",main_opts,AT,p_log,"",true),p_log);
             Vector lc_times = makeVecFromString(getStrOpt("lc_times",main_opts,AT,p_log,"",true), p_log);
@@ -1892,7 +1956,6 @@ public:
                         getStrOpt("fname_light_curve_layers", pwn_opts, AT, p_log, "", true),
                         lc_times, lc_freqs, main_pars, pwn_pars, lc_freq_to_time);
 
-            is_obs_pars_set = true;
         }
     }
 
@@ -1910,7 +1973,7 @@ private:
         for (auto & model : models) {
             model->computeSynchrotronSpectrum();
         }
-        is_synch_computed = true;
+//        is_synch_computed = true;
     };
     void computePWNlightcurve(std::string workingdir,std::string fname, std::string fname_shells_layers,
                               Vector lc_times, Vector lc_freqs, StrDbMap & main_pars, StrDbMap & ej_pars,
@@ -1921,11 +1984,11 @@ private:
 
         (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta light curve with analytic synchrotron...\n";
 
-        if (!is_synch_computed){
-            std::cerr << " ejecta analytic electrons were not evolved. Cannot evaluateShycnhrotronSpectrum light curve (analytic) exiting...\n";
-            std::cerr << AT << " \n";
-            exit(1);
-        }
+//        if (!is_synch_computed){
+//            std::cerr << " ejecta analytic electrons were not evolved. Cannot evaluateShycnhrotronSpectrum light curve (analytic) exiting...\n";
+//            std::cerr << AT << " \n";
+//            exit(1);
+//        }
         if (!is_obs_pars_set){
             std::cerr << " ejecta observer parameters are not set. Cannot evaluateShycnhrotronSpectrum light curve (analytic) exiting...\n";
             std::cerr << AT << " \n";
@@ -1993,11 +2056,11 @@ private:
     std::vector<VecVector> evalPWNLightCurves( Vector & obs_times, Vector & obs_freqs ){
 
 
-        (*p_log)(LOG_INFO,AT)<<" starting ejecta light curve calculation\n";
-        (*p_log)(LOG_ERR,AT)<<" not implemented\n";
+//        (*p_log)(LOG_INFO,AT)<<" starting ejecta light curve calculation\n";
+//        (*p_log)(LOG_ERR,AT)<<" not implemented\n";
 //        std::vector<VecVector> light_curves{};
-        exit(1);
-#if 1
+//        exit(1);
+
 
 //        size_t nshells = p_cumShells->nshells();
 //        size_t m_nlayers = p_cumShells->m_nlayers();
@@ -2025,7 +2088,7 @@ private:
                 auto & model = getPWNs()[ilayer];//ejectaModels[ishell][ilayer];
 //                model->setEatsPars( pars, opts );
                 (*p_log)(LOG_INFO,AT)
-                        << " EJECTA LC ntimes=" << obs_times.size()
+                        << " PWN LC ntimes=" << obs_times.size()
                         << " vel_shell=" << ishell << "/" <<nshells()-1
                         << " theta_layer=" << ilayer << "/" << nlayers()
                         << " phi_cells=" << EjectaID2::CellsInLayer(ilayer) << "\n";
@@ -2035,7 +2098,7 @@ private:
                 ii ++;
             }
         }
-#endif
+
         return std::move( light_curves );
     }
 

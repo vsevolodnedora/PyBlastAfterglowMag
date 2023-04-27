@@ -1008,8 +1008,8 @@ private:
         /// update Magnetar energy injecton into kN blast waves
         if (!p_pars->p_ej->do_eninj_inside_rhs) {
             double tinj = time;
-            double ldip = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ildip, tinj);
-            double lacc = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ilacc, tinj);
+            double ldip = p_pars->p_magnetar->getMagValInt(MAG::Q::ildip, tinj);
+            double lacc = p_pars->p_magnetar->getMagValInt(MAG::Q::ilacc, tinj);
             updateEnergyInjectionToEjectaBWs(ldip, lacc, sol, p_pars);
         }
 
@@ -1149,8 +1149,8 @@ private:
             ii += magnetar->getNeq();
         }
         else if (p_pars->p_magnetar->load_magnetar){
-            ldip = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ildip, x);
-            lacc = p_pars->p_magnetar->getMagValInt(Magnetar::Q::ilacc, x);
+            ldip = p_pars->p_magnetar->getMagValInt(MAG::Q::ildip, x);
+            lacc = p_pars->p_magnetar->getMagValInt(MAG::Q::ilacc, x);
         }
 
         /// ***************************| G R B |**************************

@@ -287,6 +287,7 @@ public:
                                           double t_obs, double nu_obs, void * params )){
         p_pars->fluxFuncA = fluxFuncA;
     }
+    /// ----------------------------------------------------------------------------------------------
     void updateObsPars(StrDbMap & pars){p_pars->updateObsPars(pars);}
     /// evaluate flux density using adaptive integrator
     double evalFluxDensA(double t_obs, double nu_obs, double atol) {
@@ -335,6 +336,14 @@ public:
             (*p_log)(LOG_WARN,AT) << " [ishell=" << p_pars->ishell << " ilayer="<<p_pars->ilayer << "] "
                                   << " R[0]=0. Seems not evolved -> returning empty image." << "\n";
             return;
+        }
+        if(p_pars->m_i_end_r == 0){
+            (*p_log)(LOG_ERR,AT) << "p_pars->m_i_end_r = 0\n";
+            exit(1);
+        }
+        if (p_pars->m_tt[0] == 0 and p_pars->m_tt[p_pars->m_i_end_r] == 0){
+            (*p_log)(LOG_ERR,AT) << "p_pars->m_tt = 0\n";
+            exit(1);
         }
 
         parsPars(t_obs, nu_obs, 0., 0., 0., 0., obs_angle);

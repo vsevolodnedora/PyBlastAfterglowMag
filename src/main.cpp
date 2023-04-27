@@ -84,7 +84,7 @@ public:
         p_mag = std::make_unique<Magnetar>(loglevel);
         p_grb = std::make_unique<Ejecta>(t_grid, loglevel);
         p_ej  = std::make_unique<Ejecta>(t_grid, loglevel);
-        p_ej_pwn = std::make_unique<PWNset>(loglevel, p_ej); // depends on ang.struct. of the ejecta
+        p_ej_pwn = std::make_unique<PWNset>(p_mag, p_ej, loglevel); // depends on ang.struct. of the ejecta
     }
 
     void setModelPars(StrDbMap pars, StrStrMap opts) {

@@ -34,6 +34,7 @@ public:
     IDTYPE idtype{};  STUCT_TYPE method_eats{};
     size_t nshells=0, nlayers=0, ncells=0;
     double theta_core{}; double theta_wing{};
+    double theta_max{};
     EjectaID2(std::string path_to_table,
               std::string eats_method,
               bool use_1d_id,
@@ -59,7 +60,7 @@ public:
             exit(1);
         }
         _load_id_file(path_to_table,use_1d_id, load_r0, t0);
-
+        theta_max = CGS::pi/2.; // for dynamics
     }
     double get(size_t ish, size_t il, Q iv){
         return m_data[iv][ish][il];
