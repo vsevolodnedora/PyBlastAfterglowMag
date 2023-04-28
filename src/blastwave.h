@@ -3031,7 +3031,7 @@ public:
                                   << " Mom=" << mom << "\n"
                                   << " Eint2=" << Eint2
                                   << " \n";
-//            exit(1);
+            exit(1);
         }
 //        if (Gamma <= 1.) { // TODO to be removed
 //            Gamma = 1.0001;
@@ -3130,6 +3130,10 @@ public:
         // --- Energy injection --- ||
         double xi_inj = 1.; // TODO put in parfile
         double dEindt = p_pars->dEinjdt;
+        if (!std::isfinite( dEindt) || dEindt < 0){
+            (*p_log)(LOG_ERR,AT) << " dEindt = "<<dEindt << "\n";
+            exit(1);
+        }
 
         double dEinjdt = dEindt / (p_pars->M0 * CGS::c * CGS::c) / p_pars->ncells;
         double dEinjdR = dEinjdt / dRdt;
@@ -3284,7 +3288,7 @@ public:
                                   << " GammaRel"<<GammaRel//<< "\n"
                                   << " GammaRho"<<GammaRho//<< "\n"
                                   << " \n";
-//            exit(1);
+            exit(1);
         }
         // ****************************************
 //        double theta_c_h = dthetadr * dRdt * (x - p_pars->x);

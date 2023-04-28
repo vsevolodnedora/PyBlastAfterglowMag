@@ -327,6 +327,7 @@ public:
     }
 
 
+
     void evalImageFromPW(Image & image, double t_obs, double nu_obs,
                          double (*obs_angle)( const double &, const double &, const double & ),
                          double (*im_xxs)( const double &, const double &, const double & ),
@@ -681,6 +682,7 @@ public:
         }
 #endif
     }
+
     /// get the observed flux density distrib 'image' for 2 projections for given time, freq, angle, distance, red shift
     void computeImagePW(Image & im_pj, Image & im_cj, double obs_time, double obs_freq){
         /// evaluateShycnhrotronSpectrum image for primary jet and counter jet

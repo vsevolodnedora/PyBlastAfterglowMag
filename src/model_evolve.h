@@ -614,7 +614,7 @@ private:
                 total_sd = pwn->getAbsobedMagnetarLum(ldip, lacc, 1.);
             }
             /// update energy injection into blast waves
-            for (size_t ish = 0; ish < ej_layers[il]->nBWs(); ish++) {
+            for (size_t ish = 0; ish < cumShell->getPars()->n_active_shells; ish++) {
                 auto & ej_bw = ej_layers[il]->getBW(ish);
                 cumShell->getBW(ish)->getPars()->dEinjdt = 0.;
                 if ((total_sd > 0.)) { // and(ish<10)

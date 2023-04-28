@@ -1205,9 +1205,9 @@ public:
     std::vector<std::string> vars {  };
     size_t getNeq() const {
         if (run_pwn)
-            return 0;
-        else
             return neq;
+        else
+            return 0;
     }
     enum Q_SOL {
         i_Rw, // Wind radius (PWN radius)
@@ -1405,10 +1405,14 @@ public:
         double dEpwndt = p_pars->eps_mag * p_pars->curr_ldip - e_pwn / tdyn;
 
         double dttdr = EQS::evalElapsedTime(r_w, mom,0., false);
-        double drdt = v_w + r_w / x;
+        if (!std::isfinite(dttdr)||dttdr<0){
+            (*p_log)(LOG_ERR,AT)<<"dttdr="<<dttdr<<"\n";
+            exit(1);
+        }
+        double drdt = v_w;// + r_w / x;
         /// Using pressure equilibrium, Pmag = Prad; Following approach (see Eq. 28 in Kashiyama+16)
         out_Y[i + Q_SOL::i_Rw] = drdt;
-        out_Y[i + Q_SOL::i_mom] = EQS::MomFromBeta( drdt / CGS::c);
+        out_Y[i + Q_SOL::i_mom] = EQS::MomFromBeta( v_w / CGS::c);
         out_Y[i + Q_SOL::i_tt] = dttdr*drdt;
         out_Y[i + Q_SOL::i_Enb] = dEnbdt;
         out_Y[i + Q_SOL::i_Epwn] = dEpwndt;
@@ -1573,7 +1577,10 @@ private: // -------- RADIATION ----------
 
         if (frac_psr_dep_tmp > 1.)
             frac_psr_dep_tmp = 1.;
-
+        if (!std::isfinite(frac_psr_dep_tmp)||frac_psr_dep_tmp < 0){
+            (*p_log)(LOG_ERR,AT) << "frac_psr_dep_tmp="<<frac_psr_dep_tmp<<"\n";
+            exit(1);
+        }
         return frac_psr_dep_tmp;
     }
 
