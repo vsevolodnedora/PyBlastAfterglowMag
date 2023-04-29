@@ -74,12 +74,14 @@ save_pwn_every_it = 1
 
 * Settings
 
-do_lc = no
+run_pwn = no
+load_pwn = yes
+save_pwn = no
+do_lc = yes
 do_skymap = no
-run_pwn = yes
-load_pwn = no
-save_pwn = yes
 fname_pwn = pwn.h5
+fname_light_curve_layers = lc_pwn_layers.h5
+fname_light_curve = lc_pwn.h5
 
 # --------------------------- END ---------------------------
 #
@@ -117,9 +119,9 @@ save_dyn_every_it = 1
 
 * Settings
 
-run_bws = yes
-load_dynamics = no
-save_dynamics = yes
+run_bws = no
+load_dynamics = yes
+save_dynamics = no
 do_ele = no
 do_spec = no
 do_lc = no

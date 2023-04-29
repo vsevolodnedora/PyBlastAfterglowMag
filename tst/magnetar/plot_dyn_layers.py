@@ -182,22 +182,25 @@ def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
                                 v_n_x = "R", v_n_ys = ("rho", "mom"),
                                 pwn_v_n_ys = ("Epwn"),
                                 colors_by="layers",legend=False,
-                                scale = False,
+                                scale = False, same_ax = False,
                                 figname="./pwn.png"):
 
     layers = []
-    for i in ishells:
-        for j in ilayers:
+    for j in ilayers:
+        for i in ishells:
             layers.append("shell={} layer={}".format(i,j))
 
     dfile = h5py.File(curdir+"magnetar_driven_ej.h5", "r")
     # print(dfile[list(dfile.keys())[0]].keys())
     dfile_pwn = h5py.File(curdir+"pwn.h5","r")
-    print(dfile_pwn[list(dfile_pwn.keys())[0]].keys())
-    print(dfile.keys())
+    # print(dfile_pwn[list(dfile_pwn.keys())[0]].keys())
+    print(dfile_pwn.keys())
     # print(dfile["layer=0"]["M2"])
 
-    fid, axes = plt.subplots(ncols=1, nrows=len(v_n_ys)+len(pwn_v_n_ys), figsize=(6,6),sharex="all")
+    if (same_ax): nrows = 1
+    else: nrows = len(v_n_ys)+len(pwn_v_n_ys)
+    fid, axes = plt.subplots(ncols=1, nrows=nrows, figsize=(6,6),sharex="all")
+    if not hasattr(axes,"__len__"): axes = [axes]
     # norm = Normalize(vmin=0, vmax=dfile.attrs["nlayers"])
     cmap = cm.viridis
     mynorm = Normalize(vmin=0,vmax=len(ishells)*len(ilayers))#norm(len(ishells)*len(ilayers))
@@ -240,12 +243,16 @@ def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
         # ax.set_xlim(1e-4,1e-1)
         # ax.set_ylim(1,1.012)
 
+    cmap = cm.inferno_r
+
+    if same_ax: offset = 0
+    else: offset = len(v_n_ys)
     for iv_n, v_n in enumerate(pwn_v_n_ys):
         i = 0
-        ax = axes[len(v_n_ys) + iv_n] if len(v_n_ys) + len(pwn_v_n_ys) > 1 else axes
-        for il, layer in enumerate(dfile_pwn.keys()):
-            x_arr = np.array(dfile_pwn[layer][v_n_x])
-            y_arr = np.array(dfile_pwn[layer][v_n])
+        ax = axes[offset + iv_n] if len(v_n_ys) + len(pwn_v_n_ys) > 1 else axes
+        for il, layer in enumerate(layers):
+            x_arr = np.array(dfile_pwn[layer+f" key={v_n_x}"])
+            y_arr = np.array(dfile_pwn[layer+f" key={v_n}"])
             y_arr = y_arr[x_arr > 0]
             x_arr = x_arr[x_arr > 0]
             if (colors_by=="layers"): color=cmap(mynorm(int(i)))#color=cmap(norm(int(layer.split("layer=")[-1])))
@@ -267,12 +274,12 @@ def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
     if legend: plt.legend()
     plt.savefig(figname, dpi=256)
     plt.show()
-# plot_ej_and_magnetar_layers(ishells=([i for i in range(3)]), ilayers=(0,), v_n_x = "tburst",
-#                             v_n_ys = ([]), pwn_v_n_ys=(["Rwing","Enebula","Epwn"]),
-#                             colors_by="shell",figname="./pwn.png")
-plot_ej_and_magnetar_layers(ishells=([i for i in range(80)]), ilayers=(0,), v_n_x = "R",
-                            v_n_ys = (["EJrho","EJdelta","EJtemp","psrFrac","mom"]), pwn_v_n_ys=([]),
-                            colors_by="shell",figname="./pwn_driv_ejecta.png")
+plot_ej_and_magnetar_layers(ishells=([0]), ilayers=(0,), v_n_x = "tburst",
+                            v_n_ys = (["R"]), pwn_v_n_ys=(["Rw"]), same_ax=True,
+                            colors_by="shell",figname="./pwn.png")
+# plot_ej_and_magnetar_layers(ishells=([i for i in range(80)]), ilayers=(0,), v_n_x = "tburst",
+#                             v_n_ys = ([]), pwn_v_n_ys=(["tt"]),
+#                             colors_by="shell",figname="./pwn_driv_ejecta.png")
 
 
 def plot_dynamics_layers(jet_layers=(0,20,40,60,69), v_n_x = "R", v_n_ys = ("rho", "mom", "tburst"),

@@ -479,4 +479,366 @@ public:
 
 };
 
+namespace PWNradiationMurase{
+    /// maximum energy of electrons; Eq. (21) of Murase+15, but neglecting Y
+    /// THe pair-limited lorentz -factor
+    static double gamma_e_max(const double b_pwn) {
+        double eta = 1;
+        return sqrt(6.0*M_PI*CGS::ELEC/eta/CGS::SIGMA_T/b_pwn);
+    }
+    /// possible maxium energy of photons; Eq. (22) of Murase+15 in unit of [erg]
+    static double e_gamma_max(const double b_pwn) {
+        return gamma_e_max(b_pwn)*CGS::M_ELEC*CGS::c*CGS::c;
+    }
+    /// maximum energy of photons limited by gamma-gamma. Eq.42
+    static double e_gamma_gamma_ani(const double T_ej) {
+        return pow(CGS::M_ELEC*CGS::c*CGS::c,2.0)/2.0/CGS::K_B/T_ej;
+    }
+    /// The characterisitc synchrotron energy; Eq. (24) of Murase+15 in unit of [erg]
+    static double e_gamma_syn_b(const double b_pwn, const double gamma_b) {
+        return 3.0/2.0*CGS::H/(2.0*M_PI)*gamma_b*gamma_b*CGS::ELEC*b_pwn/CGS::M_ELEC/CGS::c;
+    }
+
+    /// The total KN cross section in unit of cm^2 (Eq.46 in Murase+15)
+    static double sigma_kn(const double e_gamma) {
+        double x = e_gamma/CGS::M_ELEC/CGS::c/CGS::c;
+        if (x > 1.0e-3)
+            return 3.0/4.0*CGS::SIGMA_T*((1.0+x)/x/x/x*(2.0*x*(1.0+x)/(1.0+2.0*x)
+                                                        -log(1.0+2.0*x))+1.0/2.0/x*log(1.0+2.0*x)-(1.0+3.0*x)/pow(1.0+2.0*x,2.0));
+        else
+            return SIGMA_T;
+    }
+
+    /// The total BH cross section in unit of cm^2 Eq.49 in Murase+15
+    static double sigma_BH_p(const double e_gamma) {
+        /// Eq. (A1) and (A2) of Chodorowski+92
+        double x = e_gamma/CGS::M_ELEC/CGS::c/CGS::c;
+        double log2x = log(2.0*x);
+        double eta = (x-2.0)/(x+2.0);
+        double alpha = 1.0/137.0;
+        double zeta3 = 1.2020569;
+
+        if (x > 4.0)
+            return 3.0*alpha/8.0/M_PI*SIGMA_T
+                   * (28.0/9.0*log2x-218.0/27.0+pow(2.0/x,2.0)*(6.0*log2x-7.0/2.0+2.0/3.0*pow(log2x,3.0)
+                                                                -pow(log2x,2.0)-1.0/3.0*M_PI*M_PI*log2x+2.0*zeta3+M_PI*M_PI/6.0)
+                      -pow(2.0/x,4.0)*(3.0/16.0*log2x+1.0/8.0)
+                      -pow(2.0/x,6.0)*(29.0/9.0/256.0*log2x-77.0/27.0/512.0));
+        else if (x > 2.0)
+            return 1.0/4.0*alpha*SIGMA_T*pow((x-2.0)/x,3.0)
+                   *(1.0+eta/2.0+23.0/40.0*eta*eta+37.0/120.0*pow(eta,3.0)+61.0/192*pow(eta,4.0));
+        else
+            return 0.0;
+    }
+
+    /// opacity of boud-free emission
+    static double kappa_bf(const double e_gamma, const double Z_eff, const int opacitymode) {
+        double zeta = 1.0;//0.5 for OMK18, 1.0 for Murase+18; /* neutral fraction */
+
+        /* See http://physics.nist.gov/PhysRefData/XrayMassCoef/tab3.html */
+        //return 5.0*zeta*pow(e_gamma/EV_TO_ERG/1.0e4,-3.0)*pow(Z_eff/7.0,3.0);
+
+        double ironopacity,seleopacity,xenonopacity,goldopacity;
+
+        double A0,A1,A2,A3,A4;
+
+        //iron
+        if(log10(e_gamma/EV_TO_ERG/1.0e6)<-2.14801){
+            A0 = -3.95919414261072;
+            A1 = -2.64892215754265;
+        }
+        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-0.695){
+            A0 = -3.37291030805215;
+            A1 = -2.75161208271434;
+        }
+        else{
+            A0 = -1.59069232728045;
+            A1 = -0.206813265289848;
+        }
+        ironopacity=zeta*pow(10.,A0+A1*log10(e_gamma/EV_TO_ERG/1.0e6));
+
+        //selenium
+        if(log10(e_gamma/EV_TO_ERG/1.0e6)<-2.84291){
+            A0 = -3.78835348616654;
+            A1 = -2.38423803432305;
+        }
+        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-1.89764){
+            A0 = -3.68604734441612;
+            A1 = -2.66063041649055;
+        }
+        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-0.55){
+            A0 = -2.93083141712927;
+            A1 = -2.60630263958148;
+        }
+        else{
+            A0 = -1.58243193342158;
+            A1 = -0.102384218895718;
+        }
+        seleopacity=zeta*pow(10.,A0+A1*log10(e_gamma/EV_TO_ERG/1.0e6));
+
+        //xenon
+        if(log10(e_gamma/EV_TO_ERG/1.0e6)<-2.32037){
+            A0 = -3.07458863553159;
+            A1 = -2.35739410975398;
+        }
+        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-1.46141){
+            A0 = -3.17731357386225;
+            A1 = -2.68342346938979;
+        }
+        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-0.282){
+            A0 = -2.17345283895274;
+            A1 = -2.26742402391864;
+        }
+        else{
+            A0 = -1.55866825608716;
+            A1 = -0.0467127630289143;
+        }
+        xenonopacity=zeta*pow(10.,A0+A1*log10(e_gamma/EV_TO_ERG/1.0e6));
+
+        //gold
+        if(log10(e_gamma/EV_TO_ERG/1.0e6)<-2.65645){
+            A0 = -2.5113444206149;
+            A1 = -2.06076550942316;
+        }
+        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-1.92377){
+            A0 = -2.45512766933321;
+            A1 = -2.27191147638504;
+        }
+        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-1.09299){
+            A0 = -2.32582461907071;
+            A1 = -2.39063081204358;
+        }
+        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<0.02){
+            A0 = -1.55199838865465;
+            A1 = -1.82076527957878;
+        }
+        else{
+            A0 = -1.58507209319691;
+            A1 = 0.0628004018301846;
+        }
+        goldopacity=zeta*pow(10.,A0+A1*log10(e_gamma/EV_TO_ERG/1.0e6));
+
+        if(opacitymode==0){
+            return ironopacity;
+        }
+        else if(opacitymode==1){
+            return 0.5*ironopacity+0.5*seleopacity;
+        }
+        else if(opacitymode==2){
+            return 0.5*xenonopacity+0.5*goldopacity;
+        }
+        else if(opacitymode==3){
+            //approximate formula used in Murase et al. 2015
+            return 5.0*zeta*pow(e_gamma/EV_TO_ERG/1.0e4,-3.0)*pow(Z_eff/7.0,3.0);
+        }
+        else{
+            std::cerr << AT << " should not be entered: opacitymode="<<opacitymode<<"\n";
+            exit(1);
+        }
+
+    }
+
+
+    /// kappa_comp * sigma_comp; energy transfer coefficient from gamma rays to the thermal bath by Compton (Eq. 46 of Murase+15)
+    static double gamma_ene_depo_frac_Compton(const double e_gamma) {
+        double x = e_gamma/CGS::M_ELEC/CGS::c/CGS::c;
+
+        if (x > 1.0e-3)
+            return 3.0/4.0*CGS::SIGMA_T*(2.0*pow(1.0+x,2.0)/x/x/(1.0+2.0*x)
+                                         -(1.0+3.0*x)/pow(1.0+2.0*x,2.0)
+                                         -(1.0+x)*(2.0*x*x-2.0*x-1.0)/x/x/pow(1.0+2.0*x,2.0)
+                                         -4*x*x/3.0/pow(1.0+2.0*x,3.0)
+                                         -((1.0+x)/x/x/x-1.0/2.0/x+1.0/2.0/x/x/x)*log(1.0+2.0*x));
+        else
+            return CGS::SIGMA_T * x;
+
+    }
+    /// inelastisity of gamma rays in Compton; kappa_comp * sigma_comp / sigma_klein_nishina
+    static double gamma_inelas_Compton(const double e_gamma) {
+        double x = e_gamma/CGS::M_ELEC/CGS::c/CGS::c;
+        return gamma_ene_depo_frac_Compton(e_gamma) / sigma_kn(e_gamma);
+    }
+
+    /// escape fraction of gamma rays interms of energy
+    static double f_gamma_dep(const double e_gamma, const double rho_ej,
+                              const double delta_ej, const double albd_fac, const int opacitymode) {
+        double mu_e; /* electron mean molecular weight */
+        //double Z_eff = 7.0; /* effective nuclear weight */
+        /* this corresponds to C:O = 1:1 */
+        double Z_eff;
+        if(opacitymode==0){
+            Z_eff = 24.21; /* effective nuclear weight */
+            mu_e = 2.148;
+        }
+        else if(opacitymode==1){
+            Z_eff = 26.74;
+            mu_e = 2.2353;
+        }
+        else if(opacitymode==2){
+            Z_eff = 53.90;
+            mu_e= 2.4622;
+        }
+        else if(opacitymode==3){
+            Z_eff = 2.0;
+            mu_e= 7.0;
+        }
+
+        /// The Compton optical depth Kcomp * \rho_ej * Rej
+//        double tau_Compton = (3.0-delta)/4.0/M_PI*m_ej*sigma_kn(e_gamma)/mu_e/CGS::M_PRO/r_ej/r_ej;
+        double Kcomp = sigma_kn(e_gamma)/mu_e/CGS::M_PRO;
+        double tau_Compton = rho_ej*delta_ej*Kcomp;
+        /// optical depth of BH pair production
+//        double tau_BH = (3.0-delta)/4.0/mu_e/M_PI*m_ej*(1.0+Z_eff)*sigma_BH_p(e_gamma)/CGS::M_PRO/r_ej/r_ej;
+        double KBH = (1.0+Z_eff)*sigma_BH_p(e_gamma)/mu_e/CGS::M_PRO;
+        double tau_BH = rho_ej*delta_ej*KBH;
+        /// The photoelectric absorption at high energies is taken into account, using the bound–free opacity
+//        double tau_bf = (1.0-albd_fac)*(3.0-delta)/4.0/M_PI*m_ej*kappa_bf(e_gamma, Z_eff, opacitymode)/r_ej/r_ej;
+        double Kbf = (1.0-albd_fac)*kappa_bf(e_gamma, Z_eff, opacitymode);
+        double tau_bf = rho_ej*delta_ej*Kbf;
+
+        /// In the small inelasticity limit, a particle loses kg per
+        /// interaction, so the survival fraction is (1 - kappa_gamma)^max[tau,tau^2] where
+        /// max[tau,tau^2] represents the number of scatterings. In the large
+        /// inelasticity limit, as in the attenuation case, the survival fraction
+        /// is given by -t e .
+        double power_Compton=0.0;
+        if (tau_Compton > 1.0)
+            power_Compton = tau_Compton*tau_Compton;
+        else
+            power_Compton = tau_Compton;
+
+        /// inelasticity of Compton scattering K_comp = sigma_comp/(mu_e * mu); sigma_comp is the gamma-ray inelasticity.
+        double k_comp = gamma_inelas_Compton(e_gamma);
+
+        /// The contribution from the Compton scattering; Eq.38 in Kashiyama+2016
+        double fdep_sc = (1.0 - pow(1.0 - k_comp,power_Compton));
+        /// Eq.39 & 40 in Kashiyama+2016
+        double fdep_ab = (1.0 - exp(-(tau_BH + tau_bf)));
+
+        /// fdep = fdep,sc + fdep,ab
+        double f_gamma_dep_tmp = fdep_sc + fdep_ab; // Eq. 39 & 40 in Kashiyama+2016
+
+        if (f_gamma_dep_tmp > 1.0)
+            return 1.0;
+        else
+            return f_gamma_dep_tmp;
+    }
+
+    static double spec_non_thermal(const double e_gamma, const double b_pwn,
+                                   const double gamma_b, const double T_ej) {
+        /* psr non-thermal emission injection spectrum "E*dF/dE/(eps_e*L_d) [erg^-1]" */
+        /* We assume a broken power law with the low and high energy spectral
+         * indices are -p_1 and -2 */
+        /* This is motivated by more detailed calculation by Murase+15 */
+        /// The source of this equations is unclear.
+        /// seems to be based on https://iopscience.iop.org/article/10.1088/0004-637X/805/1/82/pdf
+        /// but with no clear corresponding equation. A combination of Eq.23 & 26
+
+        double p_1 = 1.5; //photon index -- modified
+        double e_gamma_min;
+//        if(diskwindmode==0){
+//            e_gamma_min= 1.0*EV_TO_ERG; //0=no disk for pulsar
+//        }else if(diskwindmode==2){
+//            e_gamma_min = 1.0*1e-6*EV_TO_ERG; //2=disk wind
+//        }
+
+        e_gamma_min = 1.0*1e-6*EV_TO_ERG; //2=disk wind
+
+        double e_gamma_max_tmp = e_gamma_max(b_pwn);
+        double e_gamma_gamma_ani_tmp = e_gamma_gamma_ani(T_ej);
+        double e_gamma_syn_b_tmp = e_gamma_syn_b(b_pwn,gamma_b);
+        double norm_fac = 0.0;
+
+        if (e_gamma_gamma_ani_tmp < e_gamma_max_tmp)
+            e_gamma_max_tmp = e_gamma_gamma_ani_tmp;
+
+        if((e_gamma_max_tmp > e_gamma_syn_b_tmp)
+           && (e_gamma_min < e_gamma_syn_b_tmp)){
+            norm_fac = 1.0 / ( (1.0 / (2.0 - p_1) ) * (1.0 - pow(e_gamma_min/e_gamma_syn_b_tmp,2.0 - p_1)) + log(e_gamma_max_tmp/e_gamma_syn_b_tmp)) / e_gamma_syn_b_tmp;
+            if((e_gamma < e_gamma_syn_b_tmp) && (e_gamma >= e_gamma_min))
+                return norm_fac * pow(e_gamma/e_gamma_syn_b_tmp,-p_1+1.0);
+            else if((e_gamma > e_gamma_syn_b_tmp) && (e_gamma <= e_gamma_max_tmp))
+                return norm_fac * pow(e_gamma/e_gamma_syn_b_tmp,-1);
+            else
+                return 0.0;
+        }
+        else if(e_gamma_min > e_gamma_syn_b_tmp){
+            norm_fac = 1.0 / log(e_gamma_max_tmp/e_gamma_min) / e_gamma_min;
+            if ((e_gamma < e_gamma_max_tmp) && (e_gamma > e_gamma_min))
+                return norm_fac * pow(e_gamma/e_gamma_min,-1);
+            else
+                return 0.0;
+        }
+        else{
+            norm_fac = 1.0 / ((1.0/(2.0 - p_1)) * (1.0 - pow(e_gamma_min/e_gamma_max_tmp,2.0 - p_1))) / e_gamma_max_tmp;
+            if ((e_gamma < e_gamma_max_tmp) && (e_gamma >= e_gamma_min))
+                return norm_fac * pow(e_gamma/e_gamma_max_tmp,-p_1+1.0);
+            else
+                return 0.0;
+        }
+    }
+
+    double f_gamma_esc(double e_gamma, double rho_ej, double delta_ej,
+                       double r_ej, double albd_fac, const int opacitymode) {
+        double mu_e; /* electron mean molecular weight */
+        //double Z_eff = 7.0; /* effective nuclear weight */
+        /* this corresponds to C:O = 1:1 */
+        double Z_eff;
+        if(opacitymode==0){
+            Z_eff = 24.21; /* effective nuclear weight */
+            mu_e = 2.148;
+        }
+        else if(opacitymode==1){
+            Z_eff = 26.74;
+            mu_e = 2.2353;
+        }
+        else if(opacitymode==2){
+            Z_eff = 53.90;
+            mu_e= 2.4622;
+        }
+        else if(opacitymode==3){
+            Z_eff = 7.0;
+            mu_e = 2.0;
+        }
+
+//        double tau_Compton = (3.0-delta)/4.0/M_PI*m_ej*sigma_kn(e_gamma)/mu_e/M_PRO/r_ej/r_ej;
+//        double tau_BH = (3.0-delta)/4.0/mu_e/M_PI*m_ej*(1.0+Z_eff)*sigma_BH_p(e_gamma)/M_PRO/r_ej/r_ej;
+        //double tau_bf = 2.0*(1.0-albd_fac)*(3.0-delta)/4.0/M_PI*m_ej*kappa_bf(e_gamma,Z_eff)/r_ej/r_ej;
+//        double tau_bf = (1.0-albd_fac)*(3.0-delta)/4.0/M_PI*m_ej*kappa_bf(e_gamma,Z_eff,opacitymode)/r_ej/r_ej;
+
+        /// The Compton optical depth Kcomp * \rho_ej * Rej
+//        double tau_Compton = (3.0-delta)/4.0/M_PI*m_ej*sigma_kn(e_gamma)/mu_e/CGS::M_PRO/r_ej/r_ej;
+        double Kcomp = sigma_kn(e_gamma)/mu_e/CGS::M_PRO;
+        double tau_Compton = rho_ej*delta_ej*Kcomp;
+        /// optical depth of BH pair production
+//        double tau_BH = (3.0-delta)/4.0/mu_e/M_PI*m_ej*(1.0+Z_eff)*sigma_BH_p(e_gamma)/CGS::M_PRO/r_ej/r_ej;
+        double KBH = (1.0+Z_eff)*sigma_BH_p(e_gamma)/mu_e/CGS::M_PRO;
+        double tau_BH = rho_ej*delta_ej*KBH;
+        /// The photoelectric absorption at high energies is taken into account, using the bound–free opacity
+//        double tau_bf = (1.0-albd_fac)*(3.0-delta)/4.0/M_PI*m_ej*kappa_bf(e_gamma, Z_eff, opacitymode)/r_ej/r_ej;
+        double Kbf = (1.0-albd_fac)*kappa_bf(e_gamma, Z_eff, opacitymode);
+        double tau_bf = rho_ej*delta_ej*Kbf;
+
+        double tau_abs = (1.0+gamma_inelas_Compton(e_gamma))*(tau_BH+tau_bf);
+        double tau_eff = sqrt((tau_abs+tau_Compton)*tau_abs);
+
+        double power_Compton=0.0;
+        if (tau_Compton > 1.0)
+            power_Compton = tau_Compton*tau_Compton;
+        else
+            power_Compton = tau_Compton;
+
+
+
+
+        //return exp(-tau_eff);
+        return exp(-(tau_BH+tau_bf))
+               * (exp(-(tau_Compton)) + (1.0-exp(-(tau_Compton))) * pow(1.0-gamma_inelas_Compton(e_gamma),power_Compton));
+        //return (exp(-(tau_Compton))+(1.0-exp(-(tau_Compton)))*pow(1.0-gamma_inelas_Compton(e_gamma),power_Compton));
+
+    }
+
+
+};
+
 #endif //SRC_COMPOSITION_H

@@ -30,6 +30,7 @@ class CumulativeShell{
         double tphoto = 0.;
         bool do_thermrad_loss = false;
         bool thermradloss_at_photo = false;
+        unsigned m_loglevel = 0;
     };
     std::vector<size_t> m_idxs{};
     std::unique_ptr<logger> p_log = nullptr;
@@ -62,6 +63,7 @@ public:
         m_idxs.resize(nshells);
         std::fill(m_data[Q::irEj].begin(), m_data[Q::irEj].end(), std::numeric_limits<double>::max());
         std::fill(m_idxs.begin(), m_idxs.end(), std::numeric_limits<size_t>::max());
+        p_pars->m_loglevel=loglevel;
     }
     void setPars(StrDbMap & pars, StrStrMap & opts){
         p_pars->do_thermrad_loss= getBoolOpt("do_thermrad_loss",opts,AT,p_log,false,true);
@@ -1356,20 +1358,12 @@ private:
     }
 
 private:
-    void computeEjectaSkyMapPieceWise( std::vector<Image> & images, double obs_time, double obs_freq ){
+    void computeEjectaSkyMapPieceWise( Images & images, double obs_time, double obs_freq ){
 
         size_t nshells_ = nshells();
         size_t nlayers_ = nlayers();
         size_t ncells_ =  (int)ncells();
 
-        for(size_t il = 0; il < nlayers_; il++){
-            for (size_t ish = 0; ish < nshells_; ish++) {
-                p_cumShells[il]->getBW(ish)->getFsEATS();
-            }
-        }
-
-//        std::vector<Image> images;
-//        images.resize(ejectaStructs.nshells);
         if (images.empty()){
             (*p_log)(LOG_ERR,AT) << " empty image passed. Exiting...\n";
             exit(1);
@@ -1378,51 +1372,39 @@ private:
             (*p_log)(LOG_ERR,AT) << " number of images does not equal to the number of shells. Exiting...\n";
             exit(1);
         }
-        // ejectaStructs.nshells);
-//        size_t ii = 0;
+
         size_t n_jet_empty_images = 0;
 
-
-//        std::vector<size_t> n_empty_images_layer;
         std::vector<std::vector<size_t>> n_empty_images;
         std::vector<size_t> n_empty_images_shells;
-        std::vector<Image> tmp (nlayers_);
-        for (auto & _tmp : tmp)
-            _tmp.resize( ncells_ );
-        Image tmp_pj( ncells_); // std::vector<Image> tmp_pj (ejectaStructs.structs[0].m_nlayers);
-        Image tmp_cj( ncells_); // std::vector<Image> tmp_cj (ejectaStructs.structs[0].m_nlayers);
+        const std::vector<std::string> x {};
+        Images tmp (nlayers_, IMG::m_names.size());
+        tmp.resize(ncells_);
+//        for (auto & _tmp : tmp)
+//            _tmp.resize( ncells_ );
+        Image tmp_pj( ncells_, IMG::m_names.size(), 0, m_loglevel);
+        Image tmp_cj( ncells_, IMG::m_names.size(), 0, m_loglevel);
         for (size_t ishell = 0; ishell < nshells_; ishell++){
-            for (auto & _tmp : tmp)
-                _tmp.clearData();
+//            for (auto & _tmp : tmp)
+//                _tmp.clearData();
+            tmp.clear();
             tmp_pj.clearData(); tmp_cj.clearData();
-//            auto & shells = getShells();
-//            if (shells.size() < nlayers_-1){
-//                std::cerr << AT << "\n"; exit(1);
-//            }
             std::vector<size_t> n_empty_images_layer;
             for (size_t ilayer = 0; ilayer < nlayers_; ilayer++){
-//                auto & model = shells[ilayer];
-//                tmp.emplace_back( model->evalImagePW(obs_time, obs_freq) );
-//                auto & x1 = model->getBW(ishell);
-//                auto & x2 = x1->getRad();
+                /// Evaluate a given image --------------------------------------
                 auto & bw_rad = p_cumShells[ilayer]->getBW(ishell)->getFsEATS();
-                bw_rad->evalImagePW(tmp[ilayer], tmp_pj, tmp_cj, obs_time, obs_freq);
-
-//                std::cout<<"ish="<<ishell<<" il="<<ilayer<<" pj="<<tmp_pj.m_f_tot<<" cj="<<tmp_cj.m_f_tot<<"\n";
-                if (tmp[ilayer].m_f_tot == 0){
+                bw_rad->evalImagePW(tmp.getImgRef(ilayer), tmp_pj, tmp_cj, obs_time, obs_freq);
+                /// -------------------------------------------------------------
+                if (tmp.getImgRef(ilayer).m_f_tot == 0){
                     n_jet_empty_images += 1;
                     n_empty_images_layer.emplace_back(ilayer);
                 }
-//                ii ++ ;
             }
             if(!n_empty_images_layer.empty()){
                 n_empty_images_shells.emplace_back(ishell);
                 n_empty_images.emplace_back(n_empty_images_layer);
             }
-            int x = 1;
-
-//            images.emplace_back( combineImages(ejectaStruct,tmp) );
-            combineImages(images[ishell], ncells_, nlayers_, tmp) ;
+            combineImages(images.getImgRef(ishell), ncells_, nlayers_, tmp) ;
         }
 
         /// print which layers/shells gave empty image
@@ -1462,9 +1444,9 @@ private:
         double flux_pj, flux_cj; size_t ii = 0;
 //        Image image;
         double rtol = ej_rtol;
-        Image image_i ( ncells() );
-        Image im_pj ( ncells() );
-        Image im_cj ( ncells() );
+        Image image_i ( ncells(), IMG::m_names.size(), 0, m_loglevel );
+        Image im_pj ( ncells(),IMG::m_names.size(), 0, m_loglevel  );
+        Image im_cj ( ncells(),IMG::m_names.size(), 0, m_loglevel  );
         for (size_t ishell = 0; ishell < nshells(); ishell++){
             image_i.clearData();
             im_pj.clearData();
@@ -1479,7 +1461,7 @@ private:
                         << " vel_shell="<<ishell<<"/"<<nshells()-1
                         << " theta_layer="<<ilayer<<"/"<<nlayers()
                         << " phi_cells="<<EjectaID2::CellsInLayer(ilayer)<<"\n";
-                model->getBW(ishell)->getFsEATS()->evalForwardShockLightCurve(
+                model->getBW(ishell)->getFsEATS()->evalLC(
                         id->method_eats,
                         image_i, im_pj, im_cj, light_curves[ishell][ilayer], obs_times, obs_freqs);
                 ii ++;
@@ -1530,6 +1512,15 @@ public:
 //        p_pars->is_ejecta_obs_pars_set = true;
     }
 
+    void evalOptDepthsAlongLineOfSight(double & tau_Compton, double & tau_BH, double & tau_bf,
+                                       double time, double freq){
+        size_t nshells_ = nshells();
+//        Images images(nshells_, IMG_TAU::m_names.size());
+//        for (auto & im : images)
+//            im.mode = Image::MODES::itau;
+//        computeEjectaSkyMapPieceWise( images, time, freq);
+    }
+
     void computeSaveEjectaSkyImagesAnalytic(std::string workingdir, std::string fname, Vector times, Vector freqs,
                                             StrDbMap & main_pars, StrDbMap & ej_pars){
         if ((!run_bws)&&(!load_dyn))
@@ -1550,11 +1541,9 @@ public:
 
         size_t nshells_ = nshells();
         size_t nlayers_ = nlayers();
-        size_t ncells_ =  (int)ncells();
+//        size_t ncells_ =  (int)ncells();
 
-//        auto & ejectaStruct = ejectaStructs;
-//        size_t nshells = ejectaStruct.nshells;
-        Image dummy(1,0);
+//        Image dummy(1,0,);
 
         std::vector< // times & freqs
                 std::vector< // v_ns
@@ -1566,8 +1555,8 @@ public:
         out.resize(times.size() * freqs.size());
         for (size_t ifreq = 0; ifreq < freqs.size(); ++ifreq){
             for (size_t it = 0; it < times.size(); ++it){
-                out[ii].resize(dummy.m_names.size());
-                for (size_t i_vn = 0; i_vn < dummy.m_names.size(); ++i_vn) {
+                out[ii].resize(IMG::m_names.size());
+                for (size_t i_vn = 0; i_vn < IMG::m_names.size(); ++i_vn) {
                     out[ii][i_vn].resize(nshells_);
                 }
                 ii++;
@@ -1580,9 +1569,9 @@ public:
         };
         ii = 0;
         std::vector<std::string> other_names { "times", "freqs" };
-        std::vector<Image> images(nshells_);
+        Images images(nshells_,IMG::m_names.size());
 
-        for (size_t ifreq = 0; ifreq < freqs.size(); ++ifreq){
+        for (size_t ifreq = 0; ifreq < freqs.size(); ifreq++){
             Vector tota_flux(times.size(), 0.0);
             VecVector total_flux_shell( nshells_ );
             for (auto & total_flux_shel : total_flux_shell)
@@ -1591,14 +1580,14 @@ public:
 //                auto images = computeEjectaSkyMapPieceWise( times[it],freqs[ifreq]);
 //                std::vector<Image> images(nshells_);
                 computeEjectaSkyMapPieceWise( images, times[it],freqs[ifreq]);
-                for (size_t i_vn = 0; i_vn < dummy.m_names.size(); i_vn++) {
+                for (size_t i_vn = 0; i_vn < IMG::m_names.size(); i_vn++) {
                     for (size_t ish = 0; ish < nshells_; ish++) {
-                        out[ii][i_vn][ish] = images[ish].m_data[i_vn];//arrToVec(images[ish].m_data[i_vn]);
+                        out[ii][i_vn][ish] = images.getImgRef(ish).m_data[i_vn];//arrToVec(images[ish].m_data[i_vn]);
                     }
                 }
                 for (size_t ish = 0; ish < nshells_; ish++) {
-                    tota_flux[it] += images[ish].m_f_tot;
-                    total_flux_shell[ish][it] = images[ish].m_f_tot;
+                    tota_flux[it] += images.getImgRef(ish).m_f_tot;
+                    total_flux_shell[ish][it] = images.getImgRef(ish).m_f_tot;
                 }
                 ii++;
             }
@@ -1621,29 +1610,14 @@ public:
             }
         }
 
+        auto in_group_names = IMG::m_names;//dummy.m_names;
 
-//        for (size_t it = 0; it < times.size(); it++){
-//            for (size_t ifreq = 0; ifreq < freqs.size(); ifreq++){
-//                group_names.emplace_back("time=" +  string_format("%.4e",times[it])  //std::to_string(times[it])
-//                                       + " freq=" + string_format("%.4e",freqs[ifreq])); //std::to_string(freqs[ifreq]));
-//            }
-//        }
-
-        auto in_group_names = dummy.m_names;
-
+        /// add attributes from model parameters
         std::unordered_map<std::string,double> attrs{
                 {"nshells", nshells_},
                 {"nshells", nlayers_}
         };
-//                {"thetaObs", p_cumShells->getShells()[0]->getBW(0)->getEatsPars()->theta_obs },
-//                {"d_L", p_cumShells->getShells()[0]->getBW(0)->getEatsPars()->d_l },
-//                {"z",  p_cumShells->getShells()[0]->getBW(0)->getEatsPars()->z },
-//                {"eps_e",  p_cumShells->getShells()[0]->getBW(0)->getSynchAnPtr()->getPars()->eps_e },
-//                {"eps_b",  p_cumShells->getShells()[0]->getBW(0)->getSynchAnPtr()->getPars()->eps_b },
-//                {"eps_t",  p_cumShells->getShells()[0]->getBW(0)->getSynchAnPtr()->getPars()->eps_t },
-//                {"p",  p_cumShells->getShells()[0]->getBW(0)->getSynchAnPtr()->getPars()->p },
-//                {"ksi_n",  p_cumShells->getShells()[0]->getBW(0)->getSynchAnPtr()->getPars()->ksi_n }
-//        };
+
         for (auto& [key, value]: main_pars) { attrs[key] = value; }
         for (auto& [key, value]: ej_pars) { attrs[key] = value; }
 

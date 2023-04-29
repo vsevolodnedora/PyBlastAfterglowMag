@@ -13,7 +13,7 @@
 * Parameters
 
 tb0 = 1.e3
-tb1 = 1.e11
+tb1 = 1.e12
 ntb = 1000
 iout = 1
 rtol = 1e-8
@@ -73,7 +73,7 @@ do_lc = yes
 do_skymap = no
 
 method_collision = none # none
-method_eats = piece-wise # adaptive # piece-wise
+method_eats = adaptive # adaptive # piece-wise
 
 do_thermrad_loss = no
 

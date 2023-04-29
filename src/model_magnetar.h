@@ -766,368 +766,6 @@ public:
 
 };
 
-namespace PWNradiationMurase{
-    /// maximum energy of electrons; Eq. (21) of Murase+15, but neglecting Y
-    /// THe pair-limited lorentz -factor
-    static double gamma_e_max(const double b_pwn) {
-        double eta = 1;
-        return sqrt(6.0*M_PI*CGS::ELEC/eta/CGS::SIGMA_T/b_pwn);
-    }
-    /// possible maxium energy of photons; Eq. (22) of Murase+15 in unit of [erg]
-    static double e_gamma_max(const double b_pwn) {
-        return gamma_e_max(b_pwn)*CGS::M_ELEC*CGS::c*CGS::c;
-    }
-    /// maximum energy of photons limited by gamma-gamma. Eq.42
-    static double e_gamma_gamma_ani(const double T_ej) {
-        return pow(CGS::M_ELEC*CGS::c*CGS::c,2.0)/2.0/CGS::K_B/T_ej;
-    }
-    /// The characterisitc synchrotron energy; Eq. (24) of Murase+15 in unit of [erg]
-    static double e_gamma_syn_b(const double b_pwn, const double gamma_b) {
-        return 3.0/2.0*CGS::H/(2.0*M_PI)*gamma_b*gamma_b*CGS::ELEC*b_pwn/CGS::M_ELEC/CGS::c;
-    }
-
-    /// The total KN cross section in unit of cm^2 (Eq.46 in Murase+15)
-    static double sigma_kn(const double e_gamma) {
-        double x = e_gamma/CGS::M_ELEC/CGS::c/CGS::c;
-        if (x > 1.0e-3)
-            return 3.0/4.0*CGS::SIGMA_T*((1.0+x)/x/x/x*(2.0*x*(1.0+x)/(1.0+2.0*x)
-                                                        -log(1.0+2.0*x))+1.0/2.0/x*log(1.0+2.0*x)-(1.0+3.0*x)/pow(1.0+2.0*x,2.0));
-        else
-            return SIGMA_T;
-    }
-
-    /// The total BH cross section in unit of cm^2 Eq.49 in Murase+15
-    static double sigma_BH_p(const double e_gamma) {
-        /// Eq. (A1) and (A2) of Chodorowski+92
-        double x = e_gamma/CGS::M_ELEC/CGS::c/CGS::c;
-        double log2x = log(2.0*x);
-        double eta = (x-2.0)/(x+2.0);
-        double alpha = 1.0/137.0;
-        double zeta3 = 1.2020569;
-
-        if (x > 4.0)
-            return 3.0*alpha/8.0/M_PI*SIGMA_T
-                   * (28.0/9.0*log2x-218.0/27.0+pow(2.0/x,2.0)*(6.0*log2x-7.0/2.0+2.0/3.0*pow(log2x,3.0)
-                                                                -pow(log2x,2.0)-1.0/3.0*M_PI*M_PI*log2x+2.0*zeta3+M_PI*M_PI/6.0)
-                      -pow(2.0/x,4.0)*(3.0/16.0*log2x+1.0/8.0)
-                      -pow(2.0/x,6.0)*(29.0/9.0/256.0*log2x-77.0/27.0/512.0));
-        else if (x > 2.0)
-            return 1.0/4.0*alpha*SIGMA_T*pow((x-2.0)/x,3.0)
-                   *(1.0+eta/2.0+23.0/40.0*eta*eta+37.0/120.0*pow(eta,3.0)+61.0/192*pow(eta,4.0));
-        else
-            return 0.0;
-    }
-
-    /// opacity of boud-free emission
-    static double kappa_bf(const double e_gamma, const double Z_eff, const int opacitymode) {
-        double zeta = 1.0;//0.5 for OMK18, 1.0 for Murase+18; /* neutral fraction */
-
-        /* See http://physics.nist.gov/PhysRefData/XrayMassCoef/tab3.html */
-        //return 5.0*zeta*pow(e_gamma/EV_TO_ERG/1.0e4,-3.0)*pow(Z_eff/7.0,3.0);
-
-        double ironopacity,seleopacity,xenonopacity,goldopacity;
-
-        double A0,A1,A2,A3,A4;
-
-        //iron
-        if(log10(e_gamma/EV_TO_ERG/1.0e6)<-2.14801){
-            A0 = -3.95919414261072;
-            A1 = -2.64892215754265;
-        }
-        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-0.695){
-            A0 = -3.37291030805215;
-            A1 = -2.75161208271434;
-        }
-        else{
-            A0 = -1.59069232728045;
-            A1 = -0.206813265289848;
-        }
-        ironopacity=zeta*pow(10.,A0+A1*log10(e_gamma/EV_TO_ERG/1.0e6));
-
-        //selenium
-        if(log10(e_gamma/EV_TO_ERG/1.0e6)<-2.84291){
-            A0 = -3.78835348616654;
-            A1 = -2.38423803432305;
-        }
-        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-1.89764){
-            A0 = -3.68604734441612;
-            A1 = -2.66063041649055;
-        }
-        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-0.55){
-            A0 = -2.93083141712927;
-            A1 = -2.60630263958148;
-        }
-        else{
-            A0 = -1.58243193342158;
-            A1 = -0.102384218895718;
-        }
-        seleopacity=zeta*pow(10.,A0+A1*log10(e_gamma/EV_TO_ERG/1.0e6));
-
-        //xenon
-        if(log10(e_gamma/EV_TO_ERG/1.0e6)<-2.32037){
-            A0 = -3.07458863553159;
-            A1 = -2.35739410975398;
-        }
-        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-1.46141){
-            A0 = -3.17731357386225;
-            A1 = -2.68342346938979;
-        }
-        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-0.282){
-            A0 = -2.17345283895274;
-            A1 = -2.26742402391864;
-        }
-        else{
-            A0 = -1.55866825608716;
-            A1 = -0.0467127630289143;
-        }
-        xenonopacity=zeta*pow(10.,A0+A1*log10(e_gamma/EV_TO_ERG/1.0e6));
-
-        //gold
-        if(log10(e_gamma/EV_TO_ERG/1.0e6)<-2.65645){
-            A0 = -2.5113444206149;
-            A1 = -2.06076550942316;
-        }
-        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-1.92377){
-            A0 = -2.45512766933321;
-            A1 = -2.27191147638504;
-        }
-        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<-1.09299){
-            A0 = -2.32582461907071;
-            A1 = -2.39063081204358;
-        }
-        else if(log10(e_gamma/EV_TO_ERG/1.0e6)<0.02){
-            A0 = -1.55199838865465;
-            A1 = -1.82076527957878;
-        }
-        else{
-            A0 = -1.58507209319691;
-            A1 = 0.0628004018301846;
-        }
-        goldopacity=zeta*pow(10.,A0+A1*log10(e_gamma/EV_TO_ERG/1.0e6));
-
-        if(opacitymode==0){
-            return ironopacity;
-        }
-        else if(opacitymode==1){
-            return 0.5*ironopacity+0.5*seleopacity;
-        }
-        else if(opacitymode==2){
-            return 0.5*xenonopacity+0.5*goldopacity;
-        }
-        else if(opacitymode==3){
-            //approximate formula used in Murase et al. 2015
-            return 5.0*zeta*pow(e_gamma/EV_TO_ERG/1.0e4,-3.0)*pow(Z_eff/7.0,3.0);
-        }
-        else{
-            std::cerr << AT << " should not be entered: opacitymode="<<opacitymode<<"\n";
-            exit(1);
-        }
-
-    }
-
-
-    /// kappa_comp * sigma_comp; energy transfer coefficient from gamma rays to the thermal bath by Compton (Eq. 46 of Murase+15)
-    static double gamma_ene_depo_frac_Compton(const double e_gamma) {
-        double x = e_gamma/CGS::M_ELEC/CGS::c/CGS::c;
-
-        if (x > 1.0e-3)
-            return 3.0/4.0*CGS::SIGMA_T*(2.0*pow(1.0+x,2.0)/x/x/(1.0+2.0*x)
-                                         -(1.0+3.0*x)/pow(1.0+2.0*x,2.0)
-                                         -(1.0+x)*(2.0*x*x-2.0*x-1.0)/x/x/pow(1.0+2.0*x,2.0)
-                                         -4*x*x/3.0/pow(1.0+2.0*x,3.0)
-                                         -((1.0+x)/x/x/x-1.0/2.0/x+1.0/2.0/x/x/x)*log(1.0+2.0*x));
-        else
-            return CGS::SIGMA_T * x;
-
-    }
-    /// inelastisity of gamma rays in Compton; kappa_comp * sigma_comp / sigma_klein_nishina
-    static double gamma_inelas_Compton(const double e_gamma) {
-        double x = e_gamma/CGS::M_ELEC/CGS::c/CGS::c;
-        return gamma_ene_depo_frac_Compton(e_gamma) / sigma_kn(e_gamma);
-    }
-
-    /// escape fraction of gamma rays interms of energy
-    static double f_gamma_dep(const double e_gamma, const double rho_ej,
-                              const double delta_ej, const double albd_fac, const int opacitymode) {
-        double mu_e; /* electron mean molecular weight */
-        //double Z_eff = 7.0; /* effective nuclear weight */
-        /* this corresponds to C:O = 1:1 */
-        double Z_eff;
-        if(opacitymode==0){
-            Z_eff = 24.21; /* effective nuclear weight */
-            mu_e = 2.148;
-        }
-        else if(opacitymode==1){
-            Z_eff = 26.74;
-            mu_e = 2.2353;
-        }
-        else if(opacitymode==2){
-            Z_eff = 53.90;
-            mu_e= 2.4622;
-        }
-        else if(opacitymode==3){
-            Z_eff = 2.0;
-            mu_e= 7.0;
-        }
-
-        /// The Compton optical depth Kcomp * \rho_ej * Rej
-//        double tau_Compton = (3.0-delta)/4.0/M_PI*m_ej*sigma_kn(e_gamma)/mu_e/CGS::M_PRO/r_ej/r_ej;
-        double Kcomp = sigma_kn(e_gamma)/mu_e/CGS::M_PRO;
-        double tau_Compton = rho_ej*delta_ej*Kcomp;
-        /// optical depth of BH pair production
-//        double tau_BH = (3.0-delta)/4.0/mu_e/M_PI*m_ej*(1.0+Z_eff)*sigma_BH_p(e_gamma)/CGS::M_PRO/r_ej/r_ej;
-        double KBH = (1.0+Z_eff)*sigma_BH_p(e_gamma)/mu_e/CGS::M_PRO;
-        double tau_BH = rho_ej*delta_ej*KBH;
-        /// The photoelectric absorption at high energies is taken into account, using the bound–free opacity
-//        double tau_bf = (1.0-albd_fac)*(3.0-delta)/4.0/M_PI*m_ej*kappa_bf(e_gamma, Z_eff, opacitymode)/r_ej/r_ej;
-        double Kbf = (1.0-albd_fac)*kappa_bf(e_gamma, Z_eff, opacitymode);
-        double tau_bf = rho_ej*delta_ej*Kbf;
-
-        /// In the small inelasticity limit, a particle loses kg per
-        /// interaction, so the survival fraction is (1 - kappa_gamma)^max[tau,tau^2] where
-        /// max[tau,tau^2] represents the number of scatterings. In the large
-        /// inelasticity limit, as in the attenuation case, the survival fraction
-        /// is given by -t e .
-        double power_Compton=0.0;
-        if (tau_Compton > 1.0)
-            power_Compton = tau_Compton*tau_Compton;
-        else
-            power_Compton = tau_Compton;
-
-        /// inelasticity of Compton scattering K_comp = sigma_comp/(mu_e * mu); sigma_comp is the gamma-ray inelasticity.
-        double k_comp = gamma_inelas_Compton(e_gamma);
-
-        /// The contribution from the Compton scattering; Eq.38 in Kashiyama+2016
-        double fdep_sc = (1.0 - pow(1.0 - k_comp,power_Compton));
-        /// Eq.39 & 40 in Kashiyama+2016
-        double fdep_ab = (1.0 - exp(-(tau_BH + tau_bf)));
-
-        /// fdep = fdep,sc + fdep,ab
-        double f_gamma_dep_tmp = fdep_sc + fdep_ab; // Eq. 39 & 40 in Kashiyama+2016
-
-        if (f_gamma_dep_tmp > 1.0)
-            return 1.0;
-        else
-            return f_gamma_dep_tmp;
-    }
-
-    static double spec_non_thermal(const double e_gamma, const double b_pwn,
-                                   const double gamma_b, const double T_ej) {
-        /* psr non-thermal emission injection spectrum "E*dF/dE/(eps_e*L_d) [erg^-1]" */
-        /* We assume a broken power law with the low and high energy spectral
-         * indices are -p_1 and -2 */
-        /* This is motivated by more detailed calculation by Murase+15 */
-        /// The source of this equations is unclear.
-        /// seems to be based on https://iopscience.iop.org/article/10.1088/0004-637X/805/1/82/pdf
-        /// but with no clear corresponding equation. A combination of Eq.23 & 26
-
-        double p_1 = 1.5; //photon index -- modified
-        double e_gamma_min;
-//        if(diskwindmode==0){
-//            e_gamma_min= 1.0*EV_TO_ERG; //0=no disk for pulsar
-//        }else if(diskwindmode==2){
-//            e_gamma_min = 1.0*1e-6*EV_TO_ERG; //2=disk wind
-//        }
-
-        e_gamma_min = 1.0*1e-6*EV_TO_ERG; //2=disk wind
-
-        double e_gamma_max_tmp = e_gamma_max(b_pwn);
-        double e_gamma_gamma_ani_tmp = e_gamma_gamma_ani(T_ej);
-        double e_gamma_syn_b_tmp = e_gamma_syn_b(b_pwn,gamma_b);
-        double norm_fac = 0.0;
-
-        if (e_gamma_gamma_ani_tmp < e_gamma_max_tmp)
-            e_gamma_max_tmp = e_gamma_gamma_ani_tmp;
-
-        if((e_gamma_max_tmp > e_gamma_syn_b_tmp)
-           && (e_gamma_min < e_gamma_syn_b_tmp)){
-            norm_fac = 1.0 / ( (1.0 / (2.0 - p_1) ) * (1.0 - pow(e_gamma_min/e_gamma_syn_b_tmp,2.0 - p_1)) + log(e_gamma_max_tmp/e_gamma_syn_b_tmp)) / e_gamma_syn_b_tmp;
-            if((e_gamma < e_gamma_syn_b_tmp) && (e_gamma >= e_gamma_min))
-                return norm_fac * pow(e_gamma/e_gamma_syn_b_tmp,-p_1+1.0);
-            else if((e_gamma > e_gamma_syn_b_tmp) && (e_gamma <= e_gamma_max_tmp))
-                return norm_fac * pow(e_gamma/e_gamma_syn_b_tmp,-1);
-            else
-                return 0.0;
-        }
-        else if(e_gamma_min > e_gamma_syn_b_tmp){
-            norm_fac = 1.0 / log(e_gamma_max_tmp/e_gamma_min) / e_gamma_min;
-            if ((e_gamma < e_gamma_max_tmp) && (e_gamma > e_gamma_min))
-                return norm_fac * pow(e_gamma/e_gamma_min,-1);
-            else
-                return 0.0;
-        }
-        else{
-            norm_fac = 1.0 / ((1.0/(2.0 - p_1)) * (1.0 - pow(e_gamma_min/e_gamma_max_tmp,2.0 - p_1))) / e_gamma_max_tmp;
-            if ((e_gamma < e_gamma_max_tmp) && (e_gamma >= e_gamma_min))
-                return norm_fac * pow(e_gamma/e_gamma_max_tmp,-p_1+1.0);
-            else
-                return 0.0;
-        }
-    }
-
-    double f_gamma_esc(double e_gamma, double rho_ej, double delta_ej,
-                       double r_ej, double albd_fac, const int opacitymode) {
-        double mu_e; /* electron mean molecular weight */
-        //double Z_eff = 7.0; /* effective nuclear weight */
-        /* this corresponds to C:O = 1:1 */
-        double Z_eff;
-        if(opacitymode==0){
-            Z_eff = 24.21; /* effective nuclear weight */
-            mu_e = 2.148;
-        }
-        else if(opacitymode==1){
-            Z_eff = 26.74;
-            mu_e = 2.2353;
-        }
-        else if(opacitymode==2){
-            Z_eff = 53.90;
-            mu_e= 2.4622;
-        }
-        else if(opacitymode==3){
-            Z_eff = 7.0;
-            mu_e = 2.0;
-        }
-
-//        double tau_Compton = (3.0-delta)/4.0/M_PI*m_ej*sigma_kn(e_gamma)/mu_e/M_PRO/r_ej/r_ej;
-//        double tau_BH = (3.0-delta)/4.0/mu_e/M_PI*m_ej*(1.0+Z_eff)*sigma_BH_p(e_gamma)/M_PRO/r_ej/r_ej;
-        //double tau_bf = 2.0*(1.0-albd_fac)*(3.0-delta)/4.0/M_PI*m_ej*kappa_bf(e_gamma,Z_eff)/r_ej/r_ej;
-//        double tau_bf = (1.0-albd_fac)*(3.0-delta)/4.0/M_PI*m_ej*kappa_bf(e_gamma,Z_eff,opacitymode)/r_ej/r_ej;
-
-        /// The Compton optical depth Kcomp * \rho_ej * Rej
-//        double tau_Compton = (3.0-delta)/4.0/M_PI*m_ej*sigma_kn(e_gamma)/mu_e/CGS::M_PRO/r_ej/r_ej;
-        double Kcomp = sigma_kn(e_gamma)/mu_e/CGS::M_PRO;
-        double tau_Compton = rho_ej*delta_ej*Kcomp;
-        /// optical depth of BH pair production
-//        double tau_BH = (3.0-delta)/4.0/mu_e/M_PI*m_ej*(1.0+Z_eff)*sigma_BH_p(e_gamma)/CGS::M_PRO/r_ej/r_ej;
-        double KBH = (1.0+Z_eff)*sigma_BH_p(e_gamma)/mu_e/CGS::M_PRO;
-        double tau_BH = rho_ej*delta_ej*KBH;
-        /// The photoelectric absorption at high energies is taken into account, using the bound–free opacity
-//        double tau_bf = (1.0-albd_fac)*(3.0-delta)/4.0/M_PI*m_ej*kappa_bf(e_gamma, Z_eff, opacitymode)/r_ej/r_ej;
-        double Kbf = (1.0-albd_fac)*kappa_bf(e_gamma, Z_eff, opacitymode);
-        double tau_bf = rho_ej*delta_ej*Kbf;
-
-        double tau_abs = (1.0+gamma_inelas_Compton(e_gamma))*(tau_BH+tau_bf);
-        double tau_eff = sqrt((tau_abs+tau_Compton)*tau_abs);
-
-        double power_Compton=0.0;
-        if (tau_Compton > 1.0)
-            power_Compton = tau_Compton*tau_Compton;
-        else
-            power_Compton = tau_Compton;
-
-
-
-
-        //return exp(-tau_eff);
-        return exp(-(tau_BH+tau_bf))
-               * (exp(-(tau_Compton)) + (1.0-exp(-(tau_Compton))) * pow(1.0-gamma_inelas_Compton(e_gamma),power_Compton));
-        //return (exp(-(tau_Compton))+(1.0-exp(-(tau_Compton)))*pow(1.0-gamma_inelas_Compton(e_gamma),power_Compton));
-
-    }
-
-
-};
-
 namespace PWN{
     /// All variables
     enum Q {
@@ -1144,12 +782,12 @@ namespace PWN{
 class PWNmodel{
     struct Pars{
         Pars(std::unique_ptr<Magnetar> & pp_mag,
-             std::unique_ptr<BlastWave> & pp_bw,
+             std::unique_ptr<Ejecta> & pp_ej,
              VecVector & data, unsigned loglevel)
-             : p_mag(pp_mag), p_bw(pp_bw), m_data(data) {
+             : p_mag(pp_mag), p_ej(pp_ej), m_data(data) {
             p_log = std::make_unique<logger>(std::cout,std::cerr,loglevel,"PWN Pars");
         }
-        std::unique_ptr<BlastWave> & p_bw;
+        std::unique_ptr<Ejecta> & p_ej;
         std::unique_ptr<Magnetar> & p_mag;
 //        std::unique_ptr<SynchrotronAnalytic> p_syna = nullptr;
         std::unique_ptr<logger> p_log;
@@ -1185,6 +823,9 @@ class PWNmodel{
         double d_l=-1.;
         double theta_obs=-1.;
         double z=-1.;
+        // ------------
+        size_t ilayer = 0;
+        size_t ishell = 1;
     };
 //    Vector m_tb_arr;
     VecVector m_data{}; // container for the solution of the evolution
@@ -1194,7 +835,7 @@ class PWNmodel{
     std::unique_ptr<EATS> p_eats;
     Vector frac_psr_dep_{};
     size_t m_ilayer=0;size_t m_ishell=0;size_t m_ncells=0;
-    std::unique_ptr<BlastWave> & p_bw;
+    std::unique_ptr<Ejecta> & p_ej;
     std::unique_ptr<Magnetar> & p_mag;
     unsigned m_loglevel{};
 public:
@@ -1223,17 +864,21 @@ public:
 
     PWNmodel( //Vector & tarr, double ctheta0, size_t ilayer, size_t ishell, size_t ncells, int loglevel,
             std::unique_ptr<Magnetar> & pp_mag,
-            std::unique_ptr<BlastWave> & pp_bw,
-            bool allocate)
-            : p_mag(pp_mag), p_bw(pp_bw) {// : m_mag_time(t_grid) {
-        m_loglevel = p_bw->getPars()->loglevel;
+            std::unique_ptr<Ejecta> & pp_ej,
+            size_t ilayer, bool allocate)
+            : p_mag(pp_mag), p_ej(pp_ej) {// : m_mag_time(t_grid) {
+        m_loglevel = p_ej->getShells()[0]->getPars()->m_loglevel;
         p_log = std::make_unique<logger>(std::cout, std::cerr, m_loglevel, "PWN");
         // ------------
         m_data.resize(PWN::m_vnames.size());
         for (auto & arr : m_data)
             if (allocate)
-                arr.resize(p_bw->ntb(), 0.0);
-        p_pars = new Pars(pp_mag, pp_bw, m_data, m_loglevel);//std::make_unique<Pars>();
+                arr.resize(p_ej->getShells()[0]->getBWs()[0]->ntb(), 0.0);
+        p_pars = new Pars(pp_mag, pp_ej, m_data, m_loglevel);//std::make_unique<Pars>();
+        p_pars->ilayer = ilayer;
+        p_pars->ishell = 0;
+        auto & p_bw = p_ej->getShells()[ilayer]->getBWs()[p_pars->ishell];
+        /// ------------
         p_pars->ctheta0 = p_bw->getPars()->ctheta0;
         m_ilayer = p_bw->getPars()->ilayer;
         m_ishell = p_bw->getPars()->ishell;
@@ -1252,8 +897,8 @@ public:
     }
 
     std::unique_ptr<EATS> & getRad(){ return p_eats; }
-    std::unique_ptr<BlastWave> & getBoundaryBW( ){ return p_bw; }
-    Vector & getTbGrid() { return p_bw->getTbGrid(); }
+    std::unique_ptr<Ejecta> & getBoundaryBW( ){ return p_ej; }
+    Vector & getTbGrid() { return p_ej->getTbGrid(); }
     VecVector & getData(){ return m_data; }
     Vector & getData(PWN::Q q){ return m_data[q]; }
 
@@ -1296,7 +941,7 @@ public:
         double radius_wind_0 = getDoublePar("Rw0",pars,AT,p_log,-1,true); // PWN radius at t=0; [km]
 //        radius_wind_0 *= (1000. * 100); // km -> cm
 
-//        double vel_wind0 = radius_wind_0 / p_bw->getData(BW::Q::itburst)[0]; // initial wind velocity
+//        double vel_wind0 = radius_wind_0 / p_ej->getData(BW::Q::itburst)[0]; // initial wind velocity
         double eps_e = getDoublePar("eps_e",pars,AT,p_log,-1,true); // electron acceleration efficiency
         double eps_mag = getDoublePar("eps_mag",pars,AT,p_log,-1,true); // magnetic field efficiency
         double epsth0 = getDoublePar("eps_th",pars,AT,p_log,-1,true); // initial absorption fraction
@@ -1330,9 +975,12 @@ public:
         p_pars->theta_obs = getDoublePar("theta_obs", pars, AT, p_log,-1, true);//pars.at("theta_obs");
         p_pars->d_l = getDoublePar("d_l", pars, AT, p_log,-1, true);//pars.at("d_l");
         p_pars->z = getDoublePar("z", pars, AT, p_log,-1, true);//pars.at("z");
+        /// ----------------------------------
+        auto & p_bw = p_ej->getShells()[p_pars->ilayer]->getBWs()[p_pars->ishell];
+
         p_eats->setEatsPars(
-                pars,opts,p_bw->getPars()->nlayers,p_bw->getPars()->ctheta0,
-                p_bw->getPars()->theta_c_l,p_bw->getPars()->theta_c_h,p_bw->getPars()->theta_w,p_bw->getPars()->theta_max);
+                pars, opts, p_bw->getPars()->nlayers, p_bw->getPars()->ctheta0,
+                p_bw->getPars()->theta_c_l, p_bw->getPars()->theta_c_h, p_bw->getPars()->theta_w, p_bw->getPars()->theta_max);
         i_end_r = m_data[PWN::Q::itburst].size(); // update for eats
 //        int i = 1;
     }
@@ -1341,7 +989,7 @@ public:
     Pars *& getPars(){ return p_pars; }
 
     void setInitConditions( double * arr, size_t i ) {
-        double beta0 = p_pars->Rw0 / p_bw->getTbGrid()[0] / CGS::c; // m_tb_arr[0] * beta0 * CGS::c;
+        double beta0 = p_pars->Rw0 / p_ej->getTbGrid()[0] / CGS::c; // m_tb_arr[0] * beta0 * CGS::c;
         double mom0 = MomFromBeta(beta0);
         arr[i + Q_SOL::i_Rw] = p_pars->Rw0;
         arr[i + Q_SOL::i_mom] = mom0;
@@ -1355,7 +1003,7 @@ public:
     }
 
     void insertSolution( const double * sol, size_t it, size_t i ){
-        m_data[PWN::Q::itburst][it] = p_bw->getTbGrid()[it];
+        m_data[PWN::Q::itburst][it] = p_ej->getTbGrid()[it];
         m_data[PWN::Q::iR][it] = sol[i + Q_SOL::i_Rw];
         m_data[PWN::Q::iEnb][it] = sol[i+Q_SOL::i_Enb];
         m_data[PWN::Q::iEpwn][it] = sol[i+Q_SOL::i_Epwn];
@@ -1430,7 +1078,7 @@ public:
     }
 
     /// Get current PWN magnetic field
-    double evalCurrBpwn(const double * Y){
+    double evalCurrBpwn( const double * Y ){
         if (run_pwn)
             return 0.;
         double r_w = Y[p_pars->iieq + Q_SOL::i_Rw];
@@ -1440,7 +1088,7 @@ public:
         return b_pwn;
     }
 
-    double getFacPWNdep(double rho_ej, double delta_ej, double T_ej, double Ye){
+    double getFacPWNdep( double rho_ej, double delta_ej, double T_ej, double Ye){
         if(!std::isfinite(rho_ej) || rho_ej < 0){
             (*p_log)(LOG_ERR,AT)<<"bad value in PWN frac calc: rho_ej="<<rho_ej<<"\n"; exit(1);
         }
@@ -1589,7 +1237,8 @@ public:
                            size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
                            Vector ttobs, void * params){
         auto * p_pars = (struct Pars *) params;
-        auto & p_ej = p_pars->p_bw;
+        auto & p_ej = p_pars->p_ej;
+        auto & p_bw = p_ej->getShells()[p_pars->ilayer]->getBWs()[p_pars->ishell];
         auto & p_mag = p_pars->p_mag;
         auto & m_data = p_pars->m_data;
 //        if (p_pars->i_end_r==0)
@@ -1597,7 +1246,7 @@ public:
 
         double Gamma = interpSegLog(ia, ib, t_obs, ttobs, m_data[PWN::Q::iGamma]);
         double b_pwn = interpSegLog(ia, ib, t_obs, ttobs, m_data[PWN::Q::iB]);
-        double temp = interpSegLog(ia, ib, t_obs, ttobs, p_ej->getData(BW::Q::iEJtemp));
+        double temp = interpSegLog(ia, ib, t_obs, ttobs, p_bw->getData(BW::Q::iEJtemp));
         double tburst = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::itburst]);
         double l_dip = p_mag->getMagValInt(MAG::Q::ildip, tburst);
         double l_acc = p_mag->getMagValInt(MAG::Q::ilacc, tburst);
@@ -1616,6 +1265,8 @@ public:
 
 };
 
+
+
 /// Container for independent layers of PWN model
 class PWNset{
     std::unique_ptr<Magnetar> & p_mag;
@@ -1624,9 +1275,6 @@ class PWNset{
     std::vector<std::unique_ptr<PWNmodel>> p_pwns{};
     std::unique_ptr<logger> p_log;
     int loglevel;
-//    size_t m_nlayers = 0;
-//    size_t m_nshells = 1;
-//    size_t m_ncells = 0;
     bool is_obs_pars_set = false;
 //    bool is_synch_computed = false;
 public:
@@ -1683,7 +1331,8 @@ public:
             return;
         for(size_t il = 0; il < nlayers(); il++) {
 //            auto & _x = p_ej->getShells()[il]->getBottomBW();
-            p_pwns.push_back( std::make_unique<PWNmodel>( p_mag, p_ej->getShells()[il]->getBW(0),
+            p_pwns.push_back( std::make_unique<PWNmodel>( p_mag,
+                                                          p_ej, il,//->getShells()[il]->getBW(0),
                                                           run_pwn) );
             p_pwns[il]->setPars(pars, opts, main_pars, ii_eq);
             ii_eq += p_pwns[il]->getNeq();
@@ -1706,61 +1355,7 @@ public:
             ej_pwn->setInitConditions(m_InitData, ej_pwn->getPars()->iieq);
         }
     }
-#if 0
-    void savePWNEvolution_old(StrDbMap & main_pars){
-        if (!run_pwn)
-            return;
 
-//        auto workingdir = ;
-        auto fname = getStrOpt("fname_pwn", pwn_opts, AT, p_log, "", true);
-        size_t every_it = (int)getDoublePar("save_pwn_every_it", pwn_pars, AT, p_log, 1, true);
-
-        (*p_log)(LOG_INFO,AT) << "Saving PWN ...\n";
-
-        if (every_it < 1){
-            std::cerr << " every_it must be > 1; Given every_it="<<every_it<<"Exiting...";
-            std::cerr << AT << "\n";
-            exit(1);
-        }
-
-        auto & pwn = getPWNs();
-        std::vector<
-                std::vector<
-                        std::vector<double>>> tot_mag_out (pwn.size() );
-        std::vector<std::string> tot_names {};
-        std::vector<std::unordered_map<std::string,double>> group_attrs{};
-        auto & dyn_v_ns = PWN::m_vnames;
-        auto t_arr = pwn[0]->getTbGrid(every_it);
-        for (size_t i = 0; i < pwn.size(); i++) {
-            tot_names.push_back("layer="+std::to_string(i));
-            tot_mag_out[i].resize(dyn_v_ns.size() );
-            for (size_t ivar = 0; ivar < dyn_v_ns.size(); ivar++){
-                for (size_t it = 0; it < pwn[i]->getTbGrid().size(); it = it + every_it)
-                    tot_mag_out[i][ivar].emplace_back((*pwn[i])[ static_cast<PWN::Q>(ivar) ][it] );
-            }
-            ///write attributes
-            auto & model = pwn[i];
-            std::unordered_map<std::string,double> group_attr{
-                    {"Rw0",model->getPars()->Rw0},
-                    {"every_it",every_it}
-            };
-            group_attrs.emplace_back( group_attr );
-        }
-//    VecVector other_data { latStruct.cthetas0 };
-//    std::vector<std::string> other_names { "cthetas0" };
-
-        std::unordered_map<std::string, double> attrs{
-                {"m_nlayers", pwn.size()}
-        };
-        for (auto& [key, value]: main_pars) { attrs[key] = value; }
-        for (auto& [key, value]: pwn_pars) { attrs[key] = value; }
-
-
-        p_out->VecVectorOfVectorsAsGroupsH5(tot_mag_out, tot_names, dyn_v_ns,
-                                            workingdir+fname, attrs, group_attrs);
-
-    }
-#endif
     /// output
     void savePWNdyn(StrDbMap & main_pars){
         (*p_log)(LOG_INFO,AT) << "Saving PWN BW dynamics...\n";
@@ -1806,7 +1401,7 @@ public:
         p_out->VectorOfVectorsH5(tot_dyn_out,arr_names,workingdir+fname,attrs);
     }
 
-    /// INPUT
+    /// input
     void loadPWNDynamics(){
         auto fname = getStrOpt("fname_pwn", pwn_opts, AT, p_log, "", true);
         if (!std::experimental::filesystem::exists(workingdir+fname))
@@ -2060,18 +1655,9 @@ private:
     }
 
 private:
+
     std::vector<VecVector> evalPWNLightCurves( Vector & obs_times, Vector & obs_freqs ){
 
-
-//        (*p_log)(LOG_INFO,AT)<<" starting ejecta light curve calculation\n";
-//        (*p_log)(LOG_ERR,AT)<<" not implemented\n";
-//        std::vector<VecVector> light_curves{};
-//        exit(1);
-
-
-//        size_t nshells = p_cumShells->nshells();
-//        size_t m_nlayers = p_cumShells->m_nlayers();
-//        size_t ncells =  (int)p_cumShells->ncells();
         std::vector<VecVector> light_curves(nshells()); // [ishell][i_layer][i_time]
         for (auto & arr : light_curves){
             size_t n_layers_ej = nlayers();//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStructs.structs[0].nlayers_pw : ejectaStructs.structs[0].nlayers_a ;
@@ -2082,9 +1668,9 @@ private:
         }
         double flux_pj, flux_cj; size_t ii = 0;
 //        Image image;
-        Image image_i ( ncells() );
-        Image im_pj ( ncells() );
-        Image im_cj ( ncells() );
+        Image image_i ( ncells(), IMG::m_names.size(), 0, loglevel );
+        Image im_pj ( ncells(), IMG::m_names.size(), 0, loglevel );
+        Image im_cj ( ncells(), IMG::m_names.size(), 0, loglevel );
         for (size_t ishell = 0; ishell < nshells(); ishell++){
             image_i.clearData();
             im_pj.clearData();
@@ -2099,13 +1685,12 @@ private:
                         << " vel_shell=" << ishell << "/" <<nshells()-1
                         << " theta_layer=" << ilayer << "/" << nlayers()
                         << " phi_cells=" << EjectaID2::CellsInLayer(ilayer) << "\n";
-                model->getRad()->evalForwardShockLightCurve(
+                model->getRad()->evalLC(
                         p_ej->getId()->method_eats,
                         image_i, im_pj, im_cj, light_curves[ishell][ilayer], obs_times, obs_freqs);
                 ii ++;
             }
         }
-
         return std::move( light_curves );
     }
 

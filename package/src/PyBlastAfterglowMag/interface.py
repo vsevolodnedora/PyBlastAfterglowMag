@@ -1184,9 +1184,9 @@ class Ejecta(Base):
 
     def get_lc_totalflux(self, freq=None):
         dfile = self.get_lc_obj()
-        nlayers = int(dfile.attrs["nlayers"])
-        nshells = int(dfile.attrs["nshells"])
-        times = self.get_lc_times()
+        # nlayers = int(dfile.attrs["nlayers"])
+        # nshells = int(dfile.attrs["nshells"])
+        # times = self.get_lc_times()
         freqs = self.get_lc_freqs()
         fluxes = np.array(dfile["total_fluxes"])
         if (freq is None):
@@ -1363,7 +1363,8 @@ class Ejecta(Base):
                 if (len(arr)==1):
                     return arr[0]
                 assert self.get_skymap_times().min() < time < self.get_skymap_times().max()
-                val = arr[find_nearest_index(self.get_skymap_totfluxes(freq=freq, shell=None, time=None), time)]
+                # self.get_skymap_totfluxes(freq=freq, shell=None, time=None)
+                val = arr[find_nearest_index(self.get_skymap_times(), time)]
                 return val
             else:
                 raise KeyError("Not finished...")

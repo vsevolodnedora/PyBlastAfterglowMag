@@ -215,6 +215,11 @@ class EATS{
                 size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
                 Vector ttobs, void * params
                 ) = nullptr;
+        void (* funcOptDepth)(
+                double & tau_Compton, double & tau_BH, double & tau_bf,
+                size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
+                Vector ttobs, void * params
+                ) = nullptr;
         void (* fluxFuncA)(
                 double & flux_dens, double & r, double & ctheta,
                 size_t ia, size_t ib, double mu, double t_e, double t_obs, double nu_obs, void * params
@@ -282,6 +287,11 @@ public:
                                         Vector ttobs, void * params )){
         p_pars->fluxFunc = fluxFunc;
     }
+    void setFuncOptDepth(void (* funcOptDepth)( double & tau_Compton, double & tau_BH, double & tau_bf,
+                                                size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
+                                                Vector ttobs, void * params)){
+        p_pars->funcOptDepth = funcOptDepth;
+    }
     void setFluxFuncA(void (* fluxFuncA)( double & flux_dens, double & r, double & ctheta,
                                           size_t ia, size_t ib, double mu, double t_e,
                                           double t_obs, double nu_obs, void * params )){
@@ -316,17 +326,15 @@ public:
         computeImagePW(im_pj, im_cj, obs_time, obs_freq );
         /// combine the two images (use full 'ncells' array, and fill only cells that correspond to this layer)
         for (size_t icell = 0; icell < phi_grid.size(); ++icell) {
-            for (size_t ivn = 0; ivn < image.m_names.size(); ++ivn)
+            for (size_t ivn = 0; ivn < image.m_n_vn; ++ivn)
                 image(ivn, icell) = im_pj(ivn,icell);
-            for (size_t ivn = 0; ivn < image.m_names.size(); ++ivn)
+            for (size_t ivn = 0; ivn < image.m_n_vn; ++ivn)
                 image(ivn,phi_grid.size()+icell) = im_cj(ivn,icell);
         }
         image.m_f_tot = (im_pj.m_f_tot + im_cj.m_f_tot);
 //        std::cout<<image.m_f_tot<<"\n";
 
     }
-
-
 
     void evalImageFromPW(Image & image, double t_obs, double nu_obs,
                          double (*obs_angle)( const double &, const double &, const double & ),
@@ -338,7 +346,7 @@ public:
                                   << " R[0]=0. Seems not evolved -> returning empty image." << "\n";
             return;
         }
-        if(p_pars->m_i_end_r == 0){
+        if (p_pars->m_i_end_r == 0){
             (*p_log)(LOG_ERR,AT) << "p_pars->m_i_end_r = 0\n";
             exit(1);
         }
@@ -392,7 +400,7 @@ public:
             /// interpolate the exact radial position of the blast that corresponds to the req. obs time
             double r = interpSegLog(ia, ib, t_obs, p_pars->ttobs, p_pars->m_r);
             //  double r = ( Interp1d(ttobs, m_data[BW::Q::iR] ) ).Interpolate(t_obs, mth );
-            if ((r <= 0.0) || !std::isfinite(r)) {
+            if ((r <= 0.0) || (!std::isfinite(r))) {
                 (*p_log)(LOG_ERR, AT) << " R <= 0. Extend R grid (increasing R0, R1). "
                                       << " Current R grid us ["
                                       << p_pars->m_r[0] << ", "
@@ -408,279 +416,14 @@ public:
             p_pars->fluxFunc(flux_dens, r, ctheta, ia, ib, mu, t_obs, nu_obs, p_pars->ttobs, p_pars->m_params);
             /// ----------------------------------------------------
             flux += flux_dens;
-            image(Image::iintens, i) =
+            image(IMG::Q::iintens, i) =
                     flux_dens / (r * r * std::abs(mu)) *
                     CGS::cgs2mJy; //(obs_flux / (delta_D * delta_D * delta_D)); //* tmp;
-            image(Image::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
-            image(Image::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
-            image(Image::imu, i) = mu;
+            image(IMG::Q::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
+            image(IMG::Q::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
+            image(IMG::Q::imu, i) = mu;
         }
         image.m_f_tot = flux * CGS::cgs2mJy; /// flux in mJy
-
-
-#if 0
-        /// main loops (if to use pre-computed comoving emissivities or evaluateShycnhrotronSpectrum them here)
-        if (p_pars->m_method_rad == METHODS_RAD::icomovspec) {
-            /// init interpolator // TODO major speedup -- do index search for interpolation ONCE and use for both
-//            Interp2d int_em(p_pars->m_freq_arr, p_pars->m_r, p_pars->m_synch_em);
-//            Interp2d int_abs(p_pars->m_freq_arr, p_pars->m_r, p_pars->m_synch_abs);
-//            Interp1d::METHODS mth = Interp1d::iLagrangeLinear;
-            for (size_t i = 0; i < cphis.size(); i++){
-                double phi_cell = cphis[i];
-                double ctheta_cell = p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
-                double mu = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
-//                double mu = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
-                for (size_t i_ = 0; i_ < p_pars->m_i_end_r; i_++) {
-                    ttobs[i_] = p_pars->m_tt[i_] + p_pars->m_r[i_] / CGS::c * (1.0 - mu);
-                }
-                /// check if req. obs time is outside of the evolved times (throw error)
-                if (t_obs < ttobs[0]) {
-                    (*p_log)(LOG_ERR,AT) << " time grid starts too late "
-                                         << " t_grid[0]=" << ttobs[0] << " while requested obs.time=" << t_obs << "\n"
-                                         << " extend the grid to earlier time or request tobs at later times\n"
-                                         << " Exiting...\n";
-                    exit(1);
-                }
-                if ((p_pars->m_i_end_r == p_pars->nr) && (t_obs > ttobs[p_pars->m_i_end_r - 1])) {
-                    (*p_log)(LOG_ERR,AT) << " time grid ends too early. "
-                                         << " t_grid[i_end_r-1]=" << ttobs[p_pars->m_i_end_r - 1]
-                                         << " while requested obs.time=" << t_obs << "\n"
-                                         << " extend the grid to later time or request tobs at earlier times\n"
-                                         << " Exiting...\n";
-//                    std::cout << ttobs << std::endl;
-                    exit(1);
-                }
-                else if ((p_pars->m_i_end_r < p_pars->nr) && (t_obs > ttobs[p_pars->m_i_end_r - 1])) {
-                    (*p_log)(LOG_WARN,AT) << " time grid was shorten to i=" << p_pars->m_i_end_r
-                                          << " from nr=" << p_pars->nr
-                                          << " and now ends at t_grid[i_end_r-1]=" << ttobs[p_pars->m_i_end_r - 1]
-                                          << " while t_obs=" << t_obs << "\n";
-                    continue;
-                }
-                /// locate closest evolution points to the requested obs. time
-                size_t ia = findIndex(t_obs, ttobs, ttobs.size());
-                if (ia >= p_pars->m_i_end_r - 1) continue; // ??
-                size_t ib = ia + 1;
-                /// interpolate the exact radial position of the blast that corresponds to the req. obs time
-                double r = interpSegLog(ia, ib, t_obs, ttobs, p_pars->m_r);
-                //  double r = ( Interp1d(ttobs, m_data[BW::Q::iR] ) ).Interpolate(t_obs, mth );
-                if ((r <= 0.0) || !std::isfinite(r)) {
-                    (*p_log)(LOG_ERR,AT) << " R <= 0. Extend R grid (increasing R0, R1). "
-                                         << " Current R grid us ["
-                                         << p_pars->m_r[0] << ", "
-                                         << p_pars->m_r[p_pars->nr - 1] << "] "
-                                         << "and tobs arr ["
-                                         << ttobs[0] << ", " << ttobs[p_pars->nr - 1]
-                                         << "] while the requried obs_time=" << p_pars->t_obs
-                                         << "\n";
-                    break;
-                }
-
-
-
-                double Gamma = interpSegLog(ia, ib, t_obs, ttobs, p_pars->m_gam);
-                double beta = interpSegLog(ia, ib, t_obs, ttobs, p_pars->m_bet);
-                // double GammaSh = ( Interp1d(m_data[BW::Q::iR], m_data[BW::Q::iGammaFsh] ) ).Interpolate(r, mth );
-                /// evaluateShycnhrotronSpectrum Doppler factor
-                double a = 1.0 - beta * mu; // beaming factor
-                double delta_D = Gamma * a; // doppler factor
-                /// evaluateShycnhrotronSpectrum the comoving obs. frequency from given one in obs. frame
-                double nuprime = (1.0 + p_pars->z ) * p_pars->nu_obs * delta_D;
-                size_t ia_nu = findIndex(nuprime, p_pars->m_freq_arr, p_pars->m_freq_arr.size());
-                size_t ib_nu = ia_nu + 1;
-                /// interpolate the emissivity and absorption coefficines
-//                double em_prime = int_em.Interpolate(nuprime, r, mth);
-                double em_prime = int_em.InterpolateBilinear(nuprime, r, ia_nu, ib_nu, ia, ib);
-//                double abs_prime = int_abs.Interpolate(nuprime, r, mth);
-                double abs_prime = int_abs.InterpolateBilinear(nuprime, r, ia_nu, ib_nu, ia, ib);
-                /// convert to the laboratory frame
-                double em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
-                double abs_lab = abs_prime * delta_D; // conversion of absorption (see vanEerten+2010)
-
-                /// evaluateShycnhrotronSpectrum optical depth (for this shock radius and thickness are needed)
-                double GammaShock = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iGammaFsh]);
-                double dr = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::ithickness]);
-                double dr_tau = EQS::shock_delta(r, GammaShock); // TODO this is added becasue in Johanneson Eq. I use ncells
-
-                double beta_shock;
-                switch (p_pars->method_shock_vel) {
-
-                    case isameAsBW:
-                        beta_shock = EQS::Beta(Gamma);
-                        break;
-                    case ishockVel:
-//                double u = sqrt(GammaShock * GammaShock - 1.0);
-//                double us = 4.0 * u * sqrt((u * u + 1) / (8. * u * u + 9.)); // from the blast wave velocity -> evaluateShycnhrotronSpectrum shock velocity
-                        beta_shock = EQS::Beta(GammaShock);//us / sqrt(1. + us * us);
-                        break;
-                }
-                double ashock = (1.0 - mu * beta_shock); // shock velocity beaming factor
-                dr /= ashock; // TODO why is this here? What it means? Well.. Without it GRB LCs do not work!
-                dr_tau /= ashock;
-                double dtau = RadiationBase::optical_depth(abs_lab,dr_tau, mu, beta_shock);
-                double intensity = RadiationBase::computeIntensity(em_lab, dtau,
-                                                                   p_pars->p_syna->getPars()->method_tau);
-                double flux_dens = (intensity * r * r * dr) * (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
-                flux += flux_dens;
-                /// save the result in image
-                double ctheta = interpSegLin(ia, ib, t_obs, ttobs, m_data[BW::Q::ictheta]);
-                //  double ctheta = ( Interp1d(m_data[BW::Q::iR], m_data[BW::Q::ictheta] ) ).Interpolate(r, mth );
-                image(Image::iintens, i) =
-                        flux_dens / (r * r * std::abs(mu)) * CGS::cgs2mJy; //(obs_flux / (delta_D * delta_D * delta_D)); //* tmp;
-                image(Image::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
-                image(Image::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
-                image(Image::imu, i) = mu;
-            }
-            image.m_f_tot = flux * CGS::cgs2mJy; /// flux in mJy
-        }
-        else {
-            Interp1d::METHODS mth = Interp1d::iLagrangeLinear;
-            for (size_t i = 0; i < cphis.size(); i++){
-                double phi_cell = cphis[i];
-                double ctheta_cell = p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
-//                double mu = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
-                for (size_t i_ = 0; i_ < p_pars->m_i_end_r; i_++) {
-                    ttobs[i_] = p_pars->m_tt[i_] + p_pars->m_r[i_] / CGS::c * (1.0 - mu_arr[i]);
-                }
-                if (t_obs < ttobs[0]) {
-                    (*p_log)(LOG_ERR,AT) << " time grid starts too late "
-                                         << " t_grid[0]=" << ttobs[0] << " while requested obs.time=" << t_obs << "\n"
-                                         << " extend the grid to earlier time or request tobs at later times\n"
-                                         << " Exiting...\n";
-//                        (*p_log)(LOG_ERR,AT) << AT << "\n";
-                    exit(1);
-                }
-                if ((p_pars->m_i_end_r == p_pars->nr) && (t_obs > ttobs[p_pars->m_i_end_r - 1])) {
-                    (*p_log)(LOG_ERR,AT) << " time grid ends too early. "
-                                         << " t_grid[i_end_r-1]=" << ttobs[p_pars->m_i_end_r - 1]
-                                         << " while requested obs.time=" << t_obs << "\n"
-                                         << " extend the grid to later time or request tobs at earlier times\n"
-                                         << " Exiting...\n";
-//                        std::cout << ttobs << std::endl;
-//                        std::cerr << AT << "\n";
-                    exit(1);
-                }
-                else if ((p_pars->m_i_end_r <p_pars->nr) && (t_obs > ttobs[p_pars->m_i_end_r - 1])) {
-                    (*p_log)(LOG_WARN,AT) << " time grid was shorten to i=" << p_pars->m_i_end_r
-                                          << " from nr=" << p_pars->nr
-                                          << " and now ends at t_grid[i_end_r-1]=" << ttobs[p_pars->m_i_end_r - 1]
-                                          << " while t_obs=" << t_obs << "\n";
-                    continue;
-                }
-
-                size_t ia = findIndex(t_obs, ttobs, ttobs.size());
-                if (ia >= p_pars->m_i_end_r - 1)
-                    continue;
-                size_t ib = ia + 1 ;
-
-                double r = interpSegLog(ia, ib, t_obs, ttobs, p_pars->m_r);
-                if ((r <= 0.0) || !std::isfinite(r)) {
-                    (*p_log)(LOG_WARN,AT) << " R <= 0. Extend R grid (increasing R0, R1). "
-                                          << " Current R grid us ["
-                                          << p_pars->m_r[0] << ", "
-                                          << p_pars->m_r[p_pars->nr - 1] << "] "
-                                          << "and tobs arr ["
-                                          << ttobs[0] << ", " << ttobs[p_pars->nr - 1]
-                                          << "] while the requried obs_time=" << p_pars->t_obs
-                                          << "\n";
-                    break;
-                }
-
-
-
-
-                double Gamma = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iGamma]);
-                double GammaSh = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iGammaFsh]);
-                double rho2 = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::irho2]);
-                double m2 = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iM2]);
-                double frac = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iacc_frac]);
-                double thick = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::ithickness]);
-                double theta = interpSegLin(ia, ib, t_obs, ttobs, m_data[BW::Q::itheta]);
-                double ctheta = interpSegLin(ia, ib, t_obs, ttobs, m_data[BW::Q::ictheta]);
-                double B = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iB]);
-                double gm = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::igm]);
-                double gM = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::igM]);
-                double gc = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::igc]);
-                double Theta = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iTheta]);
-                double z_cool = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iz_cool]);
-                double tb = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::itburst]);
-                double tt = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::itt]);
-                double cs = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iCSCBM]);
-
-                double dFnu = 0.;
-                if ((m_data[BW::Q::iB][ia] == 0.) || (m_data[BW::Q::iB][ib] == 0.)){
-                    dFnu = 0.;
-                }
-                else{
-#if 0
-                    if ((Gamma < 1. || !std::isfinite(Gamma))
-                        || (gm < 0.) || (!std::isfinite(gm))
-                        || (gM < 0.) || (gc < 0.) || (B < 0.) || (!std::isfinite(B))
-                        || (theta <= 0.)
-                        || (rho2 < 0.) || (!std::isfinite(rho2))
-                        || (thick <= 0.) || (GammaSh <= 1.)) {
-                        (*p_log)(LOG_ERR,AT)<< " Error in interpolation to EATS surface: \n"
-                                            << " R = " << r << "\n"
-                                            << " Gamma = " << Gamma << "\n"
-                                            << " GammaSh = " << GammaSh << "\n"
-                                            << " gm = " << gm << "\n"
-                                            << " gM = " << gM << "\n"
-                                            << " gc = " << gc << "\n"
-                                            << " B = " << B << "\n"
-                                            << " Theta = " << Theta << "\n"
-                                            << " z_cool = " << z_cool << "\n"
-                                            << " theta = " << theta << "\n"
-                                            << " rho2 = " << rho2 << "\n"
-                                            << " thick = " << thick << "\n"
-                                            << " t_obs = " << t_obs << "\n";
-//                    exit(1);
-                    }
-                    if ((B != 0.) && (!std::isfinite(rho2))) {
-                        (*p_log)(LOG_ERR,AT)<< " B!=0 and rho2 is NAN \n"
-                                            << " Error in data \n"
-                                            << " R = " << r << "\n"
-                                            << " Gamma = " << Gamma << "\n"
-                                            << " gm = " << gm << "\n"
-                                            << " gM = " << gM << "\n"
-                                            << " gc = " << gc << "\n"
-                                            << " B = " << B << "\n"
-                                            << " Theta = " << Theta << "\n"
-                                            << " z_cool = " << z_cool << "\n"
-                                            << " theta = " << theta << "\n"
-                                            << " rho2 = " << rho2 << "\n"
-                                            << " thick = " << thick << "\n"
-                                            << " t_obs = " << t_obs << "\n"
-                                            << " Exiting...\n";
-                        exit(1);
-                    }
-#endif
-                    double thick_tau = EQS::shock_delta(r,GammaSh); // TODO this is added becasue in Johanneson Eq. I use ncells
-                    dFnu = shock_synchrotron_flux_density(Gamma, GammaSh, m2, rho2, frac, B, gm, gM, gc,
-                                                          Theta, z_cool, t_obs, mu_arr[i],
-                                                          r, thick,  thick_tau, p_pars);
-                }
-                dFnu *= (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
-
-                flux += dFnu;
-
-                image(Image::iintens, i) =
-                        dFnu / (r * r * std::abs(mu_arr[i])) * CGS::cgs2mJy; //(obs_flux / (delta_D * delta_D * delta_D)); //* tmp;
-                image(Image::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
-                image(Image::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
-                image(Image::imu, i) = mu_arr[i];
-//                image(Image::ir, i) = r;
-//                image(Image::igam, i) = Gamma;
-//                image(Image::itheta, i) = ctheta_cell;
-//                image(Image::itheta0, i) = theta;
-//                image(Image::itt, i) = tt;
-//                image(Image::iB, i) = B;
-//                image(Image::itburst, i) = tb;
-//                image(Image::igc, i) = gc;
-//                image(Image::igm, i) = gm;
-            }
-            image.m_f_tot = flux * CGS::cgs2mJy; /// flux in mJy
-        }
-#endif
     }
 
     /// get the observed flux density distrib 'image' for 2 projections for given time, freq, angle, distance, red shift
@@ -690,18 +433,10 @@ public:
         if (p_pars->counter_jet) // p_eats->counter_jet
             evalImageFromPW(im_cj, obs_time, obs_freq, obsAngleCJ, imageXXsCJ, imageYYsCJ);
     }
-
-
-#if 0
-    auto evalForwardShockComovingSynchrotron(Vector & freq_arr, size_t every_it){
-        return p_pars->evalForwardShockComovingSynchrotron(freq_arr,every_it);
-    }
-#endif
-
     /// evaluateShycnhrotronSpectrum light curve using Adapitve or Piece-Wise EATS method
-    void evalForwardShockLightCurve(EjectaID2::STUCT_TYPE m_method_eats,
-                                    Image & image, Image & im_pj, Image & im_cj,
-                                    Vector & light_curve, Vector & times, Vector & freqs ){
+    void evalLC(EjectaID2::STUCT_TYPE m_method_eats,
+                Image & image, Image & im_pj, Image & im_cj,
+                Vector & light_curve, Vector & times, Vector & freqs ){
 //        Vector light_curve (times.size(), 0.0);
 //        auto & m_data = p_pars->m_data;
         if ((p_pars->m_r[0] == 0.0) && (p_pars->m_r[p_pars->nr - 1] == 0.0)){
@@ -729,80 +464,7 @@ public:
         }
 //        return std::move(light_curve);
     }
-
 private:
-
-#if 0
-    static double shock_synchrotron_flux_density(double Gamma, double GammaShock, double m2, double rho2, double acc_frac, double B,
-                                                 double gm, double gM, double gc, double Theta, double z_cool,
-                                                 double t_e, double mu, double R, double dr, double dr_tau, void * params){
-        auto * p_pars = (struct Pars *) params; // removing EATS_pars for simplicity
-        auto & p_syna = p_pars->p_syna;//->getAnSynch();
-
-        /// relativistic effects on the emitting region
-        double beta = EQS::Beta(Gamma);
-        double a = 1.0 - beta * mu; // beaming factor
-        double delta_D = Gamma * a; // doppler factor
-        double beta_shock;
-        switch (p_pars->method_shock_vel) {
-
-            case isameAsBW:
-                beta_shock = EQS::Beta(Gamma);
-                break;
-            case ishockVel:
-//                double u = sqrt(GammaShock * GammaShock - 1.0);
-//                double us = 4.0 * u * sqrt((u * u + 1) / (8. * u * u + 9.)); // from the blast wave velocity -> evaluateShycnhrotronSpectrum shock velocity
-                beta_shock = EQS::Beta(GammaShock);//us / sqrt(1. + us * us);
-                break;
-        }
-        double ashock = (1.0 - mu * beta_shock); // shock velocity beaming factor
-        dr /= ashock; // TODO why is this here? What it means? Well.. Without it GRB LCs do not work!
-        dr_tau /= ashock;
-
-        /// properties of the emitting electrons
-        double nuprime = (1.0 + p_pars->z ) * p_pars->nu_obs * delta_D;
-        double Ne = m2 / CGS::mp; // numer of protons/electrons
-        double nprime = rho2 / CGS::mp; // number density of protons/electrons
-        double em_prime,em_lab,abs_prime,abs_lab,intensity,flux_dens,dtau;
-
-
-#if 1
-        switch (p_pars->m_method_ne) {
-            // default (presumably more correct version)
-            case iusenprime:
-                /// this is informed by van Earten et al. and afterglowpy
-                p_syna->evaluateShycnhrotronSpectrum(nprime, Ne, acc_frac, B, gm, gM, gc, Theta, z_cool, nuprime);
-                em_prime = p_syna->getPars()->em;
-                em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
-                abs_prime = p_syna->getPars()->abs;
-                abs_lab = abs_prime * delta_D; // conversion of absorption (see vanEerten+2010)
-                dtau = RadiationBase::optical_depth(abs_lab,dr_tau, mu, beta_shock);
-                intensity = RadiationBase::computeIntensity(em_lab, dtau,
-                                                            p_syna->getPars()->method_tau);
-//                flux_dens = (intensity * R * R * dr) * (1.0 + p_eats->z) / (2.0 * p_eats->d_l * p_eats->d_l);
-
-                flux_dens = (intensity * R * R * dr) ;
-                break;
-            case iuseNe: // TODO THIS SHOULD NOT BE USED (tau is incorrectly estimated)
-                /// This is informed by the G. Lamb and Fernandez et al.
-                p_syna->evaluateShycnhrotronSpectrum(Ne, Ne, acc_frac, B, gm, gM, gc, Theta, z_cool, nuprime);
-                em_prime = p_syna->getPars()->em;
-                em_lab = em_prime / (delta_D * delta_D);
-                em_lab /= delta_D; // TODO this should be from 'dr'...
-                abs_lab = abs_prime * delta_D; // TODO with Ne this might not work as we do not use 'dr' of the shock...
-                dtau = RadiationBase::optical_depth(abs_lab,dr_tau,mu,beta_shock);
-                intensity = RadiationBase::computeIntensity(em_lab, dtau,
-                                                            p_syna->getPars()->method_tau);
-//                flux_dens = intensity * (1.0 + p_eats->z) / (p_eats->d_l * p_eats->d_l) / 10;
-                flux_dens = intensity / 5.; // TODO why no '2'?? // why this need /10 to fit the upper result?
-                break;
-        }
-#endif
-        return flux_dens;
-    }
-#endif
-
-
 
     /// check if during the quadrature integration there was an error
     static int check_error(void *params) {
