@@ -266,6 +266,7 @@ public:
 //                                           p_pars->i_end_r, ishell, ilayer, loglevel, p_pars);
         p_eats_fs->setFluxFunc(fluxDensPW);
         p_eats_fs->setFluxFuncA(fluxDensA);
+        p_eats_fs->setFuncOptDepth(optDepthPW);
         /// ----------------------
         p_pars->loglevel = loglevel;
         p_pars->nr = m_tb_arr.size();
@@ -2686,9 +2687,10 @@ public:
         }
     }
 
-    static void optDepthPW(double & tau_Compton, double & tau_BH, double & tau_bf,
+    static void optDepthPW(double & tau_Compton, double & tau_BH, double & tau_bf, double & r, double & ctheta,
                            size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
                            Vector ttobs, void * params){
+
         auto * p_pars = (struct Pars *) params;
         auto & m_data = p_pars->m_data;
         if (p_pars->i_end_r==0)
@@ -2699,6 +2701,7 @@ public:
         double rho_ej = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iEJrho]);
         double Gamma = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iGamma]);
         double beta = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::ibeta]);
+        ctheta = interpSegLin(ia, ib, t_obs, ttobs, m_data[BW::Q::ictheta]);
 
         /// account for relativistic motion of the shell
         double a = 1.0 - beta * mu; // beaming factor

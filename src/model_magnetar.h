@@ -1258,7 +1258,9 @@ public:
         double nu_erg = nu_obs*4.1356655385381E-15*CGS::EV_TO_ERG;
         double gamma_b = 1.0e5; /* break Lorentz factor of electron injection spectrum */
         double spec = PWNradiationMurase::spec_non_thermal(nu_erg, b_pwn, gamma_b, temp);
-        double f_gamma_esc_x = 1.;
+
+        double tau_comp, tau_bh, tau_bf,f_gamma_esc_x;
+        p_ej->evalOptDepthsAlongLineOfSight(f_gamma_esc_x, mu,t_obs,nuprime);
         double lum = p_pars->eps_e*(l_dip+l_acc)*spec*f_gamma_esc_x*nu_erg;
         int x = 1;
     }

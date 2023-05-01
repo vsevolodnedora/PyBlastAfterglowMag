@@ -16,8 +16,13 @@ namespace IMG{
     std::vector<std::string> m_names{"mu", "xrs", "yrs", "intensity"};
 //    enum Q { itheta, iphi, ir, itheta_j, itheta0, imu, ixr, iyr, igam, iflux, iintens, igm, igc, iB, itburst, itt };
     enum Q {imu, ixr, iyr, iintens};
+}
 
-
+namespace IMG_TAU{
+    //    std::vector<std::string> m_names{"theta", "phi", "r", "theta_j", "theta0", "mu", "xrs", "yrs", "gamma", "fluxes", "intensity", "gm", "gc", "B", "tburst", "tt"};
+    std::vector<std::string> m_names{"mu", "xrs", "yrs", "tau_compton", "tau_bh", "tau_bf"};
+//    enum Q { itheta, iphi, ir, itheta_j, itheta0, imu, ixr, iyr, igam, iflux, iintens, igm, igc, iB, itburst, itt };
+    enum Q {imu, ixr, iyr, itau_comp, itau_bh, itau_bf};
 }
 
 struct Image {

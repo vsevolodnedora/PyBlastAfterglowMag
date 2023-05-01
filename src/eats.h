@@ -216,7 +216,7 @@ class EATS{
                 Vector ttobs, void * params
                 ) = nullptr;
         void (* funcOptDepth)(
-                double & tau_Compton, double & tau_BH, double & tau_bf,
+                double & tau_Compton, double & tau_BH, double & tau_bf, double & r, double & ctheta,
                 size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
                 Vector ttobs, void * params
                 ) = nullptr;
@@ -287,7 +287,7 @@ public:
                                         Vector ttobs, void * params )){
         p_pars->fluxFunc = fluxFunc;
     }
-    void setFuncOptDepth(void (* funcOptDepth)( double & tau_Compton, double & tau_BH, double & tau_bf,
+    void setFuncOptDepth(void (* funcOptDepth)( double & tau_Compton, double & tau_BH, double & tau_bf, double & r, double & ctheta,
                                                 size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
                                                 Vector ttobs, void * params)){
         p_pars->funcOptDepth = funcOptDepth;
@@ -333,7 +333,6 @@ public:
         }
         image.m_f_tot = (im_pj.m_f_tot + im_cj.m_f_tot);
 //        std::cout<<image.m_f_tot<<"\n";
-
     }
 
     void evalImageFromPW(Image & image, double t_obs, double nu_obs,
@@ -412,16 +411,33 @@ public:
                 break;
             }
             /// ----------------------------------------------------
-            double flux_dens; double ctheta;
-            p_pars->fluxFunc(flux_dens, r, ctheta, ia, ib, mu, t_obs, nu_obs, p_pars->ttobs, p_pars->m_params);
-            /// ----------------------------------------------------
-            flux += flux_dens;
-            image(IMG::Q::iintens, i) =
-                    flux_dens / (r * r * std::abs(mu)) *
-                    CGS::cgs2mJy; //(obs_flux / (delta_D * delta_D * delta_D)); //* tmp;
-            image(IMG::Q::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
-            image(IMG::Q::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
-            image(IMG::Q::imu, i) = mu;
+            if (image.m_n_vn==IMG::m_names.size()) {
+                double flux_dens;
+                double ctheta;
+                p_pars->fluxFunc(flux_dens, r, ctheta, ia, ib, mu, t_obs, nu_obs, p_pars->ttobs, p_pars->m_params);
+                /// ----------------------------------------------------
+                flux += flux_dens;
+                image(IMG::Q::iintens, i) =
+                        flux_dens / (r * r * std::abs(mu)) *
+                        CGS::cgs2mJy; //(obs_flux / (delta_D * delta_D * delta_D)); //* tmp;
+                image(IMG::Q::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
+                image(IMG::Q::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
+                image(IMG::Q::imu, i) = mu;
+            }
+            if (image.m_n_vn==IMG_TAU::m_names.size()) {
+                double ctheta;
+                double tau_Compton,tau_BH,tau_bf;
+                p_pars->funcOptDepth(tau_Compton, tau_BH, tau_bf, r, ctheta,
+                                     ia, ib, mu, t_obs, nu_obs, p_pars->ttobs, p_pars->m_params);
+                /// ----------------------------------------------------
+                image(IMG_TAU::Q::itau_comp, i) = tau_Compton;
+                image(IMG_TAU::Q::itau_bf, i) = tau_bf;
+                image(IMG_TAU::Q::itau_bh, i) = tau_BH;
+                image(IMG_TAU::Q::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
+                image(IMG_TAU::Q::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
+                image(IMG_TAU::Q::imu, i) = mu;
+            }
+
         }
         image.m_f_tot = flux * CGS::cgs2mJy; /// flux in mJy
     }

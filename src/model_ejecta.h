@@ -1358,6 +1358,7 @@ private:
     }
 
 private:
+
     void computeEjectaSkyMapPieceWise( Images & images, double obs_time, double obs_freq ){
 
         size_t nshells_ = nshells();
@@ -1471,6 +1472,7 @@ private:
     }
 
 public:
+
     /// electrons
     void setPreComputeEjectaAnalyticElectronsPars(){//(StrDbMap pars, StrStrMap opts){
         (*p_log)(LOG_INFO,AT) << "Computing Ejecta analytic electron pars...\n";
@@ -1512,13 +1514,31 @@ public:
 //        p_pars->is_ejecta_obs_pars_set = true;
     }
 
-    void evalOptDepthsAlongLineOfSight(double & tau_Compton, double & tau_BH, double & tau_bf,
-                                       double time, double freq){
+    void evalOptDepthsAlongLineOfSight(double & frac, double mu, double time, double freq){
         size_t nshells_ = nshells();
-//        Images images(nshells_, IMG_TAU::m_names.size());
-//        for (auto & im : images)
-//            im.mode = Image::MODES::itau;
-//        computeEjectaSkyMapPieceWise( images, time, freq);
+        Images images(nshells_, IMG_TAU::m_names.size());
+        double tau_comp=0.;
+        double tau_bh=0.;
+        double tau_pf=0.;
+        for (size_t il = 0; il < nlayers(); il++){
+            auto & cumshell = p_cumShells[il];
+            for (size_t ish = 0; ish < cumshell->getPars()->n_active_shells; ish++){
+
+            }
+        }
+
+        computeEjectaSkyMapPieceWise( images, time, freq );
+        for (size_t i = 0; i < images.size(); i++){
+            /// find the layer within a shell that has the smallest 'distance' to the line of sight mu = 0
+
+        }
+
+
+//        std::vector<double> tau_comp(images.size());
+//        std::vector<double> tau_bh(images.size());
+//        std::vector<double> tau_comp(images.size());
+
+
     }
 
     void computeSaveEjectaSkyImagesAnalytic(std::string workingdir, std::string fname, Vector times, Vector freqs,

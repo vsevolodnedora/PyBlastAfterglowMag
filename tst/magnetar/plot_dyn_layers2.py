@@ -315,8 +315,8 @@ def plot_ejecta_dyn_evol_for_movie():
     plt.show()
 
 
-def _load_data(ir = 10, v_n="mom"):
-    dfile_ej = h5py.File(curdir+"magnetar_driven_ej.h5")
+def _load_data(ir = 10, v_n="mom",verbose=False):
+    dfile_ej = h5py.File(curdir+"magnetar_driven_ej_dens.h5")
 
     # print(dfile_ej.keys())
     # print(dfile_ej[list(dfile_ej.keys())[0]].keys())
@@ -324,16 +324,16 @@ def _load_data(ir = 10, v_n="mom"):
 
     keys = dfile_ej.keys()
     ej_keys = [key for key in keys if key.__contains__("EJ")]
-    print(ej_keys)
+    if verbose: print(ej_keys)
 
 
     all_shells = int(dfile_ej.attrs["nshells"])
-    all_layers = 4;# int(dfile_ej.attrs["nlayers"])
-    print("all_shells={} all_layers={}".format(all_shells, all_shells))
+    all_layers = int(dfile_ej.attrs["nlayers"])
+    if verbose: print("all_shells={} all_layers={}".format(all_shells, all_shells))
 
     r_grid = np.array(dfile_ej["shell={} layer={} key=R".format(0, 0)])
     ctheta_grid = np.array(dfile_ej["shell=0 layer=0 key=ctheta"])
-    print(f"R size = {r_grid.shape} ctheta={ctheta_grid.shape}")
+    if verbose: print(f"R size = {r_grid.shape} ctheta={ctheta_grid.shape}")
 
     cthetas = np.zeros((all_layers, all_shells))
     rs = np.zeros((all_layers, all_shells))
@@ -372,8 +372,8 @@ def _load_data(ir = 10, v_n="mom"):
     # plt.show()
     cthetas = np.array(cthetas)  # [::-1] # INVERT DATA ----------------------------------------------------------
 
-    print("ctheta: {}".format(cthetas.shape))
-    print("Rs: {}".format(rs.shape))
+    if verbose: print("ctheta: {}".format(cthetas.shape))
+    if verbose: print("Rs: {}".format(rs.shape))
 
     return (t, rs, ds, cthetas, val)
 def plot_polar_mpl(ax, theta, r):
@@ -431,8 +431,8 @@ def latex_float(f):
 #         return r"{0} \times 10^{{{1}}}".format(base, int(exponent))
 #     else:
 #         return float_str
-def plot_for_movie2(it):
-    t, rs, ds, cthetas, val = _load_data(ir=it, v_n="psrFrac")
+def plot_for_movie2(it,verbose=False):
+    t, rs, ds, cthetas, val = _load_data(ir=it, v_n="mom",verbose=verbose)
     nshells = rs.shape[1]
     nlayers = rs.shape[0]
     # heights = ds
@@ -486,7 +486,7 @@ def plot_for_movie2(it):
     cthetas_widths = np.diff(ctheta_grid)*.999
 
 
-    print(f"{ctheta_grid}, PI/2={np.pi/2.}")
+    if verbose: print(f"{ctheta_grid}, PI/2={np.pi/2.}")
     # ctheta_width = np.zeros(len(ctheta_grid))
     # for il in range(nlayers):
     #     if (il == 0):
@@ -520,7 +520,7 @@ def plot_for_movie2(it):
             bar_x = rs[il,ish]
             bar_height = ds[il,ish]
 
-            if (bar_x > 0 and bar_height > 0):
+            if ((bar_x > 0) and (bar_height > 0)):
                 # print("ish={} r={:.2e} dr={:.2e} r+dr={:.2e}".format(ish, bar_x,bar_height,bar_x+bar_height))
 
                 bar_height = np.log10(1+10.**(np.log10(bar_height)-np.log10(bar_x)))
@@ -579,6 +579,10 @@ def plot_for_movie2(it):
                    labelsize=12,
                    direction='in',
                    bottom=True, top=True, left=True, right=True)
+    # ax.xaxis.get_major_locator().base.set_params(nbins=10)
+    # ax.xaxis.set_tick_params(pad=10)
+    ax.set_xticklabels([])
+
     # ax.xaxis.set_major_locator(MultipleLocator(20))
     # ax.yaxis.set_major_locator(MultipleLocator(20))
 
@@ -590,10 +594,12 @@ def plot_for_movie2(it):
 
     ax.set_title('time='+r"${}$ s.".format(latex_float(t.max())))
     plt.subplots_adjust(left=0.15,right=0.80,bottom=0.05,top=0.9)
-    plt.savefig(curdir+"plots/"+"{:d}.png".format(it),dpi=256)
-    plt.show()
-    # return 0
-    exit(1)
+    fname = ("{:d}.png".format(it)).rjust(10,"0")
+    print("Saving: {}".format(fname))
+    plt.savefig(curdir+"plots/"+fname,dpi=256)
+    # plt.show()
+    return 0
+    # exit(1)
 
 
 

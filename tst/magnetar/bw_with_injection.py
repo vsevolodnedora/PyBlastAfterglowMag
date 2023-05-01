@@ -1,3 +1,7 @@
+import os
+
+import h5py
+
 from magnetar_evol import Magnetar
 
 import numpy as np
@@ -803,8 +807,8 @@ class Nava_fs_rhs_t2:
         R_ej_0 = params[0 + ieq]
         tcomoving_ej_0 = params[1 + ieq]
         Gamma_ej_0 = params[2 + ieq]
-        if (Gamma_ej_0 < 1):
-            Gamma_ej_0 = 1.
+        # if (Gamma_ej_0 < 1):
+        #     Gamma_ej_0 = 1.
         tmp_0 = np.power(Gamma_ej_0, -2.)
         beta_ej_0 = np.sqrt(1. - tmp_0)
         Eint2_ej_0 = params[3 + ieq]
@@ -964,12 +968,12 @@ class Nava_fs_rhs_t2:
         dlnrho1dR_ej_0 = pars[f"dlnrho1dR_ej_{ii}"]
 
 
-        if (not np.isfinite(Gamma_ej_0)):
-            raise ValueError("nan in Gamma")
-        if ((not np.isfinite(M2_ej_0)) | (M2_ej_0 < 0.)):
-            raise ValueError("nan in M2_ej_0")
-        if (not np.isfinite(beta_ej_0)):
-            raise ValueError("nan in beta")
+        # if (not np.isfinite(Gamma_ej_0)):
+        #     raise ValueError("nan in Gamma")
+        # if ((not np.isfinite(M2_ej_0)) | (M2_ej_0 < 0.)):
+        #     raise ValueError("nan in M2_ej_0")
+        # if (not np.isfinite(beta_ej_0)):
+        #     raise ValueError("nan in beta")
 
         gammaAdi_ej_0 = EqOpts.gamma_adi_peer(Gamma_ej_0, beta_ej_0)
         dthetadR_ej_0 = EqOpts.dthetadr_None(gammaAdi_ej_0, Gamma_ej_0, beta_ej_0, R_ej_0, theta_ej_0,
@@ -978,6 +982,8 @@ class Nava_fs_rhs_t2:
         # # # # dGammadR
         dRdt_ej_0 = beta_ej_0 * cgs.c
         dEinj_0 = einj#pars["deinjdt"]
+        if (not np.isfinite(einj) or einj<0):
+            raise ValueError("einj is nan")
         dEinj_0 = dEinj_0 / (M0_ej_0 * cgs.c * cgs.c) / pars["ncells"]
         dEingdR_0 = dEinj_0 / dRdt_ej_0
         Doppler_0 = Gamma_ej_0 / (1. - beta_ej_0 * np.cos(theta_ej_0))
@@ -1006,10 +1012,11 @@ class Nava_fs_rhs_t2:
         else:
             dttdr_ej_0 = 1. / (cgs.c * Gamma_ej_0 ** 2. * beta_ej_0 * (1. + beta_ej_0))
 
-        assert np.isfinite(dGammadR_ej_0)
-        assert dM2dR_ej_0 > 0.
-        assert dthetadR_ej_0 >= 0.
-        assert np.isfinite(dEint2dR_ej_0)
+        # if (not np.isfinite(dGammadR_ej_0)):
+        #     raise ValueError()
+        # assert dM2dR_ej_0 > 0.
+        # assert dthetadR_ej_0 >= 0.
+        # assert np.isfinite(dEint2dR_ej_0)
 
         out = np.array([
             dRdt_ej_0,  # 1 / beta / cgs.c,
@@ -1609,7 +1616,7 @@ class Nava_fs_rhs_t2:
         dGammaEffdGamma = Nava_fs_rhs.dGammaEffdGamma(Gamma, gammaAdi);
         num1 = (Gamma - GammaRho + GammaEff * (GammaRel - 1.)) * dM2dR;
         num2 = - GammaEff * (gammaAdi - 1.) * Eint2 * (dM2dR/M2 - drhodr/rho - dGammaRhodR / GammaRho); # - 3.*Eint2/R
-        num3 = - (1. - GammaEff / Gamma * xi_inj) * dEingdR_abs * 1;
+        num3 = - (1. + GammaEff / Gamma * xi_inj) * dEingdR_abs * 1;
         denum1 = (1.+M2);
         denum2 = Eint2 * dGammaEffdGamma;
         denom3 = GammaEff * (gammaAdi - 1.) * Eint2 * dGammaRelDGamma / GammaRel;
@@ -2174,14 +2181,20 @@ class SedovTaylor():
 if __name__ == '__main__':
 
     # run magnetar
-    tarrm, ldip, lacc = Magnetar.run()
-    print(ldip)
-    deinjdt = ldip + lacc
+    # tarr, ldip, lacc = Magnetar.run()
+    # print(ldip)
+    # deinjdt = ldip + lacc
 
+    dfile_mag = h5py.File(os.getcwd()+"/"+"magnetar_evol.h5")
+    print(dfile_mag.keys())
+    tarr = np.array(dfile_mag["time"])
+    ldip = np.array(dfile_mag["ldip"])[tarr<1e10]
+    lacc = np.array(dfile_mag["lacc"])[tarr<1e10]
+    tarr = tarr[tarr<1e10]
+    deinjdt = ldip+lacc
 
-    rho = 1e-2 * cgs.mppme
+    rho = 1e-3 * cgs.mppme
     RR = np.logspace(14., 23., 1000)
-    tarr = tarrm#@np.logspace(-7, 16, 2000)
 
     # dyn2t = Driver_Nava_FS_t(E0=1e48, Gamma0=get_Gamma(0.7), M0=1e48 / (cgs.c ** 2 * get_Gamma(0.7)), tstart=tarr[0], Rstart = RR[0],
     #                          rho0=rho, useSpread=False, aa=-1., ncells=1,
@@ -2244,10 +2257,11 @@ if __name__ == '__main__':
     #     rho, dlnrho1dR = rho_dlnrho1dR(tarr[i], 1e-2, None, None, None, None)
     #     dyn2t.evolove(tarr[i], rho, dlnrho1dR)
 
+    E = 1e53
     dyn2t2 = Driver_Nava_FS_t2(E0=1e45, Gamma0=200, M0=1e45 / (cgs.c ** 2 * 200), tstart=tarr[0], Rstart = RR[0], ctheta_j = 0.01, theta_w_j = 0.1,
                                rho0=rho, useSpread=True, aa=-1., ncells=1, theta0=0.16,
                                # ----------
-                               Gamma0_ej_0=get_Gamma(0.3), M0_ej_0=1e45 / (cgs.c ** 2 * get_Gamma(0.3)),
+                               Gamma0_ej_0=get_Gamma(0.3), M0_ej_0=E / (cgs.c ** 2 * get_Gamma(0.3)),
                                tstart_ej_0=tarr[0], Rstart_ej_0=RR[0], ctheta_ej_0 = 0.10, theta_w_ej_0 = np.pi/2.,
                                rho0_ej_0=rho,
                                # ----------
@@ -2261,7 +2275,7 @@ if __name__ == '__main__':
                                # ----------
                                useSpread_ej=False, aa_ej=-1., ncells_ej=1,
                                adiabLoss=True, epsilon_e_rad=0,
-                               ode_rtol=1e-6, ode_nsteps=1500, thetaMax=np.pi/2.,
+                               ode_rtol=1e-14, ode_nsteps=2000, thetaMax=np.pi/2.,
                                adiabLoss_ej=True, epsilon_e_rad_ej=0,
                                thetaMax_ej=np.pi / 2.,
                                eq_dthetadr=EqOpts.dthetadr_None, eq_gammaAdi=EqOpts.gamma_adi_peer,
@@ -2272,8 +2286,8 @@ if __name__ == '__main__':
     for i in tqdm(range(1,len(tarr))):
         # dyn2.update_ode_pars(rho=rho)
         deinjdt_ = 0.
-        if (tarr[i] > tarrm.min() and tarr[i] < tarrm.max()):
-            deinjdt_ = np.interp(tarr[i],tarrm,deinjdt)
+        if (tarr[i] > tarr.min() and tarr[i] < tarr.max()):
+            deinjdt_ = np.interp(tarr[i],tarr,deinjdt)
         rho, dlnrho1dR = rho_dlnrho1dR(tarr[i], 1e-2, None, None, None, None)
         dyn2t2.evolove(tarr[i], rho, dlnrho1dR, deinjdt_)
 
@@ -2297,29 +2311,36 @@ if __name__ == '__main__':
         gamAdi = EqOpts.gamma_adi_peer(dyn2t2.get(f"Gamma_ej_{ii}"),get_beta(dyn2t2.get(f"Gamma_ej_{ii}")))
         GammaEff = Nava_fs_rhs.GammaEff(dyn2t2.get(f"Gamma_ej_{ii}"),gamAdi)
         Etot = (dyn2t2.get(f"Gamma_ej_{ii}") - 1)* cgs.c ** 2 * \
-               (dyn2t2.get(f"M2_ej_{ii}") + 1e48 / (cgs.c ** 2 * dyn2t2.get(f"Gamma_ej_{ii}")[0])) + GammaEff * dyn2t2.get(f"Eint2_ej_{ii}")
+               (dyn2t2.get(f"M2_ej_{ii}") + E / (cgs.c ** 2 * dyn2t2.get(f"Gamma_ej_{ii}")[0])) \
+               + GammaEff * dyn2t2.get(f"Eint2_ej_{ii}")
         axes[0].plot(dyn2t2.get("tburst"),Etot / 1,label=r"$E_{\rm tot}$",color=color,ls='-')
         axes[0].plot(dyn2t2.get("tburst"),GammaEff * dyn2t2.get(f"Eint2_ej_{ii}") / 1,label=r"$E_{\rm int} \Gamma_{\rm eff}$",color=color,ls='--')
-        axes[0].plot(dyn2t2.get("tburst"),( dyn2t2.get(f"Gamma_ej_{ii}") - 1) * cgs.c  ** 2
-                     * (dyn2t2.get(f"M2_ej_{ii}")+1e48 / (cgs.c ** 2 * dyn2t2.get(f"Gamma_ej_{ii}")[0])) / 1,label=r"$(\Gamma-1)c M_2$",color=color,ls=':')
+        axes[0].plot(dyn2t2.get("tburst"),
+                     ( dyn2t2.get(f"Gamma_ej_{ii}") - 1) * cgs.c  ** 2 * (dyn2t2.get(f"M2_ej_{ii}")),
+                       # + E / (cgs.c ** 2 * dyn2t2.get(f"Gamma_ej_{ii}")[0])) / 1,
+                     label=r"$(\Gamma-1)c^2 M_2$",color=color,ls=':')
         # plt.loglog(dyn2t2.get("R"),cgs.c*np.sqrt(dyn2t2.get("Gamma")**2 - 1)*(dyn2t2.get("M2")+gamAdi*dyn2t2.get("Eint2")/cgs.c/cgs.c) / ,label=r"$P_{\rm tot}$")
         # plt.loglog(dyn2t2.get("R"),dyn2t2.get("Eint2"),label="int")
         # plt.loglog(dyn2t2.get("R"),dyn2t2.get("Esh2"),label="sh")
         # plt.loglog(dyn2t2.get("R"),dyn2t2.get("Eint2")+dyn2t2.get("Esh2"),label="tot")
-        axes[1].plot(dyn2t2.get("tburst"),dyn2t2.get(f"Gamma_ej_{ii}")*get_beta(dyn2t2.get(f"Gamma_ej_{ii}")),label=r"Momentum",color=color,ls='-',marker='.')
+        axes[1].plot(dyn2t2.get("tburst"),dyn2t2.get(f"Gamma_ej_{ii}")*get_beta(dyn2t2.get(f"Gamma_ej_{ii}")),color=color,ls='-',marker='.')
+        # axes[1].plot(dyn2t2.get("tburst"),dyn2t2.get(f"M2_ej_{ii}"),label=r"Momentum",color=color,ls='-',marker='.')
         # axes[2].plot(dyn2t2.get("tburst"),dyn2t2.get(f"R_ej_{ii}"),label=r"Radius",color=color,ls='-',marker='.')
         axes[0].set_ylabel("Energy [ergs]",fontsize=12)
         axes[1].set_ylabel(r"Momentum $\Gamma\beta$",fontsize=12)
-    axes[0].plot(tarrm,ldip+lacc,label=r"$log_{10}(L_{\rm dip}+L_{\rm acc})$",color='gray',ls='-')
-    axes[0].set_ylim(1e41,1e51)
+    axes[0].plot(tarr,ldip+lacc,label=r"$\log_{10}(L_{\rm mag})$",color='gray',ls='-')
+    axes[0].set_ylim(1e45,1e54)
     for ax in axes:
         ax.set_xscale("log")
         ax.set_yscale("log")
-        ax.legend(loc="best")
+        ax.legend(loc="best", ncol=3)
         ax.grid()
     axes[len(axes)-1].set_xlabel("time [s]",fontsize=12)
     plt.savefig("./one_bw_dynamics.png",dpi=256)
     plt.show()
+
+
+
 
 
 
@@ -2376,7 +2397,7 @@ if __name__ == '__main__':
     axx2 = axx.twinx()
     axx2.plot(dyn2t2.get("tburst"), dyn2t2.get("M2"), ls='--', color='blue')
     axx2.plot(dyn2t2.get("tburst"), dyn2t2.get("M2_ej"), ls='--', color='red')
-    axx2.legend(loc="best")
+    axx2.legend(loc="best", ncol=3)
     axx2.set_ylabel("M2 [cm] (dashed lines)")
     axx2.set_xscale("log")
     axx2.set_yscale("log")

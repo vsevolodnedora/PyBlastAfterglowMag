@@ -74,12 +74,12 @@ save_pwn_every_it = 1
 
 * Settings
 
-run_pwn = no
-load_pwn = yes
-save_pwn = no
+run_pwn = yes
+load_pwn = no
+save_pwn = yes
 do_lc = yes
 do_skymap = no
-fname_pwn = pwn.h5
+fname_pwn = pwn_dens.h5
 fname_light_curve_layers = lc_pwn_layers.h5
 fname_light_curve = lc_pwn.h5
 
@@ -119,9 +119,9 @@ save_dyn_every_it = 1
 
 * Settings
 
-run_bws = no
-load_dynamics = yes
-save_dynamics = no
+run_bws = yes
+load_dynamics = no
+save_dynamics = yes
 do_ele = no
 do_spec = no
 do_lc = no
@@ -139,7 +139,7 @@ method_thermalization = const # const BKWM BKWM_1d
 do_thermrad_loss = yes
 thermradloss_at_photo = yes
 
-fname_dyn = magnetar_driven_ej.h5
+fname_dyn = magnetar_driven_ej_dens.h5
 fname_light_curve = corr_id_SFHo_13_14_150m_11_text70.lc
 fname_light_curve_layers = none
 fname_sky_map = skymap_kn.h5
