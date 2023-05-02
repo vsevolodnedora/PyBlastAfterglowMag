@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import h5py
 import os
+import multiprocessing
+
 
 from mpl_toolkits.axes_grid1.inset_locator import (inset_axes, InsetPosition, mark_inset)
 from matplotlib.colors import Normalize, LogNorm
@@ -315,8 +317,7 @@ def plot_ejecta_dyn_evol_for_movie():
     plt.show()
 
 
-def _load_data(ir = 10, v_n="mom",verbose=False):
-    dfile_ej = h5py.File(curdir+"magnetar_driven_ej_dens.h5")
+def _load_data(dfile_ej, ir = 10, v_n="mom",verbose=False):
 
     # print(dfile_ej.keys())
     # print(dfile_ej[list(dfile_ej.keys())[0]].keys())
@@ -431,8 +432,17 @@ def latex_float(f):
 #         return r"{0} \times 10^{{{1}}}".format(base, int(exponent))
 #     else:
 #         return float_str
-def plot_for_movie2(it,verbose=False):
-    t, rs, ds, cthetas, val = _load_data(ir=it, v_n="mom",verbose=verbose)
+def plot_for_movie2(it,verbose=False,skip=True,outdir="plots_sparse/",dfile_name="magnetar_driven_ej.h5"):
+    if (not os.path.isdir(curdir + outdir)):
+        os.mkdir(curdir + outdir)
+    fname = curdir + outdir + ("{:d}.png".format(it)).rjust(10,"0")
+    if (os.path.isfile(fname) and skip):
+        if verbose: print(f"File already exists {fname}")
+        return 0
+    # -----------------------------------------------------------
+    dfile_ej = h5py.File(curdir+dfile_name)
+
+    t, rs, ds, cthetas, val = _load_data(dfile_ej=dfile_ej, ir=it, v_n="mom",verbose=verbose)
     nshells = rs.shape[1]
     nlayers = rs.shape[0]
     # heights = ds
@@ -594,10 +604,11 @@ def plot_for_movie2(it,verbose=False):
 
     ax.set_title('time='+r"${}$ s.".format(latex_float(t.max())))
     plt.subplots_adjust(left=0.15,right=0.80,bottom=0.05,top=0.9)
-    fname = ("{:d}.png".format(it)).rjust(10,"0")
-    print("Saving: {}".format(fname))
-    plt.savefig(curdir+"plots/"+fname,dpi=256)
+    # fname = ("{:d}.png".format(it)).rjust(10,"0")
+    print(f"Saving: {fname}")
+    plt.savefig(fname,dpi=256)
     # plt.show()
+    plt.close(fig)
     return 0
     # exit(1)
 
@@ -1173,6 +1184,11 @@ def plot_for_movie3(ir):
 
 if __name__ == '__main__':
     # plot_ejecta_dyn_evol_for_movie()
-    for it in range(5000):
-        plot_for_movie2(it)
+    # for it in range(5000):
+    #     plot_for_movie2(it,verbose=False,skip=True)
     # plot_for_movie3(ir=100)
+
+    pool = multiprocessing.Pool(processes=6)
+    pool.map(plot_for_movie2, range(5000))
+    pool.close()
+    pool.join()
