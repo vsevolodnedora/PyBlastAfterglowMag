@@ -30,6 +30,10 @@ struct Image {
     size_t m_n_vn = 0;
     VecVector m_data {};
     std::unique_ptr<logger> p_log;
+    size_t ia, ib, nu_ia, nu_ib;
+    double theta=0.,phi=0.,r=0.,ctheta=0.,mu=0.;
+    double flux_dens=0.;
+    double t_obs, nu_obs;
     Image(size_t size, size_t n_vn, double fill_value, unsigned loglevel=LOG_DEBUG){
         m_n_vn=n_vn;
 //        p_log = new logger(std::cout, loglevel, "Image");
@@ -178,132 +182,6 @@ struct Images{
     std::vector<std::unique_ptr<Image>> & getImgs(){return m_images;}
     std::unique_ptr<Image> & getImg(size_t i){return m_images[i];}
     Image & getImgRef(size_t i){return * m_images[i];}
-};
-
-struct ImageOLD {
-
-//    std::vector<std::string> m_names{"theta", "phi", "r", "theta_j", "theta0", "mu", "xrs", "yrs", "gamma", "fluxes", "intensity", "gm", "gc", "B", "tburst", "tt"};
-    std::vector<std::string> m_names{"mu", "xrs", "yrs", "intensity"};
-//    enum Q { itheta, iphi, ir, itheta_j, itheta0, imu, ixr, iyr, igam, iflux, iintens, igm, igc, iB, itburst, itt };
-    enum Q {imu, ixr, iyr, iintens};
-
-    VecVector m_data {};
-    std::unique_ptr<logger> p_log;
-    explicit ImageOLD(size_t size=1, double fill_value=0., unsigned loglevel=LOG_DEBUG) {
-//        p_log = new logger(std::cout, loglevel, "Image");
-        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "Image");
-//        std::cerr << " creating image...\n";
-        if (size < 1){
-            (*p_log)(LOG_ERR,AT) << " required image size < 1 = "<< size << "\n";
-//            std::throw_with_nested("error");
-            throw std::runtime_error("error");
-            exit(1);
-        }
-        m_size = size;
-//        m_data.clear();
-        m_data.resize(m_names.size());
-        for (auto & arr : m_data){
-            arr.resize(size, fill_value);
-        }
-
-//            m_size = size;
-//            m_intens.resize(m_size, fill_value );
-//            m_xrs.resize( m_size, fill_value );
-//            m_yrs.resize( m_size, fill_value );
-//            m_rrs.resize( m_size, fill_value );
-//            m_grs.resize( m_size, fill_value );
-//            m_mu.resize( m_size, fill_value );
-//            m_theta_j.resize( m_size, fill_value );
-//            m_thetas.resize( m_size, fill_value );
-//            m_phis.resize( m_size, fill_value );
-        m_f_tot = 0.0;
-    }
-    ~ImageOLD(){
-//        std::cerr << AT << " deleting image...\n";
-//        delete p_log;
-    }
-
-    void resize(size_t size, double fill_value=0.){
-        m_size = size;
-        for (auto & arr : m_data){
-            std::destroy(arr.begin(), arr.end());
-        }
-        m_data.resize(m_names.size());
-        for (auto & arr : m_data){
-            if (arr.size() != size) {
-                arr.resize(size);
-                std::fill(arr.begin(), arr.end(), fill_value);
-            }
-            else{
-                std::fill(arr.begin(), arr.end(), fill_value);
-            }
-        }
-    }
-
-    void clearData(){
-        if ((m_size == 0)||(m_data.empty())||(m_data[0].empty())){
-            (*p_log)(LOG_ERR,AT) << "cannot clean empty image\n";
-            exit(1);
-        }
-        for (auto & arr : m_data){
-            std::fill(arr.begin(), arr.end(), 0.0);
-        }
-    }
-
-    Vector & gerArr(size_t ivn){ return m_data[ivn]; }
-    VecVector & getAllArrs(){ return m_data; }
-    inline Vector & operator[](size_t iv_n){ return this->m_data[iv_n]; }
-    inline double & operator()(size_t iv_n, size_t ii){
-//        if(iv_n > m_names.size()-1){
-//            if (USELOGGER){ (*p_log)(LOG_ERR) << " Access beyong memory index="<<ii<<" is above max="<<m_size-1<<"\n"; }
-//            else{
-//                std::cout << AT << " Access beyong memory index="<<iv_n<<" is above name_max="<<m_names.size()-1<<"\n";
-//            }
-//            exit(1);
-//        }
-//        if (ii > m_size-1){
-//            if (USELOGGER){ (*p_log)(LOG_ERR) << " Access beyong memory index="<<ii<<" is above max="<<m_size-1<<"\n"; }
-//            else{ std::cout << AT << " Access beyong memory index="<<ii<<" is above max="<<m_size-1<<"\n"; }
-//            exit(1);
-//        }
-        return this->m_data[iv_n][ii];
-    }
-    VecVector getData(){
-        if ((m_data.empty()) || (m_size == 0)){
-            (*p_log)(LOG_ERR, AT) << " no data in the image. Exiting...";
-            std::cerr << AT << "\n";
-            exit(1);
-        }
-        if(m_data.size() != m_names.size()){
-            (*p_log)(LOG_ERR, AT) << " something is wrong with the image. Exiting...";
-            std::cerr << AT << "\n";
-            exit(1);
-        }
-//        std::cout << " Reallocating [" << m_data.size() << ", " << m_data[0].size() << "]" << "\n";
-        VecVector tmp;//(m_names.size(), Vector(m_size));
-        tmp.resize(m_names.size());
-        for(size_t i = 0; i < m_names.size(); i++){
-            tmp[i].resize(m_size);
-            for (size_t j = 0; j < m_size; j++){
-                tmp[i][j] = m_data[i][j];
-            }
-        }
-        return std::move( tmp );
-    }
-
-    double m_f_tot{}; // total flux density in the image (in mJy) aka
-    // J * (1.0 + z) / (2.0 * d_l * d_l) * CGS::cgs2mJy
-    size_t m_size = 0;
-//        Array m_thetas;
-//        Array m_phis;
-//        Array m_theta_j;
-//        Array m_intens;
-//        Array m_xrs;
-//        Array m_yrs;
-//        Array m_rrs;
-//        Array m_grs;
-//        Array m_mu;
-
 };
 
 void combineImages(Image & image, size_t ncells, size_t nlayers, Images & images){

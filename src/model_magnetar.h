@@ -1234,6 +1234,7 @@ private: // -------- RADIATION ----------
 
 public:
     static void fluxDensPW(double & flux_dens, double & r, double & ctheta,
+                           double phi, double theta,
                            size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
                            Vector ttobs, void * params){
         auto * p_pars = (struct Pars *) params;

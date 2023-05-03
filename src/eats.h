@@ -211,18 +211,19 @@ class EATS{
         Vector ttobs{}; // for PW eats only
         // -----------------------------
         void (* fluxFunc)(
-                double & flux_dens, double & r, double & ctheta,
-                size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
-                Vector ttobs, void * params
+                //double & flux_dens, double & r, double & ctheta,
+                //size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
+                Image & im, Vector & ttobs, void * params
                 ) = nullptr;
         void (* funcOptDepth)(
-                double & tau_Compton, double & tau_BH, double & tau_bf, double & r, double & ctheta,
-                size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
-                Vector ttobs, void * params
+                //double & tau_Compton, double & tau_BH, double & tau_bf, double & r, double & ctheta,
+                //size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
+                Image & im, Vector & ttobs, void * params
                 ) = nullptr;
         void (* fluxFuncA)(
-                double & flux_dens, double & r, double & ctheta,
-                size_t ia, size_t ib, double mu, double t_e, double t_obs, double nu_obs, void * params
+                // double & flux_dens, double & r, double & ctheta,
+                // size_t ia, size_t ib, double mu, double t_e, double t_obs, double nu_obs,
+                Image & im, void * params
                 ) = nullptr;
         // --- for adaptive quad. method
         int nmax_phi=-1, nmax_theta=-1;
@@ -252,6 +253,8 @@ class EATS{
 //        Vector m_synch_abs{};
         size_t i0_failed_elecctrons = 0;
         long n_fialed_electrons = 0;
+        /// ---------------------------------------------------
+//        double flux_dens=0., r=0., ctheta=0.,mu=0.,;
     };
     std::unique_ptr<logger> p_log;
     Pars * p_pars{};
@@ -282,19 +285,19 @@ public:
         p_pars->setEatsPars(pars,opts,nlayers,ctheta0,
                             theta_c_l,theta_c_h,theta_w,theta_max);
     }
-    void setFluxFunc(void (* fluxFunc)( double & flux_dens, double & r, double & ctheta,
-                                        size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
-                                        Vector ttobs, void * params )){
+    void setFluxFunc(void (* fluxFunc)( //double & flux_dens, double & r, double & ctheta,
+                                        //size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
+                                        Image & im, Vector & ttobs, void * params )){
         p_pars->fluxFunc = fluxFunc;
     }
-    void setFuncOptDepth(void (* funcOptDepth)( double & tau_Compton, double & tau_BH, double & tau_bf, double & r, double & ctheta,
-                                                size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
-                                                Vector ttobs, void * params)){
+    void setFuncOptDepth(void (* funcOptDepth)( //double & tau_Compton, double & tau_BH, double & tau_bf, double & r, double & ctheta,
+                                                //size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
+                                                Image & im, Vector & ttobs, void * params)){
         p_pars->funcOptDepth = funcOptDepth;
     }
-    void setFluxFuncA(void (* fluxFuncA)( double & flux_dens, double & r, double & ctheta,
-                                          size_t ia, size_t ib, double mu, double t_e,
-                                          double t_obs, double nu_obs, void * params )){
+    void setFluxFuncA(void (* fluxFuncA)( //double & flux_dens, double & r, double & ctheta,
+                                          //size_t ia, size_t ib, double mu, double t_e, double t_obs, double nu_obs,
+                                          Image & im, void * params )){
         p_pars->fluxFuncA = fluxFuncA;
     }
     /// ----------------------------------------------------------------------------------------------
@@ -357,6 +360,9 @@ public:
         parsPars(t_obs, nu_obs, 0., 0., 0., 0., obs_angle);
         check_pars();
 
+        image.t_obs = t_obs;
+        image.nu_obs = nu_obs;
+
 //        Vector ttobs( p_pars->m_r.size(), std::numeric_limits<double>::max() );
         Vector cphis = EjectaID2::getCphiGridPW( p_pars->ilayer );
 
@@ -364,9 +370,9 @@ public:
         for (size_t i = 0; i < cphis.size(); i++) {
             double phi_cell = cphis[i];
             double ctheta_cell = p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
-            double mu = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
+            image.mu = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
             for (size_t i_ = 0; i_ < p_pars->m_i_end_r; i_++) {
-                p_pars->ttobs[i_] = p_pars->m_tt[i_] + p_pars->m_r[i_] / CGS::c * (1.0 - mu);
+                p_pars->ttobs[i_] = p_pars->m_tt[i_] + p_pars->m_r[i_] / CGS::c * (1.0 - image.mu);
             }
             /// check if req. obs time is outside of the evolved times (throw error)
             if (t_obs < p_pars->ttobs[0]) {
@@ -393,13 +399,13 @@ public:
                 continue;
             }
             /// locate closest evolution points to the requested obs. time
-            size_t ia = findIndex(t_obs, p_pars->ttobs, p_pars->ttobs.size());
-            if (ia >= p_pars->m_i_end_r - 1) continue; // ??
-            size_t ib = ia + 1;
+            image.ia = findIndex(t_obs, p_pars->ttobs, p_pars->ttobs.size());
+            if (image.ia >= p_pars->m_i_end_r - 1) continue; // ??
+            size_t ib = image.ia + 1;
             /// interpolate the exact radial position of the blast that corresponds to the req. obs time
-            double r = interpSegLog(ia, ib, t_obs, p_pars->ttobs, p_pars->m_r);
+            image.r = interpSegLog(image.ia, image.ib, t_obs, p_pars->ttobs, p_pars->m_r);
             //  double r = ( Interp1d(ttobs, m_data[BW::Q::iR] ) ).Interpolate(t_obs, mth );
-            if ((r <= 0.0) || (!std::isfinite(r))) {
+            if ((image.r <= 0.0) || (!std::isfinite(image.r))) {
                 (*p_log)(LOG_ERR, AT) << " R <= 0. Extend R grid (increasing R0, R1). "
                                       << " Current R grid us ["
                                       << p_pars->m_r[0] << ", "
@@ -412,30 +418,32 @@ public:
             }
             /// ----------------------------------------------------
             if (image.m_n_vn==IMG::m_names.size()) {
-                double flux_dens;
-                double ctheta;
-                p_pars->fluxFunc(flux_dens, r, ctheta, ia, ib, mu, t_obs, nu_obs, p_pars->ttobs, p_pars->m_params);
+//                double flux_dens;
+//                double ctheta;
+                p_pars->fluxFunc(//flux_dens, r, ctheta, ia, ib, mu, t_obs, nu_obs,
+                                 image, p_pars->ttobs, p_pars->m_params);
                 /// ----------------------------------------------------
-                flux += flux_dens;
+                flux += image.flux_dens;
                 image(IMG::Q::iintens, i) =
-                        flux_dens / (r * r * std::abs(mu)) *
+                        image.flux_dens / (image.r * image.r * std::abs(image.mu)) *
                         CGS::cgs2mJy; //(obs_flux / (delta_D * delta_D * delta_D)); //* tmp;
-                image(IMG::Q::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
-                image(IMG::Q::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
-                image(IMG::Q::imu, i) = mu;
+                image(IMG::Q::ixr, i) = image.r * im_xxs(image.ctheta, phi_cell, p_pars->theta_obs);
+                image(IMG::Q::iyr, i) = image.r * im_yys(image.ctheta, phi_cell, p_pars->theta_obs);
+                image(IMG::Q::imu, i) = image.mu;
             }
             if (image.m_n_vn==IMG_TAU::m_names.size()) {
-                double ctheta;
-                double tau_Compton,tau_BH,tau_bf;
-                p_pars->funcOptDepth(tau_Compton, tau_BH, tau_bf, r, ctheta,
-                                     ia, ib, mu, t_obs, nu_obs, p_pars->ttobs, p_pars->m_params);
+//                double ctheta;
+//                double tau_Compton,tau_BH,tau_bf;
+                p_pars->funcOptDepth(//tau_Compton, tau_BH, tau_bf, r, ctheta,
+                                     //ia, ib, mu, t_obs, nu_obs,
+                                     image, p_pars->ttobs, p_pars->m_params);
                 /// ----------------------------------------------------
                 image(IMG_TAU::Q::itau_comp, i) = tau_Compton;
                 image(IMG_TAU::Q::itau_bf, i) = tau_bf;
                 image(IMG_TAU::Q::itau_bh, i) = tau_BH;
-                image(IMG_TAU::Q::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
-                image(IMG_TAU::Q::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
-                image(IMG_TAU::Q::imu, i) = mu;
+                image(IMG_TAU::Q::ixr, i) = image.r * im_xxs(image.ctheta, phi_cell, p_pars->theta_obs);
+                image(IMG_TAU::Q::iyr, i) = image.r * im_yys(image.ctheta, phi_cell, p_pars->theta_obs);
+                image(IMG_TAU::Q::imu, i) = image.mu;
             }
 
         }

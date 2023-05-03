@@ -2687,9 +2687,9 @@ public:
         }
     }
 
-    static void optDepthPW(double & tau_Compton, double & tau_BH, double & tau_bf, double & r, double & ctheta,
-                           size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
-                           Vector ttobs, void * params){
+    static void optDepthPW(Image & im,//double & tau_Compton, double & tau_BH, double & tau_bf, double & r, double & ctheta,
+                           //size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
+                           Vector & ttobs, void * params){
 
         auto * p_pars = (struct Pars *) params;
         auto & m_data = p_pars->m_data;
@@ -2724,9 +2724,9 @@ public:
 
     }
 
-    static void fluxDensPW(double & flux_dens, double & r, double & ctheta,
-                    size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
-                    Vector ttobs, void * params){
+    static void fluxDensPW(Image & im,//double & flux_dens, double & r, double & ctheta,
+                           //size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
+                           Vector & ttobs, void * params){
 
         auto * p_pars = (struct Pars *) params;
         auto & m_data = p_pars->m_data;
@@ -2874,8 +2874,9 @@ public:
         }
     }
 
-    static void fluxDensA(double & flux_dens, double & r, double & ctheta,
-                          size_t ia, size_t ib, double mu, double t_e, double t_obs, double nu_obs, void * params){
+    static void fluxDensA(Image & im,//double & flux_dens, double & r, double & ctheta,
+                          //size_t ia, size_t ib, double mu, double t_e, double t_obs, double nu_obs,
+                          void * params){
 
         auto * p_pars = (struct Pars *) params; // removing EATS_pars for simplicity
         auto & p_syna = p_pars->p_syna;//->getAnSynch();

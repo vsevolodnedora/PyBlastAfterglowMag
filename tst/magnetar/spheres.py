@@ -34,6 +34,13 @@ x = x1 + t2*dx
 y = y1 + t2*dy
 z = z1 + t2*dz
 
+r = np.sqrt(x**2 + y**2 + z**2)
+theta = np.arctan2(y, x)
+phi = np.arccos(z / r)
+
+print(f"Polar coordinates of intersection point: r={r}, theta={theta}, phi={phi}")
+
+
 # Plot the three spheres and the intersection point
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
