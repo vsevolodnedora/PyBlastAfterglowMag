@@ -107,6 +107,8 @@ public:
     inline Vector & getTauVec(){return m_data[Q::idtau]; }
     inline Vector & getTempVec(){return m_data[Q::itemp]; }
     inline Vector & getDeltaVec(){return m_data[Q::idelta]; }
+    inline Vector & getEthVec(){return m_data[Q::ieth]; }
+    inline Vector & getVolVec(){return m_data[Q::ivol]; }
     // -----------------------
     std::unique_ptr<BlastWave> & getBW(size_t ish){
         if (p_bws.empty()){
@@ -1514,16 +1516,95 @@ public:
 //        p_pars->is_ejecta_obs_pars_set = true;
     }
 
-    void evalOptDepthsAlongLineOfSight(double & frac, double mu, double time, double freq){
+    void evalOptDepthsAlongLineOfSight(double & frac,
+                                       double phi, double theta, double r,
+                                       double phi_obs, double theta_obs, double r_obs,
+                                       double mu, double time, double freq){
+
+        // Convert spherical coordinates to Cartesian coordinates
+        double x1 = r * std::sin(phi) * std::cos(theta);
+        double y1 = r * std::sin(phi) * std::sin(theta);
+        double z1 = r * std::cos(phi);
+
+        // do the same for observer
+        double x3 = r_obs * std::sin(phi_obs) * std::cos(theta_obs);
+        double y3 = r_obs * std::sin(phi_obs) * std::sin(theta_obs);
+        double z3 = r_obs * std::cos(phi_obs);
+
+        /// iterate over all layers and shells and find for each layer a shell that lies on the line of sight
         size_t nshells_ = nshells();
+        Vector ttobs{};
         Images images(nshells_, IMG_TAU::m_names.size());
-        double tau_comp=0.;
-        double tau_bh=0.;
-        double tau_pf=0.;
         for (size_t il = 0; il < nlayers(); il++){
             auto & cumshell = p_cumShells[il];
+            Vector cphis = EjectaID2::getCphiGridPW( il );
             for (size_t ish = 0; ish < cumshell->getPars()->n_active_shells; ish++){
+                auto & bw = cumshell->getBW(ish);
+                double cphi = 0. ; // We don't care about phi diretion due to symmetry
+                double ctheta_cell = bw->getPars()->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
+                double r_cell = bw->getFsEATS()->evalEatsR(time,theta_obs,ctheta_cell,cphi,obsAngle);
 
+                /// Calculate the direction vector of the line between the two points
+                double dx = x3 - x1;
+                double dy = y3 - y1;
+                double dz = z3 - z1;
+
+                // Calculate the intersection point of the line with the middle sphere
+                double a = dx*dx + dy*dy + dz*dz;
+                double b = 2 * (x1*dx + y1*dy + z1*dz);
+                double c = x1*x1 + y1*y1 + z1*z1 - r_cell*r_cell;
+                double disc = b*b - 4*a*c;
+                double t1 = (-b - std::sqrt(disc)) / (2*a);
+                double t2 = (-b + std::sqrt(disc)) / (2*a);
+                double x = x1 + t2*dx;
+                double y = y1 + t2*dy;
+                double z = z1 + t2*dz;
+
+                double r_ = std::sqrt(x*x + y*y + z*z);
+                double theta_ = std::atan(y/x);
+                double phi_ = std::acos(z / r);
+
+                
+
+                for (size_t i = 0; i < cphis.size(); i++) {
+                    double phi_cell = cphis[i];
+                    double ctheta_cell = bw->getPars()->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
+                    double mu = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
+                    for (size_t i_ = 0; i_ < p_pars->m_i_end_r; i_++) {
+                        p_pars->ttobs[i_] = p_pars->m_tt[i_] + p_pars->m_r[i_] / CGS::c * (1.0 - mu);
+                    }
+                    /// check if req. obs time is outside of the evolved times (throw error)
+                    if (t_obs < p_pars->ttobs[0]) {
+                        (*p_log)(LOG_ERR, AT) << " time grid starts too late "
+                                              << " t_grid[0]=" << p_pars->ttobs[0] << " while requested obs.time="
+                                              << t_obs << "\n"
+                                              << " extend the grid to earlier time or request tobs at later times\n"
+                                              << " Exiting...\n";
+                        exit(1);
+                    }
+                    if ((p_pars->m_i_end_r == p_pars->nr) && (t_obs > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
+                        (*p_log)(LOG_ERR, AT) << " time grid ends too early. "
+                                              << " t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
+                                              << " while requested obs.time=" << t_obs << "\n"
+                                              << " extend the grid to later time or request tobs at earlier times\n"
+                                              << " Exiting...\n";
+//                    std::cout << ttobs << std::endl;
+                        exit(1);
+                    } else if ((p_pars->m_i_end_r < p_pars->nr) && (t_obs > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
+                        (*p_log)(LOG_WARN, AT) << " time grid was shorten to i=" << p_pars->m_i_end_r
+                                               << " from nr=" << p_pars->nr
+                                               << " and now ends at t_grid[i_end_r-1]="
+                                               << p_pars->ttobs[p_pars->m_i_end_r - 1]
+                                               << " while t_obs=" << t_obs << "\n";
+                        continue;
+                    }
+                    /// locate closest evolution points to the requested obs. time
+                    size_t ia = findIndex(t_obs, p_pars->ttobs, p_pars->ttobs.size());
+                    if (ia >= p_pars->m_i_end_r - 1) continue; // ??
+                    size_t ib = ia + 1;
+                    /// interpolate the exact radial position of the blast that corresponds to the req. obs time
+                    double r = interpSegLog(ia, ib, t_obs, p_pars->ttobs, p_pars->m_r);
+                }
             }
         }
 

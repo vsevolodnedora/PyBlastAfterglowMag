@@ -1234,9 +1234,8 @@ private: // -------- RADIATION ----------
 
 public:
     static void fluxDensPW(double & flux_dens, double & r, double & ctheta,
-                           double phi, double theta,
-                           size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
-                           Vector ttobs, void * params){
+                           double phi, double theta, size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
+                           Vector & ttobs, void * params){
         auto * p_pars = (struct Pars *) params;
         auto & p_ej = p_pars->p_ej;
         auto & p_bw = p_ej->getShells()[p_pars->ilayer]->getBWs()[p_pars->ishell];
@@ -1244,6 +1243,8 @@ public:
         auto & m_data = p_pars->m_data;
 //        if (p_pars->i_end_r==0)
 //            return;
+
+
 
         double Gamma = interpSegLog(ia, ib, t_obs, ttobs, m_data[PWN::Q::iGamma]);
         double b_pwn = interpSegLog(ia, ib, t_obs, ttobs, m_data[PWN::Q::iB]);
@@ -1261,7 +1262,10 @@ public:
         double spec = PWNradiationMurase::spec_non_thermal(nu_erg, b_pwn, gamma_b, temp);
 
         double tau_comp, tau_bh, tau_bf,f_gamma_esc_x;
-        p_ej->evalOptDepthsAlongLineOfSight(f_gamma_esc_x, mu,t_obs,nuprime);
+        p_ej->evalOptDepthsAlongLineOfSight(f_gamma_esc_x,
+                                            phi, theta, r,
+                                            0., p_pars->theta_obs, p_pars->d_l,
+                                            mu,t_obs,nuprime);
         double lum = p_pars->eps_e*(l_dip+l_acc)*spec*f_gamma_esc_x*nu_erg;
         int x = 1;
     }

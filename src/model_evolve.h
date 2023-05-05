@@ -592,6 +592,29 @@ private:
         }
     }
 
+    bool checkIfLateralShiftIsNeeded(){
+        for (size_t il = 0; il < p_pars->p_ej->nlayers()-1; il++){
+//            auto & cumshell_jm1 = p_pars->p_ej->getShells()[il];
+            auto & cumshell_j = p_pars->p_ej->getShells()[il];
+            auto & cumshell_jp1 = p_pars->p_ej->getShells()[il+1];
+            if (cumshell_j->getPars()->n_active_shells > 2 && cumshell_jp1->getPars()->n_active_shells > 2){
+                if( (cumshell_j->getRvec()[0] > cumshell_jp1->getRvec()[0]) &&
+                    (cumshell_j->getRvec()[0] > cumshell_jp1->getRvec()[1]) ){
+                    double p_int = cumshell_j->getEthVec()[0] / cumshell_j->getVolVec()[0];
+                    double lum = cumshell_j->getBWs()[cumshell_j->getIdx()[0]]->getPars()->dEinjdt;
+                    double r = cumshell_j->getRvec()[0];
+                    double p_rad = lum / (4. * CGS::pi * r * r * CGS::c);
+                    std::cout << "p_rad/p_int = " << p_rad/p_int << "\n";
+                    std::cout << "cumshell_j->getRvec()[0]="<<cumshell_j->getRvec()[0]
+                        <<" cumshell_jp1->getRvec()[0]="<<cumshell_jp1->getRvec()[0]
+                        <<" cumshell_jp1->getRvec()[1]="<<cumshell_jp1->getRvec()[1]
+                        <<"\n";
+                    int x = 1;
+                    }
+            }
+        }
+        return true;
+    }
 
 private:
     static void updateEnergyInjectionToEjectaBWs(double ldip, double lacc, double * Y, void * pars){
@@ -1062,6 +1085,9 @@ private:
         if (p_pars->p_ej->run_bws && (!is_updated))
             ejectaUpdate(t_grid[ix], ix, m_CurSol);
 
+//        bool is_laterly_sorted = true;
+//        if ((p_pars->p_ej->run_bws)&&(true)&&(p_pars->p_ej->nMaxActiveShells())>1)
+//            is_laterly_sorted = checkIfLateralShiftIsNeeded();
 
         /// --- Log main results of the integration
         double time_took = timer.checkPoint();
