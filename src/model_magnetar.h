@@ -1244,12 +1244,10 @@ public:
 //        if (p_pars->i_end_r==0)
 //            return;
 
-
-
         double Gamma = interpSegLog(ia, ib, t_obs, ttobs, m_data[PWN::Q::iGamma]);
         double b_pwn = interpSegLog(ia, ib, t_obs, ttobs, m_data[PWN::Q::iB]);
         double temp = interpSegLog(ia, ib, t_obs, ttobs, p_bw->getData(BW::Q::iEJtemp));
-        double tburst = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::itburst]);
+        double tburst = interpSegLog(ia, ib, t_obs, ttobs, m_data[PWN::Q::itburst]);
         double l_dip = p_mag->getMagValInt(MAG::Q::ildip, tburst);
         double l_acc = p_mag->getMagValInt(MAG::Q::ilacc, tburst);
 
@@ -1261,11 +1259,15 @@ public:
         double gamma_b = 1.0e5; /* break Lorentz factor of electron injection spectrum */
         double spec = PWNradiationMurase::spec_non_thermal(nu_erg, b_pwn, gamma_b, temp);
 
-        double tau_comp, tau_bh, tau_bf,f_gamma_esc_x;
+        double f_gamma_esc_x=0.;
+        ///double & frac, double ctheta, double r,
+        //                                       double phi, double theta,
+        //                                       double phi_obs, double theta_obs, double r_obs,
+        //                                       double mu, double time, double freq, void * params
         p_ej->evalOptDepthsAlongLineOfSight(f_gamma_esc_x,
-                                            phi, theta, r,
-                                            0., p_pars->theta_obs, p_pars->d_l,
-                                            mu,t_obs,nuprime);
+                                            ctheta, r, CGS::pi/4., theta,
+                                            CGS::pi/4., p_pars->theta_obs, p_pars->d_l,
+                                            mu,t_obs,nuprime,params);
         double lum = p_pars->eps_e*(l_dip+l_acc)*spec*f_gamma_esc_x*nu_erg;
         int x = 1;
     }

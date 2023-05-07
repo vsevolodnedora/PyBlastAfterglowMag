@@ -1516,10 +1516,12 @@ public:
 //        p_pars->is_ejecta_obs_pars_set = true;
     }
 
-    void evalOptDepthsAlongLineOfSight(double & frac,
-                                       double phi, double theta, double r,
+
+
+    void evalOptDepthsAlongLineOfSight(double & frac, double ctheta, double r,
+                                       double phi, double theta,
                                        double phi_obs, double theta_obs, double r_obs,
-                                       double mu, double time, double freq){
+                                       double mu, double time, double freq, void * params){
 
         // Convert spherical coordinates to Cartesian coordinates
         double x1 = r * std::sin(phi) * std::cos(theta);
@@ -1531,31 +1533,87 @@ public:
         double y3 = r_obs * std::sin(phi_obs) * std::sin(theta_obs);
         double z3 = r_obs * std::cos(phi_obs);
 
+        /// Calculate the direction vector of the line between the two points
+        double dx = x3 - x1;
+        double dy = y3 - y1;
+        double dz = z3 - z1;
+
         /// iterate over all layers and shells and find for each layer a shell that lies on the line of sight
-        size_t nshells_ = nshells();
-        Vector ttobs{};
-        Images images(nshells_, IMG_TAU::m_names.size());
+        double tau_comp=0., tau_BH=0., tau_bf=0.;
         for (size_t il = 0; il < nlayers(); il++){
             auto & cumshell = p_cumShells[il];
             Vector cphis = EjectaID2::getCphiGridPW( il );
-            for (size_t ish = 0; ish < cumshell->getPars()->n_active_shells; ish++){
+            if (cumshell->getPars()->n_active_shells==1){
+                (*p_log)(LOG_ERR,AT)<<" not implemented\n";
+                exit(1);
+            }
+            for (size_t ish = 0; ish < cumshell->getPars()->n_active_shells-1; ish++){
                 auto & bw = cumshell->getBW(ish);
+                size_t idx = ish;//cumshell->getIdx()[ish]; // TODO assume sorted shells (after evolution)
+                auto & bw_next = cumshell->getBW(ish+1);
+                size_t idx_next = ish+1;//cumshell->getIdx()[ish+1];// TODO assume sorted shells (after evolution)
+
+                if ((bw->getPars()->i_end_r==0)||(bw_next->getPars()->i_end_r==0))
+                    continue;
+
+                bw->getFsEATS()->parsPars(time, freq,
+                                          bw->getPars()->theta_c_l, bw->getPars()->theta_c_h,
+                                          0., M_PI, obsAngle);
+                bw->getFsEATS()->check_pars();
+
+                // get BW (a cell) properties
                 double cphi = 0. ; // We don't care about phi diretion due to symmetry
                 double ctheta_cell = bw->getPars()->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
-                double r_cell = bw->getFsEATS()->evalEatsR(time,theta_obs,ctheta_cell,cphi,obsAngle);
+#if 1
+                size_t ia=0, ib=0;
+                bw->getFsEATS()->evalEATSindexes(ia,ib,time,theta_obs, ctheta_cell,cphi,obsAngle);
+                Vector & ttobs = bw->getFsEATS()->getTobs();
+#endif
+                /// interpolate the exact radial position of the blast that corresponds to the req. obs time
+                double r_cell = interpSegLog(ia, ib, time, ttobs, bw->getData(BW::Q::iEJr));
+                double rho_ej_cell = interpSegLog(ia, ib, time, ttobs, bw->getData(BW::Q::iEJrho));
+                double delta_ej_cell = interpSegLog(ia, ib, time, ttobs, bw->getData(BW::Q::iEJdelta));
+                if ((rho_ej_cell<=0.)||(!std::isfinite(rho_ej_cell))||(delta_ej_cell<=0)||(!std::isfinite(delta_ej_cell))){
+                    (*p_log)(LOG_ERR,AT)<<" error in opt depth along line of sight\n";
+                    exit(1);
+                }
+                if ((r >= r_cell)){
+                    (*p_log)(LOG_ERR,AT) << "r > r_\n";
+                    continue;
+//                    exit(1);
+                }
 
-                /// Calculate the direction vector of the line between the two points
-                double dx = x3 - x1;
-                double dy = y3 - y1;
-                double dz = z3 - z1;
+                double e_gamma = freq*4.1356655385381E-15*CGS::EV_TO_ERG;
+                double mu_e = bw->getPars()->mu_e;
+                double Z_eff = bw->getPars()->Z_eff;
+                int opacitymode = bw->getPars()->opacitymode;
+                double albd_fac = bw->getPars()->albd_fac;
+
+
+
+                bw_next->getFsEATS()->parsPars(time, freq,
+                                          bw_next->getPars()->theta_c_l, bw_next->getPars()->theta_c_h,
+                                          0., M_PI, obsAngle);
+#if 1
+                bw_next->getFsEATS()->check_pars();
+                bw_next->getFsEATS()->evalEATSindexes(ia,ib,time,theta_obs, ctheta_cell,cphi,obsAngle);
+                ttobs = bw_next->getFsEATS()->getTobs();
+#endif
+                double r_cell_next =interpSegLog(ia,ib, time, ttobs, bw_next->getData(BW::Q::iEJr));
+
+                if ((r >= r_cell_next)){
+                    (*p_log)(LOG_ERR,AT) << "r > r_\n";
+                    continue;
+//                    exit(1);
+                }
 
                 // Calculate the intersection point of the line with the middle sphere
                 double a = dx*dx + dy*dy + dz*dz;
-                double b = 2 * (x1*dx + y1*dy + z1*dz);
+                double b = 2. * (x1*dx + y1*dy + z1*dz);
                 double c = x1*x1 + y1*y1 + z1*z1 - r_cell*r_cell;
-                double disc = b*b - 4*a*c;
-                double t1 = (-b - std::sqrt(disc)) / (2*a);
-                double t2 = (-b + std::sqrt(disc)) / (2*a);
+                double disc = b*b - 4.*a*c;
+                double t1 = (-b - std::sqrt(disc)) / (2.*a);
+                double t2 = (-b + std::sqrt(disc)) / (2.*a);
                 double x = x1 + t2*dx;
                 double y = y1 + t2*dy;
                 double z = z1 + t2*dz;
@@ -1564,62 +1622,99 @@ public:
                 double theta_ = std::atan(y/x);
                 double phi_ = std::acos(z / r);
 
-                
 
-                for (size_t i = 0; i < cphis.size(); i++) {
-                    double phi_cell = cphis[i];
-                    double ctheta_cell = bw->getPars()->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
-                    double mu = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
-                    for (size_t i_ = 0; i_ < p_pars->m_i_end_r; i_++) {
-                        p_pars->ttobs[i_] = p_pars->m_tt[i_] + p_pars->m_r[i_] / CGS::c * (1.0 - mu);
-                    }
-                    /// check if req. obs time is outside of the evolved times (throw error)
-                    if (t_obs < p_pars->ttobs[0]) {
-                        (*p_log)(LOG_ERR, AT) << " time grid starts too late "
-                                              << " t_grid[0]=" << p_pars->ttobs[0] << " while requested obs.time="
-                                              << t_obs << "\n"
-                                              << " extend the grid to earlier time or request tobs at later times\n"
-                                              << " Exiting...\n";
-                        exit(1);
-                    }
-                    if ((p_pars->m_i_end_r == p_pars->nr) && (t_obs > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
-                        (*p_log)(LOG_ERR, AT) << " time grid ends too early. "
-                                              << " t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
-                                              << " while requested obs.time=" << t_obs << "\n"
-                                              << " extend the grid to later time or request tobs at earlier times\n"
-                                              << " Exiting...\n";
-//                    std::cout << ttobs << std::endl;
-                        exit(1);
-                    } else if ((p_pars->m_i_end_r < p_pars->nr) && (t_obs > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
-                        (*p_log)(LOG_WARN, AT) << " time grid was shorten to i=" << p_pars->m_i_end_r
-                                               << " from nr=" << p_pars->nr
-                                               << " and now ends at t_grid[i_end_r-1]="
-                                               << p_pars->ttobs[p_pars->m_i_end_r - 1]
-                                               << " while t_obs=" << t_obs << "\n";
-                        continue;
-                    }
-                    /// locate closest evolution points to the requested obs. time
-                    size_t ia = findIndex(t_obs, p_pars->ttobs, p_pars->ttobs.size());
-                    if (ia >= p_pars->m_i_end_r - 1) continue; // ??
-                    size_t ib = ia + 1;
-                    /// interpolate the exact radial position of the blast that corresponds to the req. obs time
-                    double r = interpSegLog(ia, ib, t_obs, p_pars->ttobs, p_pars->m_r);
+                // Calculate the intersection point of the line with the middle sphere
+                double a_next = dx*dx + dy*dy + dz*dz;
+                double b_next = 2. * (x1*dx + y1*dy + z1*dz);
+                double c_next = x1*x1 + y1*y1 + z1*z1 - r_cell*r_cell;
+                double disc_next = b_next*b_next - 4.*a_next*c;
+                double t1_next = (-b_next - std::sqrt(disc_next)) / (2.*a_next);
+                double t2_next = (-b_next + std::sqrt(disc_next)) / (2.*a_next);
+                double x_next = x1 + t2_next*dx;
+                double y_next = y1 + t2_next*dy;
+                double z_next = z1 + t2_next*dz;
+
+                double r_next = std::sqrt(x_next*x_next + y_next*y_next + z_next*z_next);
+                double theta_next = std::atan(y_next/x_next);
+                double phi_next = std::acos(z_next / r_cell_next);
+
+                if (((theta_ > bw->getPars()->theta_c_l) && (theta_ <=bw->getPars()->theta_c_h)) &&
+                    ((theta_next > bw_next->getPars()->theta_c_l) && (theta_next <=bw_next->getPars()->theta_c_h))){
+                    /// --- optical depth due to compton scattering
+                    double Kcomp = PWNradiationMurase::sigma_kn(e_gamma)/mu_e/CGS::M_PRO;
+                    double tau_comp_ = rho_ej_cell*delta_ej_cell*Kcomp;
+                    tau_comp+=tau_comp_;
+                    /// optical depth of BH pair production
+                    double KBH = (1.0+Z_eff)*PWNradiationMurase::sigma_BH_p(e_gamma)/mu_e/CGS::M_PRO;
+                    double tau_BH_ = rho_ej_cell*delta_ej_cell*KBH;
+                    tau_BH+=tau_BH_;
+                    /// The photoelectric absorption at high energies is taken into account, using the bound–free opacity
+                    double Kbf = (1.0-albd_fac)*PWNradiationMurase::kappa_bf(e_gamma, Z_eff, opacitymode);
+                    double tau_bf_ = rho_ej_cell*delta_ej_cell*Kbf;
+                    tau_bf+=tau_bf_;
+
+//                    double tau_abs = (1.0+PWNradiationMurase::gamma_inelas_Compton(e_gamma))*(tau_BH+tau_bf);
+//                    double tau_eff = sqrt((tau_abs+tau_comp_)*tau_abs);
                 }
+
+                if (((theta_ > bw->getPars()->theta_c_l) && (theta_ <=bw->getPars()->theta_c_h)) &&
+                    ((theta_next < bw_next->getPars()->theta_c_l) || (theta_next > bw_next->getPars()->theta_c_h))){
+                    /// --- Bottom entrance only // TODO compute how much light travelled within this cell (not just 0.5!)
+                    /// --- optical depth due to compton scattering
+                    double Kcomp = PWNradiationMurase::sigma_kn(e_gamma)/mu_e/CGS::M_PRO;
+                    double tau_comp_ = rho_ej_cell*delta_ej_cell*Kcomp;
+                    tau_comp+=tau_comp_;
+                    /// optical depth of BH pair production
+                    double KBH = (1.0+Z_eff)*PWNradiationMurase::sigma_BH_p(e_gamma)/mu_e/CGS::M_PRO;
+                    double tau_BH_ = rho_ej_cell*delta_ej_cell*KBH;
+                    tau_BH+=tau_BH_;
+                    /// The photoelectric absorption at high energies is taken into account, using the bound–free opacity
+                    double Kbf = (1.0-albd_fac)*PWNradiationMurase::kappa_bf(e_gamma, Z_eff, opacitymode);
+                    double tau_bf_ = rho_ej_cell*delta_ej_cell*Kbf;
+                    tau_bf+=tau_bf_;
+                }
+
+                if (((theta_ < bw->getPars()->theta_c_l) || (theta_ > bw->getPars()->theta_c_h)) &&
+                    ((theta_next > bw_next->getPars()->theta_c_l) && (theta_next <= bw_next->getPars()->theta_c_h))){
+                    /// --- Top exit only // TODO compute how much light travelled within this cell (not just 0.5!)
+                    /// --- optical depth due to compton scattering
+                    double Kcomp = PWNradiationMurase::sigma_kn(e_gamma)/mu_e/CGS::M_PRO;
+                    double tau_comp_ = rho_ej_cell*delta_ej_cell*Kcomp;
+                    tau_comp+=tau_comp_;
+                    /// optical depth of BH pair production
+                    double KBH = (1.0+Z_eff)*PWNradiationMurase::sigma_BH_p(e_gamma)/mu_e/CGS::M_PRO;
+                    double tau_BH_ = rho_ej_cell*delta_ej_cell*KBH;
+                    tau_BH+=tau_BH_;
+                    /// The photoelectric absorption at high energies is taken into account, using the bound–free opacity
+                    double Kbf = (1.0-albd_fac)*PWNradiationMurase::kappa_bf(e_gamma, Z_eff, opacitymode);
+                    double tau_bf_ = rho_ej_cell*delta_ej_cell*Kbf;
+                    tau_bf+=tau_bf_;
+                }
+
+                if (((theta_ < bw->getPars()->theta_c_l) || (theta_ > bw->getPars()->theta_c_h)) &&
+                    ((theta_next < bw_next->getPars()->theta_c_l) || (theta_next > bw_next->getPars()->theta_c_h))){
+                    /// --- No intersection
+
+                }
+                std::cout << " tau_comp="<<tau_comp<<" tau_BH="<<tau_BH<<" tau_bf="<<tau_bf<<"\n";
+                int __x = 1;
             }
         }
+        /// Combine individual optical depths into fraction
+        double power_Compton=0.0;
+        if (tau_comp > 1.0)
+            power_Compton = tau_comp*tau_comp;
+        else
+            power_Compton = tau_comp;
 
-        computeEjectaSkyMapPieceWise( images, time, freq );
-        for (size_t i = 0; i < images.size(); i++){
-            /// find the layer within a shell that has the smallest 'distance' to the line of sight mu = 0
-
+        double e_gamma = freq*4.1356655385381E-15*CGS::EV_TO_ERG; // TODO this has to be red-shifted!
+        frac = exp(-(tau_BH+tau_bf))
+               * (exp(-(tau_comp)) + (1.0-exp(-(tau_comp)))
+                                         * pow(1.0-PWNradiationMurase::gamma_inelas_Compton(e_gamma),power_Compton));
+        if ((frac<0)||(frac>1)||!std::isfinite(frac)){
+            (*p_log)(LOG_ERR,AT)<<" wrong value: frac="<<frac<<"\n";
+            exit(1);
         }
-
-
-//        std::vector<double> tau_comp(images.size());
-//        std::vector<double> tau_bh(images.size());
-//        std::vector<double> tau_comp(images.size());
-
-
     }
 
     void computeSaveEjectaSkyImagesAnalytic(std::string workingdir, std::string fname, Vector times, Vector freqs,

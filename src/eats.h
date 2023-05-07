@@ -7,6 +7,7 @@
 
 #include "utilitites/pch.h"
 #include "utilitites/utils.h"
+#include "blastwave.h"
 #include "blastwave_components.h"
 #include "utilitites/interpolators.h"
 #include "utilitites/ode_solvers.h"
@@ -43,7 +44,6 @@ class EATS{
             : m_tburst(tburst), m_tt(tt),  m_r(r), m_theta(theta), m_gam(m_gam), m_bet(m_bet),
               m_freq_arr(freq_arr), m_synch_em(synch_em), m_synch_abs(synch_abs), m_i_end_r(i_end_r),
               m_params(params) {
-
             ishell = ish;
             ilayer= il;
             m_i_end_r = i_end_r;
@@ -59,14 +59,14 @@ class EATS{
         double ctheta0 = -1.;
 //        inline Vector & operator[](BW::Q ivn){ return this->m_data[ivn]; }
 //        inline double & operator()(BW::Q ivn, size_t ir){ return this->m_data[ivn][ir]; }
-        Vector getTbGrid(size_t every_it) {
-            if ((every_it == 1)||(every_it==0)) return  m_tburst;
-            Vector tmp{};
-            for (size_t it = 0; it < nr; it = it + every_it){
-                tmp.push_back(m_tburst[it]);
-            }
-            return std::move(tmp);
-        }
+//        Vector getTbGrid(size_t every_it) {
+//            if ((every_it == 1)||(every_it==0)) return  m_tburst;
+//            Vector tmp{};
+//            for (size_t it = 0; it < nr; it = it + every_it){
+//                tmp.push_back(m_tburst[it]);
+//            }
+//            return std::move(tmp);
+//        }
         /// -----------------------------------------------------------------------------
         void parsPars(double t_obs_, double nu_obs_,
                       double theta_cone_low, double theta_cone_hi, double phi_low, double phi_hi,
@@ -88,19 +88,20 @@ class EATS{
                 std::cerr << AT<< " empty array\n";
                 exit(1);
             }
-            nr = m_tburst.size();
+//            nr = m_tburst.size();
+
             m_mu.resize(m_tburst.size());
 //        p_eats->nr = p_pars->nr; // removing EATS_pars for simplicity
-            for (size_t i = 0; i < nr; i++)
+            for (size_t i = 0; i < m_i_end_r; i++)
                 m_mu[i] = ( m_tburst[i] - t_obs / (1.0 + z) ) / m_r[i] * CGS::c;
 
-            if(m_mu[nr - 1] < 1. ){
-                std::cout << m_tburst << "\n";
-                std::cout << m_r << "\n";
-                (*p_log)(LOG_WARN,AT) << " mu[-1]=" <<m_mu[nr - 1] << " < 1 (expected >1) "
+            if(m_mu[m_i_end_r - 1] < 1. ){
+//                std::cout << m_tburst << "\n";
+//                std::cout << m_r << "\n";
+                (*p_log)(LOG_WARN,AT) << " mu[-1]=" <<m_mu[m_i_end_r - 1] << " < 1 (expected >1) "
                                       << " tobs=" << t_obs
-                                      << " tbutst[-1]=" << m_tburst[nr - 1]
-                                      << " R[nr-1]=" << m_r[nr - 1]
+                                      << " tbutst[-1]=" << m_tburst[m_i_end_r - 1]
+                                      << " R[nr-1]=" << m_r[m_i_end_r - 1]
                                       << "\n";
             }
             if(m_mu[0] > 1. ){
@@ -211,17 +212,18 @@ class EATS{
         Vector ttobs{}; // for PW eats only
         // -----------------------------
         void (* fluxFunc)(
-                double & flux_dens, double & r, double & ctheta,
+                double & flux_dens, double & r, double & ctheta, double theta, double phi,
                 size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
                 Vector & ttobs, void * params
                 ) = nullptr;
-        void (* funcOptDepth)(
-                double & tau_Compton, double & tau_BH, double & tau_bf, double & r, double & ctheta,
-                size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
-                Vector & ttobs, void * params
-                ) = nullptr;
+//        void (* funcOptDepth)(
+//                double & frac, double ctheta, double r,
+//                double phi, double theta,
+//                double phi_obs, double theta_obs, double r_obs,
+//                double mu, double time, double freq, void * params
+//                ) = nullptr;
         void (* fluxFuncA)(
-                double & flux_dens, double & r, double & ctheta,
+                double & flux_dens, double & r, double & ctheta, double theta, double phi,
                 size_t ia, size_t ib, double mu, double t_e, double t_obs, double nu_obs,
                 void * params
                 ) = nullptr;
@@ -247,7 +249,8 @@ class EATS{
         bool counter_jet = true;
         int spread_method = 1; // TODO this is the only option!
         long nevals = 0; // counter for how many times the integrand was evaluated
-        size_t nr = 0;
+//        size_t nr = 0;
+        size_t n_tburst = 0;
 //        Vector m_freq_arr{};
 //        Vector m_synch_em{};
 //        Vector m_synch_abs{};
@@ -258,7 +261,7 @@ class EATS{
     };
     std::unique_ptr<logger> p_log;
     Pars * p_pars{};
-private:
+public:
     /// for internal use inside the adaptive quadrature
     void parsPars(double t_obs, double nu_obs,
                   double theta_cone_low, double theta_cone_hi, double phi_low, double phi_hi,
@@ -285,17 +288,18 @@ public:
         p_pars->setEatsPars(pars,opts,nlayers,ctheta0,
                             theta_c_l,theta_c_h,theta_w,theta_max);
     }
-    void setFluxFunc(void (* fluxFunc)( double & flux_dens, double & r, double & ctheta,
+    void setFluxFunc(void (* fluxFunc)( double & flux_dens, double & r, double & ctheta, double theta, double phi,
                                         size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
                                         Vector & ttobs, void * params )){
         p_pars->fluxFunc = fluxFunc;
     }
-    void setFuncOptDepth(void (* funcOptDepth)(double & tau_Compton, double & tau_BH, double & tau_bf, double & r, double & ctheta,
-                                               size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
-                                               Vector & ttobs, void * params)){
-        p_pars->funcOptDepth = funcOptDepth;
-    }
-    void setFluxFuncA(void (* fluxFuncA)(double & flux_dens, double & r, double & ctheta,
+//    void setFuncOptDepth(void (* funcOptDepth)(double & frac, double ctheta, double r,
+//                                               double phi, double theta,
+//                                               double phi_obs, double theta_obs, double r_obs,
+//                                               double mu, double time, double freq, void * params)){
+//        p_pars->funcOptDepth = funcOptDepth;
+//    }
+    void setFluxFuncA(void (* fluxFuncA)(double & flux_dens, double & r, double & ctheta, double theta, double phi,
                                          size_t ia, size_t ib, double mu, double t_e, double t_obs, double nu_obs,
                                          void * params )){
         p_pars->fluxFuncA = fluxFuncA;
@@ -338,9 +342,20 @@ public:
 //        std::cout<<image.m_f_tot<<"\n";
     }
 
-    double evalEatsR(double t_obs, double obs_angle, double ctheta_cell, double phi_cell,
-                     double (*obs_angle_func)( const double &, const double &, const double & )){
+    void evalEATSindexes(size_t ia, size_t ib,
+                           double t_obs, double obs_angle, double ctheta_cell, double phi_cell,
+                           double (*obs_angle_func)( const double &, const double &, const double & )){
         check_pars();
+
+//        if (p_pars->theta_obs < 0.){
+//            (*p_log)(LOG_ERR,AT)<<" theta_obs="<<p_pars->theta_obs<<"\n";
+//            exit(1);
+//        }
+        if (p_pars->m_i_end_r == 0){
+            (*p_log)(LOG_ERR,AT)<<" p_pars->m_i_end_r="<<p_pars->m_i_end_r<<"\n";
+            exit(1);
+        }
+
 //        double ctheta_cell = p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
         double mu = obs_angle_func(ctheta_cell, phi_cell, p_pars->theta_obs);
         for (size_t i_ = 0; i_ < p_pars->m_i_end_r; i_++) {
@@ -354,32 +369,31 @@ public:
                                   << " Exiting...\n";
             exit(1);
         }
-        if ((p_pars->m_i_end_r == p_pars->nr) && (t_obs > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
+        if ((t_obs > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
             (*p_log)(LOG_ERR, AT) << " time grid ends too early. "
                                   << " t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
                                   << " while requested obs.time=" << t_obs << "\n"
                                   << " extend the grid to later time or request tobs at earlier times\n"
                                   << " Exiting...\n";
 //                    std::cout << ttobs << std::endl;
-            exit(1);
+//            exit(1);
         }
-        else if ((p_pars->m_i_end_r < p_pars->nr) && (t_obs > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
-            (*p_log)(LOG_WARN, AT) << " time grid was shorten to i=" << p_pars->m_i_end_r
-                                   << " from nr=" << p_pars->nr
-                                   << " and now ends at t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
-                                   << " while t_obs=" << t_obs << "\n";
-            return -1;
-        }
+//        else if ((t_obs > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
+//            (*p_log)(LOG_WARN, AT) << " time grid was shorten to i=" << p_pars->m_i_end_r
+//                                   << " from nr=" << p_pars->m_i_end_r
+//                                   << " and now ends at t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
+//                                   << " while t_obs=" << t_obs << "\n";
+//            return;
+//        }
         /// locate closest evolution points to the requested obs. time
-        size_t ia = findIndex(t_obs, p_pars->ttobs, p_pars->ttobs.size());
-        if (ia >= p_pars->m_i_end_r - 1) -1; // ??
-        size_t ib = ia + 1;
-        /// interpolate the exact radial position of the blast that corresponds to the req. obs time
-        double r = interpSegLog(ia, ib, t_obs, p_pars->ttobs, p_pars->m_r);
+        ia = findIndex(t_obs, p_pars->ttobs, p_pars->ttobs.size());
+        if (ia >= p_pars->m_i_end_r - 1) return; // ??
+        ib = ia + 1;
 
         ///
-        return r;
+//        return r;
     }
+    Vector & getTobs(){ return p_pars->ttobs; }
 
     void evalImageFromPW(Image & image, double t_obs, double nu_obs,
                          double (*obs_angle)( const double &, const double &, const double & ),
@@ -422,18 +436,18 @@ public:
                                       << " Exiting...\n";
                 exit(1);
             }
-            if ((p_pars->m_i_end_r == p_pars->nr) && (t_obs > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
-                (*p_log)(LOG_ERR, AT) << " time grid ends too early. "
-                                      << " t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
-                                      << " while requested obs.time=" << t_obs << "\n"
-                                      << " extend the grid to later time or request tobs at earlier times\n"
-                                      << " Exiting...\n";
-//                    std::cout << ttobs << std::endl;
-                exit(1);
-            }
-            else if ((p_pars->m_i_end_r < p_pars->nr) && (t_obs > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
+//            if ((t_obs > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
+//                (*p_log)(LOG_ERR, AT) << " time grid ends too early. "
+//                                      << " t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
+//                                      << " while requested obs.time=" << t_obs << "\n"
+//                                      << " extend the grid to later time or request tobs at earlier times\n"
+//                                      << " Exiting...\n";
+////                    std::cout << ttobs << std::endl;
+//                exit(1);
+//            }
+            else if ((t_obs > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
                 (*p_log)(LOG_WARN, AT) << " time grid was shorten to i=" << p_pars->m_i_end_r
-                                       << " from nr=" << p_pars->nr
+                                       << " from nr=" << p_pars->m_i_end_r
                                        << " and now ends at t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
                                        << " while t_obs=" << t_obs << "\n";
                 continue;
@@ -449,18 +463,19 @@ public:
                 (*p_log)(LOG_ERR, AT) << " R <= 0. Extend R grid (increasing R0, R1). "
                                       << " Current R grid us ["
                                       << p_pars->m_r[0] << ", "
-                                      << p_pars->m_r[p_pars->nr - 1] << "] "
+                                      << p_pars->m_r[p_pars->m_i_end_r - 1] << "] "
                                       << "and tobs arr ["
-                                      << p_pars->ttobs[0] << ", " << p_pars->ttobs[p_pars->nr - 1]
+                                      << p_pars->ttobs[0] << ", " << p_pars->ttobs[p_pars->m_i_end_r - 1]
                                       << "] while the requried obs_time=" << p_pars->t_obs
                                       << "\n";
                 break;
             }
             /// ----------------------------------------------------
-            if (image.m_n_vn==IMG::m_names.size()) {
+//            if (image.m_n_vn==IMG::m_names.size()) {
                 double flux_dens;
                 double ctheta;
-                p_pars->fluxFunc(flux_dens, r, ctheta, ia, ib, mu, t_obs, nu_obs, p_pars->ttobs, p_pars->m_params);
+                p_pars->fluxFunc(flux_dens, r, ctheta, ctheta_cell, phi_cell,
+                                 ia, ib, mu, t_obs, nu_obs, p_pars->ttobs, p_pars->m_params);
                 /// ----------------------------------------------------
                 flux += flux_dens;
                 image(IMG::Q::iintens, i) =
@@ -469,20 +484,22 @@ public:
                 image(IMG::Q::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
                 image(IMG::Q::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
                 image(IMG::Q::imu, i) = mu;
-            }
-            if (image.m_n_vn==IMG_TAU::m_names.size()) {
-                double ctheta;
-                double tau_Compton,tau_BH,tau_bf;
-                p_pars->funcOptDepth(tau_Compton, tau_BH, tau_bf, r, ctheta,
-                                     ia, ib, mu, t_obs, nu_obs, p_pars->ttobs, p_pars->m_params);
-                /// ----------------------------------------------------
-                image(IMG_TAU::Q::itau_comp, i) = tau_Compton;
-                image(IMG_TAU::Q::itau_bf, i) = tau_bf;
-                image(IMG_TAU::Q::itau_bh, i) = tau_BH;
-                image(IMG_TAU::Q::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
-                image(IMG_TAU::Q::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
-                image(IMG_TAU::Q::imu, i) = mu;
-            }
+//            }
+//            if (image.m_n_vn==IMG_TAU::m_names.size()) {
+//                double ctheta;
+//                double tau_Compton,tau_BH,tau_bf;
+//                p_pars->funcOptDepth(double & frac, double ctheta, double r,
+//                        double phi, double theta,
+//                        double phi_obs, double theta_obs, double r_obs,
+//                        double mu, double time, double freq, p_pars->m_params);
+//                /// ----------------------------------------------------
+//                image(IMG_TAU::Q::itau_comp, i) = tau_Compton;
+//                image(IMG_TAU::Q::itau_bf, i) = tau_bf;
+//                image(IMG_TAU::Q::itau_bh, i) = tau_BH;
+//                image(IMG_TAU::Q::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
+//                image(IMG_TAU::Q::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
+//                image(IMG_TAU::Q::imu, i) = mu;
+//            }
 
         }
         image.m_f_tot = flux * CGS::cgs2mJy; /// flux in mJy
@@ -501,7 +518,7 @@ public:
                 Vector & light_curve, Vector & times, Vector & freqs ){
 //        Vector light_curve (times.size(), 0.0);
 //        auto & m_data = p_pars->m_data;
-        if ((p_pars->m_r[0] == 0.0) && (p_pars->m_r[p_pars->nr - 1] == 0.0)){
+        if ((p_pars->m_r[0] == 0.0) && (p_pars->m_r[p_pars->m_i_end_r - 1] == 0.0)){
             (*p_log)(LOG_WARN, AT)
                     << " blast wave not evolved, flux=0 [ishell="<<p_pars->ishell<<", ilayer="<<p_pars->ilayer<<"]\n";
             std::fill(light_curve.begin(), light_curve.end(),0.0);
@@ -617,7 +634,7 @@ private:
         auto & r_arr = p_pars->m_r;//m_data[BW::Q::itburst];
         auto & mu_arr = p_pars->m_mu;//m_data[BW::Q::itburst];
 
-        if (r_arr[0] == 0.0 && r_arr[p_pars->nr - 1] == 0.0){
+        if (r_arr[0] == 0.0 && r_arr[p_pars->m_i_end_r - 1] == 0.0){
             (*p_pars->p_log)(LOG_WARN, AT)
                     << " blast wave not evolved, flux=0 [ishell=" << p_pars->ishell << ", ilayer=" << p_pars->ilayer << "]\n";
             return 0.0;
@@ -631,11 +648,11 @@ private:
         p_pars->o_theta = a_theta;
 
 //        double dFnu = 0.;
-        size_t ia = findIndex(mu, mu_arr, p_pars->nr);
+        size_t ia = findIndex(mu, mu_arr, p_pars->m_i_end_r);
         size_t ib = ia + 1;
         /// interpolate the time in comobing frame that corresponds to the t_obs in observer frame
         double t_e = interpSegLin(ia, ib, mu, mu_arr, tburst);
-        t_e = check_emission_time(t_e, mu, p_pars->t_obs, mu_arr, (int) p_pars->nr);
+        t_e = check_emission_time(t_e, mu, p_pars->t_obs, mu_arr, (int) p_pars->m_i_end_r);
         if (t_e < 0.0) {
             // REMOVING LOGGER
             (*p_pars->p_log)(LOG_ERR,AT) << " t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";
@@ -644,7 +661,7 @@ private:
         }
         /// -----------------------------------------
         double flux_dens = 0, r = 0, ctheta=0.;
-        p_pars->fluxFuncA(flux_dens, r, ctheta,
+        p_pars->fluxFuncA(flux_dens, r, ctheta, a_theta, i_phi,
                           ia, ib, mu, t_e, p_pars->t_obs, p_pars->nu_obs, p_pars->m_params);
         /// ----------------------------------------
 #if 0
@@ -894,7 +911,7 @@ private:
         if (p_eats->spread_method == 1){
             th_1 = find_jet_edge(a_phi, p_eats->theta_obs,// p_eats->cos_theta_obs, p_eats->sin_theta_obs,
                                  theta_1, p_eats->m_mu, p_eats->m_theta,//m_data[BW::Q::itheta],
-                                 (int)p_eats->nr,
+                                 p_eats->m_mu.size(),
                                  p_eats->obsangle);
             double frac = theta_0 / theta_1;
             th_0 = frac * th_1;
