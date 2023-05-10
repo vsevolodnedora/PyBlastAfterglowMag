@@ -1192,3 +1192,5 @@ if __name__ == '__main__':
     pool.map(plot_for_movie2, range(5000))
     pool.close()
     pool.join()
+    os.chdir(curdir+"/plots_sparse/")
+    os.system("ffmpeg -framerate 20 -pattern_type glob -i '*.png' -c:v libx264 -pix_fmt yuv420p out.mp4")

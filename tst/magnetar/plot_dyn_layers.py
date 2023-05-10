@@ -179,7 +179,7 @@ def plot_ejecta_layers(ishells=(1,), ilayers=(0,10,22), v_n_x = "R", v_n_ys = ("
 # plot_ejecta_layers(ishells=([i for i in range(98)]), ilayers=(0,), v_n_x = "tburst", v_n_ys = (["R"]), colors_by="shell")
 
 def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
-                                v_n_x = "R", v_n_ys = ("rho", "mom"),
+                                v_n_x = "R", v_n_ys = ("rho"),
                                 pwn_v_n_ys = ("Epwn"),
                                 colors_by="layers",legend=False,
                                 scale = False, same_ax = False,
@@ -190,7 +190,7 @@ def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
         for i in ishells:
             layers.append("shell={} layer={}".format(i,j))
 
-    dfile = h5py.File(curdir+"magnetar_driven_ej_dens.h5", "r")
+    dfile = h5py.File(curdir+"magnetar_driven_ej.h5", "r")
     # print(dfile[list(dfile.keys())[0]].keys())
     dfile_pwn = h5py.File(curdir+"pwn.h5","r")
     # print(dfile_pwn[list(dfile_pwn.keys())[0]].keys())
@@ -202,7 +202,7 @@ def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
     fid, axes = plt.subplots(ncols=1, nrows=nrows, figsize=(6,6),sharex="all")
     if not hasattr(axes,"__len__"): axes = [axes]
     # norm = Normalize(vmin=0, vmax=dfile.attrs["nlayers"])
-    cmap = cm.viridis
+    cmap = cm.Reds_r
     mynorm = Normalize(vmin=0,vmax=len(ishells)*len(ilayers))#norm(len(ishells)*len(ilayers))
 
     for iv_n, v_n in enumerate(v_n_ys):
@@ -225,7 +225,7 @@ def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
             y_arr = y_arr[x_arr > 0]
             x_arr = x_arr[x_arr > 0]
             if (len(x_arr)>0 and len(y_arr)>0):
-                ax.plot(x_arr, y_arr, ls='-', color=color, label=layer)
+                ax.plot(x_arr, y_arr, ls='-', color=color, label="Ej. "+layer)
             else:
                 print("Empty shell?")
             # ------------
@@ -243,7 +243,11 @@ def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
         # ax.set_xlim(1e-4,1e-1)
         # ax.set_ylim(1,1.012)
 
-    cmap = cm.inferno_r
+    cmap = cm.Blues_r
+    layers = []
+    for j in ilayers:
+        for i in [0]:
+            layers.append("shell={} layer={}".format(i,j))
 
     if same_ax: offset = 0
     else: offset = len(v_n_ys)
@@ -258,7 +262,8 @@ def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
             if (colors_by=="layers"): color=cmap(mynorm(int(i)))#color=cmap(norm(int(layer.split("layer=")[-1])))
             else: color=cmap(mynorm(int(i)))#color=cmap(norm(int(layer.split("shell=")[-1].split("layer=")[0])))
             if (v_n_x == "tburst"): x_arr /=cgs.day;
-            if (len(x_arr)>0 and len(y_arr)>0): ax.plot(x_arr, y_arr, ls='-', color=color, label=layer)
+            if (len(x_arr)>0 and len(y_arr)>0):
+                ax.plot(x_arr, y_arr, ls='-', color=color, label="PWN "+layer)
             # ------------
             i=i+1
         ax.set_xlabel(v_n_x)
@@ -275,9 +280,12 @@ def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
     plt.savefig(figname, dpi=256)
     plt.show()
 # plot_ej_and_magnetar_layers(ishells=([0]), ilayers=(0,), v_n_x = "tburst",
-#                             v_n_ys = (["R"]), pwn_v_n_ys=(["Rw"]), same_ax=True,
+#                             v_n_ys = (["mom"]), pwn_v_n_ys=([]), same_ax=True, legend=True,
 #                             colors_by="shell",figname="./pwn.png")
-plot_ej_and_magnetar_layers(ishells=([i for i in range(1)]), ilayers=(0,), v_n_x = "tburst",
+# plot_ej_and_magnetar_layers(ishells=([0]), ilayers=(9,), v_n_x = "tburst",
+#                             v_n_ys = (["mom"]), pwn_v_n_ys=(["mom"]), same_ax=True, legend=True,
+#                             colors_by="shell",figname="./pwn.png")
+plot_ej_and_magnetar_layers(ishells=([i for i in range(60)]), ilayers=(0,), v_n_x = "tburst",
                             v_n_ys = (["mom","Eint2"]), pwn_v_n_ys=([]),
                             colors_by="shell",figname="./pwn_driv_ejecta.png")
 

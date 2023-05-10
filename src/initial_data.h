@@ -123,12 +123,12 @@ private:
         double dtheta = theta_w / (double) nlayers;
         for (size_t i = 0; i < nlayers; i++) {
             /// account for geometry
-            double theta_c_i = (double)i * dtheta + dtheta / 2.;
+            double theta_c_i   = (double) i * dtheta + dtheta / 2.;
             double i_theta_c_l = (double) i * dtheta;
             double i_theta_c_h = (double) (i + 1) * dtheta;
-            m_data[Q::itheta_c][ish][i]=theta_c_i;//thetas_c[i] = theta_c_i ;
-            m_data[Q::itheta_c_l][ish][i]=i_theta_c_l;//thetas_c_l[i] = i_theta_c_l ;
-            m_data[Q::itheta_c_h][ish][i]=i_theta_c_h;//thetas_c_h[i] = i_theta_c_h ;
+            m_data[Q::itheta_c][ish][i]   = theta_c_i;//thetas_c[i] = theta_c_i ;
+            m_data[Q::itheta_c_l][ish][i] = i_theta_c_l;//thetas_c_l[i] = i_theta_c_l ;
+            m_data[Q::itheta_c_h][ish][i] = i_theta_c_h;//thetas_c_h[i] = i_theta_c_h ;
         }
         int x = 1;
     }
@@ -139,12 +139,16 @@ private:
         for (size_t i = 0; i < nlayers + 1; i++){
             double fac = (double)i / (double)nlayers;
             theta_pw[i] = 2.0 * std::asin( fac * std::sin(theta_w / 2.0 ) );
+
         }
 
         Vector thetas_h0_pw (nlayers );
         for (size_t i = 0; i < nlayers; ++i){
             m_data[ictheta][ish][i] = 0.5 * ( theta_pw[i+1] + theta_pw[i] );
             thetas_h0_pw[i] = theta_pw[i + 1];
+            /// for tau_along_los # TODO replace the above 'thetas_h0_pw' with these two and  make sure they are correct
+            m_data[Q::itheta_c_l][ish][i] = theta_pw[i];//thetas_c_l[i] = i_theta_c_l ;
+            m_data[Q::itheta_c_h][ish][i] = theta_pw[i+1];//thetas_c_h[i] = i_theta_c_h ;
         }
 
         /// evaluateShycnhrotronSpectrum the number of phi cells in each 'theta' layer

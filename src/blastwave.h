@@ -29,6 +29,8 @@ enum METHODS_RAD { icomovspec, iobservflux };
 enum METHODS_SHOCK_VEL { isameAsBW, ishockVel };
 enum METHOD_NE{ iusenprime, iuseNe };
 
+enum METHOD_SINGLE_BW_DELTA {iconst, ifrac_last, ilr, ibm, ist, ibm_st };
+
 struct Pars{
 
     Pars(VecVector & data,unsigned loglevel) : m_data(data){
@@ -43,16 +45,17 @@ struct Pars{
     // *************************************** //
 
     // initial conditions (settings)
-    bool is_init = false;
+//    bool is_init = false;
     METHODS_Up m_method_up{};
     METHOD_Delta m_method_Delta{};
     METHOD_GammaSh m_method_gamma_sh{};
     METHOD_RSh m_method_r_sh{};
     METHOD_dmdr m_method_dmdr{};
-    bool only_last_shell_dmdr= false;
+//    bool only_last_shell_dmdr= false;
     METHOD_dgdr m_method_dgdr{};
     EjectaID2::STUCT_TYPE m_method_eats{};
 
+    METHOD_SINGLE_BW_DELTA method_single_bw_delta{};
     /// blast wave initial conditions
     double M0 = -1.;
     double R0 = -1.;
@@ -91,8 +94,8 @@ struct Pars{
     size_t comp_ix = 0;
     size_t nr = -1;
     size_t ilayer = 0;
-    size_t nlayers = 0;
     size_t ishell = 0;
+    size_t nlayers = 0;
     size_t ii_eq = 0;
     size_t i_end_r = 0.; // index of R when evolution has stopped (for EATS)
     unsigned loglevel = 0;
@@ -151,6 +154,10 @@ struct Pars{
     double Z_eff=-1.; // electron mean molecular weight
     double mu_e=-1.; // effective nuclear weight
     double albd_fac = -1.;
+    double mom_when_bm_to_st = 0.;
+    double fraction_last_delta = 0.;
+    double _b0_delta = -1., _b1_delta = -1.;
+    double _b0_vol = -1., _b1_vol = -1.;
 };
 
 /// Each BlastWave collects the following data
@@ -215,9 +222,11 @@ protected:
 //    std::unique_ptr<EatsPars> p_eats_pars = nullptr;
     std::unique_ptr<EATS> p_eats_fs = nullptr;
     std::unique_ptr<EATS> p_eats_opt_depth = nullptr;
+    std::unique_ptr<LinearRegression> p_lr_delta = nullptr;
+    std::unique_ptr<LinearRegression> p_lr_vol = nullptr;
 //    int m_loglevel;
-    size_t ish = 0;
-    size_t il = 0;
+//    size_t ish = 0;
+//    size_t il = 0;
 public:
     bool is_initialized = false;
 
@@ -244,6 +253,8 @@ public:
         // ---------------------- Methods
 //        p_pars = std::make_unique<Pars>(); //
         p_pars = new Pars(m_data, loglevel); //
+        p_lr_delta = std::make_unique<LinearRegression>(m_data[BW::Q::iR],m_data[BW::Q::iEJdelta]);
+        p_lr_vol = std::make_unique<LinearRegression>(m_data[BW::Q::iR],m_data[BW::Q::iEJvol]);
         p_spread = std::make_unique<LatSpread>();
         p_eos = std::make_unique<EOSadi>();
         p_dens = std::make_unique<RhoISM>(loglevel);
@@ -272,14 +283,12 @@ public:
         p_pars->nr = m_tb_arr.size();
         p_pars->ilayer = ilayer;
         p_pars->ishell = ishell;
-        ish = ishell;
-        il = ilayer;
+//        ish = ishell;
+//        il = ilayer;
         is_initialized = true;
     }
     ~BlastWave(){delete p_pars;}
-    void setAllParametersForOneLayer(std::unique_ptr<EjectaID2> & id,
-                                     StrDbMap & pars, StrStrMap & opts,
-                                     size_t ilayer, size_t ii_eq){
+    void setParams(std::unique_ptr<EjectaID2> & id, StrDbMap & pars, StrStrMap & opts, size_t ilayer, size_t ii_eq){
 
         double nism, A0, s, r_ej, r_ism,  a, theta_max, epsilon_e_rad;
 
@@ -310,13 +319,8 @@ public:
         p_pars->fraction_of_Gamma0_when_spread =
                 (double)getDoublePar("fraction_of_Gamma0_when_spread",pars, AT,p_log,.75,false);
 
-
-        // check if unknown option is given
-//        check_for_unexpected_opt(opts, listBwOpts(), "listBwOpts()");
-
         // set options
         std::string opt;
-
         // mass accretion from ISM
         opt = "method_dmdr";
         METHOD_dmdr method_dmdr;
@@ -566,7 +570,32 @@ public:
 
         /// set parameters for computing observed emission
 
-        // set initials and costants for the blast wave
+        /// -----------  set initials and constants for the blast wave ----------------------
+        size_t & ish = p_pars->ishell;
+        size_t & il = p_pars->ilayer;
+
+        p_pars->E0        = id->get(ish,il,EjectaID2::Q::iek);//latStruct.dist_E0_pw[ilayer];
+        p_pars->Ye0       = id->get(ish,il,EjectaID2::Q::iye);//latStruct.dist_Ye_pw[ilayer];
+        p_pars->s0        = id->get(ish,il,EjectaID2::Q::is);//latStruct.dist_s_pw[ilayer];
+        p_pars->M0        = id->get(ish,il,EjectaID2::Q::imass);//latStruct.dist_M0_pw[ilayer];
+        p_pars->R0        = id->get(ish,il,EjectaID2::Q::ir);//latStruct.dist_M0_pw[ilayer];
+        p_pars->mom0      = id->get(ish,il,EjectaID2::Q::imom);//latStruct.dist_Mom0_pw[ilayer];
+        p_pars->tb0       = m_tb_arr.empty() ? 0 : m_tb_arr[0];
+        p_pars->theta_a   = 0.;
+        p_pars->theta_b0  = ((id->method_eats) == EjectaID2::ipiecewise)
+                          ? id->theta_wing : id->get(ish,il,EjectaID2::Q::itheta_c_h);//latStruct.m_theta_w; // theta_b0
+        p_pars->ctheta0   = id->get(ish,il,EjectaID2::Q::ictheta); // TODO 0.5 * (latStruct.thetas_c_l[ilayer] + latStruct.thetas_c_h[ilayer]);
+        p_pars->theta_w   = id->theta_wing;//latStruct.m_theta_w; //
+        p_pars->theta_max = theta_max;
+        p_pars->ncells    = ((id->method_eats) == EjectaID2::ipiecewise)
+                          ? (double)id->ncells : 1.;//(double) latStruct.ncells;
+        p_pars->eps_rad   = epsilon_e_rad;
+
+        p_spread->m_theta_b0 = p_pars->theta_b0;
+        p_pars->prev_x = p_pars->tb0;
+
+        p_pars->ii_eq  = ii_eq;
+#if 0
         switch (id->method_eats) {
 
             case EjectaID2::ipiecewise:
@@ -709,12 +738,9 @@ public:
 //                               1.);
                 break;
         }
+#endif
 
-
-        ///
-        // set options
-//        std::string opt;
-
+        /// ----------------------- set options ------------------------------
         opt = "method_ne";
         METHOD_NE methodNe;
         if ( opts.find(opt) == opts.end() ) {
@@ -782,6 +808,50 @@ public:
             }
         }
         p_pars->m_method_rad = methodCompMode;
+
+        opt = "method_single_bw_delta";
+        METHOD_SINGLE_BW_DELTA method_single_bw_delta;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            method_single_bw_delta = METHOD_SINGLE_BW_DELTA::iconst;
+        }
+        else{
+            if(opts.at(opt) == "frac_last") {
+                method_single_bw_delta = METHOD_SINGLE_BW_DELTA::ifrac_last;
+//                p_pars->fraction_last_delta =
+//                        (double)getDoublePar("fraction_last_delta",pars, AT,p_log,.75,true);
+            }
+            else if(opts.at(opt) == "const")
+                method_single_bw_delta = METHOD_SINGLE_BW_DELTA::iconst;
+            else if(opts.at(opt) == "lr")
+                method_single_bw_delta = METHOD_SINGLE_BW_DELTA::ilr;
+            else if(opts.at(opt) == "bm") {
+                method_single_bw_delta = METHOD_SINGLE_BW_DELTA::ibm;
+                (*p_log)(LOG_ERR,AT)<<" not implemented\n";
+                exit(1);
+            }
+            else if(opts.at(opt) == "st") {
+                method_single_bw_delta = METHOD_SINGLE_BW_DELTA::ist;
+                (*p_log)(LOG_ERR,AT)<<" not implemented\n";
+                exit(1);
+            }
+            else if(opts.at(opt) == "bm_st") {
+                method_single_bw_delta = METHOD_SINGLE_BW_DELTA::ibm_st; // TODO add an option that smoothly connects BM and ST profiles
+                (*p_log)(LOG_ERR,AT)<<" not implemented\n";
+                exit(1);
+                p_pars->mom_when_bm_to_st =
+                        (double)getDoublePar("mom_when_bm_to_st",pars, AT,p_log,.75,true);
+            }
+            else{
+                (*p_log)(LOG_ERR,AT) << AT << " option for: " << opt
+                                     <<" given: " << opts.at(opt)
+                                     << " is not recognized. "
+                                     << "Possible options: "
+                                     << " frac_last " << " bm " << " st "<< " bm "<< " bm_st "<< " bm "<< "\n";
+                exit(1);
+            }
+        }
+        p_pars->method_single_bw_delta = method_single_bw_delta;
 
         double freq1 = getDoublePar("freq1", pars, AT, p_log,1.e7, false);//pars.at("freq1");
         double freq2 = getDoublePar("freq2", pars, AT, p_log,1.e14, false);//pars.at("freq2");
@@ -864,6 +934,8 @@ public:
     std::unique_ptr<SedovTaylor> & getSedov(){ return p_sedov; }
     std::unique_ptr<BlandfordMcKee2> & getBM(){ return p_bm; }
     std::unique_ptr<EATS> & getFsEATS(){ return p_eats_fs; }
+    std::unique_ptr<LinearRegression> & getLRforDelta(){ return p_lr_delta; }
+    std::unique_ptr<LinearRegression> & getLRforVol(){ return p_lr_vol; }
     // --------------------------------------------------------
     void updateNucAtomic( double * sol, const double t ){
         p_nuc->update(

@@ -797,6 +797,7 @@ class PWNmodel{
         // --------------
         size_t iieq{};
         double Rw0{};
+        double mom={};
 //        double vel_w0{};
         // ---------------
         double eps_e{};
@@ -852,7 +853,7 @@ public:
     }
     enum Q_SOL {
         i_Rw, // Wind radius (PWN radius)
-        i_mom,
+//        i_mom,
         i_tt,
         i_Enb, // PWN total energy
         i_Epwn
@@ -913,9 +914,13 @@ public:
         }
         p_pars->rho_ej_curr = rho[0];
         p_pars->tau_ej_curr = tau[0];
-        p_pars->r_ej_curr = r[0];
-        p_pars->v_ej_curr = beta[0] * CGS::c;
-        p_pars->temp_ej_curr = temp[0];
+        p_pars->r_ej_curr   = r[0];
+        p_pars->v_ej_curr   = beta[0] * CGS::c;
+        p_pars->temp_ej_curr= temp[0];
+        if (p_pars->v_ej_curr > CGS::c){
+            (*p_log)(LOG_ERR,AT) << " p_pars->v_ej_curr > c beta[0]="<<beta[0]<<"\n";
+            exit(1);
+        }
 //        std::cout << rho[0] << " "
 //                  << tau[0] << " "
 //                  << r[0] << " "
@@ -992,7 +997,7 @@ public:
         double beta0 = p_pars->Rw0 / p_ej->getTbGrid()[0] / CGS::c; // m_tb_arr[0] * beta0 * CGS::c;
         double mom0 = MomFromBeta(beta0);
         arr[i + Q_SOL::i_Rw] = p_pars->Rw0;
-        arr[i + Q_SOL::i_mom] = mom0;
+//        arr[i + Q_SOL::i_mom] = EQS::MomFromBeta( v_w / CGS::c);;
         arr[i + Q_SOL::i_Enb] = p_pars->eps_e * p_pars->curr_ldip
                               + p_pars->eps_th * p_pars->curr_lacc;
         arr[i + Q_SOL::i_Epwn] = p_pars->eps_mag * p_pars->curr_ldip;
@@ -1002,20 +1007,11 @@ public:
         p_pars->is_init = true;
     }
 
-    void insertSolution( const double * sol, size_t it, size_t i ){
-        m_data[PWN::Q::itburst][it] = p_ej->getTbGrid()[it];
-        m_data[PWN::Q::iR][it] = sol[i + Q_SOL::i_Rw];
-        m_data[PWN::Q::iEnb][it] = sol[i+Q_SOL::i_Enb];
-        m_data[PWN::Q::iEpwn][it] = sol[i+Q_SOL::i_Epwn];
-        m_data[PWN::Q::itt][it] = sol[i+Q_SOL::i_tt];
-        m_data[PWN::Q::imom][it] = sol[i+Q_SOL::i_mom];
-    }
-
     void evaluateRhs( double * out_Y, size_t i, double x, double const * Y ){
-        double r_w = Y[i + Q_SOL::i_Rw];
-        double e_nb = Y[i + Q_SOL::i_Enb];
+        double r_w   = Y[i + Q_SOL::i_Rw];
+        double e_nb  = Y[i + Q_SOL::i_Enb];
         double e_pwn = Y[i + Q_SOL::i_Epwn];
-        double mom = Y[i + Q_SOL::i_mom];
+//        double mom   = Y[i + Q_SOL::i_mom];
         // ******************************************
 
         // ******************************************
@@ -1036,7 +1032,7 @@ public:
 //            std::cerr << AT << "\t" << "v_w > v_ej\n";
             v_w = v_ej;
         }
-
+        p_pars->mom=EQS::MomFromBeta(v_w/CGS::c);
         // evaluateShycnhrotronSpectrum nebula energy \int(Lem * min(1, tau_T^ej * V_ej / c))dt Eq.[28] in Eq. 28 in Kashiyama+16
         double dEnbdt = 0;
         if (tau_ej * (r_w / r_ej) > CGS::c / v_w){
@@ -1052,28 +1048,39 @@ public:
         double tdyn = r_ej / v_ej;
         double dEpwndt = p_pars->eps_mag * p_pars->curr_ldip - e_pwn / tdyn;
 
-        double dttdr = EQS::evalElapsedTime(r_w, mom,0., false);
-        if (!std::isfinite(dttdr)||dttdr<0){
+        double dttdr = EQS::evalElapsedTime(r_w, p_pars->mom, 0., false);
+        if (!std::isfinite(dttdr)||dttdr<=0){
             (*p_log)(LOG_ERR,AT)<<"dttdr="<<dttdr<<"\n";
             exit(1);
         }
         double drdt = v_w;// + r_w / x;
         /// Using pressure equilibrium, Pmag = Prad; Following approach (see Eq. 28 in Kashiyama+16)
         out_Y[i + Q_SOL::i_Rw] = drdt;
-        out_Y[i + Q_SOL::i_mom] = EQS::MomFromBeta( v_w / CGS::c);
+//        out_Y[i + Q_SOL::i_mom] = EQS::MomFromBeta( v_w / CGS::c);
         out_Y[i + Q_SOL::i_tt] = dttdr*drdt;
         out_Y[i + Q_SOL::i_Enb] = dEnbdt;
         out_Y[i + Q_SOL::i_Epwn] = dEpwndt;
     }
+
+
+    void insertSolution( const double * sol, size_t it, size_t i ){
+        m_data[PWN::Q::itburst][it] = p_ej->getTbGrid()[it];
+        m_data[PWN::Q::iR][it]      = sol[i + Q_SOL::i_Rw];
+        m_data[PWN::Q::iEnb][it]    = sol[i+Q_SOL::i_Enb];
+        m_data[PWN::Q::iEpwn][it]   = sol[i+Q_SOL::i_Epwn];
+        m_data[PWN::Q::itt][it]     = sol[i+Q_SOL::i_tt];
+        m_data[PWN::Q::imom][it]    = p_pars->mom;//sol[i+Q_SOL::i_mom];
+    }
+
 
     void addOtherVariables( size_t it ){
         double r_w = m_data[PWN::Q::iR][it];
         double u_b_pwn = 3.0*m_data[PWN::Q::iEpwn][it]/4.0/M_PI/r_w/r_w/r_w; // Eq.17 in Murase+15; Eq.34 in Kashiyama+16
         double b_pwn = pow(u_b_pwn*8.0*M_PI,0.5); //be careful: epsilon_B=epsilon_B^pre/8/PI for epsilon_B^pre used in Murase et al. 2018
         /// --------------------------------------------
-        m_data[PWN::Q::iB][it] = b_pwn;
+        m_data[PWN::Q::iB][it]     = b_pwn;
         m_data[PWN::Q::iGamma][it] = EQS::GamFromMom(m_data[PWN::Q::imom][it]);
-        m_data[PWN::Q::ibeta][it] = EQS::BetFromMom(m_data[PWN::Q::imom][it]);
+        m_data[PWN::Q::ibeta][it]  = EQS::BetFromMom(m_data[PWN::Q::imom][it]);
         m_data[PWN::Q::itheta][it] = p_pars->ctheta0;
     }
 
@@ -1243,7 +1250,7 @@ public:
         auto & m_data = p_pars->m_data;
 //        if (p_pars->i_end_r==0)
 //            return;
-
+        ctheta = p_pars->ctheta0;//interpSegLin(ia, ib, t_obs, ttobs, m_data[BW::Q::ictheta]);
         double Gamma = interpSegLog(ia, ib, t_obs, ttobs, m_data[PWN::Q::iGamma]);
         double b_pwn = interpSegLog(ia, ib, t_obs, ttobs, m_data[PWN::Q::iB]);
         double temp = interpSegLog(ia, ib, t_obs, ttobs, p_bw->getData(BW::Q::iEJtemp));
@@ -1254,7 +1261,7 @@ public:
         double beta = EQS::Beta(Gamma);
         double a = 1.0 - beta * mu; // beaming factor
         double delta_D = Gamma * a; // doppler factor
-        double nuprime = (1.0 + p_pars->z ) * nu_obs * delta_D;
+        double nuprime = ( 1.0 + p_pars->z ) * nu_obs * delta_D;
         double nu_erg = nu_obs*4.1356655385381E-15*CGS::EV_TO_ERG;
         double gamma_b = 1.0e5; /* break Lorentz factor of electron injection spectrum */
         double spec = PWNradiationMurase::spec_non_thermal(nu_erg, b_pwn, gamma_b, temp);
@@ -1267,8 +1274,11 @@ public:
         p_ej->evalOptDepthsAlongLineOfSight(f_gamma_esc_x,
                                             ctheta, r, CGS::pi/4., theta,
                                             CGS::pi/4., p_pars->theta_obs, p_pars->d_l,
-                                            mu,t_obs,nuprime,params);
+                                            mu,tburst,nuprime, p_pars->ilayer, params);
         double lum = p_pars->eps_e*(l_dip+l_acc)*spec*f_gamma_esc_x*nu_erg;
+//        double fnu = lum / p_pars->d_l / p_pars->d_l;
+        double fnu = lum * (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+        flux_dens = fnu;
         int x = 1;
     }
 

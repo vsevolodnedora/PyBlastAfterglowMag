@@ -4,7 +4,7 @@ from mpl_toolkits.mplot3d import Axes3D
 
 # Define the two points on the inner and outer sphere
 phi1, theta1, R1 = 1, 1, 1
-phi2, theta2, R3 = 0, 4, 10
+phi3, theta3, R3 = 0, 4, 10
 
 # Define the radius of the middle sphere
 R2 = (R1 + R3) / 2
@@ -14,14 +14,14 @@ x1 = R1 * np.sin(phi1) * np.cos(theta1)
 y1 = R1 * np.sin(phi1) * np.sin(theta1)
 z1 = R1 * np.cos(phi1)
 
-x2 = R3 * np.sin(phi2) * np.cos(theta2)
-y2 = R3 * np.sin(phi2) * np.sin(theta2)
-z2 = R3 * np.cos(phi2)
+x3 = R3 * np.sin(phi3) * np.cos(theta3)
+y3 = R3 * np.sin(phi3) * np.sin(theta3)
+z3 = R3 * np.cos(phi3)
 
 # Calculate the direction vector of the line between the two points
-dx = x2 - x1
-dy = y2 - y1
-dz = z2 - z1
+dx = x3 - x1
+dy = y3 - y1
+dz = z3 - z1
 
 # Calculate the intersection point of the line with the middle sphere
 a = dx**2 + dy**2 + dz**2
@@ -61,66 +61,14 @@ y_outer = R3 * np.sin(v) * np.sin(u)
 z_outer = R3 * np.cos(v)
 # ax.plot_wireframe(x_outer, y_outer, z_outer, color='b', alpha=0.3)
 
-ax.scatter(x1, y1, z1, color='r', marker='o')
-ax.scatter(x2, y2, z2, color='b', marker='o')
-ax.scatter(x, y, z, color='g', marker='x')
-ax.plot([x1, x2], [y1, y2], [z1, z2], color='m')
+ax.scatter(x1, y1, z1, color='r', marker='o', label="1")
+ax.scatter(x3, y3, z3, color='b', marker='o', label="2")
+ax.scatter(x, y, z, color='g', marker='x', label="middle")
+ax.plot([x1, x3], [y1, y3], [z1, z3], color='m')
 ax.set_xlabel('X')
 ax.set_ylabel('Y')
 ax.set_zlabel('Z')
+plt.legend()
 plt.show()
 
 
-
-
-
-exit(0)
-
-import numpy as np
-import matplotlib.pyplot as plt
-
-# Define the parameters of the problem
-R1 = 1.0    # Radius of inner sphere
-R2 = 2.0    # Radius of outer sphere
-theta1 = np.pi/4    # Angle theta of point on inner sphere
-phi1 = np.pi/3      # Angle phi of point on inner sphere
-theta3 = np.pi/2    # Angle theta of point on outer sphere
-phi3 = 0.0          # Angle phi of point on outer sphere
-
-# Compute the coordinates of the two points
-x1 = R1 * np.sin(theta1) * np.cos(phi1)
-y1 = R1 * np.sin(theta1) * np.sin(phi1)
-z1 = R1 * np.cos(theta1)
-
-x3 = R2 * np.sin(theta3) * np.cos(phi3)
-y3 = R2 * np.sin(theta3) * np.sin(phi3)
-z3 = R2 * np.cos(theta3)
-
-# Compute the coordinates of the intersection point
-t = (R2 - R1) / np.sqrt((x3 - x1)**2 + (y3 - y1)**2 + (z3 - z1)**2)
-xi = x1 + t*(x3 - x1)
-yi = y1 + t*(y3 - y1)
-zi = z1 + t*(z3 - z1)
-
-# Plot the spheres and the points
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-u, v = np.mgrid[0:2*np.pi:20j, 0:np.pi:10j]
-xs1 = R1*np.sin(v)*np.cos(u)
-ys1 = R1*np.sin(v)*np.sin(u)
-zs1 = R1*np.cos(v)
-ax.plot_wireframe(xs1, ys1, zs1, color="b")
-
-xs2 = R2*np.sin(v)*np.cos(u)
-ys2 = R2*np.sin(v)*np.sin(u)
-zs2 = R2*np.cos(v)
-ax.plot_wireframe(xs2, ys2, zs2, color="r")
-
-ax.scatter([x1, xi], [y1, yi], [z1, zi], color="g")
-ax.scatter([x3], [y3], [z3], color="k")
-
-ax.set_xlabel('X')
-ax.set_ylabel('Y')
-ax.set_zlabel('Z')
-ax.plot([x1, x2], [y1, y2], [z1, z2], color='m')
-plt.show()

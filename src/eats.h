@@ -96,13 +96,16 @@ class EATS{
                 m_mu[i] = ( m_tburst[i] - t_obs / (1.0 + z) ) / m_r[i] * CGS::c;
 
             if(m_mu[m_i_end_r - 1] < 1. ){
-//                std::cout << m_tburst << "\n";
-//                std::cout << m_r << "\n";
-                (*p_log)(LOG_WARN,AT) << " mu[-1]=" <<m_mu[m_i_end_r - 1] << " < 1 (expected >1) "
-                                      << " tobs=" << t_obs
-                                      << " tbutst[-1]=" << m_tburst[m_i_end_r - 1]
-                                      << " R[nr-1]=" << m_r[m_i_end_r - 1]
-                                      << "\n";
+//                std::cout << " tburst = " << m_tburst << "\n";
+//                std::cout << " r      = "<< m_r << "\n";
+//                std::cout << " mu     = "<<m_mu<<"\n";
+                if (m_i_end_r == m_mu.size()-1)
+                    (*p_log)(LOG_WARN,AT) << " mu[-1]=" <<m_mu[m_i_end_r - 1] << " < 1 (expected >1) "
+                                          << " tobs=" << t_obs
+                                          << " tbutst[-1]=" << m_tburst[m_i_end_r - 1]
+                                          << " R[nr-1]=" << m_r[m_i_end_r - 1]
+                                          << "\n";
+                int x = 1;
             }
             if(m_mu[0] > 1. ){
                 (*p_log)(LOG_WARN,AT) << " mu[0]=" << m_mu[0] << " > 1 (expected <1) "
@@ -342,7 +345,7 @@ public:
 //        std::cout<<image.m_f_tot<<"\n";
     }
 
-    void evalEATSindexes(size_t ia, size_t ib,
+    bool evalEATSindexes(size_t & ia, size_t & ib,
                            double t_obs, double obs_angle, double ctheta_cell, double phi_cell,
                            double (*obs_angle_func)( const double &, const double &, const double & )){
         check_pars();
@@ -353,30 +356,36 @@ public:
 //        }
         if (p_pars->m_i_end_r == 0){
             (*p_log)(LOG_ERR,AT)<<" p_pars->m_i_end_r="<<p_pars->m_i_end_r<<"\n";
-            exit(1);
+            return false;
         }
 
 //        double ctheta_cell = p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
-        double mu = obs_angle_func(ctheta_cell, phi_cell, p_pars->theta_obs);
+        double mu = obs_angle_func(ctheta_cell, phi_cell, obs_angle);
         for (size_t i_ = 0; i_ < p_pars->m_i_end_r; i_++) {
             p_pars->ttobs[i_] = p_pars->m_tt[i_] + p_pars->m_r[i_] / CGS::c * (1.0 - mu);
         }
         /// check if req. obs time is outside of the evolved times (throw error)
         if (t_obs < p_pars->ttobs[0]) {
-            (*p_log)(LOG_ERR, AT) << " time grid starts too late "
-                                  << " t_grid[0]=" << p_pars->ttobs[0] << " while requested obs.time=" << t_obs << "\n"
-                                  << " extend the grid to earlier time or request tobs at later times\n"
-                                  << " Exiting...\n";
+            (*p_log)(LOG_WARN, AT) << "t_obs="<<t_obs<<" < ttobs_arr[0]="<<p_pars->ttobs[0]<<". Extend ttobs.\n";
+
+//            " time grid starts too late "
+//                                  << " t_grid[0]=" << p_pars->ttobs[0] << " while requested obs.time=" << t_obs << "\n"
+//                                  << " extend the grid to earlier time or request tobs at later times\n"
+//                                  << " Exiting...\n";
             exit(1);
         }
         if ((t_obs > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
-            (*p_log)(LOG_ERR, AT) << " time grid ends too early. "
-                                  << " t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
-                                  << " while requested obs.time=" << t_obs << "\n"
-                                  << " extend the grid to later time or request tobs at earlier times\n"
-                                  << " Exiting...\n";
+            if (p_pars->m_i_end_r == p_pars->m_mu.size()-1)
+                (*p_log)(LOG_WARN, AT) << "t_obs="<<t_obs<<" > ttobs_arr[i_end="<<p_pars->m_i_end_r - 1<<"]="
+                    <<p_pars->ttobs[p_pars->m_i_end_r - 1]<<". Extend ttobs.\n";
+//
+//            << " time grid ends too early. "
+//                                  << " t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
+//                                  << " while requested obs.time=" << t_obs
+//                                  << " extend the grid to later time or request tobs at earlier times\n";
 //                    std::cout << ttobs << std::endl;
 //            exit(1);
+            return false;
         }
 //        else if ((t_obs > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
 //            (*p_log)(LOG_WARN, AT) << " time grid was shorten to i=" << p_pars->m_i_end_r
@@ -387,9 +396,11 @@ public:
 //        }
         /// locate closest evolution points to the requested obs. time
         ia = findIndex(t_obs, p_pars->ttobs, p_pars->ttobs.size());
-        if (ia >= p_pars->m_i_end_r - 1) return; // ??
+        if (ia >= p_pars->m_i_end_r - 1)
+            return false; // ??
         ib = ia + 1;
 
+        return true;
         ///
 //        return r;
     }
@@ -472,18 +483,18 @@ public:
             }
             /// ----------------------------------------------------
 //            if (image.m_n_vn==IMG::m_names.size()) {
-                double flux_dens;
-                double ctheta;
-                p_pars->fluxFunc(flux_dens, r, ctheta, ctheta_cell, phi_cell,
-                                 ia, ib, mu, t_obs, nu_obs, p_pars->ttobs, p_pars->m_params);
-                /// ----------------------------------------------------
-                flux += flux_dens;
-                image(IMG::Q::iintens, i) =
-                        flux_dens / (r * r * std::abs(mu)) *
-                        CGS::cgs2mJy; //(obs_flux / (delta_D * delta_D * delta_D)); //* tmp;
-                image(IMG::Q::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
-                image(IMG::Q::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
-                image(IMG::Q::imu, i) = mu;
+            double flux_dens;
+            double ctheta;
+            p_pars->fluxFunc(flux_dens, r, ctheta, ctheta_cell, phi_cell,
+                             ia, ib, mu, t_obs, nu_obs, p_pars->ttobs, p_pars->m_params);
+            /// ----------------------------------------------------
+            flux += flux_dens;
+            image(IMG::Q::iintens, i) =
+                    flux_dens / (r * r * std::abs(mu)) *
+                    CGS::cgs2mJy; //(obs_flux / (delta_D * delta_D * delta_D)); //* tmp;
+            image(IMG::Q::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
+            image(IMG::Q::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
+            image(IMG::Q::imu, i) = mu;
 //            }
 //            if (image.m_n_vn==IMG_TAU::m_names.size()) {
 //                double ctheta;

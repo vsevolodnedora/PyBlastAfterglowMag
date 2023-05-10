@@ -447,14 +447,14 @@ class BlandfordMcKee2{
         double k = 0;
         double Rscale = -1;
         double gamAdi = 4/3.;
-        double eta     = 1.e-5;        //          eta = p/(rho*c^2)
-        double n_ext = 1.e0;      // external medium number density
+        double eta     = 1.e-5;         //          eta = p/(rho*c^2)
+        double n_ext = 1.e0;            // external medium number density
 
-        double n0      = 1.;           // cm-3:    CBM number density
-        double rho0    = n0*CGS::mp;       // g.cm-3:  comoving CBM mass density
-        double rhoNorm = rho0;     // n0*mp_;       // g.cm-3:  comoving CBM mass density
-        double lNorm = CGS::c;                     // distance normalised to c
-        double vNorm = CGS::c;                     // velocity normalised to c
+        double n0      = 1.;            // cm-3:    CBM number density
+        double rho0    = n0*CGS::mp;    // g.cm-3:  comoving CBM mass density
+        double rhoNorm = rho0;          // n0*mp_;       // g.cm-3:  comoving CBM mass density
+        double lNorm = CGS::c;          // distance normalised to c
+        double vNorm = CGS::c;          // velocity normalised to c
         double pNorm = rhoNorm*vNorm*vNorm;    // pressure normalised to rho_CMB/c^2
 
         double rho_ = 0;
@@ -465,6 +465,7 @@ public:
     BlandfordMcKee2(){
         p_pars = new Pars;
     }
+
     ~BlandfordMcKee2(){ delete p_pars; }
     void calcBM(double r, double t, double & rho, double & u, double & p){
 
@@ -601,7 +602,7 @@ public:
         double f_min =  p_pars->w1 > w ? p_pars->c2 : p_pars->c6;
 
         p_pars->f = TOOLS::MakeLogspaceVec(log10(f_min), 0., (int)p_pars->f.size()); // log10(f_min)
-//        print_x_as_numpy(p_pars->f, 100, "f");
+        print_x_as_numpy(p_pars->f, 100, "f");
 
 
 //                p_pars->c2 ? p_pars->w1 > w : p_pars->c6
@@ -652,8 +653,8 @@ public:
         p_pars->p = parametrized_p(p_pars->f);
         p_pars->vv = parametrized_v(p_pars->f);
 
-//        print_x_as_numpy(p_pars->eta,100,"eta");
-//        print_x_as_numpy(p_pars->d,100,"d");
+        print_x_as_numpy(p_pars->eta,100,"eta");
+        print_x_as_numpy(p_pars->d,100,"d");
 
         if (p_pars->eta[0] > 0.){
             std::cerr << " in Sedov Taylow, the extend to eta is too short. Addd more 0.00000..." << "\n";

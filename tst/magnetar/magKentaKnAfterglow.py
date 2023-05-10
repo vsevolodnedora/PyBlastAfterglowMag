@@ -536,7 +536,7 @@ def main():
     prepare_kn_ej_id_2d(files=files,
                         outfpaths=[workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5"],
                         req_times=np.array([text]),
-                        new_theta_len=None,
+                        new_theta_len=4,
                         new_vinf_len=None,
                         verbose=True,
                         r0type="fromrho", r0frac=0.5, t0=-1,
@@ -545,7 +545,7 @@ def main():
     r_, mom_, theta_, ctheta_, ek_, mass_, ye_, s_, rho_, temp_ \
         = load_init_data(workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5")
 
-    plot_init_profile(ctheta_[0,:], mom_[:,0], r_,
+    plot_init_profile(ctheta_[0,:], mom_[:,0], rho_,
                       figpath=None,#FIGPATH+"ang_mass_dist" + r"_text{}".format(int(times[idx])),
                       norm_mode="log",
                       subplot_mode="ave",
