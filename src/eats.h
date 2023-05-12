@@ -215,9 +215,9 @@ class EATS{
         Vector ttobs{}; // for PW eats only
         // -----------------------------
         void (* fluxFunc)(
-                double & flux_dens, double & r, double & ctheta, double theta, double phi,
-                size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
-                Vector & ttobs, void * params
+                double & flux_dens, double & tau_comp, double & tau_BH, double & tau_bf,
+                double r, double & ctheta, double theta, double phi,
+                size_t ia, size_t ib, double ta, double tb, double mu, double t_obs, double nu_obs, void * params
                 ) = nullptr;
 //        void (* funcOptDepth)(
 //                double & frac, double ctheta, double r,
@@ -227,8 +227,7 @@ class EATS{
 //                ) = nullptr;
         void (* fluxFuncA)(
                 double & flux_dens, double & r, double & ctheta, double theta, double phi,
-                size_t ia, size_t ib, double mu, double t_e, double t_obs, double nu_obs,
-                void * params
+                size_t ia, size_t ib, double mu, double t_e, double t_obs, double nu_obs, void * params
                 ) = nullptr;
         // --- for adaptive quad. method
         int nmax_phi=-1, nmax_theta=-1;
@@ -264,6 +263,16 @@ class EATS{
     };
     std::unique_ptr<logger> p_log;
     Pars * p_pars{};
+
+    Vector cphis{};//= EjectaID2::getCphiGridPW( p_pars->ilayer );
+//    Vector mu{};
+//    std::vector<size_t> ia{};
+//    std::vector<size_t> ib{};
+//    Vector ta{};
+//    Vector tb{};
+//    Vector r{};
+//    Vector fluxes{};
+
 public:
     /// for internal use inside the adaptive quadrature
     void parsPars(double t_obs, double nu_obs,
@@ -291,9 +300,10 @@ public:
         p_pars->setEatsPars(pars,opts,nlayers,ctheta0,
                             theta_c_l,theta_c_h,theta_w,theta_max);
     }
-    void setFluxFunc(void (* fluxFunc)( double & flux_dens, double & r, double & ctheta, double theta, double phi,
-                                        size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
-                                        Vector & ttobs, void * params )){
+    void setFluxFunc(void (* fluxFunc)( double & flux_dens, double & tau_comp, double & tau_BH, double & tau_bf,
+                                        double r, double & ctheta, double theta, double phi,
+                                        size_t ia, size_t ib, double ta, double tb, double mu, double t_obs, double nu_obs,
+                                        void * params )){
         p_pars->fluxFunc = fluxFunc;
     }
 //    void setFuncOptDepth(void (* funcOptDepth)(double & frac, double ctheta, double r,
@@ -427,14 +437,113 @@ public:
 
         parsPars(t_obs, nu_obs, 0., 0., 0., 0., obs_angle);
         check_pars();
-
+        size_t cil = EjectaID2::CellsInLayer(p_pars->ilayer);
+#if 1
 //        Vector ttobs( p_pars->m_r.size(), std::numeric_limits<double>::max() );
-        Vector cphis = EjectaID2::getCphiGridPW( p_pars->ilayer );
+        cphis.resize(p_pars->m_i_end_r, std::numeric_limits<double>::max());//= EjectaID2::getCphiGridPW( p_pars->ilayer );
+        EjectaID2::getCphiGridPW( cphis, p_pars->ilayer );
+        Vector mu (p_pars->m_i_end_r, std::numeric_limits<double>::max());
+        std::vector<size_t> ia(p_pars->m_i_end_r, 0);
+        std::vector<size_t> ib(p_pars->m_i_end_r, 0);
+        Vector ta(p_pars->m_i_end_r, 0);
+        Vector tb(p_pars->m_i_end_r, 0);
+        Vector r(p_pars->m_i_end_r, 0);
+        Vector fluxes(p_pars->m_i_end_r, 0);
+#endif
+#if 0
+        if (cphis.size()!=p_pars->m_i_end_r){
+            cphis.resize(p_pars->m_i_end_r,std::numeric_limits<double>::max());
+            mu.resize(p_pars->m_i_end_r,std::numeric_limits<double>::max());
+            ia.resize(p_pars->m_i_end_r, 0);
+            ib.resize(p_pars->m_i_end_r, 0);
+            ta.resize(p_pars->m_i_end_r, 0);
+            tb.resize(p_pars->m_i_end_r, 0);
+            r.resize(p_pars->m_i_end_r, 0);
+            fluxes.resize(p_pars->m_i_end_r, 0);
+        }
+        else{
+            std::fill(cphis.begin(), cphis.end(),std::numeric_limits<double>::max());
+            std::fill(mu.begin(), mu.end(),std::numeric_limits<double>::max());
+            std::fill(r.begin(), r.end(),0);
+            std::fill(fluxes.begin(), fluxes.end(),0.);
+            std::fill(ia.begin(), ia.end(),0.);
+            std::fill(ib.begin(), ib.end(),0.);
+            std::fill(ta.begin(), ta.end(),0.);
+            std::fill(tb.begin(), tb.end(),0.);
+        }
 
-        double flux = 0.;
-        for (size_t i = 0; i < cphis.size(); i++) {
+        std::fill(cphis.begin(), cphis.end(),std::numeric_limits<double>::max());
+        std::fill(mu.begin(), mu.end(),std::numeric_limits<double>::max());
+        std::fill(r.begin(), r.end(),0);
+        std::fill(fluxes.begin(), fluxes.end(),0.);
+        std::fill(ia.begin(), ia.end(),0.);
+        std::fill(ib.begin(), ib.end(),0.);
+        std::fill(ta.begin(), ta.end(),0.);
+        std::fill(tb.begin(), tb.end(),0.);
+#endif
+
+
+        /// Serial Loop... Check if times are accessible
+        for (size_t i = 0; i < cil; i++) {
             double phi_cell = cphis[i];
             double ctheta_cell = p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
+            mu[i] = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
+            for (size_t i_ = 0; i_ < p_pars->m_i_end_r; i_++) {
+                p_pars->ttobs[i_] = p_pars->m_tt[i_] + p_pars->m_r[i_] / CGS::c * (1.0 - mu[i]);
+            }
+            /// check if req. obs time is outside of the evolved times (throw error)
+            if (t_obs < p_pars->ttobs[0]) {
+                (*p_log)(LOG_ERR, AT) << " time grid starts too late "
+                                      << " t_grid[0]=" << p_pars->ttobs[0] << " while requested obs.time=" << t_obs << "\n"
+                                      << " extend the grid to earlier time or request tobs at later times\n"
+                                      << " Exiting...\n";
+                exit(1);
+            }
+            else if ((t_obs > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
+                (*p_log)(LOG_WARN, AT) << " time grid was shorten to i=" << p_pars->m_i_end_r
+                                       << " from nr=" << p_pars->m_i_end_r
+                                       << " and now ends at t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
+                                       << " while t_obs=" << t_obs << "\n";
+                mu[i] = std::numeric_limits<double>::max();
+                continue;
+            }
+            ia[i] = findIndex(t_obs, p_pars->ttobs, p_pars->ttobs.size());
+            if (ia[i] >= p_pars->m_i_end_r - 1) {
+                mu[i] = std::numeric_limits<double>::max();
+                continue; // ??
+            }
+            ib[i] = ia[i] + 1;
+            ta[i] = p_pars->ttobs[ia[i]];
+            tb[i] = p_pars->ttobs[ib[i]];
+            /// interpolate the exact radial position of the blast that corresponds to the req. obs time
+            r[i] = interpSegLog(ia[i], ib[i], t_obs, p_pars->ttobs, p_pars->m_r);
+            //  double r = ( Interp1d(ttobs, m_data[BW::Q::iR] ) ).Interpolate(t_obs, mth );
+            if ((r[i] <= 0.0) || (!std::isfinite(r[i]))) {
+                (*p_log)(LOG_ERR, AT) << " R <= 0. Extend R grid (increasing R0, R1). "
+                                      << " Current R grid us ["
+                                      << p_pars->m_r[0] << ", "
+                                      << p_pars->m_r[p_pars->m_i_end_r - 1] << "] "
+                                      << "and tobs arr ["
+                                      << p_pars->ttobs[0] << ", " << p_pars->ttobs[p_pars->m_i_end_r - 1]
+                                      << "] while the requried obs_time=" << p_pars->t_obs
+                                      << "\n";
+                mu[i] = std::numeric_limits<double>::max();
+                break;
+            }
+        }
+
+        /// Parallel loop
+        auto * _params = p_pars->m_params;
+        double phi_cell=0., ctheta_cell=0., flux_dens=0., ctheta=0.;
+        double tau_comp=0., tau_bf=0., tau_BH=0.;
+#pragma omp parallel for private(phi_cell,ctheta_cell,flux_dens,ctheta) shared(t_obs,nu_obs,_params) num_threads( 6 )
+        for (size_t i = 0; i < cil; i++) {
+            if (mu[i] == std::numeric_limits<double>::max())
+                continue;
+
+            phi_cell = cphis[i];
+            ctheta_cell = p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
+#if 0
             double mu = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
             for (size_t i_ = 0; i_ < p_pars->m_i_end_r; i_++) {
                 p_pars->ttobs[i_] = p_pars->m_tt[i_] + p_pars->m_r[i_] / CGS::c * (1.0 - mu);
@@ -465,7 +574,8 @@ public:
             }
             /// locate closest evolution points to the requested obs. time
             size_t ia = findIndex(t_obs, p_pars->ttobs, p_pars->ttobs.size());
-            if (ia >= p_pars->m_i_end_r - 1) continue; // ??
+            if (ia >= p_pars->m_i_end_r - 1)
+                continue; // ??
             size_t ib = ia + 1;
             /// interpolate the exact radial position of the blast that corresponds to the req. obs time
             double r = interpSegLog(ia, ib, t_obs, p_pars->ttobs, p_pars->m_r);
@@ -479,8 +589,168 @@ public:
                                       << p_pars->ttobs[0] << ", " << p_pars->ttobs[p_pars->m_i_end_r - 1]
                                       << "] while the requried obs_time=" << p_pars->t_obs
                                       << "\n";
+                exit(1);
+            }
+#endif
+            /// --------------------------------------------------------------------------
+            p_pars->fluxFunc(flux_dens, tau_comp, tau_BH, tau_bf, r[i], ctheta, ctheta_cell, phi_cell,
+                             ia[i], ib[i], ta[i], tb[i], mu[i], t_obs, nu_obs, _params);
+            /// --------------------------------------------------------------------------
+            fluxes[i] = flux_dens;
+            image(IMG::Q::iintens, i) = flux_dens / (r[i] * r[i] * std::abs(mu[i])) * CGS::cgs2mJy;
+            image(IMG::Q::ixr, i) = r[i] * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
+            image(IMG::Q::iyr, i) = r[i] * im_yys(ctheta, phi_cell, p_pars->theta_obs);
+            image(IMG::Q::ir, i) = r[i];
+            image(IMG::Q::ictheta, i) = ctheta_cell;
+            image(IMG::Q::iphi, i) = phi_cell;
+            image(IMG::Q::imu, i) = mu[i];
+            image(IMG::Q::itau_comp, i) = tau_comp;
+            image(IMG::Q::itau_bh, i) = tau_BH;
+            image(IMG::Q::itau_bf, i) = tau_bf;
+        }
+
+        /// eval total flux
+        double flux = std::accumulate(fluxes.begin(), fluxes.end(), decltype(fluxes)::value_type(0));
+        image.m_f_tot = flux * CGS::cgs2mJy; /// flux in mJy
+    }
+
+#if 0
+    void evalImageFromPW_old(Image & image, double t_obs, double nu_obs,
+                         double (*obs_angle)( const double &, const double &, const double & ),
+                         double (*im_xxs)( const double &, const double &, const double & ),
+                         double (*im_yys)( const double &, const double &, const double & )){
+
+        if ((p_pars->m_r[0] == 0.) && (p_pars->m_gam[0] == 0.)){
+            (*p_log)(LOG_WARN,AT) << " [ishell=" << p_pars->ishell << " ilayer="<<p_pars->ilayer << "] "
+                                  << " R[0]=0. Seems not evolved -> returning empty image." << "\n";
+            return;
+        }
+        if (p_pars->m_i_end_r == 0){
+            (*p_log)(LOG_ERR,AT) << "p_pars->m_i_end_r = 0\n";
+            exit(1);
+        }
+        if (p_pars->m_tt[0] == 0 and p_pars->m_tt[p_pars->m_i_end_r] == 0){
+            (*p_log)(LOG_ERR,AT) << "p_pars->m_tt = 0\n";
+            exit(1);
+        }
+
+        parsPars(t_obs, nu_obs, 0., 0., 0., 0., obs_angle);
+        check_pars();
+
+//        Vector ttobs( p_pars->m_r.size(), std::numeric_limits<double>::max() );
+        Vector cphis = EjectaID2::getCphiGridPW( p_pars->ilayer );
+        Vector mu (p_pars->m_i_end_r, std::numeric_limits<double>::max());
+        std::vector<size_t> ia(p_pars->m_i_end_r, 0);
+        std::vector<size_t> ib(p_pars->m_i_end_r, 0);
+        Vector ta(p_pars->m_i_end_r, 0);
+        Vector tb(p_pars->m_i_end_r, 0);
+        Vector r(p_pars->m_i_end_r, 0);
+
+        /// Serial Loop... Check if times are accessible
+        for (size_t i = 0; i < cphis.size(); i++) {
+            double phi_cell = cphis[i];
+            double ctheta_cell = p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
+            mu[i] = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
+            for (size_t i_ = 0; i_ < p_pars->m_i_end_r; i_++) {
+                p_pars->ttobs[i_] = p_pars->m_tt[i_] + p_pars->m_r[i_] / CGS::c * (1.0 - mu[i]);
+            }
+            /// check if req. obs time is outside of the evolved times (throw error)
+            if (t_obs < p_pars->ttobs[0]) {
+                (*p_log)(LOG_ERR, AT) << " time grid starts too late "
+                                      << " t_grid[0]=" << p_pars->ttobs[0] << " while requested obs.time=" << t_obs << "\n"
+                                      << " extend the grid to earlier time or request tobs at later times\n"
+                                      << " Exiting...\n";
+                exit(1);
+            }
+            else if ((t_obs > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
+                (*p_log)(LOG_WARN, AT) << " time grid was shorten to i=" << p_pars->m_i_end_r
+                                       << " from nr=" << p_pars->m_i_end_r
+                                       << " and now ends at t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
+                                       << " while t_obs=" << t_obs << "\n";
+                mu[i] = std::numeric_limits<double>::max();
+                continue;
+            }
+            ia[i] = findIndex(t_obs, p_pars->ttobs, p_pars->ttobs.size());
+            if (ia[i] >= p_pars->m_i_end_r - 1) {
+                mu[i] = std::numeric_limits<double>::max();
+                continue; // ??
+            }
+            ib[i] = ia[i] + 1;
+            ta[i] = p_pars->ttobs[i];
+            tb[i] = p_pars->ttobs[i];
+            /// interpolate the exact radial position of the blast that corresponds to the req. obs time
+            r[i] = interpSegLog(ia[i], ib[i], t_obs, p_pars->ttobs, p_pars->m_r);
+            //  double r = ( Interp1d(ttobs, m_data[BW::Q::iR] ) ).Interpolate(t_obs, mth );
+            if ((r[i] <= 0.0) || (!std::isfinite(r[i]))) {
+                (*p_log)(LOG_ERR, AT) << " R <= 0. Extend R grid (increasing R0, R1). "
+                                      << " Current R grid us ["
+                                      << p_pars->m_r[0] << ", "
+                                      << p_pars->m_r[p_pars->m_i_end_r - 1] << "] "
+                                      << "and tobs arr ["
+                                      << p_pars->ttobs[0] << ", " << p_pars->ttobs[p_pars->m_i_end_r - 1]
+                                      << "] while the requried obs_time=" << p_pars->t_obs
+                                      << "\n";
+                mu[i] = std::numeric_limits<double>::max();
                 break;
             }
+        }
+
+        /// Parallel loop
+        double flux = 0.;
+//#pragma omp parallel for num_threads( 6 )
+        for (size_t i = 0; i < cphis.size(); i++) {
+
+            double phi_cell = cphis[i];
+            double ctheta_cell = p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
+#if 1
+            double mu = obs_angle(ctheta_cell, phi_cell, p_pars->theta_obs);
+            for (size_t i_ = 0; i_ < p_pars->m_i_end_r; i_++) {
+                p_pars->ttobs[i_] = p_pars->m_tt[i_] + p_pars->m_r[i_] / CGS::c * (1.0 - mu);
+            }
+            /// check if req. obs time is outside of the evolved times (throw error)
+            if (t_obs < p_pars->ttobs[0]) {
+                (*p_log)(LOG_ERR, AT) << " time grid starts too late "
+                                      << " t_grid[0]=" << p_pars->ttobs[0] << " while requested obs.time=" << t_obs << "\n"
+                                      << " extend the grid to earlier time or request tobs at later times\n"
+                                      << " Exiting...\n";
+                exit(1);
+            }
+//            if ((t_obs > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
+//                (*p_log)(LOG_ERR, AT) << " time grid ends too early. "
+//                                      << " t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
+//                                      << " while requested obs.time=" << t_obs << "\n"
+//                                      << " extend the grid to later time or request tobs at earlier times\n"
+//                                      << " Exiting...\n";
+////                    std::cout << ttobs << std::endl;
+//                exit(1);
+//            }
+            else if ((t_obs > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
+                (*p_log)(LOG_WARN, AT) << " time grid was shorten to i=" << p_pars->m_i_end_r
+                                       << " from nr=" << p_pars->m_i_end_r
+                                       << " and now ends at t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
+                                       << " while t_obs=" << t_obs << "\n";
+                continue;
+            }
+            /// locate closest evolution points to the requested obs. time
+            size_t ia = findIndex(t_obs, p_pars->ttobs, p_pars->ttobs.size());
+            if (ia >= p_pars->m_i_end_r - 1)
+                continue; // ??
+            size_t ib = ia + 1;
+            /// interpolate the exact radial position of the blast that corresponds to the req. obs time
+            double r = interpSegLog(ia, ib, t_obs, p_pars->ttobs, p_pars->m_r);
+            //  double r = ( Interp1d(ttobs, m_data[BW::Q::iR] ) ).Interpolate(t_obs, mth );
+            if ((r <= 0.0) || (!std::isfinite(r))) {
+                (*p_log)(LOG_ERR, AT) << " R <= 0. Extend R grid (increasing R0, R1). "
+                                      << " Current R grid us ["
+                                      << p_pars->m_r[0] << ", "
+                                      << p_pars->m_r[p_pars->m_i_end_r - 1] << "] "
+                                      << "and tobs arr ["
+                                      << p_pars->ttobs[0] << ", " << p_pars->ttobs[p_pars->m_i_end_r - 1]
+                                      << "] while the requried obs_time=" << p_pars->t_obs
+                                      << "\n";
+                exit(1);
+            }
+#endif
             /// ----------------------------------------------------
 //            if (image.m_n_vn==IMG::m_names.size()) {
             double flux_dens;
@@ -515,7 +785,7 @@ public:
         }
         image.m_f_tot = flux * CGS::cgs2mJy; /// flux in mJy
     }
-
+#endif
     /// get the observed flux density distrib 'image' for 2 projections for given time, freq, angle, distance, red shift
     void computeImagePW(Image & im_pj, Image & im_cj, double obs_time, double obs_freq){
         /// evaluateShycnhrotronSpectrum image for primary jet and counter jet
@@ -538,6 +808,7 @@ public:
 
         double rtol = 1e-6;
 //        Image image; Image im_pj; Image im_cj;
+//#pragma omp parallel for shared(m_method_eats,image,im_pj,im_cj,light_curve,times,freqs) num_threads( 6 )
         for (size_t it = 0; it < times.size(); it++) {
 //            (*p_log)(LOG_INFO,AT)<<" LC processing it="<<it<<"/"<<times.size()<<"\n";
             if (m_method_eats == EjectaID2::STUCT_TYPE::ipiecewise) {
@@ -552,6 +823,8 @@ public:
                 light_curve[it] += evalFluxDensA(times[it], freqs[it], atol);
             }
         }
+
+
 //        return std::move(light_curve);
     }
 private:

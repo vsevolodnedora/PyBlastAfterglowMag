@@ -52,83 +52,6 @@ except ImportError:
     except ImportError:
         raise ImportError("Cannot import PyBlastAfterglowMag")
 
-# import matplotlib.pyplot as plt
-# N = 1000
-# y = np.zeros(N)
-# plt.semilogx(np.geomspace(1, 1000, N, endpoint=True), y + 1, 'o')
-# plt.semilogx(np.geomspace(1, 1000, N, endpoint=False), y + 2, 'o')
-# plt.semilogx(np.logspace(1, 1000, N, endpoint=False), y + 3, 'o')
-# plt.axis([0.5, 2000, 0, 4])
-# plt.grid(True, color='0.7', linestyle='-', which='both', axis='both')
-# plt.show()
-
-
-
-def plot2(vals : dict, figpath = None):
-    fig, axes = plt.subplots(ncols=1, nrows=2, figsize=(4.6,2+2.8), sharex="all")
-    ax = axes[0]
-
-    ax.plot(np.array(vals["texts"]), np.array(vals["v_ave"])*get_Gamma(vals["v_ave"]), 'x', color='blue')
-    ax.minorticks_on()
-    ax.tick_params(axis='both', which='both', labelleft=True,
-                   labelright=False, tick1On=True, tick2On=False,
-                   labelsize=12,
-                   direction='in',
-                   bottom=True, top=True, left=True, right=True)
-    ax.set_ylabel(r"Mass-averaged $\langle \Gamma\beta \rangle$", color="blue")
-    # ax.set_xlabel(r"$t_{\rm ext}$ [ms]")
-
-    ax1 = ax.twinx()
-    ax1.plot(np.array(vals["texts"]), np.array(vals["v_fast_ave"])*get_Gamma(vals["v_fast_ave"]), 'o', color="red")
-    ax1.minorticks_on()
-    ax1.tick_params(axis='both', which='both', labelleft=False,
-                    labelright=True, tick1On=False, tick2On=True,
-                    labelsize=12,
-                    direction='in',
-                    bottom=True, top=True, left=True, right=True)
-    ax1.set_xlabel(r"$t_{\rm ext}$ [ms]")
-    ax1.set_ylabel(r"Mass-averaged $\langle \Gamma\beta(\Gamma\beta>1) \rangle$",color="red")
-    ax1.set_xlim(vals["texts"][0], vals["texts"][-1])
-    # plt.tight_layout()
-    # plt.savefig(FIGPATH+figppath+"average_velocity_evolution"+"png",dpi=256)
-    # plt.show()
-
-    # -------------------------------------------------------------------
-    # fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(4.6, 2.8))
-    ax = axes[1]
-    ax.plot(np.array(vals["texts"]), np.array(vals["theta_rms"]), 'x', color='blue', label="Total ejecta")
-    ax.minorticks_on()
-    ax.tick_params(axis='both', which='both', labelleft=True,
-                   labelright=False, tick1On=True, tick2On=False,
-                   labelsize=12,
-                   direction='in',
-                   bottom=True, top=True, left=True, right=True)
-    ax.set_ylabel(r"RMS half-openning angle $\langle \theta_{\rm RMS} \rangle$", color="red")
-
-    ax.plot(np.array(vals["texts"]), np.array(vals["fast_theta_rms"]), 'd', color="blue", label=r"Fast tail, $\Gamma\beta>1$")
-    ax.set_xlabel(r"$t_{\rm ext}$ [ms]")
-    ax.legend(**{"fancybox": False, "loc": 'lower right',
-                 # "bbox_to_anchor":(1.0, 0.0),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
-                 "shadow": "False", "ncol": 1, "fontsize": 12 - 2, "columnspacing": 0.4,
-                 "framealpha": 0., "borderaxespad": 0., "frameon": False})
-    ax1 = ax.twinx()
-    ax1.plot(np.array(vals["texts"]), np.array(vals["fast_masses"]), 'x', color="red")
-    ax1.minorticks_on()
-    ax1.tick_params(axis='both', which='both', labelleft=False,
-                    labelright=True, tick1On=False, tick2On=True,
-                    labelsize=12,
-                    direction='in',
-                    bottom=True, top=True, left=True, right=True)
-    ax1.set_ylabel(r"$\langle M_{\rm ej}(\Gamma\beta>1)$", color="red")
-    # ax1.set_yscale("log")
-    ax.set_xlabel(r"$t_{\rm ext}$ [ms]")
-    ax.set_ylabel(r"$\theta_{\rm RMS} = \sqrt{ \Sigma(m_i\theta_i)/\Sigma(m_i) }$", color="blue")
-    ax.set_xlim(vals["texts"][0], vals["texts"][-1])
-    plt.tight_layout()
-    if not figpath is None: plt.savefig(figpath + ".png", dpi=256)
-    if not figpath is None: plt.savefig(figpath + ".pdf")
-    plt.show()
-
 def plot_init_profile(ctheta, betas, eks,
                       xmin=0,xmax=90,ymin=1e-2,ymax=6,vmin=1e-12,vmax=1e-6,
                       norm_mode="log", cmap = plt.get_cmap('RdYlBu_r'),
@@ -378,150 +301,71 @@ def plot_init_profile(ctheta, betas, eks,
     # # if (save_figs): plt.savefig(PAPERPATH + figname + ".pdf")
     # plt.show()
 
-
-def main_old():
+def plot_skymaps_():
     workdir = os.getcwd()+'/'
-    ### locate and extract the data from the original ejecta profiles from Kenta
-    path_to_original_data = "/media/vsevolod/data/KentaData/SFHo_13_14_150m_11/" #
-    # if not os.path.isdir(path_to_original_data):
-    #     raise FileExistsError("Input ejecta data is not found")
+    pba = PyBlastAfterglow(workingdir=workdir,readparfileforpaths=True,parfile="parfile.par")
 
-    dfile = h5py.File(workdir+"kenta_ejecta_13.h5")
-    print(dfile.keys())
+    plt.loglog(pba.PWN.get_skymap_times(),pba.PWN.get_skymap_totfluxes(freq=pba.PWN.get_skymap_freqs()[0]))
+    plt.show()
 
-    # print(np.gradient([0.1,0.3], edge_order=1))
+    print(f"times={pba.PWN.get_skymap_times()}")
+    print(f"freqs={pba.PWN.get_skymap_freqs()}")
+    dfile = pba.PWN.get_skymap_obj()#(time=pba.PWN.get_skymap_times()[0],freq=pba.PWN.get_skymap_freqs()[0])
+    ddfile = dfile["time={:.4e} freq={:.4e}".format(pba.PWN.get_skymap_times()[0], pba.PWN.get_skymap_freqs()[0])]
+    ishell=0
+    d_l = float(dfile.attrs["d_l"])
+    r_i = np.array(ddfile["r"][ishell])
+    mu_i = np.array(ddfile["mu"][ishell])
+    ctheta = np.array(ddfile["ctheta"][ishell])
+    phi = np.array(ddfile["phi"][ishell])
+    tau_compton_i = np.array(ddfile["tau_compton"][ishell])
+    tau_bh_i = np.array(ddfile["tau_bh"][ishell])
+    tau_bf_i = np.array(ddfile["tau_bf"][ishell])
+    xrs_i = np.array(ddfile["xrs"][ishell]) * cgs.rad2mas / d_l  # m -> mas
+    yrs_i = np.array(ddfile["yrs"][ishell]) * cgs.rad2mas / d_l  # m -> mas
+    int_i = np.array(ddfile["intensity"][ishell]) * (d_l ** 2 / cgs.rad2mas ** 2)  # -> mJy / mas^2
 
-    # ## lead the original data and prepare the ID file for PyBlastAfterglow
-    # text = 25.
-    # label = f"corr_id_SFHo_13_14_150m_11_text{int(text)}"
-    # sort_by = lambda k: int(re.findall(r'\d+', str(k.split("/")[-1]))[0])
-    # files = sorted(glob("/media/vsevolod/data/KentaData/SFHo_13_14_150m_11/" + "ejecta*", recursive=True), key=sort_by)
+    x1 = r_i * np.sin(phi) * np.cos(ctheta)
+    y1 = r_i * np.sin(phi) * np.sin(ctheta)
+    z1 = r_i * np.cos(phi)
 
-    text = 70.
-    label = f"corr_id_SFHo_13_14_150m_11_text{int(text)}"
-    sort_by = lambda k: int(re.findall(r'\d+', str(k.split("/")[-1]))[0])
-    files = sorted(glob(workdir + "kenta_ejecta*", recursive=True), key=sort_by)
+    fig = plt.figure()
+    cmap = cm.get_cmap('viridis')
+    my_norm = LogNorm(int_i.max() * 1e-2, int_i.max())
+    ax = fig.add_subplot(projection='3d')
+    # ax.scatter(xrs_i.flatten(), yrs_i.flatten(), ((theta_i-theta0_i)*180/np.pi).flatten(),  c=cmap(my_norm(int_i.flatten())))
+    # ax.scatter(np.log10(x1).flatten(), np.log10(y1).flatten(), np.log10(z1).flatten(), c=cmap(my_norm(int_i.flatten())))
+    ax.scatter(ctheta.flatten(), phi.flatten(), np.log10(r_i).flatten(), c=cmap(my_norm(int_i.flatten())))
+    # ax.scatter(xrs_i.flatten(), yrs_i.flatten(),mu_i.flatten(),  c=cmap(my_norm(int_i.flatten())))
+    ax.set_xlabel('X Label')
+    ax.set_ylabel('Y Label')
+    ax.set_zlabel('I Label')
 
-    prepare_kn_ej_id_2d(files=files,
-                        outfpaths=[workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5"],
-                        req_times=np.array([text]),
-                        new_theta_len=None,
-                        new_vinf_len=None,
-                        verbose=True,
-                        r0type="fromrho",
-                        dist="pw")
+    ax = fig.add_subplot()
+    ax.loglog(pba.PWN.get_skymap_times(),pba.PWN.get_skymap_totfluxes(freq=pba.PWN.get_skymap_freqs()[0]))
+    ax.set_xscale("log")
+    ax.set_yscale("log")
 
-
-
-    #
-    mom_, theta_, ctheta_, ek_, mass_, ye_, s_, rho_, temp_\
-        = load_init_data(workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5")
-    r = np.zeros_like(mass_)
-    for ith in range(len(ctheta_[0,:])):
-        idx = 0
-        k = 0.5
-        r[idx,ith] = (k*(3/4./np.pi)*rho_[idx,ith]*mass_[idx,ith])**(1./3.)
-
-        if (r[idx,ith] == 0):
-            raise ValueError()
-        for ir in range(1,len(mom_[:,0]),1):
-            _val = (3./4./np.pi)*rho_[ir,ith]*mass_[ir,ith]
-            _rm1 = r[ir-1,ith]**3
-            if(mass_[ir,ith]>0):
-                r[ir,ith] = (_rm1 + _val)**(1./3.)
-
-    # t = 70. * 1e-3
-    # for ith in range(len(ctheta_[0,:])):
-    #     for ir in range(0,len(mom_[:,0]),1):
-    #         r[ir,ith] =  BetFromMom(mom_[ir,ith])*cgs.c * t
-
-
-    # r = np.zeros_like(mass_)
-    # for ith in range(len(ctheta_)):
-    #     idx = np.argmax(np.where(mass_[:,ith] > 0))
-    #     if idx != len(mom_)-1: print(idx, mass_[idx,ith], mass_[idx+1,ith])
-    #     if (len(mass_[:,ith]>0.)==1):
-    #         raise ValueError()
-    #
-    #     k = 100.
-    #     r[idx,ith] = (k*(3/4./np.pi)*rho_[idx,ith]*mass_[idx,ith])**(1./3.)
-    #     for i in range(idx-1, 0, -1):
-    #         _rp1 = r[i+1,ith]**3
-    #         _val = (3./4./np.pi)*rho_[i,ith]*mass_[i,ith]
-    #         if (_rp1 < _val):
-    #             raise ValueError()
-    #         r[i,ith] = (_rp1 - _val)**(1./3.)
-    #         y = 1
-    #     print(r[:,ith])
-    #     x = 1
-
-        # if (idx == 1):
-        #     print(mass_[:,ith])
-
-    # exit(1)
-    # k = 1./2.
-    # rn = (k*(3/4/np.pi)*rho_[-1,:]*mass_[-1,:])**(1./3.)
-    # r = np.zeros_like(mass_)
-    # r[-1,:] = rn
-    # for i in range(len(mom_)-2, 0, -1):
-    #     print(i)
-    #     r[i,:] = (r[i+1,:]**3 - (3./4./np.pi)*rho_[i,:]*mass_[i,:])**(1./3.)
+    plt.show()
 
 
 
 
-    plot_init_profile(ctheta_[0,:], mom_[:,0], r,
-                      figpath=None,#FIGPATH+"ang_mass_dist" + r"_text{}".format(int(times[idx])),
-                      norm_mode="log",
-                      subplot_mode="ave",
-                      title=r"$t_{\rm ext}="+r"{}$ [ms]".format(int(text)))
 
-    # data_par_list, data_par_list_all = get_ej_data_for_text(datadir=path_to_original_data,
-    #                                                        req_times=np.array([text]),
-    #                                                        new_theta_len=None,
-    #                                                        verbose=True)
-    # data_par_list = data_par_list[0]
-    # plot_init_profile(data_par_list["thetas"], data_par_list["betas"], data_par_list["masses"].T,
-    #                   figpath=None,#FIGPATH+"ang_mass_dist" + r"_text{}".format(int(times[idx])),
-    #                   title=r"$t_{\rm ext}="+r"{}$ [ms]".format(int(text)))
-    modify_parfile_par_opt(workingdir=workdir, part="kn", newpars={},
-                           newopts={"fname_light_curve":f"{label}.lc",
-                                    "fname_ejecta_id":f"{label}.h5"},
-                           parfile="parfile.par",newparfile="parfile.par",keep_old=False
-                           )
-
-    # dfile = h5py.File(label+".h5",'a')
-    # dfile = h5py.File(label+".h5",'a')
-    # print(np.array(dfile["mom"]))
-    # dfile.create_dataset(name="mom", data=np.array(dfile["vel_inf"])*get_Gamma(np.array(dfile["vel_inf"])))
-    # dfile.create_dataset(name="mom", data=np.array(dfile["vel_inf"])*get_Gamma(np.array(dfile["vel_inf"])))
-    # dfile.create_dataset(name="s", data=np.full_like(np.array(dfile["ek"]),fill_value=10.))
-    # dfile.close()
+    fig = plt.figure()
+    cmap = cm.get_cmap('viridis')
+    my_norm = LogNorm(int_i.max() * 1e-2, int_i.max())
+    ax = fig.add_subplot(projection='3d')
+    # ax.scatter(xrs_i.flatten(), yrs_i.flatten(), ((theta_i-theta0_i)*180/np.pi).flatten(),  c=cmap(my_norm(int_i.flatten())))
+    ax.scatter(xrs_i.flatten(), yrs_i.flatten(), np.log10(r_i).flatten(), c=cmap(my_norm(int_i.flatten())))
+    # ax.scatter(xrs_i.flatten(), yrs_i.flatten(),mu_i.flatten(),  c=cmap(my_norm(int_i.flatten())))
+    ax.set_xlabel('X Label')
+    ax.set_ylabel('Y Label')
+    ax.set_zlabel('I Label')
+    plt.show()
 
 
-    pba = PyBlastAfterglow(workingdir=os.getcwd()+'/',readparfileforpaths=True)
-    pba.reload_parfile()
-    pba.run(loglevel="info")
-
-
-
-    # fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(4.6, 3.2))
-    # ax = axes
-    # ax.loglog(pba.get_ej_lc_times() / cgs.day, pba.get_ej_lc_totalflux(freq=3.e9),
-    #         **{"color":"black", "ls": "--", "lw": 0.8, "label": label})
-    #
-    # pba.clear()
-    # plt.show()
-
-def main():
-
-    # x_arr = np.array([ 6.62534e-19, 9.57652e-19, 1.38423e-18, 2.00082e-18, 2.89206e-18, 4.1803e-18, 6.04238e-18, 8.73389e-18, 1.26243e-17, 1.82477e-17, 2.63759e-17, 3.81248e-17, 5.51071e-17, 7.96541e-17, 1.15135e-16, 1.66421e-16, 2.40551e-16, 3.47703e-16, 5.02583e-16, 7.26454e-16, 1.05005e-15, 1.51778e-15, 2.19386e-15, 3.17109e-15, 4.58361e-15, 6.62534e-15, 9.57652e-15, 1.38423e-14, 2.00082e-14, 2.89206e-14, 4.1803e-14, 6.04238e-14, 8.73389e-14, 1.26243e-13, 1.82477e-13, 2.63759e-13, 3.81248e-13, 5.51071e-13, 7.96541e-13, 1.15135e-12, 1.66421e-12, 2.40551e-12, 3.47703e-12, 5.02583e-12, 7.26454e-12, 1.05005e-11, 1.51778e-11, 2.19386e-11, 3.17109e-11, 4.58361e-11, 6.62534e-11, 9.57652e-11, 1.38423e-10, 2.00082e-10, 2.89206e-10, 4.1803e-10, 6.04238e-10, 8.73389e-10, 1.26243e-09, 1.82477e-09, 2.63759e-09, 3.81248e-09, 5.51071e-09, 7.96541e-09, 1.15135e-08, 1.66421e-08, 2.40551e-08, 3.47703e-08, 5.02583e-08, 7.26454e-08, 1.05005e-07, 1.51778e-07, 2.19386e-07, 3.17109e-07, 4.58361e-07, 6.62534e-07, 9.57652e-07, 1.38423e-06, 2.00082e-06, 2.89206e-06, 4.1803e-06, 6.04238e-06, 8.73389e-06, 1.26243e-05, 1.82477e-05, 2.63759e-05, 3.81248e-05, 5.51071e-05, 7.96541e-05, 0.000115135, 0.000166421, 0.000240551, 0.000347703, 0.000502583, 0.000726454, 0.00105005, 0.00151778, 0.00219386, 0.00317109, 0.00458361])
-    # y_arr = np.array([ 9.89229e+10, 8.22805e+10, 6.8438e+10, 5.69242e+10, 4.73475e+10, 3.93819e+10, 3.27565e+10, 2.72456e+10, 2.26619e+10, 1.88494e+10, 1.56782e+10, 1.30406e+10, 1.08467e+10, 9.02188e+09, 7.50407e+09, 6.24162e+09, 5.19155e+09, 4.31814e+09, 3.59167e+09, 2.98743e+09, 2.48483e+09, 2.06679e+09, 1.71908e+09, 1.42987e+09, 1.18932e+09, 9.89229e+08, 8.22805e+08, 6.8438e+08, 5.69242e+08, 4.73475e+08, 3.93819e+08, 3.27565e+08, 2.72456e+08, 2.26619e+08, 1.88494e+08, 1.56782e+08, 1.30406e+08, 1.08467e+08, 9.02188e+07, 7.50407e+07, 6.24162e+07, 5.19155e+07, 4.31814e+07, 3.59167e+07, 2.98743e+07, 2.48483e+07, 2.06679e+07, 1.71908e+07, 1.42987e+07, 1.18932e+07, 9.89229e+06, 8.22805e+06, 6.8438e+06, 5.69242e+06, 4.73475e+06, 3.93819e+06, 3.27565e+06, 2.72456e+06, 2.26619e+06, 1.88494e+06, 1.56782e+06, 1.30406e+06, 1.08467e+06, 902188, 750407, 624162, 519155, 431814, 359167, 298743, 248483, 206679, 171908, 142987, 118932, 98922.9, 82280.5, 68438, 56924.2, 47347.5, 39381.9, 32756.5, 27245.6, 22661.9, 18849.4, 15678.2, 13040.6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-    #
-    # plt.loglog(x_arr, y_arr, ls='--', label='afg')
-    # plt.show()
-
-
+def run():
     workdir = os.getcwd()+'/'
     path_to_original_data = "/media/vsevolod/data/KentaData/SFHo_13_14_150m_11/" #
     dfile = h5py.File(workdir+"kenta_ejecta_13.h5")
@@ -535,7 +379,7 @@ def main():
     prepare_kn_ej_id_2d(files=files,
                         outfpaths=[workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5"],
                         req_times=np.array([text]),
-                        new_theta_len=4,
+                        new_theta_len=20,
                         new_vinf_len=None,
                         verbose=True,
                         r0type="fromrho", r0frac=0.5, t0=-1,
@@ -557,10 +401,12 @@ def main():
 
     pba = PyBlastAfterglow(workingdir=os.getcwd()+'/',readparfileforpaths=True)
     pba.reload_parfile()
-    # pba.run(loglevel="info")
+    pba.run(loglevel="info")
 
 
-
+def main():
+    run()
+    plot_skymaps_()
 
 if __name__ == '__main__':
     main()

@@ -111,6 +111,13 @@ public:
         }
         return std::move ( cphis );
     }
+    static void getCphiGridPW( Vector & cphis, size_t ilayer ){
+        size_t cil = CellsInLayer(ilayer);
+//        Vector cphis ( cil );
+        for (size_t j = 0; j < cil; j++){
+            cphis[j] = (double)j * 2.0 * CGS::pi / (double)cil;
+        }
+    }
     static size_t CellsInLayer(const size_t &i_layer){
         return 2 * i_layer + 1;
     }

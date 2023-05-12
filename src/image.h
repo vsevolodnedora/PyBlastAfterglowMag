@@ -13,9 +13,11 @@
 
 namespace IMG{
     //    std::vector<std::string> m_names{"theta", "phi", "r", "theta_j", "theta0", "mu", "xrs", "yrs", "gamma", "fluxes", "intensity", "gm", "gc", "B", "tburst", "tt"};
-    std::vector<std::string> m_names{"mu", "xrs", "yrs", "intensity"};
+    std::vector<std::string> m_names{"mu", "xrs", "yrs", "intensity", "r", "ctheta", "phi",
+                                     "tau_compton", "tau_bh", "tau_bf"};
 //    enum Q { itheta, iphi, ir, itheta_j, itheta0, imu, ixr, iyr, igam, iflux, iintens, igm, igc, iB, itburst, itt };
-    enum Q {imu, ixr, iyr, iintens};
+    enum Q {imu, ixr, iyr, iintens, ir, ictheta, iphi,
+            itau_comp, itau_bh, itau_bf};
 }
 
 namespace IMG_TAU{
@@ -30,10 +32,10 @@ struct Image {
     size_t m_n_vn = 0;
     VecVector m_data {};
     std::unique_ptr<logger> p_log;
-    size_t ia, ib, nu_ia, nu_ib;
-    double theta=0.,phi=0.,r=0.,ctheta=0.,mu=0.;
-    double flux_dens=0.;
-    double t_obs, nu_obs;
+//    size_t ia, ib, nu_ia, nu_ib;
+//    double theta=0.,phi=0.,r=0.,ctheta=0.,mu=0.;
+//    double flux_dens=0.;
+//    double t_obs, nu_obs;
     Image(size_t size, size_t n_vn, double fill_value, unsigned loglevel=LOG_DEBUG){
         m_n_vn=n_vn;
 //        p_log = new logger(std::cout, loglevel, "Image");

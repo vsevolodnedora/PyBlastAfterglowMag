@@ -2798,9 +2798,12 @@ public:
     }
 #endif
 
-    static void fluxDensPW(double & flux_dens, double & r, double & ctheta, double theta, double phi,
-                    size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
-                    Vector & ttobs, void * params){
+//    static void fluxDensPW(double & flux_dens, double r, double & ctheta, double theta, double phi,
+//                    size_t ia, size_t ib, double ta, double tb, double mu, double t_obs, double nu_obs, void * params){
+
+    static void fluxDensPW(double & flux_dens, double & tau_comp, double & tau_BH, double & tau_bf,
+                           double r, double & ctheta, double theta, double phi,
+                           size_t ia, size_t ib, double ta, double tb, double mu, double t_obs, double nu_obs, void * params){
 
         auto * p_pars = (struct Pars *) params;
         auto & m_data = p_pars->m_data;
@@ -2812,8 +2815,8 @@ public:
             Interp2d int_abs(p_pars->m_freq_arr, m_data[BW::Q::iR], p_pars->m_synch_abs);
             Interp1d::METHODS mth = Interp1d::iLagrangeLinear;
 
-            double Gamma = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iGamma]);
-            double beta = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::ibeta]);
+            double Gamma = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::iGamma]);
+            double beta = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::ibeta]);
             // double GammaSh = ( Interp1d(m_data[BW::Q::iR], m_data[BW::Q::iGammaFsh] ) ).Interpolate(r, mth );
             /// evaluateShycnhrotronSpectrum Doppler factor
             double a = 1.0 - beta * mu; // beaming factor
@@ -2832,8 +2835,8 @@ public:
             double abs_lab = abs_prime * delta_D; // conversion of absorption (see vanEerten+2010)
 
             /// evaluateShycnhrotronSpectrum optical depth (for this shock radius and thickness are needed)
-            double GammaShock = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iGammaFsh]);
-            double dr = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::ithickness]);
+            double GammaShock = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::iGammaFsh]);
+            double dr = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::ithickness]);
             double dr_tau = EQS::shock_delta(r,
                                              GammaShock); // TODO this is added becasue in Johanneson Eq. I use ncells
 
@@ -2858,7 +2861,7 @@ public:
             flux_dens = (intensity * r * r * dr) * (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
 //        flux += flux_dens;
             /// save the result in image
-            ctheta = interpSegLin(ia, ib, t_obs, ttobs, m_data[BW::Q::ictheta]);
+            ctheta = interpSegLin(ia, ib, ta, tb, t_obs, m_data[BW::Q::ictheta]);
             //  double ctheta = ( Interp1d(m_data[BW::Q::iR], m_data[BW::Q::ictheta] ) ).Interpolate(r, mth );
 //        image(Image::iintens, i) =
 //                flux_dens / (r * r * std::abs(mu)) * CGS::cgs2mJy; //(obs_flux / (delta_D * delta_D * delta_D)); //* tmp;
@@ -2867,28 +2870,35 @@ public:
 //        image(Image::imu, i) = mu_arr[i];
         }
         else{
-            double Gamma = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iGamma]);
-            double GammaSh = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iGammaFsh]);
-            double rho2 = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::irho2]);
-            double m2 = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iM2]);
-            double frac = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iacc_frac]);
-            double thick = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::ithickness]);
-            double theta = interpSegLin(ia, ib, t_obs, ttobs, m_data[BW::Q::itheta]);
-            ctheta = interpSegLin(ia, ib, t_obs, ttobs, m_data[BW::Q::ictheta]);
-            double B = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iB]);
-            double gm = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::igm]);
-            double gM = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::igM]);
-            double gc = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::igc]);
-            double Theta = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iTheta]);
-            double z_cool = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iz_cool]);
-            double tb = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::itburst]);
-            double tt = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::itt]);
-            double cs = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iCSCBM]);
+            double Gamma = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::iGamma]);
+            double GammaSh = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::iGammaFsh]);
+            double rho2 = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::irho2]);
+            double m2 = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::iM2]);
+            double frac = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::iacc_frac]);
+            double thick = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::ithickness]);
+            theta = interpSegLin(ia, ib, ta, tb, t_obs, m_data[BW::Q::itheta]);
+            ctheta = interpSegLin(ia, ib, ta, tb, t_obs, m_data[BW::Q::ictheta]);
+            double B = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::iB]);
+            double gm = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::igm]);
+            double gM = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::igM]);
+            double gc = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::igc]);
+            double Theta = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::iTheta]);
+            double z_cool = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::iz_cool]);
+            double tburst = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::itburst]);
+            double tt = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::itt]);
+            double cs = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::iCSCBM]);
 
             if ((!std::isfinite(gm))||(!std::isfinite(B))||(!std::isfinite(m2))){
+
                 (*p_pars->p_log)(LOG_ERR,AT)
                     <<"[ish="<<p_pars->ishell<<", "<<"il="<<p_pars->ilayer<<"] "
-                    <<" nans in flux func PW\n";
+                    <<" nanss {"
+                    <<" ia="<<ia<<" ib="<<ib<<" ta="<<ta<<" tb="<<tb<<" r="<<r<<" mu="<<mu
+                        <<" nu_obs="<<nu_obs<<" t_obs="<<t_obs
+                        <<" phi="<<phi<<" theta="<<theta<<" ctheta="<<ctheta<<" flux_dens="<<flux_dens
+                        << " | " << " Gamma="<<Gamma<<" rho2="<<rho2<<" m2="<<m2<<" B="<<B
+                    <<"\n";
+                    ;
                 exit(1);
             }
 

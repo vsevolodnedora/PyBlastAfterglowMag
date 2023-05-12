@@ -778,6 +778,82 @@ namespace PWN{
     };
 }
 
+double nu_from_gamma(double b_pwn, double gamma_i){
+    return 3./(4.*M_PI)*gamma_i*gamma_i*(CGS::ELEC*b_pwn)/(CGS::M_ELEC*CGS::c);
+}
+double pwn_spectrum(double nu, double r_pwn, double b_pwn, double n_ext, double tcomov, double lum_mag, double eps_e, double gamma_b){
+    /// From 2.2 Sec. Emission from the PWN in MNRAS 512, 5572–5579 (2022) https://doi.org/10.1093/mnras/stac797
+    double q1 = 1.5;
+    double q2 = 2.5;
+
+//    double eps_e = 0.1;
+    double gamma_m = 3.;
+
+//    double gamma_b = 1e4; // ????
+    double gamma_c = 6.*M_PI*CGS::M_ELEC*CGS::c/(SIGMA_T*b_pwn*b_pwn*tcomov);
+    double gamma_M = std::sqrt( 9.*CGS::M_ELEC*CGS::M_ELEC*CGS::c*CGS::c*CGS::c*CGS::c/(8.*b_pwn*CGS::ELEC*CGS::ELEC*CGS::ELEC) );
+    ///
+    double nu_m = nu_from_gamma(b_pwn, gamma_m);
+    double nu_c = nu_from_gamma(b_pwn, gamma_c);
+    double nu_M = nu_from_gamma(b_pwn, gamma_M);
+    double nu_b = nu_from_gamma(b_pwn, gamma_b);
+    double nu_a = 0.;
+
+    double xi_q1 = 5./3.;
+    double n_pwn = lum_mag / (4.*M_PI*r_pwn*r_pwn*gamma_b*CGS::M_ELEC*CGS::c*CGS::c*CGS::c);
+
+    double Rb = 1. / (2. - q1) + 1. / (q2 - 2.);
+    double eta = std::min(1., std::pow(nu_b / nu_c, (q2 - 2.) / 2.));
+    double xi = eta * eps_e;
+    double prefac = xi * lum_mag / (2. * Rb);
+
+//    std::vector<double> nu_arr = MakeLogspaceVec(8.,22.,100.,10);
+//    std::vector<double> spec (nu_arr.size());
+    /// find nu_a from optical depth = 1
+    double tau_a = 1.;
+//        xi_q1 * ELEC * n_ext * r_pwn / b_pwn / std::pow(gamma_m,5.) * std::pow(nu / nu_m, -q1/2. - 2.);
+    nu_a = nu_m * std::pow(tau_a * xi_q1 * CGS::ELEC * (n_pwn) * r_pwn / b_pwn / std::pow(gamma_m,5.)
+                           * std::pow(nu / nu_m, -q1/2. - 2.), q1/2.+2.);
+
+    double spec = 0.;
+    if (nu_c < nu_b){
+        /// fast coocling
+        if ((nu_m <= nu)&&(nu <= nu_a))
+            spec = std::pow(nu_c/nu_b, (2.-q1)/2.)
+                      * std::pow(nu_a/nu_c, (3.-q1)/2.)
+                      * std::pow(nu/nu_a, 5./2.);
+        else if ((nu_a <= nu)&&(nu<=nu_c))
+            spec = std::pow(nu_c/nu_b, (2.-q1)/2.)
+                      * std::pow(nu/nu_c,(3.-q1)/2.);
+        else if ((nu_c<=nu)&&(nu<=nu_b))
+            spec = std::pow(nu/nu_b,(2.-q1)/2.);
+        else if ((nu_b<=nu)&&(nu<=nu_M))
+            spec = std::pow(nu/nu_b, (2.-q2)/2.);
+        else{
+            std::cerr << " error in spectrum \n"; exit(1);
+        }
+    }
+    else if (nu_c >= nu_b){
+        if((nu_m<=nu)&&(nu<=nu_a))
+            spec = std::pow(nu_b/nu_c,(3.-q2)/2.)
+                      * std::pow(nu_a/nu_b,(3.-q1)/2.)
+                      * std::pow(nu/nu_a,5./2.);
+        else if ((nu_a<=nu)&&(nu<=nu_b))
+            spec = std::pow(nu_b/nu_c,(3.-q2)/2.)
+                      * std::pow(nu/nu_b,(3.-q1)/2.);
+        else if ((nu_b<=nu)&&(nu<=nu_c))
+            spec = std::pow(nu/nu_c,(3.-q2)/2.);
+        else if ((nu_c<=nu)&&(nu<=nu_M))
+            spec = std::pow(nu/nu_c,(2.-q2)/2.);
+        else{
+            std::cerr << " error in spectrum \n"; exit(1);
+        }
+    }
+    double fnu = prefac * spec;
+//    print_xy_as_numpy(nu_arr,spec,spec.size(),1);
+    return fnu;
+}
+
 /// PWN model from Murase+2015
 class PWNmodel{
     struct Pars{
@@ -820,6 +896,7 @@ class PWNmodel{
         // --------------
         double b_pwn=-1;
         bool is_init = false;
+        bool do_opt_depth_ej_calc = false;
         // -------------
         double d_l=-1.;
         double theta_obs=-1.;
@@ -827,6 +904,7 @@ class PWNmodel{
         // ------------
         size_t ilayer = 0;
         size_t ishell = 1;
+        size_t ncells=0;
     };
 //    Vector m_tb_arr;
     VecVector m_data{}; // container for the solution of the evolution
@@ -835,7 +913,7 @@ class PWNmodel{
     Pars * p_pars = nullptr;
     std::unique_ptr<EATS> p_eats;
     Vector frac_psr_dep_{};
-    size_t m_ilayer=0;size_t m_ishell=0;size_t m_ncells=0;
+//    size_t m_ilayer=0;size_t m_ishell=0;size_t m_ncells=0;
     std::unique_ptr<Ejecta> & p_ej;
     std::unique_ptr<Magnetar> & p_mag;
     unsigned m_loglevel{};
@@ -881,9 +959,9 @@ public:
         auto & p_bw = p_ej->getShells()[ilayer]->getBWs()[p_pars->ishell];
         /// ------------
         p_pars->ctheta0 = p_bw->getPars()->ctheta0;
-        m_ilayer = p_bw->getPars()->ilayer;
-        m_ishell = p_bw->getPars()->ishell;
-        m_ncells = (size_t) p_bw->getPars()->ncells;
+        p_pars->ilayer = p_bw->getPars()->ilayer;
+        p_pars->ishell = p_bw->getPars()->ishell;
+        p_pars->ncells = (size_t) p_bw->getPars()->ncells;
         /// ----------
         // Vector & tburst, Vector & tt, Vector & r, Vector & theta,Vector & m_gam, Vector & m_bet,
         // Vector & freq_arr, Vector & synch_em, Vector & synch_abs,
@@ -903,9 +981,9 @@ public:
     VecVector & getData(){ return m_data; }
     Vector & getData(PWN::Q q){ return m_data[q]; }
 
-    size_t layer() const { return m_ilayer; }
-    size_t shell() const { return m_ishell; }
-    size_t ncells() const { return m_ncells; }
+    size_t layer() const { return p_pars->ilayer; }
+    size_t shell() const { return p_pars->ishell; }
+    size_t ncells() const { return p_pars->ncells; }
 
     void updateOuterBoundary(Vector & r, Vector & beta, Vector & rho, Vector & tau, Vector & temp){
         if ((r[0] < 0) || (beta[0] < 0) || (rho[0] < 0) || (tau[0] < 0) || (temp[0] < 0)){
@@ -941,7 +1019,7 @@ public:
         p_pars->curr_lacc = lacc;
     }
 
-    /// ------- PWN -------------
+    /// ---- PARAMETERS -------------------------------------------------------------
     void setPars(StrDbMap & pars, StrStrMap & opts, StrDbMap main_pars, size_t iieq){
         double radius_wind_0 = getDoublePar("Rw0",pars,AT,p_log,-1,true); // PWN radius at t=0; [km]
 //        radius_wind_0 *= (1000. * 100); // km -> cm
@@ -955,6 +1033,7 @@ public:
         int iterations = (int)getDoublePar("iters",pars,AT,p_log,-1,true); //iterations for absorption spectrum calcs
         run_pwn = getBoolOpt("run_pwn", opts, AT, p_log, false, true);
         load_pwn = getBoolOpt("load_pwn", opts, AT, p_log, false, true);
+        p_pars->do_opt_depth_ej_calc = getBoolOpt("do_opt_depth_ej_calc", opts, AT, p_log, false, true);
         // **************************************
         p_pars->Rw0 = radius_wind_0;
 //        p_pars->vel_w0 = vel_wind0;
@@ -969,7 +1048,7 @@ public:
         // *************************************
         frac_psr_dep_.resize(p_pars->iterations + 1, 0.0);
         //-------------------------------------
-        for (auto &key: {"n_ism", "d_l", "z", "theta_obs", "A0", "s", "r_ej", "r_ism"}) {
+        for (auto & key: {"n_ism", "d_l", "z", "theta_obs", "A0", "s", "r_ej", "r_ism"}) {
             if (main_pars.find(key) == main_pars.end()) {
                 (*p_log)(LOG_ERR, AT) << " keyword '" << key << "' is not found in main parameters. \n";
                 exit(1);
@@ -989,8 +1068,9 @@ public:
         i_end_r = m_data[PWN::Q::itburst].size(); // update for eats
 //        int i = 1;
     }
+    /// -----------------------------------------------------------------------------
 
-//    std::unique_ptr<Pars> & getPars(){ return p_pars; }
+
     Pars *& getPars(){ return p_pars; }
 
     void setInitConditions( double * arr, size_t i ) {
@@ -1240,9 +1320,10 @@ private: // -------- RADIATION ----------
     }
 
 public:
-    static void fluxDensPW(double & flux_dens, double & r, double & ctheta,
-                           double phi, double theta, size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
-                           Vector & ttobs, void * params){
+    static void fluxDensPW(double & flux_dens, double & tau_comp, double & tau_BH, double & tau_bf,
+                           double r, double & ctheta,
+                           double phi, double theta, size_t ia, size_t ib, double ta, double tb,
+                           double mu, double t_obs, double nu_obs, void * params){
         auto * p_pars = (struct Pars *) params;
         auto & p_ej = p_pars->p_ej;
         auto & p_bw = p_ej->getShells()[p_pars->ilayer]->getBWs()[p_pars->ishell];
@@ -1251,12 +1332,14 @@ public:
 //        if (p_pars->i_end_r==0)
 //            return;
         ctheta = p_pars->ctheta0;//interpSegLin(ia, ib, t_obs, ttobs, m_data[BW::Q::ictheta]);
-        double Gamma = interpSegLog(ia, ib, t_obs, ttobs, m_data[PWN::Q::iGamma]);
-        double b_pwn = interpSegLog(ia, ib, t_obs, ttobs, m_data[PWN::Q::iB]);
-        double temp = interpSegLog(ia, ib, t_obs, ttobs, p_bw->getData(BW::Q::iEJtemp));
-        double tburst = interpSegLog(ia, ib, t_obs, ttobs, m_data[PWN::Q::itburst]);
-        double l_dip = p_mag->getMagValInt(MAG::Q::ildip, tburst);
-        double l_acc = p_mag->getMagValInt(MAG::Q::ilacc, tburst);
+        double Gamma = interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::iGamma]);
+        double b_pwn = interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::iB]);
+        double temp  = interpSegLog(ia, ib, ta, tb, t_obs, p_bw->getData(BW::Q::iEJtemp));
+        double tburst= interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::itburst]);
+        double l_dip = p_mag->getMagValInt(MAG::Q::ildip, tburst) / (double)p_pars->ncells; // TODO this has to be done before Radiation Calcs.
+        double l_acc = p_mag->getMagValInt(MAG::Q::ilacc, tburst) / (double)p_pars->ncells;
+
+//        std::cout << "tburst="<<tburst<<" ldip="<<l_dip<<" lacc="<<l_acc<<"\n";
 
         double beta = EQS::Beta(Gamma);
         double a = 1.0 - beta * mu; // beaming factor
@@ -1264,27 +1347,28 @@ public:
         double nuprime = ( 1.0 + p_pars->z ) * nu_obs * delta_D;
         double nu_erg = nu_obs*4.1356655385381E-15*CGS::EV_TO_ERG;
         double gamma_b = 1.0e5; /* break Lorentz factor of electron injection spectrum */
-        double spec = PWNradiationMurase::spec_non_thermal(nu_erg, b_pwn, gamma_b, temp);
+//        double spec = PWNradiationMurase::spec_non_thermal(nu_erg, b_pwn, gamma_b, temp);
 
-        double f_gamma_esc_x=0.;
-        ///double & frac, double ctheta, double r,
-        //                                       double phi, double theta,
-        //                                       double phi_obs, double theta_obs, double r_obs,
-        //                                       double mu, double time, double freq, void * params
-        p_ej->evalOptDepthsAlongLineOfSight(f_gamma_esc_x,
-                                            ctheta, r, CGS::pi/4., theta,
-                                            CGS::pi/4., p_pars->theta_obs, p_pars->d_l,
-                                            mu,tburst,nuprime, p_pars->ilayer, params);
-        double lum = p_pars->eps_e*(l_dip+l_acc)*spec*f_gamma_esc_x*nu_erg;
+        double f_gamma_esc_x=1.;
+        if (true)
+            p_ej->evalOptDepthsAlongLineOfSight(f_gamma_esc_x, tau_comp, tau_BH, tau_bf,
+                                                ctheta, r, CGS::pi/4., theta,
+                                                CGS::pi/4., p_pars->theta_obs, p_pars->d_l,
+                                                tburst, ia, ib, ta, tb, nuprime, p_pars->ilayer, params);
+
+        double lum = p_pars->eps_e*(l_dip+l_acc)*PWNradiationMurase::spec_non_thermal(nu_erg, b_pwn, gamma_b, temp)*f_gamma_esc_x*nu_erg;
+        flux_dens = lum * (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
 //        double fnu = lum / p_pars->d_l / p_pars->d_l;
-        double fnu = lum * (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
-        flux_dens = fnu;
-        int x = 1;
+//        double npwn = l_dip / (4.*CGS::pi*r*r*gamma_b*CGS::me*CGS::c*CGS::c*CGS::c);
+//        double nej = 0.;
+//        double next = npwn + nej;
+//        double fnu_ = pwn_spectrum(nuprime,r,b_pwn,next,tburst,(l_dip+l_acc),p_pars->eps_e,gamma_b);
+//        double fnu = fnu_ * (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+//        flux_dens = fnu;
+//        int x = 1;
     }
 
 };
-
-
 
 /// Container for independent layers of PWN model
 class PWNset{
@@ -1577,6 +1661,11 @@ public:
                         getStrOpt("fname_light_curve_layers", pwn_opts, AT, p_log, "", true),
                         lc_times, lc_freqs, main_pars, pwn_pars, lc_freq_to_time);
 
+            if (do_skymap)
+                computeSaveSkyImages(
+                        workingdir, getStrOpt("fname_sky_map", pwn_opts, AT, p_log, "", true),
+                        skymap_times, skymap_freqs, main_pars, pwn_pars);
+//                    (*p_log)(LOG_INFO, AT) << "jet analytic synch. sky map finished [" << timer.checkPoint() << " s]" << "\n";
         }
     }
 
@@ -1672,11 +1761,99 @@ private:
         group_names.emplace_back("total_fluxes");
         p_out->VectorOfVectorsH5(total_fluxes_shell_layer, group_names, workingdir+fname,  attrs);
     }
+    void computeSaveSkyImages(std::string workingdir, std::string fname, Vector times, Vector freqs,
+                              StrDbMap & main_pars, StrDbMap & ej_pars){
 
+        (*p_log)(LOG_INFO,AT) << "Computing and saving PWN sky image with analytic synchrotron...\n";
+
+        size_t nshells_ = nshells();
+        size_t nlayers_ = nlayers();
+
+
+        std::vector< // times & freqs
+                std::vector< // v_ns
+                        std::vector< // shells
+                                std::vector<double>>>> // data
+        out {};
+
+        size_t ii = 0;
+        out.resize(times.size() * freqs.size());
+        for (size_t ifreq = 0; ifreq < freqs.size(); ++ifreq){
+            for (size_t it = 0; it < times.size(); ++it){
+                out[ii].resize(IMG::m_names.size());
+                for (size_t i_vn = 0; i_vn < IMG::m_names.size(); ++i_vn) {
+                    out[ii][i_vn].resize(nshells_);
+                }
+                ii++;
+            }
+        }
+
+        VecVector other_data{
+                times,
+                freqs
+        };
+        ii = 0;
+        std::vector<std::string> other_names { "times", "freqs" };
+        Images images(nshells_,IMG::m_names.size());
+
+        for (size_t ifreq = 0; ifreq < freqs.size(); ifreq++){
+            Vector tota_flux(times.size(), 0.0);
+            VecVector total_flux_shell( nshells_ );
+            for (auto & total_flux_shel : total_flux_shell)
+                total_flux_shel.resize( times.size(), 0.0 );
+            for (size_t it = 0; it < times.size(); ++it){
+//                auto images = computeEjectaSkyMapPieceWise( times[it],freqs[ifreq]);
+//                std::vector<Image> images(nshells_);
+                computeSkyMapPieceWise( images, times[it], freqs[ifreq] );
+                for (size_t i_vn = 0; i_vn < IMG::m_names.size(); i_vn++) {
+                    for (size_t ish = 0; ish < nshells_; ish++) {
+                        out[ii][i_vn][ish] = images.getImgRef(ish).m_data[i_vn];//arrToVec(images[ish].m_data[i_vn]);
+                    }
+                }
+                for (size_t ish = 0; ish < nshells_; ish++) {
+                    tota_flux[it] += images.getImgRef(ish).m_f_tot;
+                    total_flux_shell[ish][it] = images.getImgRef(ish).m_f_tot;
+                }
+                ii++;
+            }
+            other_data.emplace_back( tota_flux );
+            other_names.emplace_back( "totalflux at freq="+ string_format("%.4e", freqs[ifreq]) );
+
+            for (size_t ish = 0; ish < nshells_; ish++){
+                other_data.emplace_back( total_flux_shell[ish] );
+                other_names.emplace_back( "totalflux at freq="+ string_format("%.4e", freqs[ifreq]) +
+                                          " shell=" + string_format("%d", ish));
+            }
+
+        }
+
+        std::vector<std::string> group_names{};
+        for (size_t ifreq = 0; ifreq < freqs.size(); ifreq++){
+            for (size_t it = 0; it < times.size(); it++){
+                group_names.emplace_back("time=" +  string_format("%.4e",times[it])  //std::to_string(times[it])
+                                         + " freq=" + string_format("%.4e",freqs[ifreq])); //std::to_string(freqs[ifreq]));
+            }
+        }
+
+        auto in_group_names = IMG::m_names;//dummy.m_names;
+
+        /// add attributes from model parameters
+        std::unordered_map<std::string,double> attrs{
+                {"nshells", nshells_},
+                {"nshells", nlayers_}
+        };
+
+        for (auto& [key, value]: main_pars) { attrs[key] = value; }
+        for (auto& [key, value]: ej_pars) { attrs[key] = value; }
+
+        p_out->VectorOfTablesAsGroupsAndVectorOfVectorsH5(workingdir+fname,out,group_names,
+                                                          in_group_names,
+                                                          other_data,other_names,attrs);
+
+    }
 private:
 
     std::vector<VecVector> evalPWNLightCurves( Vector & obs_times, Vector & obs_freqs ){
-
         std::vector<VecVector> light_curves(nshells()); // [ishell][i_layer][i_time]
         for (auto & arr : light_curves){
             size_t n_layers_ej = nlayers();//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStructs.structs[0].nlayers_pw : ejectaStructs.structs[0].nlayers_a ;
@@ -1711,6 +1888,81 @@ private:
             }
         }
         return std::move( light_curves );
+    }
+
+    void computeSkyMapPieceWise( Images & images, double obs_time, double obs_freq ){
+
+        size_t nshells_ = nshells();
+        size_t nlayers_ = nlayers();
+        size_t ncells_ =  (int)ncells();
+
+        if (images.empty()){
+            (*p_log)(LOG_ERR,AT) << " empty image passed. Exiting...\n";
+            exit(1);
+        }
+        if (images.size() != nshells_){
+            (*p_log)(LOG_ERR,AT) << " number of images does not equal to the number of shells. Exiting...\n";
+            exit(1);
+        }
+
+        size_t n_jet_empty_images = 0;
+
+        std::vector<std::vector<size_t>> n_empty_images;
+        std::vector<size_t> n_empty_images_shells;
+        const std::vector<std::string> x {};
+        Images tmp (nlayers_, IMG::m_names.size());
+        tmp.resize(ncells_);
+//        for (auto & _tmp : tmp)
+//            _tmp.resize( ncells_ );
+        Image tmp_pj( ncells_, IMG::m_names.size(), 0, loglevel);
+        Image tmp_cj( ncells_, IMG::m_names.size(), 0, loglevel);
+        for (size_t ishell = 0; ishell < nshells_; ishell++){
+//            for (auto & _tmp : tmp)
+//                _tmp.clearData();
+            tmp.clear();
+            tmp_pj.clearData(); tmp_cj.clearData();
+            std::vector<size_t> n_empty_images_layer;
+            for (size_t ilayer = 0; ilayer < nlayers_; ilayer++){
+                (*p_log)(LOG_INFO,AT)
+                        << " PWN Skymap time=" << obs_time << " freq="<<obs_freq
+                        << " vel_shell=" << ishell << "/" <<nshells()-1
+                        << " theta_layer=" << ilayer << "/" << nlayers()
+                        << " phi_cells=" << EjectaID2::CellsInLayer(ilayer) << "\n";
+                /// Evaluate a given image --------------------------------------
+                auto & bw_rad = p_pwns[ilayer]->getRad();
+                bw_rad->evalImagePW(tmp.getImgRef(ilayer), tmp_pj, tmp_cj, obs_time, obs_freq);
+                /// -------------------------------------------------------------
+                if (tmp.getImgRef(ilayer).m_f_tot == 0){
+                    n_jet_empty_images += 1;
+                    n_empty_images_layer.emplace_back(ilayer);
+                }
+            }
+            if(!n_empty_images_layer.empty()){
+                n_empty_images_shells.emplace_back(ishell);
+                n_empty_images.emplace_back(n_empty_images_layer);
+            }
+            combineImages(images.getImgRef(ishell), ncells_, nlayers_, tmp) ;
+        }
+
+        /// print which layers/shells gave empty image
+        if (p_log->getLogLevel() == LOG_INFO) {
+            if (n_jet_empty_images > 0) {
+                auto &ccerr = std::cout;
+                ccerr << "PWN at tobs=" << obs_time << " freq=" << obs_freq << " gave an empty images for total n="
+                      << n_jet_empty_images << " layers. Specifically:\n";
+                for (size_t ish = 0; ish < n_empty_images_shells.size(); ish++) {
+//                auto & ejectaStruct = ejectaStructs.structs[n_empty_images_shells[ish]];
+//                size_t n_layers_ej = m_nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStruct.nlayers_pw : ejectaStruct.nlayers_a ;
+                    ccerr << "\t [ishell=" << n_empty_images_shells[ish] << " ilayer] = [ ";
+                    for (size_t il = 0; il < n_empty_images[ish].size(); il++) {
+                        ccerr << n_empty_images[ish][il] << " ";
+                    }
+                    ccerr << "] / (" << nlayers_ << " total layers) \n";
+                }
+            }
+        }
+
+//        return std::move( images );
     }
 
 };
