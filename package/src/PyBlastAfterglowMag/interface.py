@@ -248,7 +248,15 @@ class Base:
         if "fname_light_curve" in kn_opts.keys(): self.fpath_light_curve = self.res_dir + kn_opts["fname_light_curve"]
         if "fname_sky_map" in kn_opts.keys(): self.fpath_sky_map = self.res_dir + kn_opts["fname_sky_map"]
         return (kn_pars,kn_opts)
-
+    def read_pwn_part_parfile(self,parfile="parfile.par"):
+        kn_pars, kn_opts = read_parfile(workingdir=self.workingdir, fname=parfile,comment="#",
+                                        sep1="# --------------------------- PWN ---------------------------",
+                                        sep2="# --------------------------- END ---------------------------")
+        if "fname_dyn" in kn_opts.keys(): self.fpath_dyn = self.res_dir + kn_opts["fname_dyn"]
+        if "fname_spec" in kn_opts.keys(): self.fpath_spec = self.res_dir + kn_opts["fname_spec"]
+        if "fname_light_curve" in kn_opts.keys(): self.fpath_light_curve = self.res_dir + kn_opts["fname_light_curve"]
+        if "fname_sky_map" in kn_opts.keys(): self.fpath_sky_map = self.res_dir + kn_opts["fname_sky_map"]
+        return (kn_pars,kn_opts)
     def clear(self):
         # self.overwrite = True
         if (not self.dyn_dfile is None):
@@ -981,7 +989,6 @@ class Ejecta(Base):
     def __init__(self,workingdir,readparfileforpaths,parfile,type):
         super().__init__(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile)
 
-
         if not os.path.isdir(workingdir):
             raise IOError("Working directory not found {}".format(workingdir))
         self.parfile = parfile
@@ -1002,6 +1009,8 @@ class Ejecta(Base):
             self.pars, self.opts = self.read_kn_part_parfile( self.parfile )
         elif(type=="grb"):
             self.pars, self.opts = self.read_grb_part_parfile( self.parfile )
+        elif(type=="pwn"):
+            self.pars, self.opts = self.read_pwn_part_parfile( self.parfile )
         else:
             raise KeyError("not implemented")
 
@@ -1455,7 +1464,7 @@ class Ejecta(Base):
         if ((not time is None) and (not freq is None)):
             # print(dfile.keys())
             ddfile = dfile["time={:.4e} freq={:.4e}".format(time, freq)]
-            if (not ishell is None):
+            if (not (ishell is None)):
                 r_i = np.array(ddfile["r"][ishell])
                 mu_i = np.array(ddfile["mu"][ishell])
                 xrs_i = np.array(ddfile["xrs"][ishell]) * cgs.rad2mas / d_l  # m -> mas
@@ -1909,6 +1918,7 @@ class PyBlastAfterglow:
 
         self.KN = Ejecta(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,type="kn")
         self.GRB = Ejecta(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,type="grb")
+        self.PWN = Ejecta(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,type="pwn")
         self.MAG = Magnetar(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile)
 
         self.parfile = parfile
