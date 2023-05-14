@@ -1135,7 +1135,7 @@ private:
 
                         break;
                     case EjectaID2::ipiecewise:
-                        bw->getRad()->setEatsPars(
+                        bw->getEATS()->setEatsPars(
                                 pars,opts,id->nlayers,id->get(ish,il,EjectaID2::Q::ictheta),
                                 id->get(ish,il,EjectaID2::Q::itheta_c_l),
                                 id->get(ish,il,EjectaID2::Q::itheta_c_h),0.,
@@ -1179,7 +1179,7 @@ private:
                 }
                 ii_eq += SOL::neq;//bw->getNeq();
 
-//                bw->getRad()->setEatsPars(pars, opts);
+//                bw->getEATS()->setEatsPars(pars, opts);
 //                bw->getSynchAnPtr()->setPars( pars, opts );
 
 //                ii++;
