@@ -1725,6 +1725,296 @@ public:
 };
 
 
+
+
+// ---------------
+static void initialize_e_dis(double *gam, double *dgam, double *dN_dgam, double *dN_dgam_dt,
+                             double *dgam_dt, double *tad, double *tsyn, double gam_max, int Nbin_e){
+    double dln_gam = log(gam_max)/(double)(Nbin_e-1);
+    int i;
+    for (i=0;i<Nbin_e;i++){
+        gam[i] = exp(dln_gam*i);
+        dgam[i] = gam[i]*(exp(dln_gam)-1.);
+        dN_dgam[i] = 0.;
+        dN_dgam_dt[i] = 0.;
+        dgam_dt[i] = 0.;
+        tad[i] = 0.;
+        tsyn[i] = 0.;
+    }
+}
+static void initialize_ph_dis(Vector & freqs, double *gam_ph, double *P_nu_syn, double *alpha_nu_syn){
+    int i;
+//    double del_ln_gam_ph = (log(gam_ph_max)-log(gam_ph_min))/(double)(Nbin_ph-1);
+    for (i=0;i<freqs.size();i++){
+        gam_ph[i] = freqs[i] / (CGS::MeC2 / CGS::H); // Hz->erg //gam_ph_min*exp(del_ln_gam_ph*(double)i);
+        P_nu_syn[i] = 0.;
+        alpha_nu_syn[i] = 0.;
+    }
+}
+static double syn_func_fit(double x)
+{
+    /* analytical fitting of synchrotron function F(x) */
+    /* see http://arxiv.org/pdf/1301.6908.pdf */
+
+    double F1 = M_PI*pow(2.0,5.0/3.0)/sqrt(3.0)/GAMMA13*pow(x,1.0/3.0);
+    double F2 = sqrt(M_PI/2.0)*exp(-x)*pow(x,1.0/2.0);
+
+    double a1_1 = -0.97947838884478688;
+    double a1_2 = -0.83333239129525072;
+    double a1_3 = 0.1554179602681624;
+    double H_1 = a1_1*pow(x,1.0)+a1_2*pow(x,1.0/2.0)+a1_3*pow(x,1.0/3.0);
+    double delta_1 = exp(H_1);
+
+    double a2_1 = -0.0469247165562628882;
+    double a2_2 = -0.70055018056462881;
+    double a2_3 = 0.0103876297841949544;
+
+    double H_2 = a2_1*pow(x,1.0)+a2_2*pow(x,1.0/2.0)+a2_3*pow(x,1.0/3.0);
+    double delta_2 = 1.0-exp(H_2);
+
+    return F1*delta_1+F2*delta_2;
+}
+static void calc_syn_spec(const double B, const double dr, const double vol,
+                          const double *gam, const double *dgam, const double *dN_dgam,
+                          const double gam_max, const int Nbin_e, const double *gam_ph,
+                          double *P_nu_syn, double *alpha_nu_syn, const int Nbin_ph){
+
+    double nu=0.,x=0.,sin_alpha=2./3.,tau_sa=0.;
+    double integ=0.,integ_alpha=0.;
+//#pragma omp parallel for default(shared) reduction (P_nu_syn,alpha_nu_syn) firstprivate(nu,x,sin_alpha,tau_sa,integ,integ_alpha,vol)// private(nu,x,sin_alpha,tau_sa,integ,integ_alpha,vol) shared(std::cout,std::cerr,B,r,dr,gam,dgam,dN_dgam,gam_max,Nbin_e,Nbin_ph,gam_ph,P_nu_syn,alpha_nu_syn,CGS::c,CGS::MeC2,CGS::H,CGS::ELEC,CGS::me) num_threads( 6 ) // private(i,nu,x,sin_alpha,tau_sa,integ,integ_alpha,vol) shared(B,r,dr,gam,dgam,dN_dgam,gam_max,Nbin_e,gam_ph,P_nu_syn,alpha_nu_syn,Nbin_ph) num_threads( 6 )
+    for (size_t k=0;k<Nbin_ph;k++) {
+        integ = 0.0;
+        integ_alpha = 0.0;
+        nu = gam_ph[k]*CGS::MeC2/CGS::H;
+//#pragma omp parallel for firstprivate(integ,integ_alpha,nu,x) num_threads( 10 )
+        for (size_t i=0;i<Nbin_e;i++) {
+            x = (2.0*M_PI*nu)/(3.0*CGS::ELEC*gam[i]*gam[i]*B/2.0/CGS::me/CGS::c*sin_alpha); /* Eq. (6.17c) of Rybicki & Lightman */
+
+            //            std::cout << x << ", ";
+            if ((i==0) || (i==Nbin_e-1)) {
+                integ += 0.5*dN_dgam[i]*dgam[i]*syn_func_fit(x);
+                integ_alpha += -0.5*sin_alpha*std::pow(gam[i],2.0)
+                               * (-dN_dgam[i]/std::pow(gam[i],2.0))
+                               / dgam[i]*syn_func_fit(x)
+                               * dgam[i] / CGS::MeC2;
+            }
+            else {
+                integ += dN_dgam[i]*dgam[i]*syn_func_fit(x);
+                integ_alpha += -sin_alpha*std::pow(gam[i],2.0)*
+                               (dN_dgam[i+1]/std::pow(gam[i+1],2.0) - dN_dgam[i]/std::pow(gam[i],2.0))
+                               / dgam[i] * syn_func_fit(x) * dgam[i] / CGS::MeC2;
+            }
+//                if ((!std::isfinite(P_nu_syn[k]))||(P_nu_syn[k]<0)) {
+//                    std::cerr << AT << " nan in pwn spec P_nu_syn[i]=" << P_nu_syn[k] << "\n";
+//                    std::cout << " x=" << x << " integ=" << integ << " nu=" << nu << " dN_dgam[0]=" << dN_dgam[0]
+//                              << " dgam[0]=" << dgam[0] << " gam[0]=" << gam[0] << " B=" << B
+//                              << " vol=" << vol << " tau_sa=" << tau_sa << " alpha_nu_sym[0]=" << alpha_nu_syn[0] << "\n";
+//                    exit(1);
+//                }
+        }
+
+        P_nu_syn[k] = sqrt(3.0)*pow(CGS::ELEC,3.0)*B*sin_alpha/CGS::MeC2*integ; /* Eq. (6.33) x (2 pi) of Rybicki & Lightman */
+        alpha_nu_syn[k] = CGS::c*CGS::c/8.0/M_PI/nu/nu*sqrt(3.0)*pow(CGS::ELEC,3.0)*B*integ_alpha/vol; /* Eq. (6.52) of Rybicki & Lightman */
+
+        tau_sa = alpha_nu_syn[k] * dr;
+
+        if (tau_sa > 1.0e-6){
+            P_nu_syn[k] = (1.0-exp(-tau_sa)) * P_nu_syn[k] / tau_sa;
+        }
+
+        integ = 0.0;
+        integ_alpha = 0.0;
+
+
+    }
+}
+static double Ntot(double *dgam, double *dN_dgam, int Nbin_e) {
+    int i;
+    double tmp=0.;
+    for (i=0;i<Nbin_e-1;i++){
+        tmp += dN_dgam[i]*dgam[i];
+    }
+    tmp += 0.5*dN_dgam[Nbin_e-1]*dgam[Nbin_e-1];
+    return tmp;
+}
+static double dgam_dt_ad(double gam, double t) {
+    return gam/t;
+}
+static double dgam_dt_syn(double gam, double B) {
+    // electron synchrotron energy loss rate (see e.g., Eq. 7.13 of Dermer & Menon)
+    // double sin2phi = 2.0/3.0; /* averaging pitch angle */
+    // double beta_par = 1.0; /* assuming that particles are relativistic */
+
+    return 4.0/3.0*CGS::c*CGS::SIGMA_T*(B*B/8.0/M_PI)*gam*gam/CGS::MeC2;
+}
+static void cooling(double t, double B, double *dgam_dt, double *gam, double *tad, double *tsyn, int Nbin_e){
+    int i;
+    for (i=0;i<Nbin_e;i++) {
+        dgam_dt[i] = dgam_dt_ad(gam[i],t)+dgam_dt_syn(gam[i],B);
+        tad[i] = gam[i]/dgam_dt_ad(gam[i],t);
+        tsyn[i]= gam[i]/dgam_dt_syn(gam[i],B);
+    }
+}
+static double dN_dgam_dt_inj(double gam, double Lpsr, double epse, double gam_b, double gam_max, double p1, double p2){
+    double fac_bol = 1./(2.-p1)*(1.-pow(gam_b,-2.+p1)) + 1./(2.-p2)*(pow(gam_max/gam_b,2.-p2)-1.);
+    if (gam < gam_b){
+        return epse * Lpsr/(MeC2*gam_b*gam_b) / fac_bol * pow(gam/gam_b,-p1);
+    }
+    else {
+        return epse * Lpsr/(MeC2*gam_b*gam_b) / fac_bol * pow(gam/gam_b,-p2);
+    }
+}
+static void time_evolution_e(double dt, double *gam, double *dgam, double *dN_dgam, double *dN_dgam_dt, double *dgam_dt, int Nbin_e)
+{
+    int i;
+    double dN_dgam_old[Nbin_e];
+    double N_cool = 0.0;
+    double dN_dgam_cool = 0.0;
+
+    for (i=0;i<Nbin_e;i++){
+        dN_dgam_old[i] = dN_dgam[i];
+    }
+
+    dN_dgam[Nbin_e-1] = (dN_dgam_old[Nbin_e-1])/(1.0+dt/dgam[Nbin_e-1]*dgam_dt[Nbin_e-1]) + dN_dgam_dt[Nbin_e-1]*dt;
+    for(i=Nbin_e-2;i>0;i--){
+        dN_dgam[i] = (dN_dgam_old[i]+dN_dgam[i+1]*dt/dgam[i]*dgam_dt[i+1]) / (1.0+dt/dgam[i]*dgam_dt[i]) + dN_dgam_dt[i]*dt;
+    }
+    dN_dgam[0] = dN_dgam_old[0] + dN_dgam_dt[1]*dt/dgam[0]*dgam_dt[1] + dN_dgam_dt[0]*dt;
+}
+static void injection(double *gam, double *dgam, double *dN_dgam_dt, double *dgam_dt, double Lpsr, double dt,
+                      double *N_inj_tot, double epse, double gam_b, double gam_max, double p1, double p2, int Nbin_e){
+    int i,j;
+    double tmp=0.0,total_frac_depo=0.0,frac_resi=0.0,frac_depo=0.0;
+    double dN_dgam_dt_eff[Nbin_e];
+
+    /// standard integration
+    for (i=0;i<Nbin_e;i++){
+        dN_dgam_dt[i] = dN_dgam_dt_inj(gam[i],Lpsr,epse,gam_b,gam_max,p1,p2);
+        dN_dgam_dt_eff[i] = 0.0;
+        tmp += dN_dgam_dt[i] * dt * dgam[i];
+    }
+    tmp -= 0.5*(dN_dgam_dt[0] * dt * dgam[0]
+                + dN_dgam_dt[Nbin_e-1 ]* dt * dgam[Nbin_e-1]);
+    *N_inj_tot += tmp;
+
+    /// ???
+    for (i=Nbin_e-1;i>0;i--){
+        total_frac_depo = 0.0;
+        frac_resi = 1.0;
+        frac_depo = 0.0;
+        for (j=i;j>0;j--){
+            frac_depo = frac_resi/(1.0 + dt/dgam[i] * dgam_dt[i]);
+            dN_dgam_dt_eff[j] += frac_depo * dN_dgam_dt[i] * (dgam[i]/dgam[j]); // eff?
+
+            total_frac_depo += frac_depo;
+            if(total_frac_depo > 1.0)
+                break;
+
+            frac_resi = (1.-total_frac_depo);
+        }
+        dN_dgam_dt_eff[0] += frac_resi*dN_dgam_dt[i]*(dgam[i]/dgam[0]);
+    }
+    dN_dgam_dt_eff[0] += dN_dgam_dt[0];
+
+    for (i=0;i<Nbin_e;i++){
+        dN_dgam_dt[i] = dN_dgam_dt_eff[i];
+    }
+
+}
+// ------------------
+class Synchrotron2{
+    struct Pars{
+        double gam_b{};
+        double p1{};
+        double p2{};
+        double eps_e{};
+        double gam_max{};
+//        int Nbin_e{};
+//        int Nbin_ph{};
+    };
+    std::unique_ptr<Pars> p_pars = nullptr;
+    std::unique_ptr<logger> p_log = nullptr;
+//    VecVector & m_data;
+//    Vector spectrum{}; Vector spec_gams{}; Vector spec_freqs{};
+//    Vector emissivity{}; Vector absorption{};
+public:
+    Synchrotron2(unsigned loglevel){
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "Synchrotron2");
+        p_pars = std::make_unique<Pars>();
+    }
+    std::unique_ptr<Pars> & getPars(){ return p_pars; }
+//    Vector & getSpectrum(){return spectrum;}
+//    Vector & getEmissivity(){return emissivity;}
+//    Vector & getAbsorption(){return absorption;}
+
+    void setPars(StrDbMap & pars, StrStrMap & opts){
+        p_pars->gam_b = getDoublePar("gam_b",pars,AT,p_log,1., true);//pars.at("ksi_n");
+        p_pars->p1 = getDoublePar("p1",pars,AT,p_log,1., true);//pars.at("ksi_n");
+        p_pars->p2 = getDoublePar("p2",pars,AT,p_log,1., true);//pars.at("ksi_n");
+        p_pars->eps_e = getDoublePar("eps_e_spec",pars,AT,p_log,1., true);//pars.at("ksi_n");
+        p_pars->gam_max = getDoublePar("gam_max",pars,AT,p_log,1.e6, false);//pars.at("ksi_n");
+        /// ---
+//        spec_gams = makeVecFromString(getStrOpt("spec_gams",opts,AT,p_log,"",true),p_log);
+//        spec_freqs = makeVecFromString(getStrOpt("spec_freqs",opts,AT,p_log,"",true),p_log);
+//        p_pars->Nbin_e = (int)spec_gams.size();
+//        p_pars->Nbin_ph = (int)spec_freqs.size();
+
+    }
+
+    void computeComovingSpectrum(Vector & spectrum, Vector & emissivity, Vector & absorption,
+                                 Vector & times, Vector & freqs, Vector & gams, Vector & Bnb,
+                                 Vector & vol, Vector & drnb, Vector & Lpsr){
+
+        if ((spectrum.size() < 1)||(emissivity.empty() < 1)||(absorption.empty() < 1)){
+            spectrum.resize(times.size()*freqs.size(), 0.);
+            emissivity.resize(times.size()*freqs.size(), 0.);
+            absorption.resize(times.size()*freqs.size(), 0.);
+        }
+        /// initialize storage
+        int Nbin_e = (int)gams.size();
+        double gam[Nbin_e],dN_dgam[Nbin_e],dgam[Nbin_e],dN_dgam_dt[Nbin_e],dgam_dt[Nbin_e],tad[Nbin_e],tsyn[Nbin_e];
+        double N_inj_tot=0.;
+        initialize_e_dis(gam,dgam,dN_dgam,dN_dgam_dt,dgam_dt,tad,tsyn,p_pars->gam_max,Nbin_e);
+        int Nbin_ph = (int)freqs.size();
+        double gam_ph[Nbin_ph],P_nu_syn[Nbin_ph],alpha_nu_syn[Nbin_ph];
+        initialize_ph_dis(freqs,gam_ph,P_nu_syn,alpha_nu_syn);
+        /// ----------------
+        size_t ii = 0;
+        for (size_t it = 0; it < times.size(); it++) {
+//            double Bnb = 0., rnb = 0., dr = 0., Lpsr = 0., dt = 0.;
+            double t = times[it];
+            double dt = (times[it] - times[it - 1]);
+            if (it > 1)
+                calc_syn_spec(Bnb[it],vol[it],drnb[it],gam,dgam,dN_dgam,p_pars->gam_max,
+                              Nbin_e,gam_ph,P_nu_syn,alpha_nu_syn,Nbin_ph);
+            double number_conservation = Ntot(dgam,dN_dgam,Nbin_e)/N_inj_tot;
+            if (number_conservation > 1.2 or number_conservation < 0.9){
+                std::cerr << AT << " conserv="<<number_conservation<<"\n";
+            }
+            cooling(t,Bnb[it],dgam_dt,gam,tad,tsyn,Nbin_e);
+            injection(gam, dgam, dN_dgam_dt, dgam_dt, Lpsr[it], dt, &N_inj_tot,
+                      p_pars->eps_e, p_pars->gam_b, p_pars->gam_max, p_pars->p1, p_pars->p2, Nbin_e);
+            time_evolution_e(dt,gam,dgam,dN_dgam,dN_dgam_dt,dgam_dt,Nbin_e);
+            /// --------------------------
+            if ((!std::isfinite(P_nu_syn[0]))||(!std::isfinite(P_nu_syn[Nbin_ph-1])) || (P_nu_syn[0] < 0)||(P_nu_syn[Nbin_ph-1] < 0)){
+                (*p_log)(LOG_ERR,AT) << " nan in pwn spec P_nu_syn[0]=" << P_nu_syn[0] << "\n";
+                std::cout << "Bnb="<<Bnb<<" gam[0]="<<gam[0]<<" dgam[0]="<<dgam[0]<<" dN_dgam[0]="<<dN_dgam[0]<<" gam_max="<<p_pars->gam_max
+                          <<" Nbin_e="<<Nbin_e<<" Lpsr="<<Lpsr<<" n_ing_tot="<<N_inj_tot<<" number_conserv="<<number_conservation<<"\n";
+                exit(1);
+            }
+//                spec[ii] = gam_ph[inu] * CGS::MeC2 / CGS::H * P_nu_syn[inu]; // [erg/s/Hz]
+            for (size_t inu = 0; inu < freqs.size();  inu++) {
+                emissivity[ii] = P_nu_syn[inu]; // TODO ? IS IT TRUE?
+                absorption[ii] = alpha_nu_syn[inu];
+                spectrum[ii] = gam_ph[inu] * CGS::MeC2 / CGS::H * P_nu_syn[inu]; // [erg/s/Hz]
+                ii++;
+            }
+        }
+    }
+
+};
+
+
 //    void allocateSpaceForComovingSpectrum(size_t nr){
 //        /// allocate memory for comoving spectra to be evaluated
 //        m_freq_grid = TOOLS::MakeLogspace(log10(p_pars->freq1),

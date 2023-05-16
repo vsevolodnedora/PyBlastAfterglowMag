@@ -2108,8 +2108,8 @@ public:
 
             case iuseJoh06:
                 m_data[BW::Q::ithickness][it]= EQS::shock_delta_joh06(m_data[BW::Q::iR][it], m_data[BW::Q::iM2][it],
-                                                                  m_data[BW::Q::itheta][it], m_data[BW::Q::iGamma][it],
-                                                                  m_data[BW::Q::irho2][it], p_pars->ncells);
+                                                                      m_data[BW::Q::itheta][it], m_data[BW::Q::iGamma][it],
+                                                                      m_data[BW::Q::irho2][it], p_pars->ncells);
                 break;
             case iuseVE12:
                 m_data[BW::Q::ithickness][it]=EQS::shock_delta(m_data[BW::Q::iR][it],m_data[BW::Q::iGamma][it]);
@@ -2803,7 +2803,8 @@ public:
 
     static void fluxDensPW(double & flux_dens, double & tau_comp, double & tau_BH, double & tau_bf,
                            double r, double & ctheta, double theta, double phi,
-                           size_t ia, size_t ib, double ta, double tb, double mu, double t_obs, double nu_obs, void * params){
+                           size_t ia, size_t ib, double ta, double tb, double mu,
+                           double t_obs, double nu_obs, void * params){
 
         auto * p_pars = (struct Pars *) params;
         auto & m_data = p_pars->m_data;

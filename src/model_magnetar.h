@@ -854,16 +854,6 @@ double pwn_spectrum(double nu, double r_pwn, double b_pwn, double n_ext, double 
     return fnu;
 }
 
-class PWNrad{
-    size_t m_loglevel{};
-    std::unique_ptr<logger> p_log;
-    PWNrad(size_t liglevel){
-        m_loglevel=liglevel;
-        p_log = std::make_unique<logger>(std::cout, std::cerr, m_loglevel, "PWNRad");
-
-    }
-};
-
 /// PWN model from Murase+2015
 class PWNmodel{
     struct Pars{
@@ -875,9 +865,10 @@ class PWNmodel{
         }
         std::unique_ptr<Ejecta> & p_ej;
         std::unique_ptr<Magnetar> & p_mag;
+        std::unique_ptr<Synchrotron2> p_syn = nullptr;
 //        std::unique_ptr<SynchrotronAnalytic> p_syna = nullptr;
         std::unique_ptr<logger> p_log;
-        Vector m_freq_arr{}; Vector m_synch_em{}; Vector m_synch_abs{};
+        Vector m_freq_arr{}; Vector m_synch_em{}; Vector m_synch_abs{}; Vector m_spectrum{};
         VecVector & m_data;
         double ctheta0=-1.;
         // --------------
@@ -922,7 +913,6 @@ class PWNmodel{
 //    std::unique_ptr<Pars> p_pars;
     Pars * p_pars = nullptr;
     std::unique_ptr<EATS> p_eats;
-    std::unique_ptr<PWNrad> p_rad;
     Vector frac_psr_dep_{};
 //    size_t m_ilayer=0;size_t m_ishell=0;size_t m_ncells=0;
     std::unique_ptr<Ejecta> & p_ej;
@@ -978,6 +968,7 @@ public:
         // Vector & freq_arr, Vector & synch_em, Vector & synch_abs,
         // size_t & i_end_r, size_t ish, size_t il, int loglevel, void * params
         i_end_r = m_data[PWN::Q::itburst].size();
+        p_pars->p_syn = std::make_unique<Synchrotron2>(m_loglevel);
         p_eats = std::make_unique<EATS>(m_data[PWN::Q::itburst],
                                         m_data[PWN::Q::itt], m_data[PWN::Q::iR], m_data[PWN::Q::itheta],
                                         m_data[PWN::Q::iGamma],m_data[PWN::Q::ibeta],
@@ -987,8 +978,8 @@ public:
     }
 
     std::unique_ptr<EATS> & getEATS(){ return p_eats; }
-    std::unique_ptr<PWNrad> & getRad(){ return p_rad; }
-    std::unique_ptr<Ejecta> & getBoundaryBW( ){ return p_ej; }
+    std::unique_ptr<Synchrotron2> & getRad(){ return p_pars->p_syn; }
+    std::unique_ptr<Ejecta> & getBoundaryBW(){ return p_ej; }
     Vector & getTbGrid() { return p_ej->getTbGrid(); }
     VecVector & getData(){ return m_data; }
     Vector & getData(PWN::Q q){ return m_data[q]; }
@@ -1032,7 +1023,7 @@ public:
     }
 
     /// ---- PARAMETERS -------------------------------------------------------------
-    void setPars(StrDbMap & pars, StrStrMap & opts, StrDbMap main_pars, size_t iieq){
+    void setPars(StrDbMap & pars, StrStrMap & opts, StrDbMap & main_pars, size_t iieq){
         double radius_wind_0 = getDoublePar("Rw0",pars,AT,p_log,-1,true); // PWN radius at t=0; [km]
 //        radius_wind_0 *= (1000. * 100); // km -> cm
 
@@ -1079,6 +1070,7 @@ public:
                 p_bw->getPars()->theta_c_l, p_bw->getPars()->theta_c_h, p_bw->getPars()->theta_w, p_bw->getPars()->theta_max);
         i_end_r = m_data[PWN::Q::itburst].size(); // update for eats
 //        int i = 1;
+        p_pars->p_syn->setPars(pars,opts);
     }
     /// -----------------------------------------------------------------------------
 
@@ -1379,19 +1371,20 @@ public:
 
         return F1*delta_1+F2*delta_2;
     }
-    static void calc_syn_spec(const double B, const double r, const double dr,
+    static void calc_syn_spec(const double B, const double vol, const double dr,
                               const double *gam, const double *dgam, const double *dN_dgam,
                               const double gam_max, const int Nbin_e, const double *gam_ph,
                               double *P_nu_syn, double *alpha_nu_syn, const int Nbin_ph){
 
-        double nu,x,sin_alpha=2./3.,tau_sa;
+        double nu=0.,x=0.,sin_alpha=2./3.,tau_sa=0.;
         double integ=0.,integ_alpha=0.;
-        double vol = 4.*M_PI*r*r*dr;
-#pragma omp parallel for default(none) private(nu,x,sin_alpha,tau_sa,integ,integ_alpha,vol) shared(B,r,dr,gam,dgam,dN_dgam,gam_max,Nbin_e,Nbin_ph,gam_ph,CGS::c,CGS::MeC2,CGS::H,CGS::ELEC) num_threads( 6 ) // private(i,nu,x,sin_alpha,tau_sa,integ,integ_alpha,vol) shared(B,r,dr,gam,dgam,dN_dgam,gam_max,Nbin_e,gam_ph,P_nu_syn,alpha_nu_syn,Nbin_ph) num_threads( 6 )
+//        double vol = 4.*M_PI*r*r*dr;
+//#pragma omp parallel for default(shared) reduction (P_nu_syn,alpha_nu_syn) firstprivate(nu,x,sin_alpha,tau_sa,integ,integ_alpha,vol)// private(nu,x,sin_alpha,tau_sa,integ,integ_alpha,vol) shared(std::cout,std::cerr,B,r,dr,gam,dgam,dN_dgam,gam_max,Nbin_e,Nbin_ph,gam_ph,P_nu_syn,alpha_nu_syn,CGS::c,CGS::MeC2,CGS::H,CGS::ELEC,CGS::me) num_threads( 6 ) // private(i,nu,x,sin_alpha,tau_sa,integ,integ_alpha,vol) shared(B,r,dr,gam,dgam,dN_dgam,gam_max,Nbin_e,gam_ph,P_nu_syn,alpha_nu_syn,Nbin_ph) num_threads( 6 )
         for (size_t k=0;k<Nbin_ph;k++) {
             integ = 0.0;
             integ_alpha = 0.0;
             nu = gam_ph[k]*CGS::MeC2/CGS::H;
+//#pragma omp parallel for firstprivate(integ,integ_alpha,nu,x) num_threads( 10 )
             for (size_t i=0;i<Nbin_e;i++) {
                 x = (2.0*M_PI*nu)/(3.0*CGS::ELEC*gam[i]*gam[i]*B/2.0/CGS::me/CGS::c*sin_alpha); /* Eq. (6.17c) of Rybicki & Lightman */
 //            std::cout << x << ", ";
@@ -1408,18 +1401,18 @@ public:
                                    (dN_dgam[i+1]/std::pow(gam[i+1],2.0) - dN_dgam[i]/std::pow(gam[i],2.0))
                                    / dgam[i] * syn_func_fit(x) * dgam[i] / CGS::MeC2;
                 }
-                if ((!std::isfinite(P_nu_syn[i]))||(P_nu_syn[i]<0)) {
-                    std::cerr << AT << " nan in pwn spec P_nu_syn[i]=" << P_nu_syn[i] << "\n";
-                    std::cout << " x=" << x << " integ=" << integ << " nu=" << nu << " dN_dgam[0]=" << dN_dgam[0]
-                              << " dgam[0]=" << dgam[0] << " gam[0]=" << gam[0] << " B=" << B
-                              << " vol=" << vol << " tau_sa=" << tau_sa << " alpha_nu_sym[0]=" << alpha_nu_syn[0] << "\n";
-                    exit(1);
-                }
+//                if ((!std::isfinite(P_nu_syn[k]))||(P_nu_syn[k]<0)) {
+//                    std::cerr << AT << " nan in pwn spec P_nu_syn[i]=" << P_nu_syn[k] << "\n";
+//                    std::cout << " x=" << x << " integ=" << integ << " nu=" << nu << " dN_dgam[0]=" << dN_dgam[0]
+//                              << " dgam[0]=" << dgam[0] << " gam[0]=" << gam[0] << " B=" << B
+//                              << " vol=" << vol << " tau_sa=" << tau_sa << " alpha_nu_sym[0]=" << alpha_nu_syn[0] << "\n";
+//                    exit(1);
+//                }
             }
 
-            P_nu_syn[k] = std::sqrt(3.0) * std::pow(ELEC,3.0) * B * sin_alpha / CGS::MeC2*integ; /* Eq. (6.33) x (2 pi) of Rybicki & Lightman */
-            alpha_nu_syn[k] = CGS::c * CGS::c / 8.0 / M_PI / nu/nu*sqrt(3.0)*pow(ELEC,3.0)*B*integ_alpha/vol; /* Eq. (6.52) of Rybicki & Lightman */
-            tau_sa = alpha_nu_syn[k]*dr;
+            P_nu_syn[k] = sqrt(3.0)*pow(CGS::ELEC,3.0)*B*sin_alpha/CGS::MeC2*integ; /* Eq. (6.33) x (2 pi) of Rybicki & Lightman */
+            alpha_nu_syn[k] = CGS::c*CGS::c/8.0/M_PI/nu/nu*sqrt(3.0)*pow(CGS::ELEC,3.0)*B*integ_alpha/vol; /* Eq. (6.52) of Rybicki & Lightman */
+            tau_sa = alpha_nu_syn[k] * dr;
 
             if (tau_sa > 1.0e-6){
                 P_nu_syn[k] = (1.0-exp(-tau_sa))*P_nu_syn[k]/tau_sa;
@@ -1525,8 +1518,14 @@ public:
 
     }
 
-    void computeSpectrum(Vector & spec, Vector & times, Vector & freqs){
+    enum METHOD_PWN_SPEC { inumBPL, ianaBPL };
+    void evaluateSpectrum(Vector & times, Vector & freqs, Vector & gams){
 
+        if (times.size() < 1 || freqs.size() < 1 || gams.size() < 1){
+            (*p_log)(LOG_ERR,AT)<<" error. "<< " times.size()="<<times.size()
+                                << " freqs.size()="<<freqs.size()<< " gams.size()="<<gams.size()<<"\n";
+            exit(1);
+        }
         if (times[times.size()-1]>=m_data[PWN::Q::itburst][m_data[PWN::Q::itburst].size()-1]){
             (*p_log)(LOG_ERR,AT)<<" requested for spectrum times[times.size()-1]="<<times[times.size()-1]
             << " exceeds evolution timegrid end: "<< m_data[PWN::Q::itburst][m_data[PWN::Q::itburst].size()-1]<<"\n";
@@ -1537,82 +1536,263 @@ public:
                                 << " below evolution timegrid start: "<< m_data[PWN::Q::itburst][0]<<"\n";
             exit(1);
         }
-        bool interp_time_grid=true;
+        if (p_pars->m_spectrum.size() < 1){
+            p_pars->m_spectrum.resize(times.size()*freqs.size(),0.);
+        }
+        if (p_pars->m_synch_em.size() < 1){
+            p_pars->m_synch_em.resize(times.size()*freqs.size(),0.);
+        }
+        if (p_pars->m_synch_abs.size() < 1){
+            p_pars->m_synch_abs.resize(times.size()*freqs.size(),0.);
+        }
+
+#if 0
+        /// assuming that the whole radial grid is to be used for calculations
         if ((times[0]==m_data[PWN::Q::itburst][0])&&
             (times[times.size()-1]==m_data[PWN::Q::itburst][m_data[PWN::Q::itburst].size()-1])&&
                 (times.size()==m_data[PWN::Q::itburst].size())){
-            interp_time_grid=false;
+            Vector drnb(m_data[PWN::Q::iR].size());
+            Vector vnb(m_data[PWN::Q::iR].size());
+            Vector lpsr(m_data[PWN::Q::iR].size());
+            for (size_t it = 1; it < m_data[PWN::Q::iR].size(); it++){
+                double dr = m_data[PWN::Q::iR][it] - m_data[PWN::Q::iR][it-1]; // TODO this is resolution dependent...
+                double rnb = m_data[PWN::Q::iR][it];
+                drnb[it] = dr;
+                vnb[it] = 4.*M_PI*rnb*rnb*dr / (double)ncells(); // TODO is it a proper place to add ncells()
+                double t = m_data[PWN::Q::itburst][it];
+                lpsr[it] = p_mag->getMagValInt(MAG::Q::ildip, t) / (double)ncells(); // TODO is it a proper place to add ncells()
+            }
+            p_pars->p_syn->computeComovingSpectrum(
+                    p_pars->m_spectrum, p_pars->m_synch_em, p_pars->m_synch_abs,
+                    m_data[PWN::Q::itburst],freqs,gams, m_data[PWN::Q::iB], vnb, drnb, lpsr );
         }
+        /// assuming that only a fraction of the grid is to be used (interpolate between)
+        else{
+            Vector drnb(times.size());
+            Vector vnb(times.size());
+            Vector lpsr(times.size());
+            Vector Bnb(times.size());
+            for (size_t it = 1; it < times.size(); it++){
+                double t = times[it];
+                size_t ia = findIndex(t, m_data[PWN::Q::itburst], m_data[PWN::Q::itburst].size());
+                size_t ib = ia + 1;
+                Bnb[it] = interpSegLog(ia, ib, times[it], m_data[PWN::Q::itburst], m_data[PWN::Q::iB]);
+                double rnb_m1 = interpSegLog(ia, ib, times[it-1], m_data[PWN::Q::itburst], m_data[PWN::Q::iR]);
+                double rnb = interpSegLog(ia, ib, times[it], m_data[PWN::Q::itburst], m_data[PWN::Q::iR]);
+                double dr = rnb - rnb_m1;
+                drnb[it] = dr;
+                vnb[it] = 4.*M_PI*rnb*rnb*dr / (double)ncells(); // TODO is it a proper place to add ncells()
+                lpsr[it] = p_mag->getMagValInt(MAG::Q::ildip, times[it]) / (double)ncells(); // TODO is it a proper place to add ncells()
+            }
+            p_pars->p_syn->computeComovingSpectrum(
+                    p_pars->m_spectrum, p_pars->m_synch_em, p_pars->m_synch_abs,
+                    times, freqs, gams, Bnb, vnb, drnb, lpsr );
+        }
+#endif
+#if 1
+//        std::cout << "times = "<<times.size()<<"\n";
+//        std::cout << "freqs = "<<freqs.size()<<"\n";
 
-        double gam_max = 1.e6;
-        int Nbin_e = 512;
-        int Nbin_ph = (int)freqs.size();
-        double epse = 0.99;
+//        Vector _times(freqs.size() * times.size(), 0.0);
+//        Vector _freqs(freqs.size() * times.size(), 0.0);
+//        size_t ii = 0;
+//        for (double freq: freqs) {
+//            for (double time: times) {
+//                _times[ii] = time;
+//                _freqs[ii] = freq;
+//                ii++;
+//            }
+//        }
+
+
+        METHOD_PWN_SPEC methodPwnSpec = inumBPL;
+
         double gam_b = 1.e3;
         double p1 = -5.;
         double p2 = 3.;
-        double gam[Nbin_e],dN_dgam[Nbin_e],dgam[Nbin_e],dN_dgam_dt[Nbin_e],dgam_dt[Nbin_e],tad[Nbin_e],tsyn[Nbin_e];
-        double N_inj_tot=0.;
-        initialize_e_dis(gam,dgam,dN_dgam,dN_dgam_dt,dgam_dt,tad,tsyn,gam_max,Nbin_e);
+        double eps_e = 0.99;
 
-        double gam_ph_min = 1.e-14;
-        double gam_ph_max = 1.e4;
-        double gam_ph[Nbin_ph],P_nu_syn[Nbin_ph],alpha_nu_syn[Nbin_ph];
-        initialize_ph_dis(gam_ph,P_nu_syn,alpha_nu_syn,gam_ph_min,gam_ph_max,Nbin_ph);
-        for (size_t inu = 0; inu < freqs.size(); inu++)
-            gam_ph[inu] = freqs[inu] / 1e9 / (CGS::MeC2/CGS::H/1.0e9); // Hz -> erg
+
+        if (methodPwnSpec == inumBPL){
+            double gam_max = 1.e6;
+            int Nbin_e = 512;
+            int Nbin_ph = (int)freqs.size();
+
+//            double gam_b = 1.e3;
+
+            double gam[Nbin_e],dN_dgam[Nbin_e],dgam[Nbin_e],dN_dgam_dt[Nbin_e],dgam_dt[Nbin_e],tad[Nbin_e],tsyn[Nbin_e];
+            double N_inj_tot=0.;
+            initialize_e_dis(gam,dgam,dN_dgam,dN_dgam_dt,dgam_dt,tad,tsyn,gam_max,Nbin_e);
+
+            double gam_ph_min = 1.e-14;
+            double gam_ph_max = 1.e4;
+            double gam_ph[Nbin_ph],P_nu_syn[Nbin_ph],alpha_nu_syn[Nbin_ph];
+            initialize_ph_dis(gam_ph,P_nu_syn,alpha_nu_syn,gam_ph_min,gam_ph_max,Nbin_ph);
+            for (size_t inu = 0; inu < freqs.size(); inu++)
+                gam_ph[inu] = freqs[inu] / (CGS::MeC2 / CGS::H); // Hz -> erg
 //        std::cout << gam_ph[0]*MeC2/H/1.0e9 << " = "<< freqs[0]/1e9<<"\n";
 
-        double Bnb = 0., rnb=0.,dr=0.,Lpsr=0.,dt=0.;
+
 //#pragma omp parallel for private(Bnb,rnb,dr,Lpsr,dt,\
 //        gam,dN_dgam,dgam,dN_dgam_dt,dgam_dt,tad,tsyn \
 //        gam_ph,P_nu_syn,alpha_nu_syn \
-//        gam_max,Nbin_e,Nbin_ph,epse,gam_b,p1,p2,N_inj_tot \
+//        gam_max,Nbin_e,Nbin_ph,eps_e,gam_b,p1,p2,N_inj_tot \
 //        ) shared(times,freqs) num_threads( 6 )
-        for (size_t i = 1; i < times.size(); i++){
+            size_t ii = 0;
+            for (size_t it = 1; it < times.size(); it++){
+                double Bnb = 0., rnb=0.,rnb_m1=0.,dr=0.,Lpsr=0.,dt=0.;
+                double t = times[it];
+                dt = times[it] - times[it - 1];
 
-            double t = times[i];
-            dt = times[i] - times[i-1];
+                if(true) {
+                    size_t ia = findIndex(t, m_data[PWN::Q::itburst], m_data[PWN::Q::itburst].size());
+                    size_t ib = ia + 1;
+                    Bnb = interpSegLog(ia, ib, t, m_data[PWN::Q::itburst], m_data[PWN::Q::iB]);
+                    rnb = interpSegLog(ia, ib, t, m_data[PWN::Q::itburst], m_data[PWN::Q::iR]);
+                    rnb_m1 = interpSegLog(ia, ib, times[it-1], m_data[PWN::Q::itburst], m_data[PWN::Q::iR]);
+                }
+                else{
+                    Bnb = m_data[PWN::Q::iB][it];
+                    rnb = m_data[PWN::Q::iR][it];
+                    rnb_m1 = m_data[PWN::Q::iR][it-1];
+                }
 
-            if(interp_time_grid) {
-                size_t ia = findIndex(t, m_data[PWN::Q::itburst], m_data[PWN::Q::itburst].size());
-                size_t ib = ia + 1;
-                Bnb = interpSegLog(ia, ib, t, m_data[PWN::Q::itburst], m_data[PWN::Q::iB]);
-                rnb = interpSegLog(ia, ib, t, m_data[PWN::Q::itburst], m_data[PWN::Q::iR]);
-            }
-            else{
-                Bnb = m_data[PWN::Q::iB][i];
-                rnb = m_data[PWN::Q::iR][i];
-            }
+                dr = rnb-rnb_m1;
+                double vnb = 4.*M_PI*rnb*rnb*dr / (double)ncells();
+                Lpsr = p_mag->getMagValInt(MAG::Q::ildip, t) / (double)ncells() ; // TODO correct for cells earlier!
+                /// comptue synchrotron spectrum
+                if (it > 1)
+                    calc_syn_spec(Bnb,vnb,dr,gam,dgam,dN_dgam,gam_max,Nbin_e,gam_ph,P_nu_syn,alpha_nu_syn,Nbin_ph);
+                double number_conservation = Ntot(dgam,dN_dgam,Nbin_e)/N_inj_tot;
+                if (number_conservation > 1.2 or number_conservation < 0.9){
+                    std::cerr << AT << " conserv="<<number_conservation<<"\n";
+                }
+                cooling(t,Bnb,dgam_dt,gam,tad,tsyn,Nbin_e);
+                injection(gam, dgam, dN_dgam_dt, dgam_dt, Lpsr, dt, &N_inj_tot, eps_e, gam_b, gam_max, p1, p2, Nbin_e);
+                time_evolution_e(dt,gam,dgam,dN_dgam,dN_dgam_dt,dgam_dt,Nbin_e);
+                /// --------------------------
+                if ((!std::isfinite(P_nu_syn[0]))||(!std::isfinite(P_nu_syn[Nbin_ph-1])) || (P_nu_syn[0] < 0)||(P_nu_syn[Nbin_ph-1] < 0)){
+                    (*p_log)(LOG_ERR,AT) << " nan in pwn spec P_nu_syn[0]=" << P_nu_syn[0] << "\n";
+                    std::cout << "Bnb="<<Bnb<<" rnb="<<rnb<<" gam[0]="<<gam[0]<<" dgam[0]="<<dgam[0]<<" dN_dgam[0]="<<dN_dgam[0]<<" gam_max="<<gam_max
+                              <<" Nbin_e="<<Nbin_e<<" Lpsr="<<Lpsr<<" n_ing_tot="<<N_inj_tot<<" number_conserv="<<number_conservation<<"\n";
+                    exit(1);
+                }
+//                spec[ii] = gam_ph[inu] * CGS::MeC2 / CGS::H * P_nu_syn[inu]; // [erg/s/Hz]
+                for (size_t inu = 0; inu < freqs.size();  inu++) {
+                    p_pars->m_synch_em[ii] = P_nu_syn[inu]; // TODO ? IS IT TRUE?
+                    p_pars->m_synch_abs[ii] = alpha_nu_syn[inu];
+                    p_pars->m_spectrum[ii] = gam_ph[inu] * CGS::MeC2 / CGS::H * P_nu_syn[inu]; // [erg/s/Hz]
+                    ii++;
+                }
 
-            dr = 0.;
-            Lpsr = p_mag->getMagValInt(MAG::Q::ildip, t) / (double)ncells() ; // TODO correct for cells earlier!
-            /// comptue synchrotron spectrum
-            if (i>1)
-                calc_syn_spec(Bnb,rnb,dr,gam,dgam,dN_dgam,gam_max,Nbin_e,gam_ph,P_nu_syn,alpha_nu_syn,Nbin_ph);
-            double number_conservation = Ntot(dgam,dN_dgam,Nbin_e)/N_inj_tot;
-            if (number_conservation > 1.2 or number_conservation < 0.9){
-                std::cerr << AT << " conserv="<<number_conservation<<"\n";
+
+//                spec[it] = gam_ph[it] * CGS::MeC2 / CGS::H * P_nu_syn[it]; // [erg/s/Hz]
             }
-            cooling(t,Bnb,dgam_dt,gam,tad,tsyn,Nbin_e);
-            injection(gam,dgam,dN_dgam_dt,dgam_dt,Lpsr,dt,&N_inj_tot,epse,gam_b,gam_max,p1,p2,Nbin_e);
-            time_evolution_e(dt,gam,dgam,dN_dgam,dN_dgam_dt,dgam_dt,Nbin_e);
-            /// --------------------------
-            if ((!std::isfinite(P_nu_syn[i]))||(P_nu_syn[i]<0)){
-                (*p_log)(LOG_ERR,AT)<<" nan in pwn spec P_nu_syn[i]="<<P_nu_syn[i]<<"\n";
-                std::cout << "Bnb="<<Bnb<<" rnb="<<rnb<<" gam[0]="<<gam[0]<<" dgam[0]="<<dgam[0]<<" dN_dgam[0]="<<dN_dgam[0]<<" gam_max="<<gam_max
-                    <<" Nbin_e="<<Nbin_e<<" Lpsr="<<Lpsr<<" n_ing_tot="<<N_inj_tot<<" number_conserv="<<number_conservation<<"\n";
-                exit(1);
-            }
-            spec[i] = gam_ph[i]*CGS::MeC2/CGS::H*P_nu_syn[i]; // [erg/s/Hz]
         }
+        else if (methodPwnSpec == ianaBPL){
+            /// From 2.2 Sec. Emission from the PWN in MNRAS 512, 5572–5579 (2022) https://doi.org/10.1093/mnras/stac797
+//            double p1 = 1.5;
+//            double p2 = 2.5;
 
+//    double eps_e = 0.1;
+            double gamma_m = 3.;
+            size_t ii = 0;
+            for (size_t it = 1; it < times.size(); it++) {
+                double Bnb = 0., rnb=0.,dr=0.,Lpsr=0.,dt=0.;
+                double tcomov = times[it]; // TODO THIS IS NOT COMOVING TIME !!!
+                dt = times[it] - times[it - 1];
+
+                if (true) {
+                    size_t ia = findIndex(times[it], m_data[PWN::Q::itburst], m_data[PWN::Q::itburst].size());
+                    size_t ib = ia + 1;
+                    Bnb = interpSegLog(ia, ib, times[it], m_data[PWN::Q::itburst], m_data[PWN::Q::iB]);
+                    rnb = interpSegLog(ia, ib, times[it], m_data[PWN::Q::itburst], m_data[PWN::Q::iR]);
+                } else {
+                    Bnb = m_data[PWN::Q::iB][it];
+                    rnb = m_data[PWN::Q::iR][it];
+                }
+                Lpsr = p_mag->getMagValInt(MAG::Q::ildip, times[it]) / (double)ncells() ; // TODO correct for cells earlier!
+
+//    double gamma_b = 1e4; // ????
+                double gamma_c = 6. * M_PI * CGS::M_ELEC * CGS::c / (SIGMA_T * Bnb * Bnb * tcomov);
+                double gamma_M = std::sqrt(9. * CGS::M_ELEC * CGS::M_ELEC * CGS::c * CGS::c * CGS::c * CGS::c /
+                                           (8. * Bnb * CGS::ELEC * CGS::ELEC * CGS::ELEC));
+                ///
+                double nu_m = nu_from_gamma(Bnb, gamma_m);
+                double nu_c = nu_from_gamma(Bnb, gamma_c);
+                double nu_M = nu_from_gamma(Bnb, gamma_M);
+                double nu_b = nu_from_gamma(Bnb, gam_b);
+                double nu_a = 0.;
+
+                double xi_q1 = 5. / 3.;
+                double n_pwn = Lpsr / (4. * M_PI * rnb * rnb * gam_b * CGS::M_ELEC * CGS::c * CGS::c * CGS::c);
+
+                double Rb = 1. / (2. - p1) + 1. / (p2 - 2.);
+                double eta = std::min(1., std::pow(nu_b / nu_c, (p2 - 2.) / 2.));
+                double xi = eta * eps_e;
+                double prefac = xi * Lpsr / (2. * Rb);
+
+                for (size_t ifreq = 0; ifreq < freqs.size(); ifreq++) {
+                    double nu = freqs[ifreq];
+
+//    std::vector<double> nu_arr = MakeLogspaceVec(8.,22.,100.,10);
+//    std::vector<double> spec (nu_arr.size());
+                    /// find nu_a from optical depth = 1
+                    double tau_a = 1.;
+//        xi_q1 * ELEC * n_ext * r_pwn / b_pwn / std::pow(gamma_m,5.) * std::pow(nu / nu_m, -p1/2. - 2.);
+                    nu_a = nu_m * std::pow(tau_a * xi_q1 * CGS::ELEC * (n_pwn) * rnb / Bnb / std::pow(gamma_m, 5.)
+                                           * std::pow(nu / nu_m, -p1 / 2. - 2.), p1 / 2. + 2.);
+
+                    double spec = 0.;
+                    if (nu_c < nu_b) {
+                        /// fast coocling
+                        if ((nu_m <= nu) && (nu <= nu_a))
+                            spec = std::pow(nu_c / nu_b, (2. - p1) / 2.)
+                                   * std::pow(nu_a / nu_c, (3. - p1) / 2.)
+                                   * std::pow(nu / nu_a, 5. / 2.);
+                        else if ((nu_a <= nu) && (nu <= nu_c))
+                            spec = std::pow(nu_c / nu_b, (2. - p1) / 2.)
+                                   * std::pow(nu / nu_c, (3. - p1) / 2.);
+                        else if ((nu_c <= nu) && (nu <= nu_b))
+                            spec = std::pow(nu / nu_b, (2. - p1) / 2.);
+                        else if ((nu_b <= nu) && (nu <= nu_M))
+                            spec = std::pow(nu / nu_b, (2. - p2) / 2.);
+                        else {
+                            std::cerr << " error in spectrum \n";
+                            exit(1);
+                        }
+                    } else if (nu_c >= nu_b) {
+                        if ((nu_m <= nu) && (nu <= nu_a))
+                            spec = std::pow(nu_b / nu_c, (3. - p2) / 2.)
+                                   * std::pow(nu_a / nu_b, (3. - p1) / 2.)
+                                   * std::pow(nu / nu_a, 5. / 2.);
+                        else if ((nu_a <= nu) && (nu <= nu_b))
+                            spec = std::pow(nu_b / nu_c, (3. - p2) / 2.)
+                                   * std::pow(nu / nu_b, (3. - p1) / 2.);
+                        else if ((nu_b <= nu) && (nu <= nu_c))
+                            spec = std::pow(nu / nu_c, (3. - p2) / 2.);
+                        else if ((nu_c <= nu) && (nu <= nu_M))
+                            spec = std::pow(nu / nu_c, (2. - p2) / 2.);
+                        else {
+                            std::cerr << " error in spectrum \n";
+                            exit(1);
+                        }
+                    }
+                    double fnu = prefac * spec;
+//                    spec[it] = fnu;
+                    p_pars->m_spectrum[ii] = fnu;
+                    ii ++ ;
+                }
+            }
+        }
+#endif
     }
 
-    static void fluxDensPW(double & flux_dens, double & tau_comp, double & tau_BH, double & tau_bf,
+    static void fluxDensPW_old(double & flux_dens, double & tau_comp, double & tau_BH, double & tau_bf,
                            double r, double & ctheta,
                            double phi, double theta, size_t ia, size_t ib, double ta, double tb,
                            double mu, double t_obs, double nu_obs, void * params){
+
         auto * p_pars = (struct Pars *) params;
         auto & p_ej = p_pars->p_ej;
         auto & p_bw = p_ej->getShells()[p_pars->ilayer]->getBWs()[p_pars->ishell];
@@ -1656,7 +1836,59 @@ public:
 //        flux_dens = fnu;
 //        int x = 1;
     }
+    static void fluxDensPW(double & flux_dens, double & tau_comp, double & tau_BH, double & tau_bf,
+                           double r, double & ctheta,
+                           double phi, double theta, size_t ia, size_t ib, double ta, double tb,
+                           double mu, double t_obs, double nu_obs, void * params){
 
+        auto * p_pars = (struct Pars *) params;
+        auto & p_ej = p_pars->p_ej;
+        auto & p_bw = p_ej->getShells()[p_pars->ilayer]->getBWs()[p_pars->ishell];
+        auto & p_mag = p_pars->p_mag;
+        auto & m_data = p_pars->m_data;
+
+        Interp2d int_em(p_pars->m_freq_arr, m_data[BW::Q::iR], p_pars->m_synch_em);
+        Interp2d int_abs(p_pars->m_freq_arr, m_data[BW::Q::iR], p_pars->m_synch_abs);
+        Interp1d::METHODS mth = Interp1d::iLagrangeLinear;
+
+//        if (p_pars->i_end_r==0)
+//            return;
+        ctheta = p_pars->ctheta0;//interpSegLin(ia, ib, t_obs, ttobs, m_data[BW::Q::ictheta]);
+        double Gamma = interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::iGamma]);
+        double b_pwn = interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::iB]);
+        double temp  = interpSegLog(ia, ib, ta, tb, t_obs, p_bw->getData(BW::Q::iEJtemp));
+        double tburst= interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::itburst]);
+        double l_dip = p_mag->getMagValInt(MAG::Q::ildip, tburst) / (double)p_pars->ncells; // TODO this has to be done before Radiation Calcs.
+        double l_acc = p_mag->getMagValInt(MAG::Q::ilacc, tburst) / (double)p_pars->ncells;
+
+//        std::cout << "tburst="<<tburst<<" ldip="<<l_dip<<" lacc="<<l_acc<<"\n";
+
+        double beta = EQS::Beta(Gamma);
+        double a = 1.0 - beta * mu; // beaming factor
+        double delta_D = Gamma * a; // doppler factor
+        double nuprime = ( 1.0 + p_pars->z ) * nu_obs * delta_D;
+        double nu_erg = nu_obs*4.1356655385381E-15*CGS::EV_TO_ERG;
+        double gamma_b = 1.0e5; /* break Lorentz factor of electron injection spectrum */
+//        double spec = PWNradiationMurase::spec_non_thermal(nu_erg, b_pwn, gamma_b, temp);
+
+        double f_gamma_esc_x=1.;
+        if (true)
+            p_ej->evalOptDepthsAlongLineOfSight(f_gamma_esc_x, tau_comp, tau_BH, tau_bf,
+                                                ctheta, r, CGS::pi/4., theta,
+                                                CGS::pi/4., p_pars->theta_obs, p_pars->d_l,
+                                                tburst, ia, ib, ta, tb, nuprime, p_pars->ilayer, params);
+
+        double lum = p_pars->eps_e*(l_dip+l_acc)*PWNradiationMurase::spec_non_thermal(nu_erg, b_pwn, gamma_b, temp)*f_gamma_esc_x*nu_erg;
+        flux_dens = lum * (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+//        double fnu = lum / p_pars->d_l / p_pars->d_l;
+//        double npwn = l_dip / (4.*CGS::pi*r*r*gamma_b*CGS::me*CGS::c*CGS::c*CGS::c);
+//        double nej = 0.;
+//        double next = npwn + nej;
+//        double fnu_ = pwn_spectrum(nuprime,r,b_pwn,next,tburst,(l_dip+l_acc),p_pars->eps_e,gamma_b);
+//        double fnu = fnu_ * (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+//        flux_dens = fnu;
+//        int x = 1;
+    }
 };
 
 /// Container for independent layers of PWN model
@@ -1926,9 +2158,11 @@ public:
             bool lc_freq_to_time = getBoolOpt("lc_use_freq_to_time",main_opts,AT,p_log,false,true);
             Vector lc_freqs = makeVecFromString(getStrOpt("lc_freqs",main_opts,AT,p_log,"",true),p_log);
             Vector lc_times = makeVecFromString(getStrOpt("lc_times",main_opts,AT,p_log,"",true), p_log);
-            Vector spec_freqs = makeVecFromString(getStrOpt("spec_freqs",main_opts,AT,p_log,"",true),p_log);
+//            Vector spec_freqs = makeVecFromString(getStrOpt("spec_freqs",main_opts,AT,p_log,"",true),p_log);
 //            Vector spec_freqs = TOOLS::MakeLogspaceVec(8,16,10);//makeVecFromString(getStrOpt("spec_freqs",main_opts,AT,p_log,"",true),p_log);
             Vector spec_times = makeVecFromString(getStrOpt("spec_times",main_opts,AT,p_log,"",true), p_log);
+            Vector spec_gams = makeVecFromString(getStrOpt("spec_gams",main_opts,AT,p_log,"",true),p_log);
+            Vector spec_freqs = makeVecFromString(getStrOpt("spec_freqs",main_opts,AT,p_log,"",true),p_log);
 //            Vector spec_times = TOOLS::MakeLogspaceVec(1.1,7,400);//makeVecFromString(getStrOpt("spec_times",main_opts,AT,p_log,"",true), p_log);
             Vector skymap_freqs = makeVecFromString(getStrOpt("skymap_freqs",main_opts,AT,p_log,"",true), p_log);
             Vector skymap_times = makeVecFromString(getStrOpt("skymap_times",main_opts,AT,p_log,"",true), p_log);
@@ -1947,7 +2181,7 @@ public:
                 computeSavePWNcomovSpec(workingdir,
                                         getStrOpt("fname_spec", pwn_opts, AT, p_log, "", true),
                                         getStrOpt("fname_spec_layers", pwn_opts, AT, p_log, "", true),
-                                        spec_times, spec_freqs, main_pars, pwn_pars, false);
+                                        spec_times, spec_freqs, spec_gams,main_pars, pwn_pars, false);
 //                setPreComputePWNAnalyticSynchrotronPars(workingdir,
 //                    getStrOpt("fname_spec", pwn_opts, AT, p_log, "", true));
 
@@ -1984,7 +2218,8 @@ private:
 //        is_synch_computed = true;
     };
     void computeSavePWNcomovSpec(std::string workingdir, std::string fname, std::string fname_shells_layers,
-                                 Vector spec_times, Vector spec_freqs, StrDbMap & main_pars, StrDbMap & ej_pars, bool lc_freq_to_time){
+                                 Vector & spec_times, Vector & spec_freqs, Vector & spec_gams,
+                                 StrDbMap & main_pars, StrDbMap & ej_pars, bool lc_freq_to_time){
 
         Vector _times, _freqs;
         cast_times_freqs(spec_times, spec_freqs, _times, _freqs, lc_freq_to_time, p_log);
@@ -2010,7 +2245,8 @@ private:
         out {};
 
         /// evaluate light curve
-        auto spect = evalPWNComovSpectrum(_times, _freqs);
+        //auto spect =
+        evalPWNComovSpectrum(spec_times, spec_freqs, spec_gams);
 
         /// save total lightcurve
         size_t n = _times.size();
@@ -2019,7 +2255,8 @@ private:
             size_t ishil = 0;
             for (size_t ishell = 0; ishell < nshells(); ++ishell) {
                 for (size_t ilayer = 0; ilayer < nlayers(); ++ilayer) {
-                    total_fluxes[itnu] += spect[ishell][ilayer][itnu];
+                    auto & p_pwn = p_pwns[ilayer];
+                    total_fluxes[itnu] += p_pwns[ilayer]->getPars()->m_spectrum[itnu];//spect[ishell][ilayer][itnu];
                     ishil++;
                 }
             }
@@ -2045,7 +2282,7 @@ private:
                 group_names.emplace_back("shell=" + std::to_string(ishell) + " layer=" + std::to_string(ilayer));
                 total_fluxes_shell_layer[ii].resize(n,0.);
                 for (size_t ifnu = 0; ifnu < n; ifnu++){
-                    total_fluxes_shell_layer[ii][ifnu] = spect[ishell][ilayer][ifnu];
+                    total_fluxes_shell_layer[ii][ifnu] = p_pwns[ilayer]->getPars()->m_spectrum[ifnu];//spect[ishell][ilayer][ifnu];
                 }
                 ii++;
             }
@@ -2227,13 +2464,13 @@ private:
     }
 private:
 
-    std::vector<VecVector> evalPWNComovSpectrum(Vector & times, Vector & freqs ) {
+    void evalPWNComovSpectrum(Vector & times, Vector & freqs, Vector & gams) {
         std::vector<VecVector> spec(nshells()); // [ishell][i_layer][i_time]
         for (auto &arr: spec) {
             size_t n_layers_ej = nlayers();//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStructs.structs[0].nlayers_pw : ejectaStructs.structs[0].nlayers_a ;
             arr.resize(n_layers_ej);
             for (auto &arrr: arr)
-                arrr.resize(times.size(), 0.);
+                arrr.resize(times.size()*freqs.size(), 0.);
 
         }
         size_t ii = 0;
@@ -2242,15 +2479,17 @@ private:
                 auto &model = getPWNs()[ilayer];//ejectaModels[ishell][ilayer];
 //                model->setEatsPars( pars, opts );
                 (*p_log)(LOG_INFO, AT)
-                        << " PWN Spec ntimes=" << times.size()
+                        << " PWN Spec ntimes=" << times.size() << " x nfreqs="<<freqs.size()
                         << " vel_shell=" << ishell << "/" << nshells() - 1
                         << " theta_layer=" << ilayer << "/" << nlayers()
                         << "\n";
-                model->computeSpectrum(spec[ishell][ilayer], times, freqs);
-                ii ++;
+                model->evaluateSpectrum(times, freqs, gams);
+//                for (size_t k = 0; k < times.size() * freqs.size(); k++)
+                    //spec[ishell][ilayer][k] = model->getRad()->getSpectrum()[k];
+//                ii ++;
             }
         }
-        return std::move( spec );
+//        return std::move( spec );
     }
 
     std::vector<VecVector> evalPWNLightCurves( Vector & obs_times, Vector & obs_freqs ){

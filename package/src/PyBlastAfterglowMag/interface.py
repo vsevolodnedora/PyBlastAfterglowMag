@@ -1092,111 +1092,41 @@ class Ejecta(Base):
                 x_arr.append(self.get_dyn_arr(v_n, ishell=ish, ilayer=ilayer)[idx])
         return np.array(x_arr)
 
-    # ejecta spectrum
+    # --------- lightcurves -------------
 
-    def get_spec_obj(self):
-        self._check_if_loaded_spec()
-        return self.spec_dfile
-
-    def get_spec_2d_arr(self, v_n="em", ishell=0, ilayer=0):
-        dfile = self.get_spec_obj()
-        layer = "shell={} layer={}".format(ishell, ilayer)
-        if (not layer in list(dfile.keys())):
-            raise NameError("Layer {} (aka '{}') is not in the ejecta comov.spec. file.\n Available: {}"
-                            .format(ilayer, layer, dfile.keys()))
-        if (not v_n in dfile[layer].keys()):
-            raise NameError("v_n {} is not in the ejecta comov.spec. dfile[{}].keys() \n Avaialble: {}"
-                            .format(v_n, layer, dfile[layer].keys()))
-        return np.array(dfile[layer][v_n])
-
-    def get_spec_times(self):
-        dfile = self.get_spec_obj()
-        return np.array(dfile["times"])
-
-    def get_spec_freqs(self):
-        dfile = self.get_spec_obj()
-        return np.array(dfile["freqs"])
-
-    def get_spec_1d_arr(self, freq=None, time=None, v_n="em", ishell=0, ilayer=0):
-        arr = self.get_spec_2d_arr(v_n=v_n, ishell=ishell, ilayer=ilayer)
-        freqs = self.get_spec_freqs()
-        times = self.get_spec_times()
-        if (not freq is None):
-            if (freq < freqs.min() or freq > freqs.max()):
-                raise ValueError("Freq={} (jet comov cpec) is not in the limit of freqs[{}, {}]"
-                                 .format(freq, freqs.min(), freqs.max()))
-            if (not freq in freqs):
-                idx = find_nearest_index(freqs, freq)
-            else:
-                idx = int(np.where(freqs == freq)[0])
-            arr_ = arr[idx, :]
-            assert len(arr_) == len(times)
-            return arr_
-        if (not times is None):
-            if (time < times.min() or time > times.max()):
-                raise ValueError("Time={} (jet comov cpec) is not in the limit of times[{}, {}]"
-                                 .format(time, times.min(), times.max()))
-            if (not time in times):
-                idx = find_nearest_index(time, times)
-            else:
-                idx = int(np.where(time == times)[0][0])
-            arr_ = arr[:, idx]
-            assert len(arr_) == len(freqs)
-            return arr_
-
-    def get_spec_2d_arr_layers(self, freq=None, time=None, v_n="em", ishell=None, ilayer=None):
-        obj_dyn = self.get_dyn_obj()
-        arr = []
-        x_arr = []
-        # x_arr = self.get_ej_dyn_arr("ctheta",ishell=ishell,ilayer=0)
-        if (not ishell is None and ilayer is None):
-            y_arr = self.get_dyn_arr("R", ishell=ishell, ilayer=0)
-            # freqs = self.get_ej_spec_freqs()
-            # times = self.get_ej_spec_times()
-            nlayers = int(obj_dyn.attrs["nlayers"])
-            for il in range(nlayers):
-                x_arr.append(self.get_dyn_arr("ctheta", ishell=ishell, ilayer=il)[0])
-                arr.append(self.get_spec_1d_arr(freq=freq, time=time, v_n=v_n, ishell=ishell, ilayer=il))
-            x_arr = np.array(x_arr)
-            arr = np.reshape(np.array(arr), (len(x_arr), len(y_arr)))
+    def get_lc_obj(self,spec=False):
+        if spec:
+            self._check_if_loaded_spec()
+            return self.spec_dfile
         else:
-            y_arr = self.get_dyn_arr("R", ishell=0, ilayer=ilayer)
-            nshells = int(obj_dyn.attrs["nshells"])
-            for ish in range(nshells):
-                x_arr.append(self.get_dyn_arr("Gamma", ishell=ish, ilayer=ilayer)[0])
-                arr.append(self.get_spec_1d_arr(freq=freq, time=time, v_n=v_n, ishell=ish, ilayer=ilayer))
-            x_arr = np.array(x_arr)
-            arr = np.reshape(np.array(arr), (len(x_arr), len(y_arr)))
-        return arr
+            self._check_if_loaded_lc()
+            return self.lc_dfile
 
-    # ejecta lightcurves
-
-    def get_lc_obj(self):
-        self._check_if_loaded_lc()
-        return self.lc_dfile
-
-    def get_lc_times(self):
-        dfile = self.get_lc_obj()
+    def get_lc_times(self,unique=False,spec=False):
+        dfile = self.get_lc_obj(spec=spec)
         arr = np.array(dfile["times"])
+        if (not unique):
+            return arr
         arr_u = np.unique(arr)
         if len(arr_u) == 0:
-            raise ValueError("no unique times found in kn light curve")
+            raise ValueError("no unique times found in array \n {}".format(arr))
         return arr_u
 
-    def get_lc_freqs(self):
-        dfile = self.get_lc_obj()
+    def get_lc_freqs(self,unique=False,spec=False):
+        dfile = self.get_lc_obj(spec=spec)
         arr = np.array(dfile["freqs"])
+        if (not unique): return arr
         arr_u = np.unique(arr)
         if len(arr_u) == 0:
-            raise ValueError("no unique freqs found in kn light curve")
-        return np.array(dfile["freqs"])
+            raise ValueError("no unique freqs found in light curve \n {}".format(arr))
+        return np.array(arr_u)# np.array(dfile["freqs"])
 
-    def get_lc_totalflux(self, freq=None):
-        dfile = self.get_lc_obj()
+    def get_lc_totalflux(self, freq=None, spec=False):
+        dfile = self.get_lc_obj(spec=spec)
         # nlayers = int(dfile.attrs["nlayers"])
         # nshells = int(dfile.attrs["nshells"])
         # times = self.get_lc_times()
-        freqs = self.get_lc_freqs()
+        freqs = self.get_lc_freqs(spec=spec)
         fluxes = np.array(dfile["total_fluxes"])
         if (freq is None):
             return fluxes
@@ -1225,21 +1155,52 @@ class Ejecta(Base):
         #     raise NameError()
         # return np.array(dfile[key])
 
-    def get_lc(self, freq=None, ishell=None, ilayer=None):
-        dfile = self.get_lc_obj()
+
+    def get_lc(self, freq=None, time=None, ishell=None, ilayer=None, spec=False):
+        dfile = self.get_lc_obj(spec=spec)
         nlayers = int(dfile.attrs["nlayers"])
         nshells = int(dfile.attrs["nshells"])
-        times = self.get_lc_times()
-        freqs = self.get_lc_freqs()
+        utimes = self.get_lc_times(spec=spec,unique=True)
+        ufreqs = self.get_lc_freqs(spec=spec,unique=True)
+
+        tidx = None
+        if (not time is None):
+            if (time > utimes.max()):
+                raise ValueError(f"requested time={time} > dfile times.max()={utimes.max()}")
+            if (time < utimes.min()):
+                raise ValueError(f"requested time={time} < dfile times.min()={utimes.min()}")
+            if (not time in utimes):
+                _time = utimes[find_nearest_index(utimes, time)]
+            else:
+                _time = utimes[int(np.where(utimes==time)[0])]
+        else:
+            _time = time
+        if (not freq is None):
+            if (freq > ufreqs.max()):
+                raise ValueError(f"requested freq={freq} > dfile freqs.max()={ufreqs.max()}")
+            if (freq < ufreqs.min()):
+                raise ValueError(f"requested freq={freq} < dfile freqs.min()={ufreqs.min()}")
+            if (not freq in ufreqs):
+                _freq = ufreqs[find_nearest_index(ufreqs, freq)]
+            else:
+                _freq = ufreqs[int(np.where(ufreqs==freq)[0])]
+        else:
+            _freq = freq
+        # if (freq is None and time is None):
+        #     raise KeyError("Only one, time or freq can be none (for 2D output")
+
+        times = self.get_lc_times(spec=spec,unique=False)
+        freqs = self.get_lc_freqs(spec=spec,unique=False)
 
         if (freq is None):
             # spectum
             if ((ishell is None) and (ilayer is None)):
                 fluxes2d = []
                 for ifreq in freqs:
-                    fluxes2d.append(self.get_lc_totalflux(freq=ifreq))  # [freq,time]
+                    fluxes2d.append(self.get_lc_totalflux(freq=ifreq,spec=spec))  # [freq,time]
                 fluxes2d = np.reshape(np.array(fluxes2d), (len(freqs), len(times)))
-                return fluxes2d
+                if (not time is None): return fluxes2d[tidx,:]
+                else: return fluxes2d
             elif ((ishell is None) and (not ilayer is None)):
                 fluxes2d = np.zeros((len(freqs), len(times)))
                 print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
@@ -1247,7 +1208,8 @@ class Ejecta(Base):
                     arr = np.array(dfile["shell={} layer={}".format(ish, ilayer)])
                     arr = np.reshape(arr, (len(times),len(freqs)))
                     fluxes2d += arr  # [freq,time]
-                return fluxes2d
+                if (not time is None): return fluxes2d[tidx,:]
+                else: return fluxes2d
             elif ((not ishell is None) and (ilayer is None)):
                 fluxes2d = np.zeros((len(freqs), len(times)))
                 print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
@@ -1255,22 +1217,26 @@ class Ejecta(Base):
                     arr = np.array(dfile["shell={} layer={}".format(ishell, il)])
                     arr = np.reshape(arr, (len(times),len(freqs)))
                     fluxes2d += arr  # [freq,time]
-                return fluxes2d
+                if (not time is None): return fluxes2d[tidx,:]
+                else: return fluxes2d
             elif ((not ishell is None) and (not ilayer is None)):
                 print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
                 arr = np.array(dfile["shell={} layer={}".format(ishell, ilayer)])
-                arr = np.reshape(arr, (len(times),len(freqs)))
-                fluxes2d = arr  # [freq,time]
-                return fluxes2d
+                arr = arr[times==_time]
+                return arr
+                # arr = np.reshape(arr, (len(utimes),len(ufreqs)))
+                # fluxes2d = arr  # [freq,time]
+                # if (not time is None): return arr[tidx,:]
+                # else: return fluxes2d
             else:
                 raise NameError()
         else:
             # light curves
-            if (not freq in self.get_lc_freqs()):
-                raise ValueError("freq:{} is not in ej_lc Given:{}".format(freq, self.get_lc_freqs()))
+            if (not _freq in self.get_lc_freqs(spec=spec)):
+                raise ValueError("freq:{} is not in ej_lc Given:{}".format(_freq, self.get_lc_freqs(spec=spec)))
             # ifreq = find_nearest_index(self.get_ej_lc_freqs(), freq)
             if ((ishell is None) and (ilayer is None)):
-                return self.get_lc_totalflux(freq=freq)
+                return self.get_lc_totalflux(freq=_freq,spec=spec)
             elif ((ishell is None) and (not ilayer is None)):
                 print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
                 if (ilayer > nlayers - 1):
@@ -1282,7 +1248,7 @@ class Ejecta(Base):
                 fluxes2d = []
                 for ish in range(nshells):
                     arr = np.array(dfile["shell={} layer={}".format(ish, ilayer)])
-                    arr = arr[freqs==freq]
+                    arr = arr[freqs==_freq]
                     fluxes2d.append(arr)  # [freq,time]
                 return np.reshape(fluxes2d, newshape=(nshells, len(times)))
             elif ((not ishell is None) and (ilayer is None)):
@@ -1296,21 +1262,23 @@ class Ejecta(Base):
                 fluxes2d = []
                 for il in range(nlayers):
                     arr = np.array(dfile["shell={} layer={}".format(ishell, il)])
-                    arr = arr[freqs==freq]
+                    arr = arr[freqs==_freq]
                     fluxes2d.append(arr)  # [freq,time]
                 return np.reshape(fluxes2d, newshape=(nlayers, len(times)))
             elif ((not ishell is None) and (not ilayer is None)):
                 print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
                 arr = np.array(dfile["shell={} layer={}".format(ishell, ilayer)])
-                arr = arr[freqs==freq]
+                arr = arr[freqs==_freq]
                 fluxes1d = arr  # [freq,time]
                 return fluxes1d
             else:
                 raise NameError()
 
-    def _alpha(self, freq, freqm1, ishell, ilayer, v_n):
-        values_i = self.get_lc(freq=freq, ishell=ishell, ilayer=ilayer, v_n=v_n)
-        values_im1 = self.get_lc(freq=freqm1, ishell=ishell, ilayer=ilayer, v_n=v_n)
+
+
+    def _alpha(self, freq, freqm1, ishell, ilayer, spec=False):
+        values_i = self.get_lc(freq=freq, ishell=ishell, ilayer=ilayer,spec=spec)
+        values_im1 = self.get_lc(freq=freqm1, ishell=ishell, ilayer=ilayer,spec=spec)
         ffreq_i = np.full(values_i.shape, freq)
         ffreq_im1 = np.full(values_im1.shape, freqm1)
         num = np.log10(values_i) - np.log10(values_im1)
@@ -1318,33 +1286,113 @@ class Ejecta(Base):
         values = 1 * num / denum
         return values
 
-    def get_lc_spec_idx(self, freq, ishell=None, ilayer=None, freq1=None, freq2=None):
-        freqs = self.get_lc_freqs()
-        times = self.get_lc_times()
+    def get_lc_spec_idx(self, freq, ishell=None, ilayer=None, freq1=None, freq2=None, spec=False):
+        freqs = self.get_lc_freqs(spec=spec)
+        times = self.get_lc_times(spec=spec)
         if ((freq is None) and (ishell is None) and (ilayer is None)):
             if (not freq1 is None) or (not freq2 is None):
                 raise KeyError("For 2d spectral index freq1 and freq2 should be None (for now)")
             arr = []
             for ifreq in range(1, len(freqs)):
-                arr.append( self._alpha(freq=freqs[ifreq], freqm1=freqs[ifreq - 1], ishell=ishell, ilayer=ilayer, v_n=None) )
+                arr.append( self._alpha(freq=freqs[ifreq], freqm1=freqs[ifreq - 1], ishell=ishell, ilayer=ilayer, spec=spec) )
             return np.reshape(np.array(arr), newshape=(len(freqs) - 1, len(times)))
         else:
             idx = find_nearest_index(freqs, freq)
             _freq1 = freqs[idx] if freq1 is None else freq1
             _freq2 = freqs[idx - 1] if freq2 is None else freq2
-            return self._alpha(freq=_freq1, freqm1=_freq2, ishell=ishell, ilayer=ilayer, v_n=None)
+            return self._alpha(freq=_freq1, freqm1=_freq2, ishell=ishell, ilayer=ilayer, spec=spec)
 
-    def get_lc_temp_idx(self, freq, ishell, ilayer):
-        freqs = self.get_lc_freqs()
-        t = self.get_lc_times()
-        Lnu = self.get_lc(freq=freq, ishell=ishell, ilayer=ilayer, v_n=None)
+    def get_lc_temp_idx(self, freq, ishell, ilayer, spec=False):
+        freqs = self.get_lc_freqs(spec=spec)
+        t = self.get_lc_times(spec=spec)
+        Lnu = self.get_lc(freq=freq, ishell=ishell, ilayer=ilayer,spec=spec)
         val = np.zeros_like(Lnu)
         val[1:-1] = np.log10(Lnu[2:] / Lnu[:-2]) / np.log10(t[2:] / t[:-2])
         val[0] = np.log10(Lnu[1] / Lnu[0]) / np.log10(t[1] / t[0])
         val[-1] = np.log10(Lnu[-1] / Lnu[-2]) / np.log10(t[-1] / t[-2])
         return val
 
-    # ejecta skymaps
+    # ------------ spectrum -------------
+    #
+    # def get_spec_obj(self):
+    #     return self.get_lc_obj(spec=True)
+    #     # self._check_if_loaded_spec()
+    #     # return self.spec_dfile
+    #
+    # def get_spec_times)
+    #
+    # def get_spec_2d_arr(self, v_n="em", ishell=0, ilayer=0):
+    #     dfile = self.get_spec_obj()
+    #     layer = "shell={} layer={}".format(ishell, ilayer)
+    #     if (not layer in list(dfile.keys())):
+    #         raise NameError("Layer {} (aka '{}') is not in the ejecta comov.spec. file.\n Available: {}"
+    #                         .format(ilayer, layer, dfile.keys()))
+    #     if (not v_n in dfile[layer].keys()):
+    #         raise NameError("v_n {} is not in the ejecta comov.spec. dfile[{}].keys() \n Avaialble: {}"
+    #                         .format(v_n, layer, dfile[layer].keys()))
+    #     return np.array(dfile[layer][v_n])
+    #
+    # def get_spec_times(self):
+    #     dfile = self.get_spec_obj()
+    #     return np.array(dfile["times"])
+    #
+    # def get_spec_freqs(self):
+    #     dfile = self.get_spec_obj()
+    #     return np.array(dfile["freqs"])
+    #
+    # def get_spec_1d_arr(self, freq=None, time=None, v_n="em", ishell=0, ilayer=0):
+    #     arr = self.get_spec_2d_arr(v_n=v_n, ishell=ishell, ilayer=ilayer)
+    #     freqs = self.get_spec_freqs()
+    #     times = self.get_spec_times()
+    #     if (not freq is None):
+    #         if (freq < freqs.min() or freq > freqs.max()):
+    #             raise ValueError("Freq={} (jet comov cpec) is not in the limit of freqs[{}, {}]"
+    #                              .format(freq, freqs.min(), freqs.max()))
+    #         if (not freq in freqs):
+    #             idx = find_nearest_index(freqs, freq)
+    #         else:
+    #             idx = int(np.where(freqs == freq)[0])
+    #         arr_ = arr[idx, :]
+    #         assert len(arr_) == len(times)
+    #         return arr_
+    #     if (not times is None):
+    #         if (time < times.min() or time > times.max()):
+    #             raise ValueError("Time={} (jet comov cpec) is not in the limit of times[{}, {}]"
+    #                              .format(time, times.min(), times.max()))
+    #         if (not time in times):
+    #             idx = find_nearest_index(time, times)
+    #         else:
+    #             idx = int(np.where(time == times)[0][0])
+    #         arr_ = arr[:, idx]
+    #         assert len(arr_) == len(freqs)
+    #         return arr_
+    #
+    # def get_spec_2d_arr_layers(self, freq=None, time=None, v_n="em", ishell=None, ilayer=None):
+    #     obj_dyn = self.get_dyn_obj()
+    #     arr = []
+    #     x_arr = []
+    #     # x_arr = self.get_ej_dyn_arr("ctheta",ishell=ishell,ilayer=0)
+    #     if (not ishell is None and ilayer is None):
+    #         y_arr = self.get_dyn_arr("R", ishell=ishell, ilayer=0)
+    #         # freqs = self.get_ej_spec_freqs()
+    #         # times = self.get_ej_spec_times()
+    #         nlayers = int(obj_dyn.attrs["nlayers"])
+    #         for il in range(nlayers):
+    #             x_arr.append(self.get_dyn_arr("ctheta", ishell=ishell, ilayer=il)[0])
+    #             arr.append(self.get_spec_1d_arr(freq=freq, time=time, v_n=v_n, ishell=ishell, ilayer=il))
+    #         x_arr = np.array(x_arr)
+    #         arr = np.reshape(np.array(arr), (len(x_arr), len(y_arr)))
+    #     else:
+    #         y_arr = self.get_dyn_arr("R", ishell=0, ilayer=ilayer)
+    #         nshells = int(obj_dyn.attrs["nshells"])
+    #         for ish in range(nshells):
+    #             x_arr.append(self.get_dyn_arr("Gamma", ishell=ish, ilayer=ilayer)[0])
+    #             arr.append(self.get_spec_1d_arr(freq=freq, time=time, v_n=v_n, ishell=ish, ilayer=ilayer))
+    #         x_arr = np.array(x_arr)
+    #         arr = np.reshape(np.array(arr), (len(x_arr), len(y_arr)))
+    #     return arr
+
+    # ---------- skymaps --------------
 
     def get_skymap_obj(self):
         self._check_if_loaded_skymap()
