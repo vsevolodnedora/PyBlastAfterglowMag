@@ -106,7 +106,7 @@ method_tau = smooth
 use_ssa = yes
 emissivity = em
 absorption = abs
-method_comp_mode = observFlux # observFlux   # "comovSpec"
+method_comp_mode = comovSpec # observFlux   # "comovSpec"
 method_quad = CADRE
 
 # --------------------------- END ---------------------------

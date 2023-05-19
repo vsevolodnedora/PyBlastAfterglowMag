@@ -1728,6 +1728,7 @@ public:
 
 
 // ---------------
+enum METHOD_PWN_SPEC { inumBPL, ianaBPL };
 static void initialize_e_dis(double *gam, double *dgam, double *dN_dgam, double *dN_dgam_dt,
                              double *dgam_dt, double *tad, double *tsyn, double gam_max, int Nbin_e){
     double dln_gam = log(gam_max)/(double)(Nbin_e-1);
@@ -1779,16 +1780,18 @@ static void calc_syn_spec(const double B, const double dr, const double vol,
                           const double gam_max, const int Nbin_e, const double *gam_ph,
                           double *P_nu_syn, double *alpha_nu_syn, const int Nbin_ph){
 
-    double nu=0.,x=0.,sin_alpha=2./3.,tau_sa=0.;
-    double integ=0.,integ_alpha=0.;
+//    double nu=0.,x=0.,sin_alpha=2./3.,tau_sa=0.;
+//    double integ=0.,integ_alpha=0.;
 //#pragma omp parallel for default(shared) reduction (P_nu_syn,alpha_nu_syn) firstprivate(nu,x,sin_alpha,tau_sa,integ,integ_alpha,vol)// private(nu,x,sin_alpha,tau_sa,integ,integ_alpha,vol) shared(std::cout,std::cerr,B,r,dr,gam,dgam,dN_dgam,gam_max,Nbin_e,Nbin_ph,gam_ph,P_nu_syn,alpha_nu_syn,CGS::c,CGS::MeC2,CGS::H,CGS::ELEC,CGS::me) num_threads( 6 ) // private(i,nu,x,sin_alpha,tau_sa,integ,integ_alpha,vol) shared(B,r,dr,gam,dgam,dN_dgam,gam_max,Nbin_e,gam_ph,P_nu_syn,alpha_nu_syn,Nbin_ph) num_threads( 6 )
+#pragma omp parallel for num_threads( 6 )
     for (size_t k=0;k<Nbin_ph;k++) {
-        integ = 0.0;
-        integ_alpha = 0.0;
-        nu = gam_ph[k]*CGS::MeC2/CGS::H;
+        double integ = 0.0;
+        double sin_alpha=2./3.;
+        double integ_alpha = 0.0;
+        double nu = gam_ph[k]*CGS::MeC2/CGS::H;
 //#pragma omp parallel for firstprivate(integ,integ_alpha,nu,x) num_threads( 10 )
         for (size_t i=0;i<Nbin_e;i++) {
-            x = (2.0*M_PI*nu)/(3.0*CGS::ELEC*gam[i]*gam[i]*B/2.0/CGS::me/CGS::c*sin_alpha); /* Eq. (6.17c) of Rybicki & Lightman */
+            double x = (2.0*M_PI*nu)/(3.0*CGS::ELEC*gam[i]*gam[i]*B/2.0/CGS::me/CGS::c*sin_alpha); /* Eq. (6.17c) of Rybicki & Lightman */
 
             //            std::cout << x << ", ";
             if ((i==0) || (i==Nbin_e-1)) {
@@ -1816,8 +1819,7 @@ static void calc_syn_spec(const double B, const double dr, const double vol,
         P_nu_syn[k] = sqrt(3.0)*pow(CGS::ELEC,3.0)*B*sin_alpha/CGS::MeC2*integ; /* Eq. (6.33) x (2 pi) of Rybicki & Lightman */
         alpha_nu_syn[k] = CGS::c*CGS::c/8.0/M_PI/nu/nu*sqrt(3.0)*pow(CGS::ELEC,3.0)*B*integ_alpha/vol; /* Eq. (6.52) of Rybicki & Lightman */
 
-        tau_sa = alpha_nu_syn[k] * dr;
-
+        double tau_sa = alpha_nu_syn[k] * dr;
         if (tau_sa > 1.0e-6){
             P_nu_syn[k] = (1.0-exp(-tau_sa)) * P_nu_syn[k] / tau_sa;
         }
@@ -1922,7 +1924,7 @@ static void injection(double *gam, double *dgam, double *dN_dgam_dt, double *dga
 
 }
 // ------------------
-class Synchrotron2{
+class MagnetarSynchrotron{
     struct Pars{
         double gam_b{};
         double p1{};
@@ -1938,8 +1940,8 @@ class Synchrotron2{
 //    Vector spectrum{}; Vector spec_gams{}; Vector spec_freqs{};
 //    Vector emissivity{}; Vector absorption{};
 public:
-    Synchrotron2(unsigned loglevel){
-        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "Synchrotron2");
+    MagnetarSynchrotron(unsigned loglevel){
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "MagnetarSynchrotron");
         p_pars = std::make_unique<Pars>();
     }
     std::unique_ptr<Pars> & getPars(){ return p_pars; }
@@ -1985,7 +1987,7 @@ public:
             double t = times[it];
             double dt = (times[it] - times[it - 1]);
             if (it > 1)
-                calc_syn_spec(Bnb[it],vol[it],drnb[it],gam,dgam,dN_dgam,p_pars->gam_max,
+                calc_syn_spec(Bnb[it],drnb[it],vol[it],gam,dgam,dN_dgam,p_pars->gam_max,
                               Nbin_e,gam_ph,P_nu_syn,alpha_nu_syn,Nbin_ph);
             double number_conservation = Ntot(dgam,dN_dgam,Nbin_e)/N_inj_tot;
             if (number_conservation > 1.2 or number_conservation < 0.9){
@@ -2007,6 +2009,19 @@ public:
                 emissivity[ii] = P_nu_syn[inu]; // TODO ? IS IT TRUE?
                 absorption[ii] = alpha_nu_syn[inu];
                 spectrum[ii] = gam_ph[inu] * CGS::MeC2 / CGS::H * P_nu_syn[inu]; // [erg/s/Hz]
+
+                double abs_fac=0.;
+                double tau_sa = absorption[ii] * drnb[it];
+                if(tau_sa == 0.0)
+                    abs_fac = 1.0;
+                else if(tau_sa > 0.0)
+                    abs_fac = -expm1(-tau_sa) / tau_sa;
+                else {
+                    abs_fac = expm1(tau_sa) / tau_sa; //* exp(
+                    //abs * DR * beta_shock*mu / (mu - beta_shock));
+                }
+                spectrum[ii] = tau_sa > 1e-6 ? emissivity[ii] * abs_fac : emissivity[ii];
+
                 ii++;
             }
         }

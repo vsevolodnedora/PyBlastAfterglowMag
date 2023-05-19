@@ -11,7 +11,7 @@ from pathlib import Path
 from matplotlib.colors import Normalize, LogNorm
 from pathlib import Path
 from matplotlib.colors import Normalize, LogNorm
-from mpl_toolkits.axes_grid1 import ImageGrid
+from mpl_toolkits.axes_grid1 import ImageGrid, make_axes_locatable
 from mpl_toolkits.axisartist.grid_finder import MaxNLocator
 from matplotlib.colors import BoundaryNorm
 from matplotlib.ticker import MaxNLocator
@@ -26,31 +26,42 @@ import os
 import re
 from glob import glob
 
-try:
-    from PyBlastAfterglowMag.interface import modify_parfile_par_opt
-    from PyBlastAfterglowMag.interface import PyBlastAfterglow
-    from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
-    from PyBlastAfterglowMag.utils import \
-        (latex_float, cgs, get_beta, get_Gamma,get_Beta,BetFromMom,GamFromMom,MomFromGam)
-    from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
-    from PyBlastAfterglowMag.id_maker_from_kenta_bns import \
-        prepare_kn_ej_id_2d, load_init_data
-    from PyBlastAfterglowMag.skymap_tools import \
-        (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
-except ImportError:
-    try:
-        from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
-        from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
-        from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
-        from package.src.PyBlastAfterglowMag.utils import \
-            (latex_float, cgs, get_beta, get_Gamma,get_Beta,BetFromMom,GamFromMom,MomFromGam)
-        from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
-        from package.src.PyBlastAfterglowMag.id_maker_from_kenta_bns import \
-            prepare_kn_ej_id_2d, load_init_data
-        from package.src.PyBlastAfterglowMag.skymap_tools import \
-            (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
-    except ImportError:
-        raise ImportError("Cannot import PyBlastAfterglowMag")
+# try:
+#     from PyBlastAfterglowMag.interface import modify_parfile_par_opt
+#     from PyBlastAfterglowMag.interface import PyBlastAfterglow
+#     from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
+#     from PyBlastAfterglowMag.utils import \
+#         (latex_float, cgs, get_beta, get_Gamma,get_Beta,BetFromMom,GamFromMom,MomFromGam)
+#     from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+#     from PyBlastAfterglowMag.id_maker_from_kenta_bns import \
+#         prepare_kn_ej_id_2d, load_init_data
+#     from PyBlastAfterglowMag.skymap_tools import \
+#         (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
+# except ImportError:
+#     try:
+#         from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
+#         from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
+#         from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
+#         from package.src.PyBlastAfterglowMag.utils import \
+#             (latex_float, cgs, get_beta, get_Gamma,get_Beta,BetFromMom,GamFromMom,MomFromGam)
+#         from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+#         from package.src.PyBlastAfterglowMag.id_maker_from_kenta_bns import \
+#             prepare_kn_ej_id_2d, load_init_data
+#         from package.src.PyBlastAfterglowMag.skymap_tools import \
+#             (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
+#     except ImportError:
+#         raise ImportError("Cannot import PyBlastAfterglowMag")
+
+from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
+from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
+from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
+from package.src.PyBlastAfterglowMag.utils import \
+    (latex_float, cgs, get_beta, get_Gamma,get_Beta,BetFromMom,GamFromMom,MomFromGam)
+from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+from package.src.PyBlastAfterglowMag.id_maker_from_kenta_bns import \
+    prepare_kn_ej_id_2d, load_init_data
+from package.src.PyBlastAfterglowMag.skymap_tools import \
+    (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
 
 def plot_init_profile(ctheta, betas, eks,
                       xmin=0,xmax=90,ymin=1e-2,ymax=6,vmin=1e-12,vmax=1e-6,
@@ -364,6 +375,119 @@ def plot_skymaps_():
     ax.set_zlabel('I Label')
     plt.show()
 
+def plot_spectrum():
+    workdir = os.getcwd()+'/'
+    pba = PyBlastAfterglow(workingdir=workdir,readparfileforpaths=True,parfile="parfile.par")
+
+    # data = np.vstack((
+    #     [pba.PWN.get_lc(freq=freq,ishell= None,ilayer=None,spec=True)[1:-1] for freq in pba.PWN.get_lc_freqs(spec=True)]
+    # ))
+    data = pba.PWN.get_lc(ishell=0,ilayer=0,spec=True);#/np.reshape(pba.PWN.get_lc_freqs(spec=True),(-1,1))
+    x_arr = pba.PWN.get_lc_times(spec=True)[1:-1]
+    y_arr = pba.PWN.get_lc_freqs(spec=True)
+    min_val = data.max()/1e10#//data[data>0].min()
+    max_val = data.max()
+    levels = np.logspace(np.log10(min_val), np.log10(max_val),  20)
+    fig, axes = plt.subplots(nrows=1,ncols=1)
+    ax = axes
+    # cs = ax.contourf(pba.PWN.get_lc_times(spec=True)[1:-1],
+    #                   pba.PWN.get_lc_freqs(spec=True),
+    #                   data,
+    #                   norm=LogNorm(vmin=min_val, vmax=max_val),
+    #                   locator = ticker.LogLocator(),
+    #                   antialiased=True, alpha=1., linewidths=0.4)
+    cf = ax.contourf(x_arr/cgs.day, y_arr, data, levels=levels,
+                      cmap='viridis', norm=LogNorm(vmin=min_val, vmax=max_val),
+                      #locator=ticker.LogLocator(),
+                      antialiased=True, alpha=1., linewidths=0.4)  # ,vmin=1e10,vmax=1e30)
+    ax2_divider = make_axes_locatable(ax)
+    cax2 = ax2_divider.append_axes("top", size="7%", pad="2%")
+
+    ticks = levels[::4]
+    cbar = fig.colorbar(cf, #location='top',
+                        # ax=ax1,
+                        cax=cax2,#pad=0.1
+                        orientation="horizontal",
+                        # format='%.1e',
+                        ticks=ticks
+                        )
+    cbar.ax.set_xticklabels([r"$10^{" + "{:.0f}".format(i) + "}$" for i in np.log10(ticks)])  # add the labels
+    cax2.xaxis.set_ticks_position("top")
+    cax2.set_title(r"Intensity $I_{\nu'}'$ [erg $s^{-1}$ cm$^{-2}$ Hz$^{-1}$]", fontsize=12)
+    cax2.tick_params(direction='in',labelsize=12)
+    ax.set_yscale("log")
+    ax.set_xlim(x_arr[0]/cgs.day, x_arr[-1]/cgs.day)
+    ax.set_ylim(1e9, 1e22)
+    ax.set_xscale("log")
+    ax.set_ylabel(r"Frequency $\nu'$ [Hz]", fontsize=12)
+    ax.set_xlabel(r"Time, days", fontsize=12)
+    ax.get_yaxis().set_label_coords(-0.15, 0.5)
+
+    # ax.xaxis.set_ticklabels([])
+    ax.minorticks_on()
+    ax.tick_params(axis='both', which='both', labelleft=True,
+                    labelright=False, tick1On=True, tick2On=False,
+                    labelsize=12,
+                    direction='in',
+                    bottom=True, top=True, left=True, right=True)
+    plt.savefig(os.getcwd()+"/old_pwn_spec2_nossa.png")
+    plt.show()
+    # ax = plt.colorbar(cs)
+
+    # plt.title('matplotlib.pyplot.contourf() Example')
+    # plt.show()
+
+    print(f"times {pba.PWN.get_lc_times(spec=True).shape}")
+    print(f"freqs {pba.PWN.get_lc_freqs(spec=True).shape}")
+    print(data.shape)
+
+    print( pba.PWN.get_lc(freq=3e9,ishell=0,ilayer=0,spec=True) )
+
+    # print(pba.PWN.get_lc_times(unique=True,spec=True))
+    # print(pba.PWN.get_lc_freqs(unique=True,spec=True))
+
+    print(pba.PWN.get_lc(freq=3.e9,ishell=0,ilayer=0,spec=True)/pba.PWN.get_lc(freq=2.4e18,ishell=0,ilayer=0,spec=True))
+
+    # plt.loglog(pba.PWN.get_lc_times(spec=True,unique=True)[1:-1],pba.PWN.get_lc(freq=3.e9,ishell=0,ilayer=0,spec=True)[1:-1])#/pba.PWN.get_lc_obj(spec=True).attrs["d_l"]**2)
+    # plt.loglog(pba.PWN.get_lc_times(spec=True,unique=True)[1:-1],pba.PWN.get_lc(freq=2.4e18,ishell=0,ilayer=0,spec=True)[1:-1])#/pba.PWN.get_lc_obj(spec=True).attrs["d_l"]**2)
+    # plt.loglog(pba.PWN.get_lc_times(spec=True,unique=True)[1:-1],pba.PWN.get_lc(freq=2.4e22,ishell=0,ilayer=0,spec=True)[1:-1])#/pba.PWN.get_lc_obj(spec=True).attrs["d_l"]**2)
+    plt.loglog(pba.PWN.get_lc_freqs(spec=True,unique=True),pba.PWN.get_lc(time=5e2,ishell=0,ilayer=0,spec=True))
+
+
+    # plt.savefig(os.getcwd()+"/old_pwn_spec.png")
+    plt.show()
+
+def plot_lc():
+    workdir = os.getcwd()+'/'
+    pba = PyBlastAfterglow(workingdir=workdir,readparfileforpaths=True,parfile="parfile.par")
+    freqs = pba.PWN.get_lc_freqs()
+    times = pba.PWN.get_lc_times()
+    cmap = cm.Reds_r
+    nlayers = int(pba.PWN.get_lc_obj().attrs["nlayers"])
+    nshells = 1
+    mynorm = Normalize(vmin=0,vmax=nlayers*nshells)#norm(len(ishells)*len(ilayers))
+    print(pba.PWN.get_lc(freq=freqs[0],ishell=0,ilayer=0))
+    fig, axes = plt.subplots(ncols=1,nrows=3)
+    for il, layer in enumerate(range(nlayers)):
+        color=cmap(mynorm(int(il)))
+        axes[0].plot(times,pba.PWN.get_lc(freq=freqs[0],ishell=0,ilayer=il),color=color,ls='-')
+        axes[0].plot(times,pba.PWN.get_lc(freq=freqs[1],ishell=0,ilayer=il),color=color,ls='--')
+        # axes[1].plot(pba.PWN.get_dyn_arr("tburst",ishell=0,ilayer=il),
+        #              pba.PWN.get_dyn_arr("Rw",ishell=0,ilayer=il),color=color,ls='-')
+        axes[1].plot(pba.PWN.get_dyn_arr("tburst",ishell=0,ilayer=il),
+                     pba.PWN.get_dyn_arr("Gamma",ishell=0,ilayer=il),color=color,ls='-')
+        axes[2].plot(pba.KN.get_dyn_arr("tburst",ishell=0,ilayer=il),
+                     pba.KN.get_dyn_arr("Gamma",ishell=0,ilayer=il),color=color,ls='-')
+
+    axes[0].set_xscale("log")
+    axes[0].set_yscale("log")
+    axes[1].set_xscale("log")
+    axes[1].set_yscale("log")
+    axes[2].set_yscale("log")
+    axes[2].set_xscale("log")
+
+    plt.legend()
+    plt.show()
 
 def run():
     workdir = os.getcwd()+'/'
@@ -405,8 +529,11 @@ def run():
 
 
 def main():
-    run()
-    plot_skymaps_()
+    # os.getcwd()
+    # run()
+    plot_lc()
+    # plot_spectrum()
+    # plot_skymaps_()
 
 if __name__ == '__main__':
     main()

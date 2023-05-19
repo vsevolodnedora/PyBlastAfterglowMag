@@ -14,8 +14,8 @@
 
 tb0 = 1.e1
 tb1 = 1.e11 #1e11
-ntb = 50000
-iout = 10
+ntb = 100000
+iout = 100
 rtol = 1.e-12
 nmax = 1000
 
@@ -30,12 +30,16 @@ theta_obs = 0 # 1.4 # 0.785 # 45.
 
 * Settings
 
-lc_freqs = array 2.4e17
+lc_freqs = array logspace 1e9 2.4e17 10
 lc_times = array logspace 1.e4 1.e6 150
 lc_use_freq_to_time = no
 
-skymap_freqs = array 1e9 1e18
-skymap_times = array logspace 8.e5 2e9 50
+spec_times = array logspace 1.1e1 1e7 400
+spec_gams = array logspace 1e0 1e6 512
+spec_freqs = array logspace 1.e7 1.e22 200 # 3.e9 2.4e17 2.4e21
+
+skymap_freqs = array 3.e9 2.4e17
+skymap_times = array logspace 8.e2 2e7 50
 
 integrator = DOP853
 method_eats = piece-wise # piece-wise
@@ -68,20 +72,31 @@ gamma_b = 1.0e5
 albd_fac = 0.5
 Rw0 = 120000000. # 100*12*1000*100
 iters = 1000
-nthreads_frac = 14
+
+gam_b = 1.e3
+gam_max = 1.e6
+p1 = -5.
+p2 = 3.
+eps_e_spec = 0.99
 
 save_pwn_every_it = 1
 
 * Settings
+
+do_opt_depth_ej_calc = no
 
 run_pwn = no
 load_pwn = yes
 save_pwn = no
 do_lc = yes
 do_skymap = no
-fname_pwn = pwn.h5
+do_spec = yes
+fname_dyn = pwn.h5
 fname_light_curve_layers = lc_pwn_layers.h5
 fname_light_curve = lc_pwn.h5
+fname_spec_layers = spec_pwn_layers.h5
+fname_spec = spec_pwn.h5
+fname_sky_map = skymap_pwn.h5
 
 # --------------------------- END ---------------------------
 #

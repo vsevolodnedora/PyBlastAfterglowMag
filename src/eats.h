@@ -507,7 +507,9 @@ public:
                 mu[i] = std::numeric_limits<double>::max();
                 continue;
             }
-            ia[i] = findIndex(t_obs, p_pars->ttobs, p_pars->ttobs.size());
+//            ia[i] = findIndex(t_obs, p_pars->ttobs, p_pars->ttobs.size());
+            int guess = i > 0 ? ia[i-1] : p_pars->ttobs.size()/2.;
+            ia[i] = findClosestIndex(t_obs, p_pars->ttobs, guess);
             if (ia[i] >= p_pars->m_i_end_r - 1) {
                 mu[i] = std::numeric_limits<double>::max();
                 continue; // ??
@@ -536,7 +538,7 @@ public:
         auto * _params = p_pars->m_params;
         double phi_cell=0., ctheta_cell=0., flux_dens=0., ctheta=0.;
         double tau_comp=0., tau_bf=0., tau_BH=0.;
-#pragma omp parallel for private(phi_cell,ctheta_cell,flux_dens,ctheta) shared(t_obs,nu_obs,_params) num_threads( 6 )
+//#pragma omp parallel for private(phi_cell,ctheta_cell,flux_dens,ctheta) shared(t_obs,nu_obs,_params) num_threads( 6 )
         for (size_t i = 0; i < cil; i++) {
             if (mu[i] == std::numeric_limits<double>::max())
                 continue;
