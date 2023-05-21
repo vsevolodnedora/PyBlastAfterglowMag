@@ -471,14 +471,14 @@ def plot_lc():
     for il, layer in enumerate(range(nlayers)):
         color=cmap(mynorm(int(il)))
         axes[0].plot(times,pba.PWN.get_lc(freq=freqs[0],ishell=0,ilayer=il),color=color,ls='-')
-        axes[0].plot(times,pba.PWN.get_lc(freq=freqs[1],ishell=0,ilayer=il),color=color,ls='--')
+        # axes[0].plot(times,pba.PWN.get_lc(freq=freqs[1],ishell=0,ilayer=il),color=color,ls='--')
         # axes[1].plot(pba.PWN.get_dyn_arr("tburst",ishell=0,ilayer=il),
         #              pba.PWN.get_dyn_arr("Rw",ishell=0,ilayer=il),color=color,ls='-')
         axes[1].plot(pba.PWN.get_dyn_arr("tburst",ishell=0,ilayer=il),
-                     pba.PWN.get_dyn_arr("Gamma",ishell=0,ilayer=il),color=color,ls='-')
+                     pba.PWN.get_dyn_arr("mom",ishell=0,ilayer=il),color=color,ls='-')
         axes[2].plot(pba.KN.get_dyn_arr("tburst",ishell=0,ilayer=il),
-                     pba.KN.get_dyn_arr("Gamma",ishell=0,ilayer=il),color=color,ls='-')
-
+                     pba.KN.get_dyn_arr("mom",ishell=0,ilayer=il),color=color,ls='-')
+    axes[0].plot(times,pba.PWN.get_lc(freq=freqs[0],ishell=None,ilayer=None),color='black',ls='-')
     axes[0].set_xscale("log")
     axes[0].set_yscale("log")
     axes[1].set_xscale("log")
@@ -512,9 +512,9 @@ def run():
     r_, mom_, theta_, ctheta_, ek_, mass_, ye_, s_, rho_, temp_ \
         = load_init_data(workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5")
 
-    plot_init_profile(ctheta_[0,:], mom_[:,0], rho_,
+    plot_init_profile(ctheta_[0,:], mom_[:,0], ye_,
                       figpath=None,#FIGPATH+"ang_mass_dist" + r"_text{}".format(int(times[idx])),
-                      norm_mode="log",
+                      norm_mode="linear",
                       subplot_mode="ave",
                       title=r"$t_{\rm ext}="+r"{}$ [ms]".format(int(text)))
 

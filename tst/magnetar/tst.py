@@ -1,46 +1,55 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Parameters
-E0 = 1e53  # Initial energy (erg)
-Gamma0 = 1000  # Initial Lorentz factor
-theta0 = 0.2  # Opening angle (radians)
-n = 3  # Power-law index for the density profile
-
 # Constants
-c = 3e10  # Speed of light (cm/s)
-Msun = 1.989e33  # Solar mass (g)
-pc = 3.086e18  # Parsec (cm)
+dt = 0.01  # Time step
+dx = 0.01  # Spatial step
+t_max = 10.0  # Maximum simulation time
+x_max = 10.0  # Maximum spatial extent
 
-# Conversion factors
-erg_to_eV = 6.242e11  # erg to eV conversion
-cm_to_pc = 3.241e-19  # cm to pc conversion
+# Grid parameters
+Nt = int(t_max / dt) + 1  # Number of time steps
+Nx = int(x_max / dx) + 1  # Number of spatial steps
 
-# Function to calculate density profile
-def density_profile(r, t):
-    t_dyn = (theta0 * c) / (Gamma0 * c**2)
-    r_dyn = Gamma0**2 * c**2 * t_dyn
-    eta = r / r_dyn
-    rho = (3 * E0 * n * (n - 3) / (4 * np.pi * (n - 2)**2 * r_dyn**3)) * (1 + t / t_dyn)**(-3 * n / (n - 2))
-    rho *= (1 + eta**2)**(-(n + 2) / 2)
-    return rho
+# Arrays to store PWN and ejecta data
+pwn_density = np.zeros(Nx)
+pwn_velocity = np.zeros(Nx)
+ejecta_density = np.zeros(Nx)
+ejecta_velocity = np.zeros(Nx)
+x_values = np.linspace(0.0, x_max, Nx)
 
-# Time steps for plotting
-timesteps = np.logspace(0, 4, num=5)  # Modify the range and number of time steps as needed
+# Initial conditions
+pwn_density[:] = 1.0
+ejecta_density[:] = 1.0
 
-# Distance range for plotting
-r_min = 0.01 * c * theta0 / (Gamma0**2 * c**2)
-r_max = 10 * c * theta0 / (Gamma0**2 * c**2)
-r = np.logspace(np.log10(r_min), np.log10(r_max), num=1000)
+# Main simulation loop
+for t in range(Nt):
+    # Update PWN density and velocity
+    pwn_density[1:-1] += dt * (-pwn_velocity[1:-1] * np.diff(pwn_density) / dx)
+    pwn_velocity[1:-1] += dt * (-pwn_velocity[1:-1] * np.diff(pwn_velocity) / dx)
 
-# Plotting
-for t in timesteps:
-    rho = density_profile(r, t)
-    plt.loglog(r / (pc * cm_to_pc), rho * erg_to_eV / (Msun * pc**-3), label='t = {:.2e} s'.format(t))
+    # Update ejecta density and velocity
+    ejecta_density[1:-1] += dt * (-ejecta_velocity[1:-1] * np.diff(ejecta_density) / dx)
+    ejecta_velocity[1:-1] += dt * (-ejecta_velocity[1:-1] * np.diff(ejecta_velocity) / dx)
 
-plt.xlabel('Distance (pc)')
-plt.ylabel('Density (Msun/pc^3)')
-plt.title('Density Profile Behind Relativistic Blast Wave')
+    # Reflective boundary conditions
+    pwn_density[0] = pwn_density[1]
+    pwn_density[-1] = pwn_density[-2]
+    pwn_velocity[0] = -pwn_velocity[1]
+    pwn_velocity[-1] = -pwn_velocity[-2]
+
+    ejecta_density[0] = ejecta_density[1]
+    ejecta_density[-1] = ejecta_density[-2]
+    ejecta_velocity[0] = -ejecta_velocity[1]
+    ejecta_velocity[-1] = -ejecta_velocity[-2]
+
+# Plotting the results
+plt.figure(figsize=(10, 5))
+plt.plot(x_values, pwn_density, label='PWN Density')
+plt.plot(x_values, ejecta_density, label='Ejecta Density')
+plt.xlabel('Position')
+plt.ylabel('Density')
 plt.legend()
 plt.grid(True)
+plt.title('Evolution of PWN and Ejecta Shells')
 plt.show()

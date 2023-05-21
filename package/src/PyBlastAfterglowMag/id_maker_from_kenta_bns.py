@@ -157,14 +157,18 @@ def get_ej_data_for_text(files : list[str],
                     temp_ej_ = np.array(dfile[tkeys[idx]]["T_ejecta"], dtype=np.float64)
                     temp_ej_ *= 11604525006.17 # MeV -> Kelvin
                     v_inf_, thetas_, temp_ej = reinterpolate_hist2(v_inf, thetas, temp_ej_[:, :],
-                                                                   new_theta_len=new_theta_len, new_vinf_len=new_vinf_len)
+                                                                   new_theta_len=new_theta_len,
+                                                                   new_vinf_len=new_vinf_len,
+                                                                   mass_conserving=False)
 
                 ye_ej = None
                 if ("Ye_ejecta" in list(dfile[tkeys[idx]].keys())):
                     if verbose: print("Found 'Ye_ejecta'")
                     ye_ej_ = np.array(dfile[tkeys[idx]]["Ye_ejecta"], dtype=np.float64)
                     v_inf_, thetas_, ye_ej = reinterpolate_hist2(v_inf, thetas, ye_ej_[:, :],
-                                                                 new_theta_len=new_theta_len, new_vinf_len=new_vinf_len)
+                                                                 new_theta_len=new_theta_len,
+                                                                 new_vinf_len=new_vinf_len,
+                                                                 mass_conserving=False)
 
                 rho_ej = None
                 if ("rho_ejecta" in list(dfile[tkeys[idx]].keys())):
@@ -172,11 +176,17 @@ def get_ej_data_for_text(files : list[str],
                     rho_ej_ = np.array(dfile[tkeys[idx]]["rho_ejecta"], dtype=np.float64)
                     rho_ej_ *= 5.807e18 # Code units -> CGS
                     v_inf_, thetas_, rho_ej = reinterpolate_hist2(v_inf, thetas, rho_ej_[:, :],
-                                                                  new_theta_len=new_theta_len, new_vinf_len=new_vinf_len)
+                                                                  new_theta_len=new_theta_len,
+                                                                  new_vinf_len=new_vinf_len,
+                                                                  mass_conserving=False)
+
 
                 masses = np.array(dfile[tkeys[idx]]["Mejecta"], dtype=np.float64)  # / cgs.solar_m
                 v_inf, thetas, masses = reinterpolate_hist2(v_inf, thetas, masses[:, :],
-                                                            new_theta_len=new_theta_len, new_vinf_len=new_vinf_len)
+                                                            new_theta_len=new_theta_len,
+                                                            new_vinf_len=new_vinf_len,
+                                                            mass_conserving=True)
+
 
                 thetas = 0.5 * (thetas[1:] + thetas[:-1])
                 v_inf  = 0.5 * (v_inf[1:] + v_inf[:-1])

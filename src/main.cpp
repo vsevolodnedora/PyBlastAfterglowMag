@@ -166,14 +166,17 @@ public:
         // evolve
         double dt;
         int ixx = 1;
+        int i_x = -1;
         for (size_t it = 1; it < _t_grid.size(); it++){
+            i_x ++ ;
             p_model->getPars()->i_restarts = 0;
             dt = _t_grid[it] - _t_grid[it - 1];
-            p_model->evolve(dt, it);
+            p_model->evolve(dt, it, i_x);
             if ((it % p_pars->iout == 0)) {
                 p_model->storeSolution(ixx);
 //                (*p_log)(LOG_INFO,AT)<<"Storing solution at i="<<ixx<<" t="<<t_grid[ixx]<<"\n";
                 ixx++;
+                i_x = -1;
             }
         }
         p_model->checkEvolution();
@@ -202,12 +205,12 @@ int main(int argc, char** argv) {
     /// ------------------------------------------------------
     if (argc<4){
 //        working_dir = "../tst/grbafg_gauss_offaxis/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-        working_dir = "../tst/grbafg_gauss_offaxis_io/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/grbafg_gauss_offaxis_io/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_skymap_io/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/knafg_nrinformed/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/knafg_nrinformed_eats/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-//        working_dir = "../tst/magnetar/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../tst/magnetar/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_tophat_wind/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/knafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;

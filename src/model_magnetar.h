@@ -886,7 +886,7 @@ class PWNmodel{
         double tau_ej_curr{};
         double r_ej_curr{};
         double v_ej_curr{};
-        double temp_ej_curr{};
+//        double temp_ej_curr{};
         // -------------
         double curr_ldip{};
         double curr_lacc{};
@@ -1002,9 +1002,32 @@ public:
         p_pars->tau_ej_curr = tau[0];
         p_pars->r_ej_curr   = r[0];
         p_pars->v_ej_curr   = beta[0] * CGS::c;
-        p_pars->temp_ej_curr= temp[0];
+
+//        p_pars->temp_ej_curr= temp[0];
         if (p_pars->v_ej_curr > CGS::c){
             (*p_log)(LOG_ERR,AT) << " p_pars->v_ej_curr > c beta[0]="<<beta[0]<<"\n";
+            exit(1);
+        }
+//        std::cout << rho[0] << " "
+//                  << tau[0] << " "
+//                  << r[0] << " "
+//                  << beta[0] * CGS::c
+//                  << "\n";
+//        int x = 1;
+    }
+    void updateOuterBoundary(const double r, const double beta, const double rho, const double tau, const double temp){
+        if ((r < 0) || (beta < 0) || (rho < 0) || (tau < 0) || (temp < 0)){
+            (*p_log)(LOG_ERR,AT) << " wrong value\n";
+            exit(1);
+        }
+        p_pars->rho_ej_curr = rho;
+        p_pars->tau_ej_curr = tau;
+        p_pars->r_ej_curr   = r;
+        p_pars->v_ej_curr   = beta * CGS::c;
+
+//        p_pars->temp_ej_curr= temp[0];
+        if (p_pars->v_ej_curr > CGS::c){
+            (*p_log)(LOG_ERR,AT) << " p_pars->v_ej_curr > c beta="<<beta<<"\n";
             exit(1);
         }
 //        std::cout << rho[0] << " "
@@ -1079,7 +1102,6 @@ public:
     }
     /// -----------------------------------------------------------------------------
 
-
     Pars *& getPars(){ return p_pars; }
 
     void setInitConditions( double * arr, size_t i ) {
@@ -1121,6 +1143,8 @@ public:
 //            std::cerr << AT << "\t" << "v_w > v_ej\n";
             v_w = v_ej;
         }
+//        v_w = v_ej; // TODO make a proper model...
+
         p_pars->mom=EQS::MomFromBeta(v_w/CGS::c);
         // evaluateShycnhrotronSpectrum nebula energy \int(Lem * min(1, tau_T^ej * V_ej / c))dt Eq.[28] in Eq. 28 in Kashiyama+16
         double dEnbdt = 0;
@@ -1202,13 +1226,13 @@ public:
 
         int opacitymode=0; //0=iron, 1=Y_e~0.3-0.5, 2=Y_e~0.1-0.2, 3=CO
         if (Ye <= 0.2)
-            opacitymode = 2;
-        else if ((Ye > 0.2) or (Ye < 0.3))
-            opacitymode = 1;
-        else if (Ye >= 0.3)
-            opacitymode = 0;
+            opacitymode = 2; // r-process heavy
+        else if ((Ye > 0.2) && (Ye <= 0.3))
+            opacitymode = 1; // r-process light
+        else if ((Ye > 0.3) && (Ye <= 0.5))
+            opacitymode = 0;//0=iron-rich
         else if (Ye > 0.5)
-            opacitymode = 3;
+            opacitymode = 3; // CO
         else{
             (*p_log)(LOG_ERR,AT) << " error \n";
             exit(1);
@@ -1265,11 +1289,11 @@ private: // -------- RADIATION ----------
         if (e_gamma_gamma_ani_tmp < e_gamma_max_tmp)
             e_gamma_max_tmp = e_gamma_gamma_ani_tmp;
 
-        int i_max = p_pars->iterations;
+        const int i_max = p_pars->iterations;
 //        double e_tmp = e_gamma_min;
 //        double del_ln_e = 0.0;
 
-        double albd_fac = p_pars->albd_fac;
+        const double albd_fac = p_pars->albd_fac;
 //        int opacitymode = 0;
 
 //        tmp(rho_ej,delta_ej,T_ej,p_pars->albd_fac,opacitymode,e_gamma_max_tmp,e_gamma_syn_b_tmp, e_gamma_min);
@@ -1724,8 +1748,8 @@ public:
         double abs_prime = int_abs.InterpolateBilinear(nuprime, tburst, ia_nu, ib_nu, ia_r, ib_r);
         if (!std::isfinite(abs_prime))
             abs_prime = 0.;
-        flux_dens=em_prime;
-        return;
+//        flux_dens=em_prime;
+//        return;
 
         /// convert to the laboratory frame
         double em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)

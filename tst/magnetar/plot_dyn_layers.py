@@ -191,6 +191,7 @@ def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
             layers.append("shell={} layer={}".format(i,j))
 
     dfile = h5py.File(curdir+"magnetar_driven_ej.h5", "r")
+    print(dfile.keys())
     # print(dfile[list(dfile.keys())[0]].keys())
     dfile_pwn = h5py.File(curdir+"pwn.h5","r")
     # print(dfile_pwn[list(dfile_pwn.keys())[0]].keys())
@@ -279,15 +280,15 @@ def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
     if legend: plt.legend()
     plt.savefig(figname, dpi=256)
     plt.show()
-plot_ej_and_magnetar_layers(ishells=([0]), ilayers=(0,), v_n_x = "tburst",
-                            v_n_ys = (["R"]), pwn_v_n_ys=(["Rw"]), same_ax=True, legend=True,
-                            colors_by="shell",figname="./pwn.png")
+# plot_ej_and_magnetar_layers(ishells=([0]), ilayers=(0,), v_n_x = "tburst",
+#                             v_n_ys = (["R"]), pwn_v_n_ys=(["Rw"]), same_ax=True, legend=True,
+#                             colors_by="shell",figname="./pwn.png")
 # plot_ej_and_magnetar_layers(ishells=([0]), ilayers=(9,), v_n_x = "tburst",
 #                             v_n_ys = (["mom"]), pwn_v_n_ys=(["mom"]), same_ax=True, legend=True,
 #                             colors_by="shell",figname="./pwn.png")
-# plot_ej_and_magnetar_layers(ishells=([i for i in range(60)]), ilayers=(0,), v_n_x = "tburst",
-#                             v_n_ys = (["mom","Eint2"]), pwn_v_n_ys=([]),
-#                             colors_by="shell",figname="./pwn_driv_ejecta.png")
+plot_ej_and_magnetar_layers(ishells=([i for i in range(60)]), ilayers=(0,), v_n_x = "tburst",
+                            v_n_ys = (["mom","EJrho","psrFrac","EJvol","EJdelta"]), pwn_v_n_ys=(["mom"]), # "Rw","Epwn"
+                            colors_by="shell",figname="./pwn_driv_ejecta.png")
 
 
 def plot_dynamics_layers(jet_layers=(0,20,40,60,69), v_n_x = "R", v_n_ys = ("rho", "mom", "tburst"),

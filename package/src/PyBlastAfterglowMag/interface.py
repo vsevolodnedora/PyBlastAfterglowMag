@@ -1068,14 +1068,14 @@ class Ejecta(Base):
             arr = np.reshape(np.array(arr), newshape=(nshells, len(arr[0])))
             return arr
         elif ((not ishell is None) and (not ilayer is None)):
-            layer = "shell={} layer={}".format(ishell, ilayer)
+            layer = "shell={} layer={} key={}".format(ishell, ilayer, v_n)
             if (not layer in list(dfile.keys())):
                 raise NameError("Layer {} (aka '{}') is not in the ejecta dyn. file.\n Available: {}"
                                 .format(ilayer, layer, dfile.keys()))
-            if (not v_n in dfile[layer].keys()):
-                raise NameError("v_n {} is not in the ejecta dyn. dfile[{}].keys() \n Avaialble: {}"
-                                .format(v_n, layer, dfile[layer].keys()))
-            return np.array(dfile[layer][v_n])
+            # if (not v_n in dfile[layer].keys()):
+            #     raise NameError("v_n {} is not in the ejecta dyn. dfile[{}].keys() \n Avaialble: {}"
+            #                     .format(v_n, layer, dfile[layer].keys()))
+            return np.array(dfile[layer])
         else:
             raise NameError()
 
@@ -1102,7 +1102,7 @@ class Ejecta(Base):
             self._check_if_loaded_lc()
             return self.lc_dfile
 
-    def get_lc_times(self,unique=False,spec=False):
+    def get_lc_times(self,unique=True,spec=False):
         dfile = self.get_lc_obj(spec=spec)
         arr = np.array(dfile["times"])
         if (not unique):
@@ -1112,7 +1112,7 @@ class Ejecta(Base):
             raise ValueError("no unique times found in array \n {}".format(arr))
         return arr_u
 
-    def get_lc_freqs(self,unique=False,spec=False):
+    def get_lc_freqs(self,unique=True,spec=False):
         dfile = self.get_lc_obj(spec=spec)
         arr = np.array(dfile["freqs"])
         if (not unique): return arr
@@ -1125,17 +1125,40 @@ class Ejecta(Base):
         dfile = self.get_lc_obj(spec=spec)
         # nlayers = int(dfile.attrs["nlayers"])
         # nshells = int(dfile.attrs["nshells"])
-        # times = self.get_lc_times()
-        freqs = self.get_lc_freqs(spec=spec)
+        utimes = self.get_lc_times(spec=spec,unique=True)
+        ufreqs = self.get_lc_freqs(spec=spec,unique=True)
         fluxes = np.array(dfile["total_fluxes"])
+
+        # key = str("totalflux at freq={:.4e}".format(3e9)).replace('.', ',')
+        # key = str("totalflux at freq={:.4e}".format(3e9))
+        # arr = np.array(dfile[key])
+
+
         if (freq is None):
-            return fluxes
-        if (not freq in freqs):
-            raise ValueError("freq={} not found in freqs={}".format(freq, freqs))
-        arr = fluxes[freqs==freq]
-        if (len(arr)==0):
-            raise ValueError("no fluxes found for freq={}".format(freq))
-        return arr
+            arr = np.vstack(( [fluxes[np.where(self.get_lc_freqs(spec=spec,unique=False)==_freq)] for _freq in ufreqs] ))
+            return arr
+        else :
+            if (freq > ufreqs.max()):
+                raise ValueError(f"requested freq={freq} > dfile freqs.max()={ufreqs.max()}")
+            if (freq < ufreqs.min()):
+                raise ValueError(f"requested freq={freq} < dfile freqs.min()={ufreqs.min()}")
+            if (not freq in ufreqs):
+                _freq = ufreqs[find_nearest_index(ufreqs, freq)]
+                print(f"Warning: freq={freq} is not in {ufreqs} Using freq={_freq}")
+            else:
+                _freq = ufreqs[int(np.where(ufreqs==freq)[0])]
+            arr = fluxes[np.where(self.get_lc_freqs(spec=spec,unique=False) == _freq)]
+            return arr
+
+
+        # if (freq is None):
+        #     return fluxes
+        # if (not freq in freqs):
+        #     raise ValueError("freq={} not found in freqs={}".format(freq, freqs))
+        # arr = fluxes[freqs==freq]
+        # if (len(arr)==0):
+        #     raise ValueError("no fluxes found for freq={}".format(freq))
+        # return arr
 
         #
         # nlayers = int(dfile.attrs["nlayers"])
@@ -1158,7 +1181,11 @@ class Ejecta(Base):
 
     def get_lc(self, freq=None, time=None, ishell=None, ilayer=None, spec=False):
         dfile = self.get_lc_obj(spec=spec)
+        if not ("nlayers" in dfile.attrs.keys()):
+            raise KeyError(f"key= nlayers is not in dfile.attrs.keys()=[{dfile.attrs.keys()}]")
         nlayers = int(dfile.attrs["nlayers"])
+        if not ("nshells" in dfile.attrs.keys()):
+            raise KeyError(f"key= nshells is not in dfile.attrs.keys()=[{dfile.attrs.keys()}]")
         nshells = int(dfile.attrs["nshells"])
         utimes = self.get_lc_times(spec=spec,unique=True)
         ufreqs = self.get_lc_freqs(spec=spec,unique=True)
@@ -1171,6 +1198,7 @@ class Ejecta(Base):
                 raise ValueError(f"requested time={time} < dfile times.min()={utimes.min()}")
             if (not time in utimes):
                 _time = utimes[find_nearest_index(utimes, time)]
+                print(f"Warning: time={time} is not in {utimes} Using time={_time}")
             else:
                 _time = utimes[int(np.where(utimes==time)[0])]
         else:
@@ -1182,6 +1210,7 @@ class Ejecta(Base):
                 raise ValueError(f"requested freq={freq} < dfile freqs.min()={ufreqs.min()}")
             if (not freq in ufreqs):
                 _freq = ufreqs[find_nearest_index(ufreqs, freq)]
+                print(f"Warning: freq={freq} is not in {ufreqs} Using freq={_freq}")
             else:
                 _freq = ufreqs[int(np.where(ufreqs==freq)[0])]
         else:
@@ -1196,7 +1225,7 @@ class Ejecta(Base):
             # spectum
             if ((ishell is None) and (ilayer is None)):
                 fluxes2d = []
-                for ifreq in freqs:
+                for ifreq in ufreqs:
                     fluxes2d.append(self.get_lc_totalflux(freq=ifreq,spec=spec))  # [freq,time]
                 fluxes2d = np.reshape(np.array(fluxes2d), (len(freqs), len(times)))
                 if (not time is None): return fluxes2d[tidx,:]
@@ -1222,7 +1251,14 @@ class Ejecta(Base):
             elif ((not ishell is None) and (not ilayer is None)):
                 print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
                 arr = np.array(dfile["shell={} layer={}".format(ishell, ilayer)])
-                arr = arr[times==_time]
+                if (time is None):
+                    data = np.vstack((
+                        [self.get_lc(freq=_freq,ishell= None,ilayer=None,spec=True)[1:-1]
+                            for _freq in self.get_lc_freqs(spec=True,unique=True)]
+                    ))
+                    return data
+
+                arr = arr[np.where(times==_time)]
                 return arr
                 # arr = np.reshape(arr, (len(utimes),len(ufreqs)))
                 # fluxes2d = arr  # [freq,time]
@@ -1232,8 +1268,8 @@ class Ejecta(Base):
                 raise NameError()
         else:
             # light curves
-            if (not _freq in self.get_lc_freqs(spec=spec)):
-                raise ValueError("freq:{} is not in ej_lc Given:{}".format(_freq, self.get_lc_freqs(spec=spec)))
+            if (not _freq in ufreqs):
+                raise ValueError("freq:{} is not in ej_lc Given:{}".format(_freq, ufreqs))
             # ifreq = find_nearest_index(self.get_ej_lc_freqs(), freq)
             if ((ishell is None) and (ilayer is None)):
                 return self.get_lc_totalflux(freq=_freq,spec=spec)
@@ -1268,11 +1304,12 @@ class Ejecta(Base):
             elif ((not ishell is None) and (not ilayer is None)):
                 print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
                 arr = np.array(dfile["shell={} layer={}".format(ishell, ilayer)])
-                arr = arr[freqs==_freq]
+                arr = arr[np.where(freqs==_freq)]
                 fluxes1d = arr  # [freq,time]
                 return fluxes1d
             else:
                 raise NameError()
+
 
 
 

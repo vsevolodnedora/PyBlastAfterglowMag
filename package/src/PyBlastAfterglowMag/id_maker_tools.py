@@ -3,6 +3,7 @@ import os
 import sys
 import copy
 from .utils import cgs
+from scipy import interpolate
 
 rebin_paths = [
     "../../../../../GIT/GitHub/rebin",
@@ -93,11 +94,15 @@ def reinterpolate_hist(thetas_pol_edges, mass_2d_hist, new_theta_len=None, dist=
     thetas_pol_edges = new_thetas_edges
     mass = new_mass
     return (thetas_pol_edges, mass)
-def reinterpolate_hist2(vinf_edges, thetas_pol_edges, mass_2d_hist, new_theta_len=None,new_vinf_len=None, dist="pw"):
+def reinterpolate_hist2(vinf_edges, thetas_pol_edges, mass_2d_hist,
+                        new_theta_len=None,new_vinf_len=None, dist="pw",
+                        mass_conserving=False):
 
     print("Rebinning historgram")
     if (new_theta_len is None):
         new_theta_len = len(thetas_pol_edges)
+    # else:
+    #     new_theta_len += 1
     # if ()
     if dist == "pw":
         new_thetas_edges, new_theta_centers = _generate_grid_cthetas(new_theta_len, theta0=np.pi / 2.)
@@ -120,9 +125,17 @@ def reinterpolate_hist2(vinf_edges, thetas_pol_edges, mass_2d_hist, new_theta_le
     # rebin for angle
     new_mass = np.zeros((len(new_thetas_edges) - 1, len(mass_2d_hist[0, :])))
     for ibeta in range(len(mass_2d_hist[0, :])):
-        tmp = rebin.rebin(thetas_pol_edges, mass_2d_hist[:, ibeta], new_thetas_edges,
-                          interp_kind='piecewise_constant')
+        if (mass_conserving):
+            tmp = rebin.rebin(thetas_pol_edges, mass_2d_hist[:, ibeta], new_thetas_edges,
+                              interp_kind='piecewise_constant')
+        else:
+            tmp = interpolate.interp1d(thetas_pol_edges,mass_2d_hist[:,ibeta],kind='linear')(new_theta_centers)
         new_mass[:, ibeta] = tmp
+
+        # import matplotlib.pyplot as plt
+        # plt.semilogy(thetas_pol_edges,mass_2d_hist[:, ibeta],color='gray',marker='x',ls='none')
+        # plt.semilogy(new_theta_centers,new_mass[:, ibeta],color='black',marker='o',ls='none')
+        # plt.show()
 
     # update
     thetas_pol_edges = new_thetas_edges
@@ -140,8 +153,10 @@ def reinterpolate_hist2(vinf_edges, thetas_pol_edges, mass_2d_hist, new_theta_le
         # plt.axhline(y=np.pi/2.)
         # plt.show()
         for itheta in range(len(new_thetas_edges)-1):
-            tmp = rebin.rebin(vinf_edges, mass[itheta, :], new_vinf_edges,
-                              interp_kind='piecewise_constant')
+            if (mass_conserving):
+                tmp = rebin.rebin(vinf_edges, mass[itheta, :], new_vinf_edges, interp_kind='piecewise_constant')
+            else:
+                tmp = interpolate.interp1d(vinf_edges,mass_2d_hist[itheta,:],kind='linear')(new_vinf_edges)
             new_new_mass[itheta, :] = tmp
 
         # update

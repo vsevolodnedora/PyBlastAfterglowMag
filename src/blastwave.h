@@ -3298,6 +3298,11 @@ public:
         /// update the shell composition (mass averaged)
         double ye_c = (bw1->getPars()->Ye0 * bw1->getPars()->M0 + bw2->getPars()->Ye0 * bw2->getPars()->M0)
                       / (bw1->getPars()->M0 + bw2->getPars()->M0);
+        if ((ye_c > bw1->getPars()->Ye0) && (ye_c > bw2->getPars()->Ye0)){
+            (*p_log)(LOG_ERR,AT)<< "after collision ye="<<ye_c<<" while BWs had: 1 : "
+                << bw1->getPars()->Ye0<< " 2 : " << bw2->getPars()->Ye0 << "\n";
+            exit(1);
+        }
         /// chose which shell to update/delete
         int ish = p_colsolve->choseShell();
         double eint_before,eint_after,m2_before,m2_after,m0_before,m0_after;

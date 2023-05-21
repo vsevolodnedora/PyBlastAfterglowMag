@@ -44,6 +44,9 @@ class EvolveODEsystem{
 
         size_t i_restarts = 0;
         int n_tot_eqs = 0;
+        size_t n_substeps = 0;
+        Vector m_tmp_tsubstes{};
+        bool do_average_solution = true;
     };
     Pars * p_pars;
     std::unique_ptr<logger> p_log;
@@ -67,9 +70,14 @@ public:
                                         << " N_ej="<<p_ej->getNeq()
                                         << " N_ej_pwn="<<p_ej_pwn->getNeq()
                                         << " (total " << p_pars->n_tot_eqs << ") equations. \n";
+        p_pars->n_substeps = (size_t)_t_grid.size() / t_grid.size();
+        p_pars->m_tmp_tsubstes.resize(p_pars->n_substeps, 0.);
         m_InitData = new double [ p_pars->n_tot_eqs ];
         m_CurSol   = new double [ p_pars->n_tot_eqs ];
         m_TmpSol   = new double [ p_pars->n_tot_eqs ]; // for shell collision
+        m_CurSols  = new double * [ p_pars->n_substeps ];
+        for (size_t j = 0; j < p_pars->n_substeps; ++j) // store result after each substep
+            m_CurSols[j] = new double[p_pars->n_tot_eqs];
         // checks for the settings of BWs interaction prescription
 
         // chose the integrator for the system
@@ -112,6 +120,9 @@ public:
         delete [] m_InitData;
         delete [] m_CurSol;
         delete [] m_TmpSol;
+        for (size_t i = 0; i < p_pars->n_substeps; ++i)
+            delete[] m_CurSols[i];
+        delete [] m_CurSols;
         delete p_pars;
         delete p_Integrator;
     }
@@ -258,11 +269,45 @@ public:
     }
 
     // evolve all blast waves
-    void evolve( const double dx, const size_t ix){
-        advanceTimeStep( dx, ix );
+    void evolve( const double dx, const size_t ix, const size_t i_x){
+        advanceTimeStep( dx, ix, i_x );
+    }
+
+    void averageSolution(const size_t ix){
+//        Vector m_tmp_time(p_pars->n_substeps);
+        Vector m_tmp(p_pars->n_substeps);
+        auto method = InterpBase::METHODS::iLagrangeUnivariate3m;
+        /// compute the middle point between the start and end
+        double t = p_pars->m_tmp_tsubstes[0] + (p_pars->m_tmp_tsubstes[p_pars->n_substeps-1] - p_pars->m_tmp_tsubstes[0]) / 2.;
+        if (t < 0 || !std::isfinite(t)){
+            (*p_log)(LOG_ERR,AT)<< "Interpolating between solutions: t="<<t<<"\n";
+            exit(1);
+        }
+        auto intp = Interp1d(p_pars->m_tmp_tsubstes, m_tmp);
+        if ((p_pars->do_average_solution) && (p_pars->n_substeps > 1)){
+            for (size_t i = 0; i < p_pars->n_tot_eqs; i++){
+                for (size_t j = 0; j < p_pars->n_substeps; j++){
+                    m_tmp[j] = m_CurSols[j][i];
+                }
+                double val = intp.Interpolate(t, method);
+                if ((std::abs(val - m_CurSol[i]) > 1e-7) and
+                    ((m_CurSol[i] < findMinimum(m_tmp)) || (m_CurSol[i] > findMaximum(m_tmp)))){
+                    (*p_log)(LOG_ERR, AT) << " error in interpolating the solution: "
+                        << " m_CurSol[i]="<<m_CurSol[i]<<" min="<<findMinimum(m_tmp)
+                        << " max="<<findMaximum(m_tmp)<<"\n";
+                    exit(1);
+                }
+            }
+            /// overwrite the value of the time at which the solution is stored.
+            p_pars->t_grid[ix] = t;
+        }
     }
 
     void storeSolution(int ix){
+        // average solution
+        averageSolution(ix);
+        // apply units, e.g., energy is usually evolved in E/E0
+        applyUnits();
         // plug the solution vector to the solution container of a given blast wave
         insertSolution(ix);
         // add other variables (that are not part of ODE but still needed)
@@ -649,7 +694,8 @@ private:
                     );
                     ej_bw->getPars()->facPSRdep = fac_psr_dep_tmp;
                     ej_bw->getPars()->dEinjdt = fac_psr_dep_tmp * total_sd;
-                    total_sd = total_sd - fac_psr_dep_tmp * total_sd;
+                    total_sd = total_sd - (fac_psr_dep_tmp * total_sd);
+                    int x = 1;
                 }
             }
         }
@@ -899,11 +945,16 @@ private:
                     /// update the shell properties for the PWN if needed
                     if (p_pars->p_ej_pwn->run_pwn){
                         auto & pwn = p_pars->p_ej_pwn->getPWN(il);
-                        pwn->updateOuterBoundary(cumShell->getRvec(),
-                                                 cumShell->getBetaVec(),
-                                                 cumShell->getRhoVec(),
-                                                 cumShell->getTauVec(),
-                                                 cumShell->getTempVec());
+//                        pwn->updateOuterBoundary(cumShell->getRvec(),
+//                                                 cumShell->getBetaVec(),
+//                                                 cumShell->getRhoVec(),
+//                                                 cumShell->getTauVec(),
+//                                                 cumShell->getTempVec());
+                        pwn->updateOuterBoundary(cumShell->getRvec()[0],
+                                                 cumShell->getBetaVec()[0],
+                                                 cumShell->getShellRho(m_CurSol),
+                                                 cumShell->getShellOptDepth(),
+                                                 cumShell->getTempVec()[0]);
                     }
                 }
                 (*p_log)(LOG_INFO,AT)
@@ -1017,12 +1068,19 @@ private:
             for (size_t il = 0; il < p_pars->p_ej->nlayers(); il++){
                 auto & cumShell = p_pars->p_ej->getShells()[il];
                 auto & ej_pwn = p_pars->p_ej_pwn->getPWNs()[il];
+//                ej_pwn->updateOuterBoundary(
+//                        cumShell->getRvec(),
+//                        cumShell->getBetaVec(),
+//                        cumShell->getRhoVec(),
+//                        cumShell->getTauVec(),
+//                        cumShell->getTempVec()
+//                );
                 ej_pwn->updateOuterBoundary(
-                        cumShell->getRvec(),
-                        cumShell->getBetaVec(),
-                        cumShell->getRhoVec(),
-                        cumShell->getTauVec(),
-                        cumShell->getTempVec()
+                        cumShell->getRvec()[0],
+                        cumShell->getBetaVec()[0],
+                        cumShell->getShellRho(sol),
+                        cumShell->getShellOptDepth(),
+                        cumShell->getTempVec()[0]
                 );
 //                ej_pwn->evalCurrBpwn(sol);sss
             }
@@ -1037,7 +1095,7 @@ private:
         }
 
     }
-    void advanceTimeStep( const double dx, const size_t ix){
+    void advanceTimeStep( const double dx, const size_t ix, const size_t i_x){
         if (!is_initialized){
             (*p_log)(LOG_ERR,AT)<<" bw set is not initialized. Cannot evolve\n";
             exit(1);
@@ -1072,7 +1130,7 @@ private:
                 exit(1);
             }
             (*p_log)(LOG_ERR,AT)  << " restarting iteration as there was a termination\n";
-            advanceTimeStep( dx, ix );
+            advanceTimeStep( dx, ix, i_x );
             p_pars->i_restarts += 1;
         }
 
@@ -1133,8 +1191,14 @@ private:
         /// save previous step in a temporary solution for restarts
         for (size_t i = 0; i < p_pars->n_tot_eqs; ++i)
             m_TmpSol[i] = m_CurSol[i];
-        // apply units, e.g., energy is usually evolved in E/E0
-        applyUnits();
+
+        /// store the solution for the timestep in a container for averaging
+        p_pars->m_tmp_tsubstes[i_x] = t_grid[ix];
+        for (size_t i = 0; i < p_pars->n_tot_eqs; ++i)
+            m_CurSols[i_x][i] = m_CurSol[i];
+
+//        // apply units, e.g., energy is usually evolved in E/E0
+//        applyUnits();
 
         /// check if blast wave has fully expanded
         if (p_pars->p_grb->run_bws)
@@ -1246,6 +1310,7 @@ private:
     double * m_InitData{};
     double * m_CurSol{};
     double * m_TmpSol{};
+    double ** m_CurSols{};
     Integrators::METHODS m_Method{};
     int m_loglevel{};
     IntegratorBase * p_Integrator;

@@ -536,8 +536,8 @@ public:
                         size_t idx_max_ = std::distance(bw_data[BW::Q::iEJvol].begin(), std::prev(iter));
                         double max_vol_ = bw_data[BW::Q::iEJvol][idx_max];
                         double r_at_max_ = bw_data[BW::Q::iR][idx_max];
-
-                        p_bws[idx]->getPars()->_last_frac_vol = r_at_max_ / max_vol_;//maxValue(m_data[Q::ivol]); // m_data[Q::ivol][ii];
+                        _vol_i = (4./3.) * CGS::pi * (r_at_max*r_at_max*r_at_max);
+                        p_bws[idx]->getPars()->_last_frac_vol = _vol_i / max_vol_;//maxValue(m_data[Q::ivol]); // m_data[Q::ivol][ii];
 
                         p_pars->first_entry_as_single_shell = false;
                     }
@@ -754,26 +754,41 @@ public:
             double m2plus0 = (1. + m2) * m0;
             mtot+=m2plus0;
         }
-        if (!std::isfinite(mtot) || (mtot < 0)){
+        if (!std::isfinite(mtot) || (mtot <= 0)){
             (*p_log)(LOG_ERR,AT) << "mtot is nan or < 0; mtot="<<mtot<<"\n";
             exit(1);
         }
         return mtot;
     }
     double getShellVolume(const double * Y){
-        double r0 = Y[p_bws[ m_idxs[0] ]->getPars()->ii_eq + SOL::QS::iR];
-        double r1 = Y[p_bws[ m_idxs[p_pars->n_active_shells - 1] ]->getPars()->ii_eq + SOL::QS::iR];
-        if ((r0 >= r1)||(r0==0)||(r1==0)){
-            (*p_log)(LOG_ERR,AT)<<" r0 > r1. in the shell; r0="<<r0<<" r1="<<r1<<"\n";
+        double total_volume = 0.;
+        for (size_t i = 0; i < p_pars->n_active_shells; i++)
+            total_volume += m_data[Q::ivol][i];
+//        double r0 = Y[p_bws[ m_idxs[0] ]->getPars()->ii_eq + SOL::QS::iR];
+//        double r1 = Y[p_bws[ m_idxs[p_pars->n_active_shells - 1] ]->getPars()->ii_eq + SOL::QS::iR];
+//        if ((r0 >= r1)||(r0==0)||(r1==0)){
+//            (*p_log)(LOG_ERR,AT)<<" r0 > r1. in the shell; r0="<<r0<<" r1="<<r1<<"\n";
+//            exit(1);
+//        }
+//        double delta = r1-r0;
+//        double total_volume = (4./3.) * CGS::pi * (r1*r1*r1 - r0*r0*r0) / p_bws[ m_idxs[0] ]->getPars()->ncells;
+        if (!std::isfinite(total_volume) || (total_volume <= 0)){
+            (*p_log)(LOG_ERR,AT) << "volume is nan or < 0; volume="<<total_volume<<"\n";
             exit(1);
         }
-        double delta = r1-r0;
-        double volume = (4./3.) * CGS::pi * (r1*r1*r1 - r0*r0*r0) / p_bws[ m_idxs[0] ]->getPars()->ncells;
+        return total_volume;
     }
     double getShellRho(const double * Y){
         double mtot = getShellMass(Y);
         double volume = getShellVolume(Y);
-        return mtot / volume;
+        return (mtot / volume);
+    }
+    double getShellOptDepth(){
+        if (!std::isfinite(p_pars->tautot) || (p_pars->tautot <= 0)){
+            (*p_log)(LOG_ERR,AT) << "p_pars->tautot is nan or < 0; p_pars->tautot="<<p_pars->tautot<<"\n";
+            exit(1);
+        }
+        return p_pars->tautot;
     }
 };
 
