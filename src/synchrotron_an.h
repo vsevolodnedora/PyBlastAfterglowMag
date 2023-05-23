@@ -2006,12 +2006,12 @@ public:
             }
 //                spec[ii] = gam_ph[inu] * CGS::MeC2 / CGS::H * P_nu_syn[inu]; // [erg/s/Hz]
             for (size_t inu = 0; inu < freqs.size();  inu++) {
-                emissivity[ii] = P_nu_syn[inu]; // TODO ? IS IT TRUE?
-                absorption[ii] = alpha_nu_syn[inu];
-                spectrum[ii] = gam_ph[inu] * CGS::MeC2 / CGS::H * P_nu_syn[inu]; // [erg/s/Hz]
+                emissivity[inu + freqs.size() * it] = P_nu_syn[inu]; // TODO ? IS IT TRUE?
+                absorption[inu + freqs.size() * it] = alpha_nu_syn[inu];
+                spectrum[inu + freqs.size() * it] = gam_ph[inu] * CGS::MeC2 / CGS::H * P_nu_syn[inu]; // [erg/s/Hz]
 
                 double abs_fac=0.;
-                double tau_sa = absorption[ii] * drnb[it];
+                double tau_sa = absorption[inu + freqs.size() * it] * drnb[it];
                 if(tau_sa == 0.0)
                     abs_fac = 1.0;
                 else if(tau_sa > 0.0)
@@ -2020,7 +2020,7 @@ public:
                     abs_fac = expm1(tau_sa) / tau_sa; //* exp(
                     //abs * DR * beta_shock*mu / (mu - beta_shock));
                 }
-                spectrum[ii] = tau_sa > 1e-6 ? emissivity[ii] * abs_fac : emissivity[ii];
+                spectrum[inu + freqs.size() * it] = tau_sa > 1e-6 ? emissivity[inu + freqs.size() * it] * abs_fac : emissivity[inu + freqs.size() * it];
 
                 ii++;
             }

@@ -1,3 +1,4 @@
+import matplotlib.cm
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
@@ -203,7 +204,7 @@ def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
     fid, axes = plt.subplots(ncols=1, nrows=nrows, figsize=(6,6),sharex="all")
     if not hasattr(axes,"__len__"): axes = [axes]
     # norm = Normalize(vmin=0, vmax=dfile.attrs["nlayers"])
-    cmap = cm.Reds_r
+    cmap = cm.jet
     mynorm = Normalize(vmin=0,vmax=len(ishells)*len(ilayers))#norm(len(ishells)*len(ilayers))
 
     for iv_n, v_n in enumerate(v_n_ys):
@@ -244,7 +245,7 @@ def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
         # ax.set_xlim(1e-4,1e-1)
         # ax.set_ylim(1,1.012)
 
-    cmap = cm.Blues_r
+    cmap = cm.jet
     layers = []
     for j in ilayers:
         for i in [0]:
@@ -286,8 +287,8 @@ def plot_ej_and_magnetar_layers(ishells=(1,), ilayers=(0,10,22),
 # plot_ej_and_magnetar_layers(ishells=([0]), ilayers=(9,), v_n_x = "tburst",
 #                             v_n_ys = (["mom"]), pwn_v_n_ys=(["mom"]), same_ax=True, legend=True,
 #                             colors_by="shell",figname="./pwn.png")
-plot_ej_and_magnetar_layers(ishells=([i for i in range(60)]), ilayers=(0,), v_n_x = "tburst",
-                            v_n_ys = (["mom","EJrho","psrFrac","EJvol","EJdelta"]), pwn_v_n_ys=(["mom"]), # "Rw","Epwn"
+plot_ej_and_magnetar_layers(ishells=([i for i in range(83)]), ilayers=(0,), v_n_x = "tburst",
+                            v_n_ys = (["R","mom","EJrho","psrFrac","EJdelta"]), pwn_v_n_ys=(["mom","Epwn"]), # "Rw","Epwn"
                             colors_by="shell",figname="./pwn_driv_ejecta.png")
 
 

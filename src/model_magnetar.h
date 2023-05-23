@@ -1634,7 +1634,7 @@ public:
         }
 #endif
     }
-
+#if 0
     static void fluxDensPW_old(double & flux_dens, double & tau_comp, double & tau_BH, double & tau_bf,
                            double r, double & ctheta,
                            double phi, double theta, size_t ia, size_t ib, double ta, double tb,
@@ -1670,7 +1670,7 @@ public:
             p_ej->evalOptDepthsAlongLineOfSight(f_gamma_esc_x, tau_comp, tau_BH, tau_bf,
                                                 ctheta, r, CGS::pi/4., theta,
                                                 CGS::pi/4., p_pars->theta_obs, p_pars->d_l,
-                                                tburst, ia, ib, ta, tb, nuprime, p_pars->ilayer, params);
+                                                tburst, nuprime, p_pars->ilayer, params);
 
         double lum = p_pars->eps_e*(l_dip+l_acc)*PWNradiationMurase::spec_non_thermal(nu_erg, b_pwn, gamma_b, temp)*f_gamma_esc_x*nu_erg;
         flux_dens = lum * (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
@@ -1683,10 +1683,13 @@ public:
 //        flux_dens = fnu;
 //        int x = 1;
     }
+#endif
+// flux_dens, tau_comp, tau_BH, tau_bf, r[i], ctheta, ctheta_cell, phi_cell,
+//  ia[i], ib[i], ta[i], tb[i], mu[i], t_obs, nu_obs, _params
     static void fluxDensPW(double & flux_dens, double & tau_comp, double & tau_BH, double & tau_bf,
-                           double r, double & ctheta,
-                           double phi, double theta, size_t ia, size_t ib, double ta, double tb,
-                           double mu, double t_obs, double nu_obs, void * params){
+                           double r, double & ctheta, double theta, double phi,
+                           size_t ia, size_t ib, double ta, double tb, double mu,
+                           double t_obs, double nu_obs, void * params){
 
         auto * p_pars = (struct Pars *) params;
         auto & p_ej = p_pars->p_ej;
@@ -1709,12 +1712,13 @@ public:
         double Gamma = interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::iGamma]);
         double beta  = interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::ibeta]);
         double tburst= interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::itburst]);
+        ctheta = p_pars->ctheta0;
         // double GammaSh = ( Interp1d(m_data[BW::Q::iR], m_data[BW::Q::iGammaFsh] ) ).Interpolate(r, mth );
         /// evaluateShycnhrotronSpectrum Doppler factor
         double a = 1.0 - beta * mu; // beaming factor
         double delta_D = Gamma * a; // doppler factor
         /// evaluateShycnhrotronSpectrum the comoving obs. frequency from given one in obs. frame
-        double nuprime = (1.0 + p_pars->z) * nu_obs;// * delta_D;
+        double nuprime = (1.0 + p_pars->z) * nu_obs * delta_D;
         if (nuprime < p_pars->m_freq_arr[0]) {
             (*p_pars->p_log)(LOG_WARN, AT) << " freqprime=" << nuprime << " < freq_arr[0]="
                 << p_pars->m_freq_arr[0] << "\n";
@@ -1741,13 +1745,17 @@ public:
 
         /// interpolate the emissivity and absorption coefficines
 //                double em_prime = int_em.Interpolate(nuprime, r, mth);
-        double em_prime = int_em.InterpolateBilinear(nuprime, tburst, ia_nu, ib_nu, ia_r, ib_r);
-        if (!std::isfinite(em_prime))
+        double em_prime = int_em.InterpolateBilinear(nuprime, r, ia_nu, ib_nu, ia_r, ib_r);
+        if (!std::isfinite(em_prime)) {
+            (*p_pars->p_log)(LOG_ERR,AT) << " em_prime="<<em_prime<<"\n";
             em_prime = 0.;
+        }
 //                double abs_prime = int_abs.Interpolate(nuprime, r, mth);
-        double abs_prime = int_abs.InterpolateBilinear(nuprime, tburst, ia_nu, ib_nu, ia_r, ib_r);
-        if (!std::isfinite(abs_prime))
+        double abs_prime = int_abs.InterpolateBilinear(nuprime, r, ia_nu, ib_nu, ia_r, ib_r);
+        if (!std::isfinite(abs_prime)) {
+            (*p_pars->p_log)(LOG_ERR,AT) << " abs_prime="<<abs_prime<<"\n";
             abs_prime = 0.;
+        }
 //        flux_dens=em_prime;
 //        return;
 
@@ -1770,11 +1778,11 @@ public:
 
 
         double f_gamma_esc_x=1.;
-        if (false)
+        if (true)
             p_ej->evalOptDepthsAlongLineOfSight(f_gamma_esc_x, tau_comp, tau_BH, tau_bf,
                                                 ctheta, r, CGS::pi/4., theta,
                                                 CGS::pi/4., p_pars->theta_obs, p_pars->d_l,
-                                                tburst, ia, ib, ta, tb, nuprime, p_pars->ilayer, params);
+                                                tburst, nuprime, p_pars->ilayer, params);
         flux_dens *= f_gamma_esc_x;
         if (!std::isfinite(flux_dens)){
             (*p_pars->p_log)(LOG_ERR,AT)<<" flux_dens="<<flux_dens<<"\n";

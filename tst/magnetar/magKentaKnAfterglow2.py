@@ -446,13 +446,13 @@ def plot_spectrum():
     # print(pba.PWN.get_lc_times(unique=True,spec=True))
     # print(pba.PWN.get_lc_freqs(unique=True,spec=True))
 
-    print(pba.PWN.get_lc(freq=3.e9,ishell=0,ilayer=0,spec=True)/pba.PWN.get_lc(freq=2.4e18,ishell=0,ilayer=0,spec=True))
+    # print(pba.PWN.get_lc(freq=3.e9,ishell=0,ilayer=0,spec=True)/pba.PWN.get_lc(freq=2.4e18,ishell=0,ilayer=0,spec=True))
 
-    # plt.loglog(pba.PWN.get_lc_times(spec=True,unique=True)[1:-1],pba.PWN.get_lc(freq=3.e9,ishell=0,ilayer=0,spec=True)[1:-1])#/pba.PWN.get_lc_obj(spec=True).attrs["d_l"]**2)
-    # plt.loglog(pba.PWN.get_lc_times(spec=True,unique=True)[1:-1],pba.PWN.get_lc(freq=2.4e18,ishell=0,ilayer=0,spec=True)[1:-1])#/pba.PWN.get_lc_obj(spec=True).attrs["d_l"]**2)
+    plt.loglog(pba.PWN.get_lc_times(spec=True,unique=True)[1:-1],pba.PWN.get_lc(freq=3.e9,ishell=0,ilayer=0,spec=True)[1:-1])#/pba.PWN.get_lc_obj(spec=True).attrs["d_l"]**2)
+    plt.loglog(pba.PWN.get_lc_times(spec=True,unique=True)[1:-1],pba.PWN.get_lc(freq=2.4e18,ishell=0,ilayer=0,spec=True)[1:-1])#/pba.PWN.get_lc_obj(spec=True).attrs["d_l"]**2)
     # plt.loglog(pba.PWN.get_lc_times(spec=True,unique=True)[1:-1],pba.PWN.get_lc(freq=2.4e22,ishell=0,ilayer=0,spec=True)[1:-1])#/pba.PWN.get_lc_obj(spec=True).attrs["d_l"]**2)
-    plt.loglog(pba.PWN.get_lc_freqs(spec=True,unique=True),pba.PWN.get_lc(time=5e2,ishell=0,ilayer=0,spec=True))
-
+    # plt.loglog(pba.PWN.get_lc_freqs(spec=True,unique=True),pba.PWN.get_lc(time=5e2,ishell=0,ilayer=0,spec=True))
+    #
 
     # plt.savefig(os.getcwd()+"/old_pwn_spec.png")
     plt.show()
@@ -465,26 +465,32 @@ def plot_lc():
     cmap = cm.Reds_r
     nlayers = int(pba.PWN.get_lc_obj().attrs["nlayers"])
     nshells = 1
+    ish = 68
     mynorm = Normalize(vmin=0,vmax=nlayers*nshells)#norm(len(ishells)*len(ilayers))
     print(pba.PWN.get_lc(freq=freqs[0],ishell=0,ilayer=0))
-    fig, axes = plt.subplots(ncols=1,nrows=3)
-    for il, layer in enumerate(range(nlayers)):
+    fig, axes = plt.subplots(ncols=1,nrows=4,sharex="col")
+    for il, layer in enumerate(range(1)):
         color=cmap(mynorm(int(il)))
-        axes[0].plot(times,pba.PWN.get_lc(freq=freqs[0],ishell=0,ilayer=il),color=color,ls='-')
-        # axes[0].plot(times,pba.PWN.get_lc(freq=freqs[1],ishell=0,ilayer=il),color=color,ls='--')
+        axes[0].plot(times,pba.PWN.get_lc(freq=3e9,ishell=0,ilayer=il),color=color,ls='-')
+        axes[0].plot(times,pba.PWN.get_lc(freq=2.4e17,ishell=0,ilayer=il),color=color,ls='--')
         # axes[1].plot(pba.PWN.get_dyn_arr("tburst",ishell=0,ilayer=il),
         #              pba.PWN.get_dyn_arr("Rw",ishell=0,ilayer=il),color=color,ls='-')
         axes[1].plot(pba.PWN.get_dyn_arr("tburst",ishell=0,ilayer=il),
                      pba.PWN.get_dyn_arr("mom",ishell=0,ilayer=il),color=color,ls='-')
         axes[2].plot(pba.KN.get_dyn_arr("tburst",ishell=0,ilayer=il),
-                     pba.KN.get_dyn_arr("mom",ishell=0,ilayer=il),color=color,ls='-')
-    axes[0].plot(times,pba.PWN.get_lc(freq=freqs[0],ishell=None,ilayer=None),color='black',ls='-')
+                     pba.PWN.get_dyn_arr("mom",ishell=0,ilayer=il) / pba.KN.get_dyn_arr("mom",ishell=0,ilayer=il), color=color,ls='-')
+        axes[3].plot(pba.KN.get_dyn_arr("tburst",ishell=0,ilayer=il),
+                     pba.PWN.get_dyn_arr("Rw",ishell=0,ilayer=il) / pba.KN.get_dyn_arr("R",ishell=0,ilayer=il), color=color,ls='-')
+    axes[0].plot(times,pba.PWN.get_lc(freq=3e9,ishell=None,ilayer=None),color='black',ls='-')
+    axes[0].plot(times,pba.PWN.get_lc(freq=2.4e17,ishell=None,ilayer=None),color='black',ls='-')
     axes[0].set_xscale("log")
     axes[0].set_yscale("log")
     axes[1].set_xscale("log")
     axes[1].set_yscale("log")
     axes[2].set_yscale("log")
     axes[2].set_xscale("log")
+    axes[3].set_yscale("log")
+    axes[3].set_xscale("log")
 
     plt.legend()
     plt.show()

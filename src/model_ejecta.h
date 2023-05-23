@@ -1949,7 +1949,7 @@ public:
     bool evalOptDepthsAlongLineOfSight(double & frac, double & tau_comp, double & tau_BH, double tau_bf,
                                        double ctheta, double r, double phi, double theta,
                                        double phi_obs, double theta_obs, double r_obs,
-                                       double tburst,  size_t ia, size_t ib, double ta, double tb,
+                                       double time,  //size_t ia, size_t ib, double ta, double tb,
                                        double freq, size_t info_ilpwn, void * params) {
 
         // Convert spherical coordinates to Cartesian coordinates
@@ -1973,6 +1973,8 @@ public:
         double r_ej_max = 0;
         size_t tot_nonzero_layers = 0;
         size_t tot_nonzero_shells = 0;
+
+        std::vector<std::string> lightpath {};
 
         /// ---------------------------------------------------
         for (size_t il = 0; il < nlayers(); il++){
@@ -1999,7 +2001,7 @@ public:
                     continue;
                 }
 
-#if 0
+#if 1
                 bw->getFsEATS()->parsPars(time, freq,
                                           bw->getPars()->theta_c_l, bw->getPars()->theta_c_h,
                                           0., M_PI, obsAngle);
@@ -2011,6 +2013,8 @@ public:
 
                 size_t ia=0, ib=0;
                 bool is_in_time = bw->getFsEATS()->evalEATSindexes(ia,ib,time,theta_obs, ctheta_cell,cphi,obsAngle);
+                double ta = bw->getData(BW::Q::itburst)[ia];
+                double tb = bw->getData(BW::Q::itburst)[ib];
                 Vector & ttobs = bw->getFsEATS()->getTobs();
                 if (!is_in_time){
 //                    (*p_log)(LOG_WARN,AT) << "[il="<<il<<" ish="<<ish<<"]" << " Skipping as tobs="<<time
@@ -2028,11 +2032,11 @@ public:
                     continue;
                 }
                 /// interpolate the exact radial position of the blast that corresponds to the req. obs time
-                double r_cell = interpSegLog(ia, ib, ta, tb, tburst, bw->getData(BW::Q::iEJr));//interpSegLog(ia, ib, time, ttobs, bw->getData(BW::Q::iEJr));
+                double r_cell = interpSegLog(ia, ib, ta, tb, time, bw->getData(BW::Q::iEJr));//interpSegLog(ia, ib, time, ttobs, bw->getData(BW::Q::iEJr));
                 if ( r_cell > r_ej_max )
                     r_ej_max = r_cell;
-                double rho_ej_cell = interpSegLog(ia, ib, ta, tb, tburst, bw->getData(BW::Q::iEJrho));//interpSegLog(ia, ib, time, ttobs, bw->getData(BW::Q::iEJrho));
-                double delta_ej_cell = interpSegLog(ia, ib, ta, tb, tburst, bw->getData(BW::Q::iEJdelta));//interpSegLog(ia, ib, time, ttobs, bw->getData(BW::Q::iEJdelta));
+                double rho_ej_cell = interpSegLog(ia, ib, ta, tb, time, bw->getData(BW::Q::iEJrho));//interpSegLog(ia, ib, time, ttobs, bw->getData(BW::Q::iEJrho));
+                double delta_ej_cell = interpSegLog(ia, ib, ta, tb, time, bw->getData(BW::Q::iEJdelta));//interpSegLog(ia, ib, time, ttobs, bw->getData(BW::Q::iEJdelta));
                 if ((rho_ej_cell<=0.)||(!std::isfinite(rho_ej_cell))||(delta_ej_cell<=0)||(!std::isfinite(delta_ej_cell))){
                     (*p_log)(LOG_ERR,AT) << "[il="<<il<<" ish="<<ish<<"]"<<" error in opt depth along line of sight\n";
                     exit(1);
@@ -2045,7 +2049,7 @@ public:
 //                    exit(1);
                 }
 
-                double e_gamma = freq * 4.1356655385381E-15 * CGS::EV_TO_ERG;
+                double e_gamma = freq * 4.1356655385381E-15; // -> eV //* 6.62606957030463E-27;//* 4.1356655385381E-15 * CGS::EV_TO_ERG;
                 double mu_e = bw->getPars()->mu_e;
                 double Z_eff = bw->getPars()->Z_eff;
                 int opacitymode = bw->getPars()->opacitymode;
@@ -2091,9 +2095,14 @@ public:
                     status[il][ish] = '1';
 //                    double tau_abs = (1.0+PWNradiationMurase::gamma_inelas_Compton(e_gamma))*(tau_BH+tau_bf);
 //                    double tau_eff = sqrt((tau_abs+tau_comp_)*tau_abs);
+                    lightpath.push_back("il="+std::to_string(il)
+                                       +" ish="+std::to_string(ish)
+                                       + " comp="+std::to_string(tau_comp_)
+                                       + " BH="+std::to_string(tau_BH_)
+                                       + " bf="+std::to_string(tau_bf_));
                     found_il= true;
                 }
-                if (((theta_ < bw->getPars()->theta_c_l) || (theta_ > bw->getPars()->theta_c_h))){
+                if (((theta_ < bw->getPars()->theta_c_l) || (theta_ >= bw->getPars()->theta_c_h))){
                     /// --- No intersection
 //                    (*p_log)(LOG_INFO,AT) << "[il="<<il<<" ish="<<ish<<"]"
 //                        << " tau_comp="<<0<<" tau_BH="<<0<<" tau_bf="<<0
@@ -2164,6 +2173,8 @@ public:
 //            exit(1);
             return false;
         }
+//        for (auto & stop : lightpath)
+//            std::cout << stop << "\n";
 
         return true;
     }
