@@ -355,6 +355,8 @@ public:
 //        std::cout<<image.m_f_tot<<"\n";
     }
 
+
+
     bool evalEATSindexes(size_t & ia, size_t & ib,
                            double t_obs, double obs_angle, double ctheta_cell, double phi_cell,
                            double (*obs_angle_func)( const double &, const double &, const double & )){
@@ -537,7 +539,7 @@ public:
         /// Parallel loop
         auto * _params = p_pars->m_params;
         double phi_cell=0., ctheta_cell=0., flux_dens=0., ctheta=0.;
-        double tau_comp=0., tau_bf=0., tau_BH=0.;
+        double tau_comp=-1., tau_bf=-1., tau_BH=-1.;
 //#pragma omp parallel for private(phi_cell,ctheta_cell,flux_dens,ctheta) shared(t_obs,nu_obs,_params) num_threads( 6 )
         for (size_t i = 0; i < cil; i++) {
             if (mu[i] == std::numeric_limits<double>::max())

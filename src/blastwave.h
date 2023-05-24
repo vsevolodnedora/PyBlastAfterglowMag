@@ -34,7 +34,7 @@ enum METHOD_SINGLE_BW_DELTA {iconst, ifrac_last, ilr, ibm, ist, ibm_st };
 struct Pars{
 
     Pars(VecVector & data,unsigned loglevel) : m_data(data){
-        p_log = std::make_unique<logger>(std::cout,std::cerr,loglevel,"Pars");
+        p_log = std::make_unique<logger>(std::cout,std::cerr,loglevel,"PWNPars");
     }
     std::unique_ptr<SynchrotronAnalytic> p_syna = nullptr;
     std::unique_ptr<logger> p_log;
@@ -158,6 +158,8 @@ struct Pars{
     double fraction_last_delta = 0.;
     double _b0_delta = -1., _b1_delta = -1.;
     double _b0_vol = -1., _b1_vol = -1.;
+    Vector m_mu{};
+    Vector ttobs{};
 };
 
 /// Each BlastWave collects the following data
@@ -218,7 +220,7 @@ protected:
     std::unique_ptr<BlandfordMcKee2> p_bm = nullptr;
     std::unique_ptr<NuclearAtomic> p_nuc = nullptr;
 //    std::unique_ptr<BlastWaveRadiation> p_rad = nullptr;
-//    std::unique_ptr<Pars> p_pars = nullptr;
+//    std::unique_ptr<PWNPars> p_pars = nullptr;
 //    std::unique_ptr<EatsPars> p_eats_pars = nullptr;
     std::unique_ptr<EATS> p_eats_fs = nullptr;
     std::unique_ptr<EATS> p_eats_opt_depth = nullptr;
@@ -251,7 +253,7 @@ public:
             }
         }
         // ---------------------- Methods
-//        p_pars = std::make_unique<Pars>(); //
+//        p_pars = std::make_unique<PWNPars>(); //
         p_pars = new Pars(m_data, loglevel); //
         p_lr_delta = std::make_unique<LinearRegression>(m_data[BW::Q::iR],m_data[BW::Q::iEJdelta]);
         p_lr_vol = std::make_unique<LinearRegression>(m_data[BW::Q::iR],m_data[BW::Q::iEJvol]);
@@ -949,7 +951,7 @@ public:
         p_pars->kappa = p_nuc->getPars()->kappa;
         p_pars->dEnuc = p_pars->M0 * p_nuc->getPars()->eps_nuc_thermalized;
     }
-    /// set initial condition 'ic_arr' for this blast wave using data from Pars{} struct
+    /// set initial condition 'ic_arr' for this blast wave using data from PWNPars{} struct
     void setInitConditions( double * ic_arr, size_t i ) {
 
         /// if layer does not have energy / mass -- do not evolve it
@@ -2375,7 +2377,7 @@ public:
     }
     void prepareDensProfileFromJet(double * out_Y, size_t i, double x, double const * Y,
                                    void * _others, size_t evaled_ix){
-//        auto * p_pars = (struct Pars *) params; // removing EATS_pars for simplicity
+//        auto * p_pars = (struct PWNPars *) params; // removing EATS_pars for simplicity
         auto * p_others = (std::vector<std::unique_ptr<BlastWave>> *) _others;
         auto & others = * p_others;
         // --- current ejecta bw
@@ -2764,7 +2766,7 @@ public:
                            size_t ia, size_t ib, double mu, double t_obs, double nu_obs,
                            Vector & ttobs, void * params){
 
-        auto * p_pars = (struct Pars *) params;
+        auto * p_pars = (struct PWNPars *) params;
         auto & m_data = p_pars->m_data;
         if (p_pars->i_end_r==0)
             return;
@@ -3200,7 +3202,81 @@ public:
         return flux_dens;
     }
 
+    bool evalEATSindexes(size_t &ia, size_t &ib, double t_obs, double z, //size_t m_i_end_r,
+                         double ctheta, double cphi, double theta_obs,
+                         double (*obs_angle_func)( const double &, const double &, const double & )){
+
+//        auto * p_pars = (struct Pars *) params; // removing EATS_pars for simplicity
+        auto & m_mu =  p_pars->m_mu;
+        auto & ttobs =  p_pars->ttobs;
+        size_t m_i_end_r= p_pars->i_end_r;
+        if (m_mu.size() < 1) {
+            m_mu.resize(p_pars->i_end_r);
+            ttobs.resize(p_pars->i_end_r);
+        }
+        /// evaluate mu array
+        for (size_t i = 0; i < m_i_end_r; i++)
+            m_mu[i] = ( m_data[BW::Q::itburst][i] - t_obs / (1.0 + z) ) / m_data[BW::Q::iR][i] * CGS::c;
+        double mu = obs_angle_func(ctheta, cphi, theta_obs);
+        for (size_t i_ = 0; i_ < m_i_end_r; i_++) {
+            ttobs[i_] = m_data[BW::Q::itt][i_] + m_data[BW::Q::iR][i_] / CGS::c * (1.0 - mu);
+        }
+        if (t_obs < ttobs[0]) {
+            std::cerr << AT << "t_obs=" << t_obs << " < ttobs_arr[0]=" << ttobs[0] << ". Extend ttobs.\n";
+            return false;
+        }
+        if ((t_obs > ttobs[m_i_end_r - 1])) {
+            if (m_i_end_r == m_mu.size()-1)
+                    std::cerr <<AT << " t_obs="<<t_obs<<" > ttobs_arr[i_end="<<m_i_end_r - 1<<"]="
+                              <<ttobs[m_i_end_r - 1]<<". Extend ttobs.\n";
+//
+//            << " time grid ends too early. "
+//                                  << " t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
+//                                  << " while requested obs.time=" << t_obs
+//                                  << " extend the grid to later time or request tobs at earlier times\n";
+//                    std::cout << ttobs << std::endl;
+//            exit(1);
+                return false;
+        }
+        /// locate closest evolution points to the requested obs. time
+        ia = findIndex(t_obs, ttobs, ttobs.size());
+        if (ia >= m_i_end_r - 1)
+            return false; // ??
+        ib = ia + 1;
+        return true;
+        }
+
+    void evalOpticalDepths(double & tau_comp, double & tau_BH, double & tau_bf,
+                           size_t ia, size_t ib, double t_obs, double freqprime){
+
+        double rej = interpSegLog(ia, ib, t_obs, p_pars->ttobs, m_data[BW::Q::iR]);
+        double rho_ej_cell = interpSegLog(ia, ib, t_obs, p_pars->ttobs, m_data[BW::Q::iEJrho]);
+        double delta_ej_cell = interpSegLog(ia, ib, t_obs, p_pars->ttobs, m_data[BW::Q::iEJdelta]);
+
+        /// TODO this freq. should be doppler shifted
+        double e_gamma = freqprime * 6.62606957030463E-27;; // Hz -> erg //* 6.62606957030463E-27;//* 4.1356655385381E-15 * CGS::EV_TO_ERG;
+        double mu_e = p_pars->mu_e;
+        double Z_eff = p_pars->Z_eff;
+        int opacitymode = p_pars->opacitymode;
+        double albd_fac = p_pars->albd_fac;
+
+        /// --- optical depth due to compton scattering
+        double Kcomp = PWNradiationMurase::sigma_kn(e_gamma)/mu_e/CGS::M_PRO;
+        double tau_comp_ = rho_ej_cell*delta_ej_cell*Kcomp;
+        tau_comp=tau_comp_;
+        /// optical depth of BH pair production
+        double KBH = (1.0+Z_eff)*PWNradiationMurase::sigma_BH_p(e_gamma)/mu_e/CGS::M_PRO;
+        double tau_BH_ = rho_ej_cell*delta_ej_cell*KBH;
+        tau_BH=tau_BH_;
+        /// The photoelectric absorption at high energies is taken into account, using the bound–free opacity
+        double Kbf = (1.0-albd_fac)*PWNradiationMurase::kappa_bf(e_gamma, Z_eff, opacitymode);
+        double tau_bf_ = rho_ej_cell*delta_ej_cell*Kbf;
+        tau_bf=tau_bf_;
+    }
+
 };
+
+
 
 /// how to collide two blastwaves
 class BlastWaveCollision{

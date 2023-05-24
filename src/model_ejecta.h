@@ -16,6 +16,7 @@
 
 #include "blastwave_components.h"
 #include "blastwave.h"
+//#include "model_magnetar.h"
 
 /// Radially structured blastwave collection
 class CumulativeShell{
@@ -762,8 +763,23 @@ public:
     }
     double getShellVolume(const double * Y){
         double total_volume = 0.;
-        for (size_t i = 0; i < p_pars->n_active_shells; i++)
+        double mtot = getShellMass(Y);
+        double cummass = 0.;
+        for (size_t i = 0; i < p_pars->n_active_shells; i++) {
+
+            /// try to limit the volume to the dense part of the ejecta...
+            size_t i_idx = m_idxs[i];
+            double m2 = Y[p_bws[i_idx]->getPars()->ii_eq + SOL::QS::iM2];
+            double m0 = p_bws[i_idx]->getPars()->M0;
+            double m2plus0 = (1. + m2) * m0;
+
+            cummass += m2plus0;
+
+            if ((cummass >= .9 * mtot)&&(p_pars->n_active_shells > 1)&&(total_volume>0))
+                break;
+
             total_volume += m_data[Q::ivol][i];
+        }
 //        double r0 = Y[p_bws[ m_idxs[0] ]->getPars()->ii_eq + SOL::QS::iR];
 //        double r1 = Y[p_bws[ m_idxs[p_pars->n_active_shells - 1] ]->getPars()->ii_eq + SOL::QS::iR];
 //        if ((r0 >= r1)||(r0==0)||(r1==0)){
@@ -1947,212 +1963,45 @@ public:
     }
 #endif
     bool evalOptDepthsAlongLineOfSight(double & frac, double & tau_comp, double & tau_BH, double tau_bf,
-                                       double ctheta, double r, double phi, double theta,
-                                       double phi_obs, double theta_obs, double r_obs,
+                                       double ctheta, double rpwn, double phi, double theta,
+                                       double phi_obs, double theta_obs, double r_obs, size_t il,
                                        double time,  //size_t ia, size_t ib, double ta, double tb,
-                                       double freq, size_t info_ilpwn, void * params) {
-
-        // Convert spherical coordinates to Cartesian coordinates
-        double x1 = r * std::sin(phi) * std::cos(ctheta);
-        double y1 = r * std::sin(phi) * std::sin(ctheta);
-        double z1 = r * std::cos(phi);
-
-        // do the same for observer
-        double x3 = r_obs * std::sin(phi_obs) * std::cos(theta_obs);
-        double y3 = r_obs * std::sin(phi_obs) * std::sin(theta_obs);
-        double z3 = r_obs * std::cos(phi_obs);
-
-        /// Calculate the direction vector of the line between the two points
-        double dx = x3 - x1;
-        double dy = y3 - y1;
-        double dz = z3 - z1;
-
-        /// iterate over all layers and shells and find for each layer a shell that lies on the line of sight
-//        double tau_comp=0., tau_BH=0., tau_bf=0.;
-        bool found = false;
-        double r_ej_max = 0;
-        size_t tot_nonzero_layers = 0;
-        size_t tot_nonzero_shells = 0;
-
+                                       double freq, double z, size_t info_ilpwn,
+                                       void * params) {
+        auto * p_pars = (struct PWNPars *) params;
         std::vector<std::string> lightpath {};
-
-        /// ---------------------------------------------------
-        for (size_t il = 0; il < nlayers(); il++){
-//            status.resize(nshells());
-            size_t nonzero_shells = 0;
-            bool found_il = false;
+        for (size_t ish = 0; ish < nshells(); ish++){
             auto & cumshell = p_cumShells[il];
-//            Vector cphis = EjectaID2::getCphiGridPW( il );
-//            if (cumshell->getPars()->n_active_shells==1){
-//                (*p_log)(LOG_ERR,AT)<<" not implemented\n";
-//                exit(1);
-//            }
-            for (size_t ish = 0; ish < nshells(); ish++){
-                auto & bw = cumshell->getBW(ish);
-                size_t idx = ish;//cumshell->getIdx()[ish]; // TODO assume sorted shells (after evolution)
-//                auto & bw_next = cumshell->getBW(ish+1);
-                size_t idx_next = ish+1;//cumshell->getIdx()[ish+1];// TODO assume sorted shells (after evolution)
-                if (bw->getPars()->i_end_r==0) {
-//                    (*p_log)(LOG_WARN,AT) << "[il="<<il<<" ish="<<ish<<"]"
-//                        << " Skipping as bw->getPars()->i_end_r="<<bw->getPars()->i_end_r
-//                        <<" and bw_next->getPars()->i_end_r="<<bw_next->getPars()->i_end_r
-//                        <<"\n";
-                    status[il][ish] = 'N';
-                    continue;
-                }
-
-#if 1
-                bw->getFsEATS()->parsPars(time, freq,
-                                          bw->getPars()->theta_c_l, bw->getPars()->theta_c_h,
-                                          0., M_PI, obsAngle);
-                bw->getFsEATS()->check_pars();
-
-                // get BW (a cell) properties
-                double cphi = 0. ; // We don't care about phi diretion due to symmetry
-                double ctheta_cell = bw->getPars()->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
-
-                size_t ia=0, ib=0;
-                bool is_in_time = bw->getFsEATS()->evalEATSindexes(ia,ib,time,theta_obs, ctheta_cell,cphi,obsAngle);
-                double ta = bw->getData(BW::Q::itburst)[ia];
-                double tb = bw->getData(BW::Q::itburst)[ib];
-                Vector & ttobs = bw->getFsEATS()->getTobs();
-                if (!is_in_time){
-//                    (*p_log)(LOG_WARN,AT) << "[il="<<il<<" ish="<<ish<<"]" << " Skipping as tobs="<<time
-//                        <<" while ttobs is in["<<ttobs[0]<<", "<<ttobs[bw->getPars()->i_end_r-1]<<"] \n";
-                    status[il][ish] = 'T';
-                    continue;
-                }
-#endif
-                if ((bw->getData(BW::Q::iEJr)[ia] == 0)||(bw->getData(BW::Q::iEJr)[ib] == 0)) {
-//                    (*p_log)(LOG_WARN,AT) << "[il="<<il<<" ish="<<ish<<"]"
-//                        << " Skipping as bw->getPars()->i_end_r="<<bw->getPars()->i_end_r
-//                        <<" and bw_next->getPars()->i_end_r="<<bw_next->getPars()->i_end_r
-//                        <<"\n";
-                    status[il][ish] = 'n';
-                    continue;
-                }
-                /// interpolate the exact radial position of the blast that corresponds to the req. obs time
-                double r_cell = interpSegLog(ia, ib, ta, tb, time, bw->getData(BW::Q::iEJr));//interpSegLog(ia, ib, time, ttobs, bw->getData(BW::Q::iEJr));
-                if ( r_cell > r_ej_max )
-                    r_ej_max = r_cell;
-                double rho_ej_cell = interpSegLog(ia, ib, ta, tb, time, bw->getData(BW::Q::iEJrho));//interpSegLog(ia, ib, time, ttobs, bw->getData(BW::Q::iEJrho));
-                double delta_ej_cell = interpSegLog(ia, ib, ta, tb, time, bw->getData(BW::Q::iEJdelta));//interpSegLog(ia, ib, time, ttobs, bw->getData(BW::Q::iEJdelta));
-                if ((rho_ej_cell<=0.)||(!std::isfinite(rho_ej_cell))||(delta_ej_cell<=0)||(!std::isfinite(delta_ej_cell))){
-                    (*p_log)(LOG_ERR,AT) << "[il="<<il<<" ish="<<ish<<"]"<<" error in opt depth along line of sight\n";
-                    exit(1);
-                }
-                if ((r >= r_cell)){
-//                    (*p_log)(LOG_WARN,AT) << "[il="<<il<<" ish="<<ish<<"]" << " Skipping as r_pwn="<<r
-//                     <<" > r_ej_cell="<<r_cell<<" Overall, r_ej_max="<<bw->getData(BW::Q::iEJr)[bw->getPars()->i_end_r-1]<<"\n";
-                    status[il][ish] = 'R';
-                    continue;
-//                    exit(1);
-                }
-
-                double e_gamma = freq * 4.1356655385381E-15; // -> eV //* 6.62606957030463E-27;//* 4.1356655385381E-15 * CGS::EV_TO_ERG;
-                double mu_e = bw->getPars()->mu_e;
-                double Z_eff = bw->getPars()->Z_eff;
-                int opacitymode = bw->getPars()->opacitymode;
-                double albd_fac = bw->getPars()->albd_fac;
-
-
-                // Calculate the intersection point of the line with the middle sphere
-                double a = dx*dx + dy*dy + dz*dz;
-                double b = 2. * (x1*dx + y1*dy + z1*dz);
-                double c = x1*x1 + y1*y1 + z1*z1 - r_cell*r_cell;
-                double disc = b*b - 4.*a*c;
-                double t1 = (-b - std::sqrt(disc)) / (2.*a);
-                double t2 = (-b + std::sqrt(disc)) / (2.*a);
-                double x = x1 + t2*dx;
-                double y = y1 + t2*dy;
-                double z = z1 + t2*dz;
-
-                double r_ = std::sqrt(x*x + y*y + z*z);
-                double theta_ = std::atan(y/x);
-                double phi_ = std::acos(z / r);
-
-                if (((theta_ > bw->getPars()->theta_c_l) && (theta_ <=bw->getPars()->theta_c_h))){
-                    /// --- optical depth due to compton scattering
-                    double Kcomp = PWNradiationMurase::sigma_kn(e_gamma)/mu_e/CGS::M_PRO;
-                    double tau_comp_ = rho_ej_cell*delta_ej_cell*Kcomp;
-                    tau_comp+=tau_comp_;
-                    /// optical depth of BH pair production
-                    double KBH = (1.0+Z_eff)*PWNradiationMurase::sigma_BH_p(e_gamma)/mu_e/CGS::M_PRO;
-                    double tau_BH_ = rho_ej_cell*delta_ej_cell*KBH;
-                    tau_BH+=tau_BH_;
-                    /// The photoelectric absorption at high energies is taken into account, using the bound–free opacity
-                    double Kbf = (1.0-albd_fac)*PWNradiationMurase::kappa_bf(e_gamma, Z_eff, opacitymode);
-                    double tau_bf_ = rho_ej_cell*delta_ej_cell*Kbf;
-                    tau_bf+=tau_bf_;
-#if 0
-                    (*p_log)(LOG_INFO,AT) << "[il="<<il<<" ish="<<ish<<"]"
-                        << " rho="<<rho_ej_cell<<" delta="<<delta_ej_cell
-                        << " tau_comp="<<tau_comp_<<" tau_BH="<<tau_BH_<<" tau_bf="<<tau_bf_
-                        << " | case 1 | " << "theta_="<<theta_<<" is in ["
-                        << bw->getPars()->theta_c_l<< ", "<<bw->getPars()->theta_c_h<<"] "
-                        <<" is in ["<<bw_next->getPars()->theta_c_l << ", " << bw_next->getPars()->theta_c_h <<"] \n";
-#endif
-                    status[il][ish] = '1';
-//                    double tau_abs = (1.0+PWNradiationMurase::gamma_inelas_Compton(e_gamma))*(tau_BH+tau_bf);
-//                    double tau_eff = sqrt((tau_abs+tau_comp_)*tau_abs);
-                    lightpath.push_back("il="+std::to_string(il)
-                                       +" ish="+std::to_string(ish)
-                                       + " comp="+std::to_string(tau_comp_)
-                                       + " BH="+std::to_string(tau_BH_)
-                                       + " bf="+std::to_string(tau_bf_));
-                    found_il= true;
-                }
-                if (((theta_ < bw->getPars()->theta_c_l) || (theta_ >= bw->getPars()->theta_c_h))){
-                    /// --- No intersection
-//                    (*p_log)(LOG_INFO,AT) << "[il="<<il<<" ish="<<ish<<"]"
-//                        << " tau_comp="<<0<<" tau_BH="<<0<<" tau_bf="<<0
-//                        << " | case 4 |"<< " theta_="<<theta_<<" is NOT in ["
-//                        << bw->getPars()->theta_c_l<< ", "<<bw->getPars()->theta_c_h<<"] "
-//                        << " and theta_next="<<theta_next<<" is NOT in ["<<bw_next->getPars()->theta_c_l
-//                        << ", " << bw_next->getPars()->theta_c_h <<"] \n";
-                    status[il][ish] = '4';
-
-                }
-                if (found_il){
-                    tot_nonzero_shells+=1;
-                    nonzero_shells+=1;
-                }
-//                (*p_log)(LOG_INFO,AT) << "[il="<<il<<" ish="<<ish<<"]" << " tau_comp="<<tau_comp<<" tau_BH="<<tau_BH<<" tau_bf="<<tau_bf<<"\n";
-//                int __x = 1;
-            }
-            if(nonzero_shells>0)
-                tot_nonzero_layers+=1;
-            if (found_il)
-                found = true;
+            auto & bw = cumshell->getBW(ish);
+            /// skip if this shells was not initialized or evolved
+            if (bw->getPars()->i_end_r==0) { status[il][ish] = 'N'; continue; }
+            size_t ia=0, ib=0;
+            bool res = false;
+            res = bw->evalEATSindexes(ia,ib,time,z,ctheta,phi,theta_obs,obsAngle);\
+            /// skip if there is no EATS surface for the time 'time'
+            if (!res){ status[il][ish] = 'T'; continue; }
+            Vector & ttobs = bw->getPars()->ttobs;
+            /// skip if at EATS times there the BW is no loger evolved (collided)
+            if ((bw->getData(BW::Q::iEJr)[ia] == 0)||(bw->getData(BW::Q::iEJr)[ib] == 0)) { status[il][ish] = 'n'; continue;  }
+            double rej = interpSegLog(ia, ib, time, ttobs, bw->getData(BW::Q::iR));
+            /// skip if at time the PWN outruns the ejecta shell (should never occure)
+            if ( rpwn > rej){ status[il][ish] = 'R'; continue; }
+            /// if this is the first entry, change the value to 0
+            if (tau_comp < 0){tau_comp = 0.;}
+            if (tau_BH < 0){tau_BH = 0.;}
+            if (tau_bf < 0){tau_bf = 0.;}
+            /// evaluate the optical depths at this time and this freq.
+            double _tau_comp, _tau_BH, _tau_bf;
+            bw->evalOpticalDepths(_tau_comp,_tau_BH,_tau_bf,ia,ib,time,freq);
+            tau_comp+=_tau_comp; tau_BH+=_tau_BH; tau_bf+=_tau_bf;
+            /// save for debugging
+            lightpath.push_back("il="+std::to_string(il)
+                                +" ish="+std::to_string(ish)
+                                + " comp="+std::to_string(_tau_comp)
+                                + " BH="+std::to_string(_tau_BH)
+                                + " bf="+std::to_string(_tau_bf));
+            status[il][ish] = '+';
         }
-
-#if 0
-        auto & stream = std::cout;
-        stream << "------ t="<<time<<", nu="<<freq<<" | PWN: il="<<info_ilpwn<<" r="<<r<<" ctheta="<<ctheta<<" ---\n";
-        for (size_t il = 0; il < nlayers(); il++){
-            stream << "il="<<il<<"| ";
-            for (size_t ish = 0; ish < nshells(); ish++) {
-                if (ish == nshells()-1)
-                    stream << status[il][ish] << " | \n";
-                else
-                    stream << status[il][ish] << " | ";
-            }
-        }
-        stream << "Tot non-zero layers = "<<tot_nonzero_layers<< " tot_non_layer_shells = "<<tot_nonzero_shells << "\n";
-        stream << "---------------------------------------------------------------------------------------------"
-                  "------\n";
-#endif
-        if (r > r_ej_max){
-            (*p_log)(LOG_ERR,AT) << "[ilpw=" << info_ilpwn << ", ctheta=" << ctheta << ", r=" << r << " > " << "r_ej_max" << r_ej_max << "] " << "\n";
-            int _x = 1;
-        }
-        if (!found){
-            (*p_log)(LOG_INFO,AT) << "[ilpw=" << info_ilpwn << ", ctheta=" << ctheta << ", r=" << r << ", " << "t=" << time << "] "
-                                  <<" not found layer/shell in which optical depth can be computed"<<"\n";
-            return false;
-        }
-
-
         /// Combine individual optical depths into fraction
         double power_Compton=0.0;
         if (tau_comp > 1.0)
@@ -2160,22 +2009,18 @@ public:
         else
             power_Compton = tau_comp;
 
-        double e_gamma = freq*4.1356655385381E-15*CGS::EV_TO_ERG; // TODO this has to be red-shifted!
-
+        double e_gamma = freq * 6.62606957030463E-27;// Hz -> erg  *4.1356655385381E-15*CGS::EV_TO_ERG; // TODO this has to be red-shifted!
+//        double e_gamma = freq * 4.1356655385381E-15;
         frac = exp(-(tau_BH+tau_bf))
-               * (exp(-(tau_comp)) + (1.0-exp(-(tau_comp)))
-                                     * pow(1.0-PWNradiationMurase::gamma_inelas_Compton(e_gamma),power_Compton));
-//        (*p_log)(LOG_INFO,AT) << "[ilpw="<<info_ilpwn<<", ctheta="<<ctheta<<", r="<<r<<", "<<"t="<<time<<"] "
+               * (exp(-(tau_comp)) + (1.0 - exp(-(tau_comp))) * pow(1.0 - PWNradiationMurase::gamma_inelas_Compton(e_gamma),power_Compton));
+//        (*p_log)(LOG_INFO,AT) << "[ilpw="<<info_ilpwn<<", ctheta="<<ctheta<<", rpwn="<<rpwn<<", "<<"t="<<time<<"] "
 //                              << " tau_comp="<<tau_comp<<" tau_BH="<<tau_BH<<" tau_bf="<<tau_bf<<" -> frac="<<frac<<"\n";
         if ((frac<0)||(frac>1)||!std::isfinite(frac)){
-            (*p_log)(LOG_ERR,AT) << "[ilpw=" << info_ilpwn << ", ctheta=" << ctheta << ", r=" << r << ", " << "t=" << time << "] "
+            (*p_log)(LOG_ERR,AT) << "[ilpw=" << info_ilpwn << ", ctheta=" << ctheta << ", rpwn=" << rpwn << ", " << "t=" << time << "] "
                                  <<" tau_comp="<<tau_comp<<" tau_BH="<<tau_BH<<" tau_bf="<<tau_bf<<" -> frac="<<frac<<"\n";
 //            exit(1);
             return false;
         }
-//        for (auto & stop : lightpath)
-//            std::cout << stop << "\n";
-
         return true;
     }
 #if 0 // uses t_obs

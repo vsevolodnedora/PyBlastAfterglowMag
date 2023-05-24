@@ -1117,13 +1117,13 @@ public:
     ///
     SynchrotronAnalytic( int loglevel ){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "SynchrotronAnalytic");
-//        p_pars = new Pars();
+//        p_pars = new PWNPars();
         p_pars = std::make_unique<Pars>();
         p_pars->lim_gm_to_1 = false;
 //        m_data.resize( Rad::m_names_.size(), -1. );
     }
     ~SynchrotronAnalytic(){ }
-//    Pars *& getPars(){ return p_pars; }
+//    PWNPars *& getPars(){ return p_pars; }
     std::unique_ptr<Pars> & getPars(){ return p_pars; }
     /// set model parameters
     void setPars(StrDbMap & pars, StrStrMap & opts){
@@ -2046,16 +2046,16 @@ public:
 //    std::unique_ptr<logger> p_log;
 //    Vector farr_sync;
 //    Vector freq_ssc;
-//    struct Pars{
+//    struct PWNPars{
 //        double f1_sync, f2_sync; size_t nf_sync;
 //        double f1_ssc, f2_ssc; size_t nf_ssc;
 //
 //    };
-//    std::unique_ptr<Pars> p_pars;
+//    std::unique_ptr<PWNPars> p_pars;
 //public:
 //    SynchrotronNumeric(int loglevel){
 //        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "SynchrotronNumeric");
-//        p_pars = std::make_unique<Pars>();
+//        p_pars = std::make_unique<PWNPars>();
 //    }
 //    void setMagPars(StrDbMap pars, StrStrMap sets){
 ////        p_pars->f1_ssc =
@@ -2069,7 +2069,7 @@ public:
 //    enum METHODS_SSA { iSSAoff, iSSAon };
 //    enum METHOD_TAU { iTHICK, iSMOOTH, iSHARP };
 //    enum QQ { i_em_pl, i_em_th, i_abs_pl, i_abs_th, i_em, i_abs };
-//    struct Pars{
+//    struct PWNPars{
 //        // --- in
 //        double eps_e=-1, eps_b=-1, eps_t=-1, p=-1, ksi_n=-1;
 //        double mu=-1, mu_e=-1;
@@ -2083,7 +2083,7 @@ public:
 //        QQ m_marg21opt_em = i_em_pl;
 //        QQ m_marg21opt_abs = i_abs_pl;
 //    };
-//    Pars * p_pars = nullptr;
+//    PWNPars * p_pars = nullptr;
 //
 //    static constexpr size_t n_vars = 5;
 //    enum QS { igm, igc };
@@ -2091,7 +2091,7 @@ public:
 //    VecArray m_data{};// ( n_vars );
 //public:
 //    SynchrotronAnalyticComoving(size_t nt){
-//        p_pars = new Pars();
+//        p_pars = new PWNPars();
 //        allocateSpace(nt);
 //    }
 //    ~SynchrotronAnalyticComoving(){ delete p_pars; }

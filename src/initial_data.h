@@ -276,16 +276,16 @@ public:
     enum STUCT_TYPE { iadaptive, ipiecewise };
 //    enum Q {iE, iMom, iMass, iYe, iS, };
 private:
-    struct Pars{
+    struct PWNPars{
 
     };
-    std::unique_ptr<Pars> p_pars = nullptr;
+    std::unique_ptr<PWNPars> p_pars = nullptr;
 public:
     IDTYPE idtype{};
     STUCT_TYPE stuctType{};
     EjectaID(std::string path_to_table, int loglevel){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "EjectaID");
-        p_pars = std::make_unique<Pars>();
+        p_pars = std::make_unique<PWNPars>();
 //        auto path_to_table = pars.m_path_to_ejecta_id;
 //        path_to_table = "../../tst/dynamics/corr_vel_inf_theta.h5";
         if (!std::experimental::filesystem::exists(path_to_table))

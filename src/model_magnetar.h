@@ -854,69 +854,70 @@ double pwn_spectrum(double nu, double r_pwn, double b_pwn, double n_ext, double 
     return fnu;
 }
 
+struct PWNPars{
+    PWNPars(std::unique_ptr<Magnetar> & pp_mag,
+            std::unique_ptr<Ejecta> & pp_ej,
+            VecVector & data, unsigned loglevel)
+            : p_mag(pp_mag), p_ej(pp_ej), m_data(data) {
+        p_log = std::make_unique<logger>(std::cout,std::cerr,loglevel,"PWN PWNPars");
+    }
+    std::unique_ptr<Ejecta> & p_ej;
+    std::unique_ptr<Magnetar> & p_mag;
+    std::unique_ptr<MagnetarSynchrotron> p_syn = nullptr;
+//        std::unique_ptr<SynchrotronAnalytic> p_syna = nullptr;
+    std::unique_ptr<logger> p_log;
+    Vector m_freq_arr{}; Vector m_time_arr{}; Vector m_r_arr{};
+    Vector m_synch_em{}; Vector m_synch_abs{}; Vector m_spectrum{};
+    VecVector & m_data;
+    double ctheta0=-1.;
+    // --------------
+    size_t iieq{};
+    double Rw0{};
+    double mom={};
+//        double vel_w0{};
+    // ---------------
+    double eps_e{};
+    double eps_mag{};
+    double eps_th{};
+    // --------------
+    double rho_ej_curr{};
+    double tau_ej_curr{};
+    double r_ej_curr{};
+    double v_ej_curr{};
+//        double temp_ej_curr{};
+    // -------------
+    double curr_ldip{};
+    double curr_lacc{};
+    // -------------
+    double albd_fac{};
+    double gamma_b{};
+    int iterations{};
+    int nthreads_for_frac{};
+    // --------------
+    double b_pwn=-1;
+    bool is_init = false;
+    bool do_opt_depth_ej_calc = false;
+    // -------------
+    double d_l=-1.;
+    double theta_obs=-1.;
+    double z=-1.;
+    // ------------
+    size_t ilayer = 0;
+    size_t ishell = 1;
+    size_t ncells=0;
+    // -----
+    int tmp_ia_r=0;
+    int tmp_ia_nu=0;
+
+};
 
 class PWNmodel{
-    struct Pars{
-        Pars(std::unique_ptr<Magnetar> & pp_mag,
-             std::unique_ptr<Ejecta> & pp_ej,
-             VecVector & data, unsigned loglevel)
-             : p_mag(pp_mag), p_ej(pp_ej), m_data(data) {
-            p_log = std::make_unique<logger>(std::cout,std::cerr,loglevel,"PWN Pars");
-        }
-        std::unique_ptr<Ejecta> & p_ej;
-        std::unique_ptr<Magnetar> & p_mag;
-        std::unique_ptr<MagnetarSynchrotron> p_syn = nullptr;
-//        std::unique_ptr<SynchrotronAnalytic> p_syna = nullptr;
-        std::unique_ptr<logger> p_log;
-        Vector m_freq_arr{}; Vector m_time_arr{}; Vector m_r_arr{};
-        Vector m_synch_em{}; Vector m_synch_abs{}; Vector m_spectrum{};
-        VecVector & m_data;
-        double ctheta0=-1.;
-        // --------------
-        size_t iieq{};
-        double Rw0{};
-        double mom={};
-//        double vel_w0{};
-        // ---------------
-        double eps_e{};
-        double eps_mag{};
-        double eps_th{};
-        // --------------
-        double rho_ej_curr{};
-        double tau_ej_curr{};
-        double r_ej_curr{};
-        double v_ej_curr{};
-//        double temp_ej_curr{};
-        // -------------
-        double curr_ldip{};
-        double curr_lacc{};
-        // -------------
-        double albd_fac{};
-        double gamma_b{};
-        int iterations{};
-        int nthreads_for_frac{};
-        // --------------
-        double b_pwn=-1;
-        bool is_init = false;
-        bool do_opt_depth_ej_calc = false;
-        // -------------
-        double d_l=-1.;
-        double theta_obs=-1.;
-        double z=-1.;
-        // ------------
-        size_t ilayer = 0;
-        size_t ishell = 1;
-        size_t ncells=0;
-        // -----
-        int tmp_ia_r=0;
-        int tmp_ia_nu=0;
 
-    };
 //    Vector m_tb_arr;
     VecVector m_data{}; // container for the solution of the evolution
     std::unique_ptr<logger> p_log;
-//    std::unique_ptr<Pars> p_pars;
-    Pars * p_pars = nullptr;
+//    std::unique_ptr<PWNPars> p_pars;
+    PWNPars * p_pars = nullptr;
     std::unique_ptr<EATS> p_eats;
     Vector frac_psr_dep_{};
 //    size_t m_ilayer=0;size_t m_ishell=0;size_t m_ncells=0;
@@ -959,7 +960,7 @@ public:
         for (auto & arr : m_data)
             if (allocate)
                 arr.resize(p_ej->getShells()[0]->getBWs()[0]->ntb(), 0.0);
-        p_pars = new Pars(pp_mag, pp_ej, m_data, m_loglevel);//std::make_unique<Pars>();
+        p_pars = new PWNPars(pp_mag, pp_ej, m_data, m_loglevel);//std::make_unique<PWNPars>();
         p_pars->ilayer = ilayer;
         p_pars->ishell = 0;
         auto & p_bw = p_ej->getShells()[ilayer]->getBWs()[p_pars->ishell];
@@ -1102,7 +1103,7 @@ public:
     }
     /// -----------------------------------------------------------------------------
 
-    Pars *& getPars(){ return p_pars; }
+    PWNPars *& getPars(){ return p_pars; }
 
     void setInitConditions( double * arr, size_t i ) {
         double beta0 = p_pars->Rw0 / p_ej->getTbGrid()[0] / CGS::c; // m_tb_arr[0] * beta0 * CGS::c;
@@ -1138,11 +1139,15 @@ public:
         }
         // (see Eq. 28 in Kashiyama+16)
         double v_w = std::sqrt( (7./6.) * e_nb / (4. * CGS::pi * r_w*r_w*r_w * rho_ej) );
-        // if (v_w > pow((2 * l_disk(t) * r_w / (3 - delta) / m_ej),1./3.)) # TODO finish this
-        if (v_w > v_ej){
-//            std::cerr << AT << "\t" << "v_w > v_ej\n";
-            v_w = v_ej;
+        if (v_w > CGS::c){
+            (*p_log)(LOG_ERR,AT)<<"v_w="<<v_w<<"\n";
+            exit(1);
         }
+        // if (v_w > pow((2 * l_disk(t) * r_w / (3 - delta) / m_ej),1./3.)) # TODO finish this
+//        if (v_w > v_ej){
+////            std::cerr << AT << "\t" << "v_w > v_ej\n";
+//            v_w = v_ej;
+//        }
 //        v_w = v_ej; // TODO make a proper model...
 
         p_pars->mom=EQS::MomFromBeta(v_w/CGS::c);
@@ -1640,7 +1645,7 @@ public:
                            double phi, double theta, size_t ia, size_t ib, double ta, double tb,
                            double mu, double t_obs, double nu_obs, void * params){
 
-        auto * p_pars = (struct Pars *) params;
+        auto * p_pars = (struct PWNPars *) params;
         auto & p_ej = p_pars->p_ej;
         auto & p_bw = p_ej->getShells()[p_pars->ilayer]->getBWs()[p_pars->ishell];
         auto & p_mag = p_pars->p_mag;
@@ -1691,7 +1696,7 @@ public:
                            size_t ia, size_t ib, double ta, double tb, double mu,
                            double t_obs, double nu_obs, void * params){
 
-        auto * p_pars = (struct Pars *) params;
+        auto * p_pars = (struct PWNPars *) params;
         auto & p_ej = p_pars->p_ej;
         auto & p_bw = p_ej->getShells()[p_pars->ilayer]->getBWs()[p_pars->ishell];
         auto & p_mag = p_pars->p_mag;
@@ -1776,13 +1781,12 @@ public:
         double intensity = RadiationBase::computeIntensity(em_lab, dtau, RadiationBase::METHOD_TAU::iSMOOTH);
         flux_dens = (intensity/* * r * r * dr*/) * (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
 
-
         double f_gamma_esc_x=1.;
-        if (true)
+        if (false)
             p_ej->evalOptDepthsAlongLineOfSight(f_gamma_esc_x, tau_comp, tau_BH, tau_bf,
-                                                ctheta, r, CGS::pi/4., theta,
-                                                CGS::pi/4., p_pars->theta_obs, p_pars->d_l,
-                                                tburst, nuprime, p_pars->ilayer, params);
+                                                ctheta, r, phi, theta,
+                                                CGS::pi/4.,p_pars->theta_obs, p_pars->d_l, p_pars->ilayer,
+                                                t_obs, nuprime, p_pars->z, p_pars->ilayer, params);
         flux_dens *= f_gamma_esc_x;
         if (!std::isfinite(flux_dens)){
             (*p_pars->p_log)(LOG_ERR,AT)<<" flux_dens="<<flux_dens<<"\n";
