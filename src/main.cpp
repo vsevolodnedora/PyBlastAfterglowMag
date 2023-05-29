@@ -51,6 +51,7 @@
 #include "model_ejecta.h"
 #include "model_evolve.h"
 #include "model_magnetar.h"
+#include "model_pwn.h"
 
 class PyBlastAfterglow{
     struct Pars{
@@ -67,6 +68,7 @@ class PyBlastAfterglow{
     std::unique_ptr<Magnetar> p_mag;
     std::unique_ptr<Ejecta> p_grb;
     std::unique_ptr<Ejecta> p_ej;
+    std::unique_ptr<Ejecta> p_ej_pwn2;
     std::unique_ptr<PWNset> p_ej_pwn;
     Vector _t_grid;
     Vector t_grid;
@@ -76,6 +78,7 @@ public:
     std::unique_ptr<PWNset> & getEjPWN(){return p_ej_pwn;}
     std::unique_ptr<Ejecta> & getGRB(){return p_grb;}
     std::unique_ptr<Ejecta> & getEj(){return p_ej;}
+    std::unique_ptr<Ejecta> & getEjPWN2(){return p_ej_pwn2;}
     Vector & getTburst(){return t_grid;}
     PyBlastAfterglow(int loglevel){
         m_loglevel = loglevel;
@@ -84,6 +87,7 @@ public:
         p_mag = std::make_unique<Magnetar>(loglevel);
         p_grb = std::make_unique<Ejecta>(t_grid, loglevel);
         p_ej  = std::make_unique<Ejecta>(t_grid, loglevel);
+        p_ej_pwn2 = std::make_unique<Ejecta>(t_grid, loglevel);
         p_ej_pwn = std::make_unique<PWNset>(p_mag, p_ej, loglevel); // depends on ang.struct. of the ejecta
     }
 
@@ -150,13 +154,13 @@ public:
     /// run the time-evolution
     void run(){
 
-        bool dorun = p_mag->run_magnetar || p_grb->run_bws || p_ej->run_bws || p_ej_pwn->run_pwn;
+        bool dorun = p_mag->run_magnetar || p_grb->run_bws || p_ej->run_bws || p_ej_pwn2->run_bws || p_ej_pwn->run_pwn;
         if (!dorun){
             (*p_log)(LOG_INFO, AT) << "Nothing to evolve. Skipping ODE integration\n";
             return;
         }
 
-        p_model = std::make_unique<EvolveODEsystem>( p_mag, p_grb, p_ej, p_ej_pwn,
+        p_model = std::make_unique<EvolveODEsystem>( p_mag, p_grb, p_ej, p_ej_pwn2,p_ej_pwn,
                                                      t_grid, _t_grid, p_pars->integrator, m_loglevel );
         p_model->pIntegrator()->pPars()->rtol = p_pars->rtol;
         p_model->pIntegrator()->pPars()->atol = p_pars->rtol;
@@ -281,7 +285,6 @@ int main(int argc, char** argv) {
     pba.getGRB()->setPars(grb_pars,grb_opts,working_dir,
                           parfilename,main_pars,pba.getMag()->getNeq(),0);
 
-
     StrDbMap kn_pars; StrStrMap kn_opts;
     readParFile2(kn_pars, kn_opts, p_log, working_dir + parfilename,
                  "# ----------------------- kN afterglow ----------------------",
@@ -291,14 +294,24 @@ int main(int argc, char** argv) {
     pba.getEj()->setPars(kn_pars,kn_opts,working_dir,parfilename,
                          main_pars,ii_eq,nlayers_jet);
 
+    StrDbMap pwn2_pars; StrStrMap pwn2_opts;
+    readParFile2(pwn2_pars, pwn2_opts, p_log, working_dir + parfilename,
+                 "# -------------------------- PWNBW --------------------------",
+                 "# --------------------------- END ---------------------------");
+    size_t ii_eq_ = pba.getMag()->getNeq() + pba.getGRB()->getNeq() + pba.getEj()->getNeq();
+    pba.getEjPWN2()->setPars(pwn2_pars,pwn2_opts,working_dir,parfilename,
+                             main_pars,ii_eq_,nlayers_jet);
 
     StrDbMap pwn_pars; StrStrMap pwn_opts;
     readParFile2(pwn_pars, pwn_opts, p_log, working_dir + parfilename,
                  "# --------------------------- PWN ---------------------------",
                  "# --------------------------- END ---------------------------");
-    size_t ii_eq_ = pba.getMag()->getNeq() + pba.getGRB()->getNeq() + pba.getEj()->getNeq();
+    size_t ii_eq_t = pba.getMag()->getNeq() + pba.getGRB()->getNeq()
+                   + pba.getEj()->getNeq() + pba.getEjPWN2()->getNeq();
     pba.getEjPWN()->setPars(pwn_pars,pwn_opts,working_dir,parfilename,
-                            pba.getTburst(),main_pars,ii_eq_);
+                            pba.getTburst(),main_pars,ii_eq_t);
+
+
 
     (*p_log)(LOG_INFO, AT) << "Initialization finished [" << timer.checkPoint() << " s]" << "\n";
 
@@ -311,6 +324,8 @@ int main(int argc, char** argv) {
     pba.getGRB()->computeAndOutputObservables(main_pars, main_opts);
 
     pba.getEj()->computeAndOutputObservables(main_pars, main_opts);
+
+    pba.getEjPWN2()->computeAndOutputObservables(main_pars,main_opts);
 
     pba.getEjPWN()->computeAndOutputObservables(main_pars,main_opts);
 

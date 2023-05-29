@@ -16,7 +16,7 @@
 
 #include "blastwave_components.h"
 #include "blastwave.h"
-//#include "model_magnetar.h"
+#include "model_magnetar.h"
 
 /// Radially structured blastwave collection
 class CumulativeShell{
@@ -176,8 +176,6 @@ public:
                 break;
             }
         }
-
-
 
         return is_sorted;
     }
@@ -473,7 +471,6 @@ public:
             currbw->getPars()->_last_frac_vol = _vol_i / m_data[Q::ivol][ii];
         }
 
-
         /// --------------------------------------------
         double _r_i,_vol_i;
         if (p_pars->n_active_shells>1){
@@ -598,8 +595,6 @@ public:
             }
             m_data[Q::idelta][ii] = p_bws[idx]->getPars()->delta;//dr_i;
             m_data[Q::ivol][ii] = p_bws[idx]->getPars()->vol;
-
-
 
         }
 

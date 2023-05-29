@@ -10,7 +10,7 @@
 #include "utilitites/utils.h"
 #include "utilitites/interpolators.h"
 
-#include "model_ejecta.h"
+//#include "model_ejecta.h"
 
 class Magnetar_OLD{
     struct Pars{
@@ -1140,14 +1140,14 @@ public:
         // (see Eq. 28 in Kashiyama+16)
         double v_w = std::sqrt( (7./6.) * e_nb / (4. * CGS::pi * r_w*r_w*r_w * rho_ej) );
         if (v_w > CGS::c){
-            (*p_log)(LOG_ERR,AT)<<"v_w="<<v_w<<"\n";
+            (*p_log)(LOG_ERR,AT)<<"v_w/c="<<v_w/CGS::c<<"\n";
             exit(1);
         }
         // if (v_w > pow((2 * l_disk(t) * r_w / (3 - delta) / m_ej),1./3.)) # TODO finish this
-//        if (v_w > v_ej){
-////            std::cerr << AT << "\t" << "v_w > v_ej\n";
-//            v_w = v_ej;
-//        }
+        if (v_w > v_ej){
+//            std::cerr << AT << "\t" << "v_w > v_ej\n";
+            v_w = v_ej;
+        }
 //        v_w = v_ej; // TODO make a proper model...
 
         p_pars->mom=EQS::MomFromBeta(v_w/CGS::c);
@@ -1796,6 +1796,8 @@ public:
     }
 };
 
+
+
 /// Container for independent layers of PWN model
 class PWNset{
     std::unique_ptr<Magnetar> & p_mag;
@@ -1824,6 +1826,7 @@ public:
     StrDbMap pwn_pars{}; StrStrMap pwn_opts{};
     std::string workingdir{};
     bool run_pwn = false, save_pwn = false, load_pwn = false, do_ele=false, do_lc=false, do_skymap=false, do_spec=false;
+    bool update_dens_struct = false;
     std::vector<std::unique_ptr<PWNmodel>> & getPWNs(){return p_pwns;}
     std::unique_ptr<PWNmodel> & getPWN(size_t i){return p_pwns[i];}
     size_t getNeq(){

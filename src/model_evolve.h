@@ -23,20 +23,21 @@ class EvolveODEsystem{
                 std::unique_ptr<Magnetar> & p_magnetar,
                 std::unique_ptr<Ejecta> & p_grb,
                 std::unique_ptr<Ejecta> & p_ej,
+                std::unique_ptr<Ejecta> & p_ej_pwn2,
                 std::unique_ptr<PWNset> & p_ej_pwn,
                 Vector & t_grid,
                 Vector & _t_grid
         ) :
-        p_magnetar(p_magnetar), p_grb(p_grb), p_ej(p_ej), p_ej_pwn(p_ej_pwn),
+        p_magnetar(p_magnetar), p_grb(p_grb), p_ej(p_ej), p_ej_pwn2(p_ej_pwn2), p_ej_pwn(p_ej_pwn),
             t_grid(t_grid), _t_grid(_t_grid){
         }
         Vector & t_grid;
         Vector & _t_grid;
         std::unique_ptr<Magnetar> & p_magnetar;
         std::unique_ptr<PWNset> & p_ej_pwn;
-
         std::unique_ptr<Ejecta> & p_grb;
         std::unique_ptr<Ejecta> & p_ej;
+        std::unique_ptr<Ejecta> & p_ej_pwn2;
         // ---
         size_t ix = 0;  // index latest solution
         double dx = 0;
@@ -54,20 +55,22 @@ public:
     EvolveODEsystem(std::unique_ptr<Magnetar> & p_mag,
                     std::unique_ptr<Ejecta> & p_grb,
                     std::unique_ptr<Ejecta> & p_ej,
+                    std::unique_ptr<Ejecta> & p_ej_pwn2,
                     std::unique_ptr<PWNset> & p_ej_pwn,
                     Vector & t_grid,
                     Vector & _t_grid,
                     const Integrators::METHODS integrator,
                     int loglevel
     ){
-        p_pars = new Pars(p_mag, p_grb, p_ej, p_ej_pwn, t_grid, _t_grid);
+        p_pars = new Pars(p_mag, p_grb, p_ej, p_ej_pwn2, p_ej_pwn, t_grid, _t_grid);
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "EvolveODEsystem");
         /// ---------------------------------------------------------------------------------------------
-        p_pars->n_tot_eqs = (int)p_mag->getNeq() + (int)p_grb->getNeq() + (int)p_ej->getNeq() + (int)p_ej_pwn->getNeq();
+        p_pars->n_tot_eqs = (int)p_mag->getNeq() + (int)p_grb->getNeq() + (int)p_ej->getNeq() + (int)p_ej_pwn2->getNeq() + (int)p_ej_pwn->getNeq();
         (*p_log)(LOG_INFO,AT) << " ODE will solve"
                                         << " N_mag="<<p_mag->getNeq()
                                         << " N_grb="<<p_grb->getNeq()
                                         << " N_ej="<<p_ej->getNeq()
+                                        << " N_ej_pwn2="<<p_ej_pwn2->getNeq()
                                         << " N_ej_pwn="<<p_ej_pwn->getNeq()
                                         << " (total " << p_pars->n_tot_eqs << ") equations. \n";
         p_pars->n_substeps = (size_t)_t_grid.size() / t_grid.size();
@@ -128,7 +131,6 @@ public:
     }
 
     void setRelativePositions(){
-
 
         auto & ej_bws = p_pars->p_ej->getShells();
 
@@ -228,6 +230,18 @@ public:
             ejectaUpdate(tb0,0, m_InitData);
         }
 
+        // ***********| E J E C T A |***********
+        if (p_pars->p_ej_pwn2->run_bws) {
+            auto &ej_pwnbw = p_pars->p_ej_pwn2->getShells();
+            for (size_t il = 0; il < ej_pwnbw.size(); il++) {
+                for (size_t ish = 0; ish < ej_pwnbw[il]->nBWs(); ish++) {
+                    ej_pwnbw[il]->getBW(ish)->setInitConditions(m_InitData, ii);
+//                    ej_bws[il]->getBW(ish)->updateNucAtomic( m_InitData, tb0 );
+                    ii += SOL::neq;//ii += ej_bws[il]->getBW(ish)->getNeq();
+                }
+            }
+        }
+
 
         //************| S E T  I N I T I A L  V E C T O R |******
         for (size_t i = 0; i < p_pars->n_tot_eqs; i++){
@@ -269,9 +283,7 @@ public:
     }
 
     // evolve all blast waves
-    void evolve( const double dx, const size_t ix, const size_t i_x){
-        advanceTimeStep( dx, ix, i_x );
-    }
+    void evolve( const double dx, const size_t ix, const size_t i_x){ advanceTimeStep( dx, ix, i_x ); }
 
     void averageSolution(const size_t ix){
 //        Vector m_tmp_time(p_pars->n_substeps);
@@ -339,6 +351,14 @@ public:
                 }
             }
         }
+        if (p_pars->p_ej_pwn2->run_bws) {
+            auto &ej_pwnbw = p_pars->p_ej_pwn2->getShells();
+            for (size_t il = 0; il < ej_pwnbw.size(); il++) {
+                for (size_t ish = 0; ish < ej_pwnbw[il]->nBWs(); ish++) {
+                    ej_pwnbw[il]->getBW(ish)->checkEvolution();
+                }
+            }
+        }
         if (p_pars->p_ej_pwn->run_pwn) {
             auto & pwns = p_pars->p_ej_pwn->getPWNs();
             for (auto & pwn : pwns){
@@ -382,6 +402,15 @@ private:
             for (size_t il = 0; il < ej_bws.size(); il++) {
                 for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
                     ej_bws[il]->getBW(ish)->applyUnits(m_CurSol, ii);
+                    ii += SOL::neq;//ii += ej_bws[il]->getBW(ish)->getNeq();
+                }
+            }
+        }
+        if (p_pars->p_ej_pwn2->run_bws) {
+            auto &ej_pwnbw = p_pars->p_ej_pwn2->getShells();
+            for (size_t il = 0; il < ej_pwnbw.size(); il++) {
+                for (size_t ish = 0; ish < ej_pwnbw[il]->nBWs(); ish++) {
+                    ej_pwnbw[il]->getBW(ish)->applyUnits(m_CurSol, ii);
                     ii += SOL::neq;//ii += ej_bws[il]->getBW(ish)->getNeq();
                 }
             }
@@ -439,6 +468,22 @@ private:
                         (*p_log)(LOG_ERR,AT) << " Terminating ejecta BW [ish=" << ish << " il=" << il << " "
                                   << " ii_eq=" << bw->getPars()->ii_eq
                                   << " ] \n";
+                    }
+                    ii += SOL::neq;;//ii += bw->getNeq();//p_pars->n_eq_ej_bws;
+                }
+            }
+        }
+        if (p_pars->p_ej_pwn2->run_bws) {
+            auto & ej_pwnbw = p_pars->p_ej_pwn2->getShells();
+            for (size_t il=0; il<ej_pwnbw.size(); il++){
+                for(size_t ish=0; ish<ej_pwnbw[il]->nBWs(); ish++) {
+                    auto & bw = ej_pwnbw[il]->getBW(ish);
+                    if (bw->isToTerminate(m_CurSol, ii)) {
+                        is_ok = false;
+                        bw->getPars()->end_evolution = true; // SET TO END
+                        (*p_log)(LOG_ERR,AT) << " Terminating ejecta BW [ish=" << ish << " il=" << il << " "
+                                             << " ii_eq=" << bw->getPars()->ii_eq
+                                             << " ] \n";
                     }
                     ii += SOL::neq;;//ii += bw->getNeq();//p_pars->n_eq_ej_bws;
                 }
@@ -555,6 +600,23 @@ private:
                 }
             }
         }
+        if (p_pars->p_ej_pwn2->run_bws) {
+            auto &ej_pwnbw = p_pars->p_ej_pwn2->getShells();
+            for (size_t il=0; il<ej_pwnbw.size(); il++){
+                for(size_t ish=0; ish<ej_pwnbw[il]->nBWs(); ish++) {
+                    auto & bw = ej_pwnbw[il]->getBW(ish);
+                    if ((!bw->getPars()->end_evolution) && (!bw->isSolutionOk(m_CurSol, ii))) {
+                        is_ok = false;
+                        (*p_log)(LOG_ERR,AT)  << " Dyn. evol. of ejecta PWN BW failed "
+                                              << " [ishell=" << ish
+                                              << " ilayer=" << il
+                                              << " ii_eq=" << bw->getPars()->ii_eq
+                                              << " ] \n";
+                    }
+                    ii += SOL::neq;//ii += bw->getNeq();
+                }
+            }
+        }
         if (p_pars->p_ej_pwn->run_pwn) {
             auto & pwns = p_pars->p_ej_pwn->getPWNs();
             for (size_t il = 0; il < pwns.size(); ++il){
@@ -569,6 +631,7 @@ private:
                 ii += pwns[il]->getNeq();
             }
         }
+
         return is_ok;
     }
     void insertSolution(size_t it){
@@ -593,6 +656,16 @@ private:
             for (size_t il=0; il<ej_bws.size(); il++){
                 for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
                     auto &bw = ej_bws[il]->getBW(ish);
+                    bw->insertSolution(m_CurSol, it, ii);
+                    ii += SOL::neq;//ii += bw->getNeq();
+                }
+            }
+        }
+        if (p_pars->p_ej_pwn2->run_bws) {
+            auto &ej_pwnbw = p_pars->p_ej_pwn2->getShells();
+            for (size_t il=0; il<ej_pwnbw.size(); il++){
+                for(size_t ish=0; ish<ej_pwnbw[il]->nBWs(); ish++) {
+                    auto &bw = ej_pwnbw[il]->getBW(ish);
                     bw->insertSolution(m_CurSol, it, ii);
                     ii += SOL::neq;//ii += bw->getNeq();
                 }
@@ -629,6 +702,14 @@ private:
                     ej_bws[il]->insertStatusInBWdata( it );
             }
         }
+        if (p_pars->p_ej_pwn2->run_bws) {
+            auto &ej_bws = p_pars->p_ej_pwn2->getShells();
+            for (size_t il = 0; il < ej_bws.size(); il++) {
+                for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
+                    ej_bws[il]->getBW(ish)->addOtherVars(it);
+                }
+            }
+        }
         if (p_pars->p_ej_pwn->run_pwn) {
             auto & pwns = p_pars->p_ej_pwn->getPWNs();
             for (auto & pwn : pwns){
@@ -637,6 +718,7 @@ private:
         }
     }
 
+// TODO this would be nice to have...
     bool checkIfLateralShiftIsNeeded(){
         for (size_t il = 0; il < p_pars->p_ej->nlayers()-1; il++){
 //            auto & cumshell_jm1 = p_pars->p_ej->getShells()[il];
@@ -678,7 +760,7 @@ private:
                 pwn->evalCurrBpwn(Y);
                 if(!pwn->getPars()->is_init)
                     pwn->setInitConditions( Y, pwn->getPars()->iieq);
-
+                /// apply eps_e and other coefficients from parfile
                 total_sd = pwn->getAbsobedMagnetarLum(ldip, lacc, 1.);
             }
             /// update energy injection into blast waves
@@ -1086,6 +1168,33 @@ private:
             }
         }
 
+        /// update outer boundary for PWN from ejecta (Shells SHOULD be updated)
+        if (p_pars->p_ej_pwn2->run_bws){
+            if (!(p_pars->p_ej_pwn2->do_collision) && (p_pars->p_ej_pwn2->nshells() > 1)){
+                (*p_log)(LOG_ERR,AT)<<" not supported\n";
+                exit(1);
+            }
+            for (size_t il = 0; il < p_pars->p_ej->nlayers(); il++){
+                auto & cumShell = p_pars->p_ej->getShells()[il];
+                auto & ej_pwn = p_pars->p_ej_pwn->getPWNs()[il];
+//                ej_pwn->updateOuterBoundary(
+//                        cumShell->getRvec(),
+//                        cumShell->getBetaVec(),
+//                        cumShell->getRhoVec(),
+//                        cumShell->getTauVec(),
+//                        cumShell->getTempVec()
+//                );
+                ej_pwn->updateOuterBoundary(
+                        cumShell->getRvec()[0],
+                        cumShell->getBetaVec()[0],
+                        cumShell->getShellRho(sol),
+                        cumShell->getShellOptDepth(),
+                        cumShell->getTempVec()[0]
+                );
+//                ej_pwn->evalCurrBpwn(sol);sss
+            }
+        }
+
         /// update Magnetar energy injecton into kN blast waves
         if (!p_pars->p_ej->do_eninj_inside_rhs) {
             double tinj = time;
@@ -1213,6 +1322,9 @@ private:
         p_pars->x = t_grid[ix];
     }
 
+    void prepareDensProfInFrontOfBW(double * out_Y, size_t ii, double x, double * Y){
+
+    }
     /// evaluate RHS
     static void RHS_comb(double * out_Y,
                          size_t n_eq,
@@ -1278,13 +1390,30 @@ private:
                                                      & reinterpret_cast<std::vector<std::unique_ptr<BlastWave>> &>(jet_bws),
                                                      p_pars->ix);
                     }
-                    else
+                    else {
+//                        if (p_pars->use_dens_prof_behind_ejecta_for_ejecta){
+//                            prepareDensProfInFrontOfBW(out_Y, ii, x, Y);
+//                        }
                         ej_bw->evaluateRhsDensModel2(out_Y, ii, x, Y,
                                                      NULL,
                                                      p_pars->ix);
+                    }
                     ii += SOL::neq;//ii += ej_bw->getNeq();
                 }
             }
+            /// update density, velocity, int. energy of shells
+            for (size_t il=0; il < ej_layers.size(); il++){
+                ej_layers[il]->updateActiveShells();
+                ej_layers[il]->updateSortedShellProperties(Y);
+                for(size_t ish=0; ish < ej_layers[il]->nBWs(); ish++) {
+                    auto & ej_bw = ej_layers[il]->getBW(ish);
+                    ej_bw->updateEnergyInjection( ldip, lacc );
+                }
+            }
+
+            /// *******************| E J E C T A  P W N**********************
+            < MESS! >
+
 
             /// ****************************| P W N |***************************
             if (p_pars->p_ej_pwn->run_pwn){
