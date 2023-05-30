@@ -51,7 +51,7 @@
 #include "model_ejecta.h"
 #include "model_evolve.h"
 #include "model_magnetar.h"
-#include "model_pwn.h"
+//#include "model_h"
 
 class PyBlastAfterglow{
     struct Pars{

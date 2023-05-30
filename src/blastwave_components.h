@@ -498,7 +498,7 @@ public:
 
     void eval(double R, double Rshock, double Gamma, double n_ism, double rho2){
         auto & _p = * p_pars;
-        _p.n0 = n_ism ;
+//        _p.n0 = n_ism ;
         _p.n_ext = n_ism ;
 
         double lfacShock2 = Gamma * Gamma;

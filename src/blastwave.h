@@ -1940,35 +1940,33 @@ public:
 //        if (beta<1e-5)  p_pars->end_evolution = true;
     }
     /// RHS with ODEs for dGammadR modified for pre-accelerated ISM
-    void _eval_dEinjdt(){}
+
     void evaluateRhsDensPWN( double * out_Y, size_t i, double x, double const * Y ) {
-//        double Gamma = Y[i+QS::iGamma];//EQS::GamFromMom(Y[i+QS::imom]);
-        double mom = Y[i+ SOL::QS::imom];
-        // ****************************************
+        // *************| Extract Values |***************************
+        double mom    = Y[i+ SOL::QS::imom];
         double R      = Y[i+ SOL::QS::iR];
         double Rsh    = Y[i+ SOL::QS::iRsh];
-//        double tcomov = Y[i+Q::itcomov];
-//        double Gamma  = std::exp(Y[i+QS::ilnGamma]);
+        double tcomov = Y[i+ SOL::QS::itcomov];
         double Eint2  = Y[i+ SOL::QS::iEint2];
         double theta  = Y[i+ SOL::QS::itheta];
         double M2     = Y[i+ SOL::QS::iM2];
+        double Gamma  = EQS::GamFromMom(Y[i+ SOL::QS::imom]);
+        double beta   = EQS::BetFromMom(Y[i+ SOL::QS::imom]);
         /// ---- PWN ---
-        double r_w   = Y[i + SOL::iRw];
-        double e_nb  = Y[i + SOL::iWenb];
-        double e_pwn = Y[i + SOL::iWepwn];
-        // *****************************************
-        double Gamma = EQS::GamFromMom(Y[i+ SOL::QS::imom]);
-//        double beta = EQS::Beta(Y[i+QS::iGamma]);//EQS::BetFromMom(Y[i+QS::imom]);
-        double beta = EQS::BetFromMom(Y[i+ SOL::QS::imom]);
+        double r_w   = Y[i+ SOL::iRw];
+        double e_nb  = Y[i+ SOL::iWenb];
+        double e_pwn = Y[i+ SOL::iWepwn];
+
+
+        // *************| Check Values |****************************
         if (mom < 0){
-            (*p_log)(LOG_ERR,AT) << "Error\n";
+            (*p_log)(LOG_ERR,AT) << "Error mom < 0! Resetting to default \n";
             mom = 1e-5;
             Gamma = EQS::GamFromMom(Y[i+ SOL::QS::imom]);
             beta = EQS::BetFromMom(Y[i+ SOL::QS::imom]);
         }
-        // ****************************************
-        if (!std::isfinite(R) || !std::isfinite(Gamma) || M2 < 0.
-            || !std::isfinite(M2) || !std::isfinite(Eint2) || Eint2<0) {
+        if ((!std::isfinite(R)) || (!std::isfinite(Gamma)) ||
+            (M2 < 0.) || (!std::isfinite(M2)) || (!std::isfinite(Eint2)) || (Eint2<0)) {
             (*p_log)(LOG_ERR,AT)  << " nan in derivatives (may lead to crash) " << "\n"
                                   << " R="<<R<<"\n"
                                   << " M2="<<M2<<"\n"
@@ -1979,80 +1977,70 @@ public:
             exit(1);
         }
 
-        // ****************************************
-        // Get ISM density and its velocity
-//        double rho, m_drhodr;
-        double ctheta_ = EjectaID2::ctheta(theta,p_pars->ilayer,p_pars->nlayers);//ctheta(theta);// = p_pars->ctheta0 + 0.5 * (2. * theta - 2. * p_pars->theta_w);
-//        p_dens->getDrhoDr( rho, m_drhodr, R,ctheta );
-//        rho /= p_pars->M0;
-//        m_drhodr /= p_pars->M0;
-//        p_dens->evaluate(R, ctheta);
-        if (p_dens->m_GammaRel < 0){
-            (*p_log)(LOG_ERR,AT) << AT << " GammaRel is not set or incorrect \n";
+        // ****| Compute the Downstream properties |*********************
+        double bw_thickness = -1; // TODO interpolate it from BM-ST self-similar solution
+        double bw_rho = -1;
+        double bw_temp = -1;
+        double bw_tau = -1;
+        double bw_ye = -1;
+
+        // ****| Check the downstream conditions |******************
+        if ((!std::isfinite(bw_thickness)) || (!std::isfinite(bw_rho)) || (bw_thickness < 0.)
+            || (!std::isfinite(bw_temp)) || (bw_tau < 0) || ((bw_ye < 0))) {
+            (*p_log)(LOG_ERR,AT) << " bad value downstream " << "\n"
+                                            << " bw_thickness="<<bw_thickness<<"\n"
+                                            << " bw_rho="<<bw_rho<<"\n"
+                                            << " bw_temp=" << bw_temp << "\n"
+                                            << " bw_tau=" << bw_tau << "\n"
+                                            << " \n";
             exit(1);
         }
-        double rho = p_dens->m_rho_ / p_pars->M0;
-        double drhodr = p_dens->m_drhodr_ / p_pars->M0;
-        double GammaRho = p_dens->m_GammaRho;
-        double GammaRel = p_dens->m_GammaRel; // Gamma
-        double dGammaRelDGamma = p_dens->m_dGammaReldGamma; // 1.
-        double dGammaRhodR = p_dens->m_dGammaRhodR; // 0.
-        double cs_cbm = p_dens->m_CS_CBM;
 
-        /// --------------------------------------
-        // ******************************************
-        double rho_ej = p_pars->rho_ej_curr; // current ejecta density (shell?)
-        double tau_ej = p_pars->tau_ej_curr; // current ejecta density (shell?)
-        double r_ej = p_pars->r_ej_curr; // current ejecta density (shell?)
-        double v_ej = p_pars->v_ej_curr; // current ejecta density (shell?)
+        // ****| Update the PWN state |***************************
         double ldip = p_pars->curr_ldip;
         double lacc = p_pars->curr_lacc;
-        if (r_w > r_ej){
-            r_w = r_ej;
-        }
-        // (see Eq. 28 in Kashiyama+16)
-        double v_w = std::sqrt( (7./6.) * e_nb / (4. * CGS::pi * r_w*r_w*r_w * rho_ej) );
-        if (v_w > CGS::c){
-            (*p_log)(LOG_ERR,AT)<<"v_w/c="<<v_w/CGS::c<<"\n";
-            exit(1);
-        }
-        // if (v_w > pow((2 * l_disk(t) * r_w / (3 - delta) / m_ej),1./3.)) # TODO finish this
-        if (v_w > v_ej){
-//            std::cerr << AT << "\t" << "v_w > v_ej\n";
-            v_w = v_ej;
-        }
-//        v_w = v_ej; // TODO make a proper model...
-
+        if (r_w > R){ r_w = R; } // PWN should be bounded by the blastwave
+        double v_w = std::sqrt( (7./6.) * e_nb / (4. * CGS::pi * r_w*r_w*r_w * bw_rho) );// (see Eq. 28 in Kashiyama+16)
+        if (v_w > beta*CGS::c){ v_w = beta*CGS::c; } // velocity should also be bounded by BW TODO see if not
         double mom_wind = EQS::MomFromBeta(v_w/CGS::c);
-        // evaluateShycnhrotronSpectrum nebula energy \int(Lem * min(1, tau_T^ej * V_ej / c))dt Eq.[28] in Eq. 28 in Kashiyama+16
-        double dEnbdt = 0;
-        if (tau_ej * (r_w / r_ej) > CGS::c / v_w){
-            dEnbdt = (p_pars->eps_e_w * p_pars->curr_ldip
-                      + p_pars->epsth_w * p_pars->curr_lacc);
+        double dEnbdt = 0; // evaluateShycnhrotronSpectrum nebula energy \int(Lem * min(1, tau_T^ej * V_ej / c))dt
+        if (bw_tau * (r_w / R) > CGS::c / v_w){ // Eq.[28] in Eq. 28 in Kashiyama+16
+            dEnbdt = (p_pars->eps_e_w * ldip + p_pars->epsth_w * lacc);
         }
         else{
-            dEnbdt = (tau_ej * (r_w / r_ej) * (v_w/CGS::c)
-                      * p_pars->eps_e_w * p_pars->curr_ldip
-                      + p_pars->epsth_w * p_pars->curr_lacc);
+            dEnbdt = (bw_tau * (r_w / R) * (v_w/CGS::c) * p_pars->eps_e_w * ldip + p_pars->epsth_w * lacc);
         }
-        double tdyn = r_ej / v_ej; // dyn. timescale
-        double dEpwndt = p_pars->eps_mag_w * p_pars->curr_ldip - e_pwn / tdyn; // adiabatic
+        double tdyn = R / beta / CGS::c; // dyn. timescale
+        double dEpwndt = p_pars->eps_mag_w * ldip - e_pwn / tdyn; // adiabatic loss inclided
         double dttdr_w = EQS::evalElapsedTime(r_w, mom_wind, 0., false);
-        if (!std::isfinite(dttdr_w)||dttdr_w<=0){
+        if (!std::isfinite(dttdr_w)||(dttdr_w<=0)){
             (*p_log)(LOG_ERR,AT)<<"dttdr_w="<<dttdr_w<<"\n";
             exit(1);
         }
-        double drdt_w = v_w;// + r_w / x;
-        double fac_psr_dep_tmp = getFacPWNdep( // double rho_ej, double delta_ej, double T_ej, double Ye
-                rho_ej,
-                delta_ej,
-                temp_ej,
-                ye_ej
-        );
-        double final_fac_psr_drp_tmp = fac_psr_dep_tmp * (p_pars->eps_e_w * ldip + p_pars->eps_e_w * lacc);
+        // using the downstream properties, compute the fraction of PWN energy thermlized in BW
+        double fac_psr_dep_tmp = getFacPWNdep(bw_rho,bw_thickness,bw_temp,bw_ye); // double rho_ej, double delta_ej, double T_ej, double Ye
+        double dEindt = fac_psr_dep_tmp * (p_pars->eps_e_w * ldip + p_pars->epsth_w * lacc);
+        if (!std::isfinite(dEindt)||(dEindt<=0)){
+            (*p_log)(LOG_ERR,AT)<<"dEindt="<<dEindt<<"\n";
+            exit(1);
+        }
 
-        /// ------------------------------------------
+        // ****| Get the Upstream properties |******************
+        double rho = -1 / p_pars->M0; // TODO interpolate from ejecta structure as it moves freely through ISM
+        double drhodr = -1 / p_pars->M0;
+        double GammaRho = -1;
+        double GammaRel = -1; // Gamma
+        double dGammaRelDGamma = -1; // 1.
+        double dGammaRhodR = -1; // 0.
+        double cs_cbm = -1;
+        if ((rho < 0)||(drhodr < 0)||(GammaRho<0)||(GammaRel<0)||(dGammaRelDGamma<0)||(dGammaRhodR<0)){
+            (*p_log)(LOG_ERR,AT) << "Wrong value upstream"
+                << " rho="<<rho<< " drhodr="<<drhodr<< " GammaRho="<<GammaRho<< " GammaRel="<<GammaRel
+                << " dGammaRelDGamma="<<dGammaRelDGamma<< " dGammaRhodR="<<dGammaRhodR<<"\n";
+            exit(1);
+        }
 
+        // ***| Check the upstream conditions |******************
         if (GammaRho < 1.) {
             (*p_log)(LOG_ERR,AT)  << "GammaRho=" << GammaRho << "\n" << " Exiting...";
 //            std::cerr << AT<< "\n";
@@ -2065,26 +2053,18 @@ public:
         }
         if (!std::isfinite(dGammaRelDGamma)) { (*p_log)(LOG_ERR,AT) << "dGammaRelDGamma=" << dGammaRelDGamma << "\n"; exit(1); }
         if (!std::isfinite(dGammaRhodR)) { (*p_log)(LOG_ERR,AT)  << "dlnGammaCBMdR=" << dGammaRhodR << "\n"; exit(1); }
-        // ****************************************
+
+        // ***| Update BW state |********************************
         double dRdt = beta * CGS::c; // TODO this is beta_sh ! ...
         double Gamma_ = GammaRel;
         double beta_ = EQS::Beta(Gamma_);
         double gammaAdi  = p_eos->getGammaAdi(Gamma_, beta_);//p_eos->getGammaAdi(Gamma, beta);
-
         double GammaSh = EQS::GammaSh(Gamma,gammaAdi);
         double dRshdt = EQS::Beta(GammaSh) * CGS::c;
-
-        double dthetadr = 0.0;
-//        if (theta < (p_pars->theta_max * 0.999999) ) {
-//            dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
-//        }
-//        double dM2dR     = EQS::dmdr(Gamma, R, p_pars->theta_a,
-//                                     theta, rho, p_spread->m_aa) / p_pars->ncells;
+        double dthetadr = 0.0; // NO lateral expansion for this BW
 
         double dM2dR = 0.;
-
         switch (p_pars->m_method_dmdr) {
-
             case iusingA:
                 /// Old equation from Gavin P. Lamb work
                 dM2dR = EQS::dmdr(Gamma, R, p_pars->theta_a, theta, rho, p_spread->m_aa) / p_pars->ncells;
@@ -2097,139 +2077,78 @@ public:
                 /// if no mass needs to be swept up
                 break;
         }
-//        dM2dR*=0;
         if (dM2dR < 0.){
             (*p_log)(LOG_ERR,AT) << " dMdR < 0 in RHS dyn for kN ejecta\n";
             exit(1);
         }
 
-        // --- Energy injection --- ||
-        double dEingdR_abs_dop = dEingdR_abs / Doppler / Doppler;
+        // PWN energy injection
+        double xi_inj = 1.; // Additional free parameters (used in dynamics eq.)
+        double dEinjdt = dEindt / (p_pars->M0 * CGS::c * CGS::c) / p_pars->ncells;
+        double dEinjdR = dEinjdt / dRdt;
+        double theta_ej = 0.; // assume that ejecta is alinged with magnetar emission?..
+        double Doppler = Gamma / (1. - beta * std::cos(theta_ej));
+        double dEinjdR_dop = dEinjdR * Doppler;
+        double dEingdR_abs = dEinjdR;// * ( 1. - std::exp(-1.*p_pars->dtau) ) * std::exp(-1.*p_pars->tau_to0);
+        double dEingdR_abs_dop = dEingdR_abs / Doppler / Doppler; // in comoving frame
 
+        // Nuclear heating by r-process
         double dEnuc = p_pars->dEnuc;//->getPars()->eps_nuc_thermalized;
         double dEnuc_norm = dEnuc / (p_pars->M0 * CGS::c * CGS::c);
         double dEnucdR = dEnuc_norm / dRdt;
 
+        // Energy loss to thermal radiation
         double dElum = p_pars->dElum;
         double dElum_norm = dElum / (p_pars->M0 * CGS::c * CGS::c);
         double dElumdR = dElum_norm / dRdt;
-        if ((std::abs(dElumdR) > std::abs(dEnucdR*1.5)) and (dEnuc > 0.))
+        if ((std::abs(dElumdR) > std::abs(dEnucdR*1.5)) and (dEnuc > 0.)) // TODO These are artificial limiters
             dElumdR = dEnucdR;
 
-        // --- dGammadR ---
-        double dGammadR = 0., GammaEff=0.,dGammaEffdGamma=0.,num1=0.,num2=0.,num3=0.,denum1=0.,denum2=0.,denom3=0.;
-//        double _tmp = (1. - GammaEff / Gamma * xi_inj) * dEingdR_abs;
-        switch (p_pars->m_method_dgdr) {
-
-            case iour:
-                GammaEff = get_GammaEff(Gamma_, gammaAdi); // TODO check if GammaRel should be used for this!!!
-                dGammaEffdGamma = get_dGammaEffdGamma(Gamma_, gammaAdi);
-                num1 = (Gamma - GammaRho + GammaEff * (GammaRel - 1.)) * dM2dR;
-                num2 = - GammaEff * (gammaAdi - 1.) * Eint2 * (dM2dR/M2 - drhodr/rho - dGammaRhodR / GammaRho); // - 3.*Eint2/R
-                num3 = - (1. + GammaEff / Gamma * xi_inj) * dEingdR_abs;
-                denum1 = (1.+M2);
-                denum2 = Eint2 * dGammaEffdGamma;
-                denom3 = GammaEff * (gammaAdi - 1.) * Eint2 * dGammaRelDGamma / GammaRel;
-                dGammadR = -1. * (num1 + num2 + num3) / (denum1+denum2+denom3);
-                break;
-            case ipeer:
-                dGammadR = EQS::dgdr(1, Gamma, beta, M2, gammaAdi, dM2dR);
-                break;
-        }
-
-
-
-//        if ((dGammadR > 0) && (Gamma > p_pars->Gamma0*0.99)){
-//            std::cerr << AT << " \n"
-//                      << "dGammadR>0 ("<<dGammadR<<") and Gamma="<<Gamma<<" > Gamma0="<<p_pars->Gamma0<<"\n";
-//            std::cerr << " p_dens->m_GammaRho="<<p_dens->m_GammaRho<<"\n"
-//                      << " p_dens->m_GammaRel="<<p_dens->m_GammaRel<<"\n"
-//                      << " p_dens->m_dGammaReldGamma="<<p_dens->m_dGammaReldGamma<<"\n"
-//                      << " p_dens->m_dGammaRhodR="<<p_dens->m_dGammaRhodR<<"\n";
-//            dGammadR = 0.;
-//        }
-        //        double dmomdR = dGammadR * (Gamma / std::sqrt(Gamma * Gamma - 1.0));
+        // Dynamics equation
+        double GammaEff = get_GammaEff(Gamma_, gammaAdi); // TODO check if GammaRel should be used for this!!!
+        double dGammaEffdGamma = get_dGammaEffdGamma(Gamma_, gammaAdi);
+        double num1 = (Gamma - GammaRho + GammaEff * (GammaRel - 1.)) * dM2dR;
+        double num2 = - GammaEff * (gammaAdi - 1.) * Eint2 * (dM2dR/M2 - drhodr/rho - dGammaRhodR / GammaRho); // - 3.*Eint2/R
+        double num3 = - (1. + GammaEff / Gamma * xi_inj) * dEingdR_abs; // injection term
+        double denum1 = (1. + M2);
+        double denum2 = Eint2 * dGammaEffdGamma;
+        double denom3 = GammaEff * (gammaAdi - 1.) * Eint2 * dGammaRelDGamma / GammaRel;
+        double dGammadR = -1. * (num1 + num2 + num3) / (denum1+denum2+denom3);
         double dmomdR = dGammadR / beta;
 
-
-//        drhodr = 0.; // TODO why was this set?! This overrides the derivative
-        // -- Energies --
-
-//        double dlnV2dR  = dM2dR / M2 - m_drhodr - dGammadR / Gamma;
-        double dlnV2dR  = dM2dR / M2 - drhodr / rho - (1./GammaRel)*dGammaRelDGamma*dGammadR + dGammaRhodR / GammaRho;// + 3./R;
+        // Adiabatic energy loss
+        double dlnV2dR  = dM2dR / M2 - drhodr / rho - (1. / GammaRel) * dGammaRelDGamma * dGammadR + dGammaRhodR / GammaRho;// + 3./R;
         double dlnVdR = (3./R) - (1/Gamma * dGammadR);
         double dEad2dR  = 0.0;
         if ( p_pars->adiabLoss )
             dEad2dR = -(gammaAdi - 1.0) * Eint2 * dlnV2dR;
-//        double dx = dRdt * (x - p_pars->prev_x);
 
-//        double mom_ = mom + dmomdR * dRdt * (x - p_pars->x);
-//        if (mom_ < 0){
-//            int x = 1;
-//        }
-
-        // --- shock energy
+        // Energy generation at the shock
         double dEsh2dR = (GammaRel - 1.0) * dM2dR;
-//        if (cs_cbm > 100){
-//            int y = 1;
-//        }
         if ((cs_cbm > EQS::Beta(GammaRel)&&(p_pars->comp_ix > p_pars->nr*1e-2))){ // TODO Subsonic flow -- no shock
             dEsh2dR *= 1e-10;
         }
-//        double dEsh2dR = 0.;
 
-//        double dEsh2dR  = (GammaRel - 1.0) * dM2dR; // Shocked energy;
         // -- Radiative losses
         double dErad2dR = p_pars->eps_rad * dEsh2dR;
+
         // -- Energy equation
         double dEint2dR = dEsh2dR + dEad2dR - dErad2dR + dEnucdR - dElumdR + dEingdR_abs_dop;// dEingdR_abs_dop; // / (m_pars.M0 * c ** 2)
-//        double _x = dEint2dR/Eint2;
-//        double Eint_ = Eint2 + dEint2dR * dRdt * (x-p_pars->prev_x);
-//        if (Eint_ < 0){
-//            dEint2dR = dEsh2dR + dEad2dR - dErad2dR + dEingdR_abs_dop;// dEingdR_abs_dop; // / (m_pars.M0 * c ** 2)
-//            double Eint__ = Eint2 + dEint2dR * dRdt * (x-p_pars->prev_x);
-//            if (Eint__ < 0){
-//                int z = 1;
-//            }
-//        }
 
-        double dtcomov_dR = 1.0 / beta / Gamma / CGS::c;
-//        double dttdr;
-//        if (p_spread->m_method != LatSpread::METHODS::iNULL)
-//            dttdr = 1. / (CGS::c * beta) * sqrt(1. + R * R * dthetadr * dthetadr) - (1. / CGS::c);
-//        else
-//            dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
-//        dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
+        double dtcomov_dR = 1.0 / beta / Gamma / CGS::c; // comoving time
+
+        // -- time in a observer frame
         bool spread = p_spread->m_method != LatSpread::METHODS::iNULL;
         double dttdr = EQS::evalElapsedTime(R,mom,dthetadr,spread);
-        // ****************************************
-//        if (!std::isfinite(Gamma) ||
-//        !std::isfinite(beta) //||
-////        !std::isfinite(Eint2) ||
-////        !std::isfinite(theta) ||
-////        !std::isfinite(M2)
-////        || Eint2 < 0.
-////        || M2 < 0.
-//          ) {
-//            std::cerr << AT << " wrong data at the beginning of RHS t_b=" << x << "\n";
-//            std::cerr << " Gamma="<<Gamma<<"\n"
-//                      << " theta="<<theta<<"\n"
-//                      << " M2="<<M2<<"\n"
-//                      << " Eint2="<<Eint2<<"\n"
-//                      << " p_dens->m_GammaRho="<<p_dens->m_GammaRho<<"\n"
-//                      << " p_dens->Gamma_rel="<<p_dens->m_GammaRel<<"\n"
-//                      << " p_dens->m_dGammaRhodR="<<p_dens->m_dGammaRhodR<<"\n"
-//                      << " p_dens->m_dGammaReldGamma="<<p_dens->m_dGammaReldGamma<<"\n"
-//                      << " p_dens->m_CS_CBM="<<p_dens->m_CS_CBM<<"\n"
-//                      << " p_dens->m_P_cbm="<<p_dens->m_P_cbm<<"\n";
-//            exit(1);
-//        }
+
+        // ***| final checks |*************************
+
         if (mom < 0.){
             (*p_log)(LOG_ERR, AT) << " mom < 0 = "<< mom << " in kN RHS dynamics\n";
 //            exit(1);
         }
-        if (!std::isfinite(dRdt) || !std::isfinite(dGammadR) || dM2dR < 0.
-            || !std::isfinite(dlnV2dR) || !std::isfinite(dthetadr)) {
+        if ((!std::isfinite(dRdt)) || (!std::isfinite(dGammadR)) || (dM2dR < 0.)
+            || (!std::isfinite(dlnV2dR)) || (!std::isfinite(dthetadr))) {
             (*p_log)(LOG_ERR,AT)  << " nan in derivatives (may lead to crash) " //<< "\n"
                                   << " dRdt="<<dRdt//<<"\n"
                                   << " dM2dR="<<dM2dR//<<"\n"
@@ -2255,92 +2174,26 @@ public:
                                   << " \n";
             exit(1);
         }
-        // ****************************************
-//        double theta_c_h = dthetadr * dRdt * (x - p_pars->x);
-//        if (theta + theta_c_h >= p_pars->theta_max ){
-////            exit(1);
-//            dthetadr = 0.;
-//        }
-//        if (dGammadR > 0){
-//            std::cout << " Gamma="<<Gamma<< " Gamma0="<<p_pars->Gamma0<<" Gamma/Gamma0="<<Gamma/p_pars->Gamma0<<"\n";
-//        }
-//        p_pars->x = x; // update
-//        if (Gamma > 2.*p_pars->Gamma0){
-//            int x = 1;
-//        }
-//        if ( std::abs(dRdt * dGammadR ) > 2. * p_pars->Gamma0 )+{
-//            dGammadR = 0.;
-//        }
-//        if ( std::abs(dRdt * dGammadR ) > p_pars->Gamma0 ){
-//            std::cerr << AT
-//                      << "i="<< i << "["<<p_pars->ishell<<", "<<p_pars->ilayer<<"] " << "\n"
-//                      << " dGamma/dr > Gamma0 "
-//                      <<  "dG/dr="<< dRdt * dGammadR
-//                      << " Gamma0=" <<p_pars->Gamma0 << "\n"
-//                      << " theta_b0=" <<p_pars->theta_b0 << "\n"
-//                      << " GammaRho=" <<GammaRho << "\n"
-//                      << " GammaRel=" <<GammaRel << "\n"
-//                      << " dGammaRelDGamma=" <<dGammaRelDGamma << "\n"
-//                      << " dGammaRhodR=" <<dGammaRhodR << "\n"
-//                      << " R=" <<R << " Rsh=" <<Rsh<< " Gamma=" <<Gamma<< " Eint2=" <<Eint2<< " theta=" <<theta
-//                      << " M2=" <<M2<< " rho=" <<rho<<" drhodr=" <<drhodr<<" dM2dR=" <<dM2dR<< "\n";
-//            std::cerr << " maybe timestep is too large \n";
-////            exit(1);
-//            dGammadR = 0.;
-//            out_Y[i+QS::iR]      = dRdt;
-//            out_Y[i+QS::iRsh]    = dRshdt;
-//            out_Y[i+QS::itt]     = dRdt * dttdr;
-//            out_Y[i+QS::itcomov] = dRdt * dtcomov_dR;
-//            out_Y[i+QS::iGamma]  = 0 * dGammadR;
-//            out_Y[i+QS::iEint2]  = 0 * dEint2dR;
-//            out_Y[i+QS::itheta]  = 0 * dthetadr;
-//            out_Y[i+QS::iErad2]  = 0 * dErad2dR;
-//            out_Y[i+QS::iEsh2]   = 0 * dEsh2dR;
-//            out_Y[i+QS::iEad2]   = 0 * dEad2dR;
-//            out_Y[i+QS::iM2]     = 0 * dM2dR;
-////            Gamma = p_pars->Gamma0;
-//        }
-//        else{
-//            out_Y[i+QS::iR]      = dRdt;//1.0 / beta / CGS::c;
-//            out_Y[i+QS::iRsh]    = dRshdt;//1.0 / beta / CGS::c;
-//            out_Y[i+QS::itt]     = dRdt * dttdr;
-//            out_Y[i+QS::itcomov] = dRdt * dtcomov_dR;
-//            out_Y[i+QS::iGamma]  = dRdt * dGammadR;
-//            out_Y[i+QS::iEint2]  = dRdt * dEint2dR;
-//            out_Y[i+QS::itheta]  = dRdt * dthetadr;
-//            out_Y[i+QS::iErad2]  = dRdt * dErad2dR;
-//            out_Y[i+QS::iEsh2]   = dRdt * dEsh2dR;
-//            out_Y[i+QS::iEad2]   = dRdt * dEad2dR;
-//            out_Y[i+QS::iM2]     = dRdt * dM2dR;
-//        }
+
+        // ***| Save the state |***********************
         p_pars->prev_x = x;
         out_Y[i+ SOL::QS::iR]      = dRdt;//1.0 / beta / CGS::c;
         out_Y[i+ SOL::QS::iRsh]    = dRshdt;//1.0 / beta / CGS::c;
         out_Y[i+ SOL::QS::itt]     = dRdt * dttdr;
         out_Y[i+ SOL::QS::itcomov] = dRdt * dtcomov_dR;
         out_Y[i+ SOL::QS::imom]    = dRdt * dmomdR; //dRdt * dGammadR / Gamma;
-//        out_Y[i+QS::iGamma]  = 0.;//dRdt * dGammadR; //dRdt * dGammadR / Gamma;
         out_Y[i+ SOL::QS::iEint2]  = dRdt * dEint2dR;
-//        out_Y[i+QS::iEinj]   = dRdt * dEingdR_abs;
         out_Y[i+ SOL::QS::itheta]  = dRdt * dthetadr;
         out_Y[i+ SOL::QS::iErad2]  = dRdt * dErad2dR;
         out_Y[i+ SOL::QS::iEsh2]   = dRdt * dEsh2dR;
         out_Y[i+ SOL::QS::iEad2]   = dRdt * dEad2dR;
         out_Y[i+ SOL::QS::iM2]     = dRdt * dM2dR;
-//        if (Gamma)
-//        out_Y[i+QS::iR]      = dRdt;//1.0 / beta / CGS::c;
-//        out_Y[i+QS::iRsh]    = dRshdt;//1.0 / beta / CGS::c;
-//        out_Y[i+QS::itt]     = dRdt * dttdr;
-//        out_Y[i+QS::itcomov] = dRdt * dtcomov_dR;
-//        out_Y[i+QS::iGamma]  = dRdt * dGammadR;
-//        out_Y[i+QS::iEint2]  = dRdt * dEint2dR;
-//        out_Y[i+QS::itheta]  = dRdt * dthetadr;
-//        out_Y[i+QS::iErad2]  = dRdt * dErad2dR;
-//        out_Y[i+QS::iEsh2]   = dRdt * dEsh2dR;
-//        out_Y[i+QS::iEad2]   = dRdt * dEad2dR;
-//        out_Y[i+QS::iM2]     = dRdt * dM2dR;
-        // ****************************************
-//        if (beta<1e-5)  p_pars->end_evolution = true;
+        // --- PWN ---
+        double drdtw = v_w;
+        out_Y[i+ SOL::QS::iRw]     = drdtw;
+        out_Y[i+ SOL::QS::iWtt]    = dttdr_w*drdtw;
+        out_Y[i+ SOL::QS::iWenb]   = dEnbdt;
+        out_Y[i+ SOL::QS::iWepwn]  = dEpwndt
     }
     /// --- Evaluate the density (and its velocity) at point ej_R left by blast wave at a point j_R
     void evalDensAndItsVelocityBehindBlastWave(double & rho, double & GammaCMB, double & p_cbm,
