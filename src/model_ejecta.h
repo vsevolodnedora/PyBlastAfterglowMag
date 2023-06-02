@@ -14,9 +14,10 @@
 #include "image.h"
 #include "synchrotron_an.h"
 
+//#include "model_magnetar.h"
 #include "blastwave_components.h"
 #include "blastwave.h"
-#include "model_magnetar.h"
+
 
 /// Radially structured blastwave collection
 class CumulativeShell{

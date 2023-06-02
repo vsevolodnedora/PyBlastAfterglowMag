@@ -1375,7 +1375,7 @@ private:
         /// *************************| E J E C T A |***********************
         if (p_pars->p_ej->run_bws) {
             auto &ej_layers = p_pars->p_ej->getShells();
-            for (size_t il=0; il < ej_layers.size(); il++){
+            for (size_t il = 0; il < ej_layers.size(); il++) {
                 /// evaluate ejecta blast waves rhs
                 for(size_t ish=0; ish < ej_layers[il]->nBWs(); ish++) {
                     auto & ej_bw = ej_layers[il]->getBW(ish);
@@ -1384,7 +1384,7 @@ private:
                             std::cerr <<AT << " not implemented\n";
                             exit(1);
                         }
-                        auto & jet_bws = p_pars->p_grb->getShells()[0]->getBWs();
+                        auto &jet_bws = p_pars->p_grb->getShells()[0]->getBWs();
 //                        auto & jet_bws = p_pars->p_grb->getBWs();
                         ej_bw->evaluateRhsDensModel2(out_Y, ii, x, Y,
                                                      & reinterpret_cast<std::vector<std::unique_ptr<BlastWave>> &>(jet_bws),
@@ -1410,11 +1410,6 @@ private:
                     ej_bw->updateEnergyInjection( ldip, lacc );
                 }
             }
-
-            /// *******************| E J E C T A  P W N**********************
-            < MESS! >
-
-
             /// ****************************| P W N |***************************
             if (p_pars->p_ej_pwn->run_pwn){
                 auto & pwn = p_pars->p_ej_pwn;
@@ -1425,6 +1420,37 @@ private:
                     ej_pwns[il]->updateMagnetar(ldip, lacc);
                     ej_pwns[il]->evaluateRhs(out_Y, ii, x, Y);
                     ii += ej_pwns[il]->getNeq();
+                }
+            }
+        }
+
+        /// *******************| E J E C T A  P W N |**********************
+        if (p_pars->p_ej_pwn2->run_bws) {
+            auto &ej_layers = p_pars->p_ej_pwn2->getShells();
+            for (size_t il = 0; il < ej_layers.size(); il++) {
+                /// evaluate ejecta blast waves rhs
+                for(size_t ish=0; ish < ej_layers[il]->nBWs(); ish++) {
+                    auto & ej_bw = ej_layers[il]->getBW(ish);
+                    if (p_pars->p_ej->run_bws) {
+                        if (p_pars->p_ej->nshells() < 2){
+                            std::cerr <<AT << " not implemented\n";
+                            exit(1);
+                        }
+                        auto &ej_bws = p_pars->p_ej_pwn2->getShells()[il]->getBWs();
+//                        auto & jet_bws = p_pars->p_grb->getBWs();
+                        ej_bw->evaluateRhsDensModel2(out_Y, ii, x, Y,
+                                                     & reinterpret_cast<std::vector<std::unique_ptr<BlastWave>> &>(ej_bws),
+                                                     p_pars->ix);
+                    }
+                    else {
+//                        if (p_pars->use_dens_prof_behind_ejecta_for_ejecta){
+//                            prepareDensProfInFrontOfBW(out_Y, ii, x, Y);
+//                        }
+                        ej_bw->evaluateRhsDensModel2(out_Y, ii, x, Y,
+                                                     NULL,
+                                                     p_pars->ix);
+                    }
+                    ii += SOL::neq;//ii += ej_bw->getNeq();
                 }
             }
         }
