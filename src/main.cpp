@@ -209,12 +209,13 @@ int main(int argc, char** argv) {
     /// ------------------------------------------------------
     if (argc<4){
 //        working_dir = "../tst/grbafg_gauss_offaxis/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-        working_dir = "../tst/grbafg_gauss_offaxis_io/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/grbafg_gauss_offaxis_io/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_skymap_io/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/knafg_nrinformed/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/knafg_nrinformed_eats/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/magnetar/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../tst/magnetar_bw/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_tophat_wind/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/knafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
@@ -310,8 +311,6 @@ int main(int argc, char** argv) {
                    + pba.getEj()->getNeq() + pba.getEjPWN2()->getNeq();
     pba.getEjPWN()->setPars(pwn_pars,pwn_opts,working_dir,parfilename,
                             pba.getTburst(),main_pars,ii_eq_t);
-
-
 
     (*p_log)(LOG_INFO, AT) << "Initialization finished [" << timer.checkPoint() << " s]" << "\n";
 

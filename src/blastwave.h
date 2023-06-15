@@ -49,7 +49,7 @@ struct Pars{
 
     // initial conditions (settings)
 //    bool is_init = false;
-    RHS_TYPES m_rhs++++++++++++++++++++++++++++++{};
+    RHS_TYPES m_rhs{};
     METHODS_Up m_method_up{};
     METHOD_Delta m_method_Delta{};
     METHOD_GammaSh m_method_gamma_sh{};
@@ -578,12 +578,11 @@ public:
 
         /// set boolean pars
 
-        p_pars->rhs_type =
-                getBoolOpt("use_dens_prof_behind_jet_for_ejecta", opts, AT,p_log,false, false);
-
-
         p_pars->use_dens_prof_behind_jet_for_ejecta =
                 getBoolOpt("use_dens_prof_behind_jet_for_ejecta", opts, AT,p_log,false, false);
+
+        p_pars->use_dens_prof_inside_ejecta =
+                getBoolOpt("use_dens_prof_inside_ejecta", opts, AT,p_log,false, false);
 
         p_pars->use_dens_prof_inside_ejecta =
                 getBoolOpt("use_dens_prof_inside_ejecta", opts, AT,p_log,false, false);
@@ -782,6 +781,33 @@ public:
 #endif
 
         /// ----------------------- set options ------------------------------
+
+        opt = "rhs_type";
+        RHS_TYPES rhs_type;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. No default option set\n";
+            exit(1);
+//            rhs_type = RHS_TYPES::iGRG_FS;
+        }
+        else{
+            if(opts.at(opt) == "grb_fs")
+                rhs_type = RHS_TYPES::iGRG_FS;
+            else if(opts.at(opt) == "ej")
+                rhs_type = RHS_TYPES::iEJ;
+            else if(opts.at(opt) == "ej_pwn")
+                rhs_type = RHS_TYPES::iEJ_PWN;
+            else{
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
+                                     <<" given: " << opts.at(opt)
+                                     << " is not recognized. "
+                                     << "Possible options: "
+                                     << " grb_fs " << " ej " << " ej_pwn " << "\n";
+//                std::cerr << AT << "\n";
+                exit(1);
+            }
+        }
+        p_pars->m_rhs = rhs_type;
+
         opt = "method_ne";
         METHOD_NE methodNe;
         if ( opts.find(opt) == opts.end() ) {
@@ -1160,9 +1186,9 @@ public:
         ic_arr[i + SOL::QS::iM2]     = m_M20 / p_pars->M0;
         // ------------ PWN -------------------
         ic_arr[i + SOL::QS::iRw] = ic_arr[i + SOL::QS::iR]; // assume that PWN wind is at R0 of ej.
-        if (p_pars->curr_ldip < 0 || p_pars->curr_lacc < 1){
+        if ((p_pars->curr_ldip < 0 || p_pars->curr_lacc < 1) && p_pars->m_rhs==iEJ_PWN){
             (*p_log)(LOG_ERR, AT)  << "p_pars->curr_ldip = " << p_pars->curr_ldip
-                                   << "p_pars->curr_lacc = "<< p_pars->curr_lacc
+                                   << " p_pars->curr_lacc = "<< p_pars->curr_lacc
                                    << "\n";
             exit(1);
         }
@@ -2245,7 +2271,8 @@ public:
             else{ (*p_log)(LOG_ERR,AT)<<"Radii not ordered!"<<"\n"; exit(1); }
             nactive+=1;
         }
-        if (nactive < 3){ (*p_log)(LOG_ERR,AT)<<"nactive < 3"<<"\n"; exit(1); }
+        if (nactive < 3){
+            (*p_log)(LOG_ERR,AT)<<"nactive < 3"<<"\n"; exit(1); }
         if (r < rmin){
             // BW is behind the ejecta system: Use exponential decay?
             set_standard_ism(r, theta, gam);
@@ -3101,11 +3128,14 @@ public:
         }
 
         /// evaluateShycnhrotronSpectrum density profile in front of the kN BW
-        if (p_pars->use_dens_prof_behind_jet_for_ejecta) {
+        if (p_pars->use_dens_prof_behind_jet_for_ejecta && p_pars->m_rhs==RHS_TYPES::iEJ) {
             prepareDensProfileFromJet(out_Y, i, x, Y, others, evaled_ix);
             evaluateRhsDens(out_Y, i, x, Y);
         }
-        else if (p_pars->use_dens_prof_inside_ejecta) {
+        else if (p_pars->m_rhs==RHS_TYPES::iGRG_FS) {
+            evaluateRhs(out_Y, i, x, Y);
+        }
+        else if (p_pars->use_dens_prof_inside_ejecta && p_pars->m_rhs==RHS_TYPES::iEJ_PWN) {
             evalDensProfileInsideBWset(out_Y, i, x, Y, others, evaled_ix);
             evaluateRhsDensPWN(out_Y, i, x, Y);
         }

@@ -230,11 +230,13 @@ public:
             ejectaUpdate(tb0,0, m_InitData);
         }
 
-        // ***********| E J E C T A |***********
+        // ***********| E J E C T A    I N   E J E C T A |***********
         if (p_pars->p_ej_pwn2->run_bws) {
             auto &ej_pwnbw = p_pars->p_ej_pwn2->getShells();
             for (size_t il = 0; il < ej_pwnbw.size(); il++) {
                 for (size_t ish = 0; ish < ej_pwnbw[il]->nBWs(); ish++) {
+                    ej_pwnbw[il]->getBW(ish)->getPars()->curr_ldip = p_pars->p_magnetar->getMagValInt(MAG::ildip,tb0);
+                    ej_pwnbw[il]->getBW(ish)->getPars()->curr_lacc = p_pars->p_magnetar->getMagValInt(MAG::ilacc,tb0);
                     ej_pwnbw[il]->getBW(ish)->setInitConditions(m_InitData, ii);
 //                    ej_bws[il]->getBW(ish)->updateNucAtomic( m_InitData, tb0 );
                     ii += SOL::neq;//ii += ej_bws[il]->getBW(ish)->getNeq();
@@ -1132,7 +1134,7 @@ private:
             }
         }
 
-        /// udate shell width, density, nuclear heating
+        /// update shell width, density, nuclear heating
         if ((p_pars->p_ej->run_bws) && (p_pars->p_ej->do_collision)) {
             for (auto &cumShell: p_pars->p_ej->getShells()) {
                 cumShell->updateSortedShellWidth(sol);
@@ -1174,25 +1176,25 @@ private:
                 (*p_log)(LOG_ERR,AT)<<" not supported\n";
                 exit(1);
             }
-            for (size_t il = 0; il < p_pars->p_ej->nlayers(); il++){
-                auto & cumShell = p_pars->p_ej->getShells()[il];
-                auto & ej_pwn = p_pars->p_ej_pwn->getPWNs()[il];
+//            for (size_t il = 0; il < p_pars->p_ej->nlayers(); il++){
+//                auto & cumShell = p_pars->p_ej->getShells()[il];
+//                auto & ej_pwn = p_pars->p_ej_pwn->getPWNs()[il];
+////                ej_pwn->updateOuterBoundary(
+////                        cumShell->getRvec(),
+////                        cumShell->getBetaVec(),
+////                        cumShell->getRhoVec(),
+////                        cumShell->getTauVec(),
+////                        cumShell->getTempVec()
+////                );
 //                ej_pwn->updateOuterBoundary(
-//                        cumShell->getRvec(),
-//                        cumShell->getBetaVec(),
-//                        cumShell->getRhoVec(),
-//                        cumShell->getTauVec(),
-//                        cumShell->getTempVec()
+//                        cumShell->getRvec()[0],
+//                        cumShell->getBetaVec()[0],
+//                        cumShell->getShellRho(sol),
+//                        cumShell->getShellOptDepth(),
+//                        cumShell->getTempVec()[0]
 //                );
-                ej_pwn->updateOuterBoundary(
-                        cumShell->getRvec()[0],
-                        cumShell->getBetaVec()[0],
-                        cumShell->getShellRho(sol),
-                        cumShell->getShellOptDepth(),
-                        cumShell->getTempVec()[0]
-                );
-//                ej_pwn->evalCurrBpwn(sol);sss
-            }
+////                ej_pwn->evalCurrBpwn(sol);sss
+//            }
         }
 
         /// update Magnetar energy injecton into kN blast waves
@@ -1401,27 +1403,30 @@ private:
                     ii += SOL::neq;//ii += ej_bw->getNeq();
                 }
             }
-            /// update density, velocity, int. energy of shells
-            for (size_t il=0; il < ej_layers.size(); il++){
-                ej_layers[il]->updateActiveShells();
-                ej_layers[il]->updateSortedShellProperties(Y);
-                for(size_t ish=0; ish < ej_layers[il]->nBWs(); ish++) {
-                    auto & ej_bw = ej_layers[il]->getBW(ish);
-                    ej_bw->updateEnergyInjection( ldip, lacc );
-                }
-            }
-            /// ****************************| P W N |***************************
-            if (p_pars->p_ej_pwn->run_pwn){
-                auto & pwn = p_pars->p_ej_pwn;
-                auto & ej_pwns = p_pars->p_ej_pwn->getPWNs();
-                auto & cumShells = p_pars->p_ej->getShells();
-                for (size_t il=0; il<pwn->nlayers(); il++){
-                    /// Set PWN ODE ICs
-                    ej_pwns[il]->updateMagnetar(ldip, lacc);
-                    ej_pwns[il]->evaluateRhs(out_Y, ii, x, Y);
-                    ii += ej_pwns[il]->getNeq();
-                }
-            }
+//            /// update density, velocity, int. energy of shells
+//            if (p_pars->p_ej->do_shell_upd_in_rhs) {
+//                for (size_t il = 0; il < ej_layers.size(); il++) {
+//                    ej_layers[il]->updateActiveShells();
+//                    ej_layers[il]->updateSortedShellWidth(Y);
+//                    ej_layers[il]->updateSortedShellProperties(Y);
+//                    for (size_t ish = 0; ish < ej_layers[il]->nBWs(); ish++) {
+//                        auto &ej_bw = ej_layers[il]->getBW(ish);
+//                        ej_bw->updateEnergyInjection(ldip, lacc);
+//                    }
+//                }
+//            }
+//            /// ****************************| P W N |***************************
+//            if ((p_pars->p_ej_pwn->run_pwn)&&(p_pars->p_ej->do_eninj_inside_rhs)){
+//                auto & pwn = p_pars->p_ej_pwn;
+//                auto & ej_pwns = p_pars->p_ej_pwn->getPWNs();
+//                auto & cumShells = p_pars->p_ej->getShells();
+//                for (size_t il=0; il<pwn->nlayers(); il++){
+//                    /// Set PWN ODE ICs
+//                    ej_pwns[il]->updateMagnetar(ldip, lacc);
+//                    ej_pwns[il]->evaluateRhs(out_Y, ii, x, Y);
+//                    ii += ej_pwns[il]->getNeq();
+//                }
+//            }
         }
 
         /// *******************| E J E C T A  P W N |**********************
@@ -1436,10 +1441,11 @@ private:
                             std::cerr <<AT << " not implemented\n";
                             exit(1);
                         }
-                        auto &ej_bws = p_pars->p_ej_pwn2->getShells()[il]->getBWs();
+                        /// for computing the upstram profile
+                        auto &others = p_pars->p_ej->getShells()[il]->getBWs();
 //                        auto & jet_bws = p_pars->p_grb->getBWs();
                         ej_bw->evaluateRhsDensModel2(out_Y, ii, x, Y,
-                                                     & reinterpret_cast<std::vector<std::unique_ptr<BlastWave>> &>(ej_bws),
+                                                     & reinterpret_cast<std::vector<std::unique_ptr<BlastWave>> &>(others),
                                                      p_pars->ix);
                     }
                     else {

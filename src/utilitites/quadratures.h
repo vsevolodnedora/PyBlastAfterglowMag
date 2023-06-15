@@ -1248,7 +1248,7 @@ int trapNLProcessInterval(double (*f)(double, void *), void *args,
 
     double h = 0.25*(i->b - i->a);
 
-    // First compute three trapezoid rule refinements
+    // First evaluateShycnhrotronSpectrum three trapezoid rule refinements
     // Assume error ~ epsilon * h^n, if f is smooth
     // then n = 2, but if we are under-resolved the effective n
     // could be less than two.

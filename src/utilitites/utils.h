@@ -47,6 +47,8 @@ inline namespace CGS{
     const double &K_B = 1.38e-16; // Boltzman constant in unit of [erg/K]
     const double &H = 6.626e-27; // Planck constant in unit of [erg s]
     const double &M_PRO = 1.0/6.02e23; /* atomic mass in unit of [g] */
+    const double &MeC2 = 8.1871398e-7; // in unit of [erg]
+    const double &GAMMA13 = 2.67893; /* Gamma(1/3) */
 };
 
 namespace TOOLS{
@@ -136,6 +138,42 @@ struct Timer {
 
 };
 
+double maxValue( const Vector & vec )
+{
+    double val_max = vec[0]; // What could go wrong on this line?
+
+    for ( int i = 0; i < vec.size(); ++i ) // Is the first element necessary?
+    {
+        if ( val_max < vec[i] )
+        {
+            val_max = vec[i];
+        }
+    }
+    return val_max;
+}
+
+double findMinimum(Vector & vec) {
+    double minimum = std::numeric_limits<double>::max();
+
+    for (const double& value : vec) {
+        if (value < minimum) {
+            minimum = value;
+        }
+    }
+    return minimum;
+}
+double findMaximum(const Vector & vec) {
+    double maximum = std::numeric_limits<double>::min();
+
+    for (const double& value : vec) {
+        if (value > maximum) {
+            maximum = value;
+        }
+    }
+
+    return maximum;
+}
+
 /// https://stackoverflow.com/questions/42533070/finding-minimum-element-of-a-vector-in-c
 size_t indexOfMinimumElement(const std::vector<double>& input)
 {
@@ -180,7 +218,7 @@ bool getBoolOpt(std::string opt, StrStrMap & opts,
     }
     return b_val;
 }
-std::string getStrOpt(std::string opt, StrStrMap & opts,
+std::string getStrOpt(std::string opt, StrStrMap  opts,
                       const char *loc, std::unique_ptr<logger> & p_log, const std::string& def, const bool req){
 //    opt = "use_dens_prof_behind_jet_for_ejecta";
 //    std::string b_val;
@@ -196,9 +234,13 @@ std::string getStrOpt(std::string opt, StrStrMap & opts,
             val = def;
         }
     else{
-        val = (std::string)opts.at(opt);
+//        std::cout << "\t"<<val<<"\n";
+        val = opts.at(opt);
     }
+
+
     return val;
+//    throw std::runtime_error("error...");
 }
 double getDoublePar(std::string par, StrDbMap & pars,
                     const char *loc, std::unique_ptr<logger> & p_log, double def, const bool req){
@@ -1066,8 +1108,8 @@ void cast_times_freqs(Vector& lc_times, Vector& lc_freqs,
         _times.resize(lc_freqs.size() * lc_times.size(), 0.0);
         _freqs.resize(lc_freqs.size() * lc_times.size(), 0.0);
         size_t ii = 0;
-        for (double freq: lc_freqs) {
-            for (double time: lc_times) {
+        for (double time: lc_times) {
+            for (double freq: lc_freqs) {
                 _times[ii] = time;
                 _freqs[ii] = freq;
                 ii++;
@@ -1089,7 +1131,7 @@ void readParFile2(std::unordered_map<std::string, double> & pars,
     char char_that_separaters_name_and_value = '=';
     char char_that_separaters_value_and_comment = '#';
     std::vector<std::string> leave_spaces_for = {
-            "lc_freqs", "lc_times", "skymap_freqs", "skymap_times"
+            "lc_freqs", "lc_times", "skymap_freqs", "skymap_times", "spec_times", "spec_freqs", "spec_gams"
     };
 
 //    std::unique_ptr<logger> p_log;
@@ -1154,13 +1196,17 @@ void readParFile2(std::unordered_map<std::string, double> & pars,
             if (std::find(leave_spaces_for.begin(), leave_spaces_for.end(), par) == leave_spaces_for.end())
                 val.erase(std::remove_if(val.begin(), val.end(), ::isspace), val.end());
 //            double value = std::stod(val);
+//            if (val[0]=='a'&&val[1]=='r'&&val[2]=='r'&&val[3]=='a'&&val[4]=='y'){
+//                std::cout << par << " = " << val<<"\n";
+//            }
             opts.insert(std::pair<std::string, std::string>(par, val));
         }
     }
 
 }
 
-Vector makeVecFromString(std::string line, std::unique_ptr<logger> & p_log){
+Vector makeVecFromString(const std::string line, std::unique_ptr<logger> & p_log){
+//    std::string line = _line;
     char space_char = ' ';
 //    char end_char = '#';
     std::vector<std::string> words{};
@@ -1170,12 +1216,20 @@ Vector makeVecFromString(std::string line, std::unique_ptr<logger> & p_log){
         word.erase(std::remove_if(word.begin(), word.end(), ispunct), word.end());
         words.push_back(word);
     }
+    if (words.size() == 1){
+        (*p_log)(LOG_ERR, AT) << "incorrect word size in array line. Expected 2 or 3 found only " << words[0] << '\n';
+        exit(1);
+    }
     /// remove first emtpy element left after '= ' this
     if ((words[0].empty())or(words[0] == " ")){
         words.erase(words.begin());
     }
 
     /// construct the vector
+    std::vector<std::string> words2{};
+    words2.reserve(words.size());
+    for (auto _word : words) words2.emplace_back(_word);
+
     Vector res;
     if (words[0] == "array"){
         if (words[1] == "logspace"){
@@ -1198,5 +1252,186 @@ Vector makeVecFromString(std::string line, std::unique_ptr<logger> & p_log){
 //    std::cout << res << "\n";
     return std::move( res );
 }
+
+/// https://www.geeksforgeeks.org/LinearRegression-analysis-and-the-best-fitting-line-using-c/
+class LinearRegression {
+    // Dynamic array which is going
+    // to contain all (i-th x)
+    Vector & x;
+
+    // Dynamic array which is going
+    // to contain all (i-th y)
+    Vector & y;
+
+    // final non-zero data index
+    // in case x,y have max indx.
+    size_t ir=0;
+
+    // Store the coefficient/slope in
+    // the best fitting line
+    double coeff{};
+
+    // Store the constant term in
+    // the best fitting line
+    double constTerm{};
+
+    // Contains sum of product of
+    // all (i-th x) and (i-th y)
+    double sum_xy{};
+
+    // Contains sum of all (i-th x)
+    double sum_x{};
+
+    // Contains sum of all (i-th y)
+    double sum_y{};
+
+    // Contains sum of square of
+    // all (i-th x)
+    double sum_x_square{};
+
+    // Contains sum of square of
+    // all (i-th y)
+    double sum_y_square{};
+
+public:
+    // Constructor to provide the default
+    // values to all the terms in the
+    // object of class LinearRegression
+    LinearRegression(Vector & x, Vector & y) : x(x), y(y){
+        coeff = 0;
+        constTerm = 0;
+        sum_y = 0;
+        sum_y_square = 0;
+        sum_x_square = 0;
+        sum_x = 0;
+        sum_xy = 0;
+    }
+
+    // Function that calculate the coefficient/
+    // slope of the best fitting line
+    void calculateCoefficient()
+    {
+//        auto N = (double)x.size();
+        double numerator = ((double)ir * sum_xy - sum_x * sum_y);
+        double denominator = ((double)ir * sum_x_square - sum_x * sum_x);
+        coeff = numerator / denominator;
+    }
+
+    // Member function that will calculate
+    // the constant term of the best
+    // fitting line
+    void calculateConstantTerm()
+    {
+//        auto N = (double)x.size();
+        double numerator = (sum_y * sum_x_square - sum_x * sum_xy);
+        double denominator = ((double)ir * sum_x_square - sum_x * sum_x);
+        constTerm = numerator / denominator;
+    }
+
+    // Function that return the number
+    // of entries (xi, yi) in the data set
+//    size_t sizeOfData() {
+//        return x.size();
+//    }
+
+    // Function that return the coefficient/
+    // slope of the best fitting line
+    double coefficient() {
+        if (coeff == 0)
+            calculateCoefficient();
+        return coeff;
+    }
+    double getCoeff(){return coeff;}
+
+    // Function that return the constant
+    // term of the best fitting line
+    double constant() {
+        if (constTerm == 0)
+            calculateConstantTerm();
+        return constTerm;
+    }
+    double getConst(){return constTerm;}
+
+    bool isTrained(){
+        if ((coeff == 0) &&( constTerm == 0)) return false;
+        return true;
+    }
+
+    // Function that print the best
+    // fitting line
+    void PrintBestFittingLine() {
+        if (coeff == 0 && constTerm == 0) {
+            calculateCoefficient();
+            calculateConstantTerm();
+        }
+        std::cout << "The best fitting line is y = "
+             << coeff << "x + " << constTerm << std::endl;
+    }
+
+    // Function to take input from the dataset
+    void commputeInput() {
+        for (size_t i = 0; i < x.size(); i++) {
+            if ((x[i] != 0.) and (y[i] != 0.)) {
+                sum_xy += x[i] * y[i];
+                sum_x += x[i];
+                sum_y += y[i];
+                sum_x_square += x[i] * x[i];
+                sum_y_square += y[i] * y[i];
+                ir++;
+            }
+        }
+    }
+
+    // Function to show the data set
+    void showData()
+    {
+        for (size_t i = 0; i < 62; i++) {
+            printf("_");
+        }
+        printf("\n\n");
+        printf("|%15s%5s %15s%5s%20s\n",
+               "X", "", "Y", "", "|");
+
+        for (size_t i = 0; i < x.size(); i++) {
+            printf("|%20f %20f%20s\n",
+                   x[i], y[i], "|");
+        }
+
+        for (size_t i = 0; i < 62; i++) {
+            printf("_");
+        }
+        printf("\n");
+    }
+
+    // Function to predict the value
+    // corresponding to some input
+    double predict(double x) const {
+        return coeff * x + constTerm;
+    }
+
+    // Function that returns overall
+    // sum of square of errors
+    double errorSquare() {
+        double ans = 0;
+        for (size_t i = 0; i < ir; i++) {
+            ans += ((predict(x[i]) - y[i])
+                    * (predict(x[i]) - y[i]));
+        }
+        return ans;
+    }
+
+    // Functions that return the error
+    // i.e the difference between the
+    // actual value and value predicted
+    // by our model
+    double errorIn(double num) {
+        for (size_t i = 0; i < ir; i++) {
+            if (num == x[i]) {
+                return (y[i] - predict(x[i]));
+            }
+        }
+        return 0;
+    }
+};
 
 #endif //SRC_UTILS_H

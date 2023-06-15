@@ -1,0 +1,253 @@
+#
+#   This is an example parfile for the PyBlastAfterglowMag code
+#
+#    Convection :
+#    For each parameter use: ' NameOfTheVariable = Value ''
+#    Comments should start with ' # ''
+#    Double/int values located under ' * Model Parameters '
+#    String values located under ' * Model Settings '
+#
+
+# -------------------------- main ---------------------------
+
+* Parameters
+
+tb0 = 1.e1
+tb1 = 1.e11 #1e11
+ntb = 100000
+iout = 100
+rtol = 1.e-12
+nmax = 1000
+
+A0 = -1
+s = -1
+r_ism = -1
+r_ej = -1
+n_ism = 0.001
+d_l = 3.0857e+26
+z = 0.001
+theta_obs = 1.4 # 1.4 # 0.785 # 45.
+
+* Settings
+
+lc_freqs = array logspace 1e9 2.4e19 20
+lc_times = array logspace 1.e2 1.e8 150
+lc_use_freq_to_time = no
+
+spec_times = array logspace 1.1e1 1e7 400
+spec_gams = array logspace 1e0 1e6 512
+spec_freqs = array logspace 1.e7 1.e22 200 # 3.e9 2.4e17 2.4e21
+
+skymap_freqs = array 3.e9 2.4e17
+skymap_times = array logspace 8.e2 2e7 50
+
+integrator = DOP853
+method_eats = piece-wise # piece-wise
+
+# --------------------------- END ---------------------------
+#
+# ------------------------ Magnetar -------------------------
+
+* Parameters
+
+* Settings
+
+run_magnetar = no
+load_magnetar = yes
+save_magnetar = no
+
+fname_magnetar_evol = magnetar_evol.h5
+fname_mag = magnetar.h5
+
+# --------------------------- END ---------------------------
+#
+# ----------------------- kN afterglow ----------------------
+
+* Parameters
+
+eps_e = 0.1
+eps_b = 0.01
+eps_t = 1.0
+p = 2.05
+ksi_n = 1.
+
+eps_thermalization = 0.5    # used if method_thermalization = const
+eps_nuc0 = 1.2e19           # In (eps_nuc0 / 2.e18) * eps_nuc * eps_th; (Both method)
+alpha = 1.3
+sigma = 0.11
+a_eps_nuc = 0.5
+b_eps_nuc = 2.5
+t_eps_nuc = 1.0
+t0eps = 1.3
+
+which_jet_layer_to_use = 1e5
+steepnes_of_exp_decay = 1.0
+Gamma_when_st_starts = 2.0
+fraction_of_Gamma0_when_bm_for_bm = 1000.
+a = -1
+
+freq1 = 1.e7
+freq2 = 1.e12
+nfreq = 100
+
+rtol_adapt = 1e-5
+save_dyn_every_it = 1
+
+* Settings
+
+run_bws = yes
+load_dynamics = no
+save_dynamics = yes
+do_ele = no
+do_spec = no
+do_lc = no
+do_skymap = no
+
+rhs_type = ej
+method_collision = none # none
+do_eninj_inside_rhs = no # yes
+method_eats = piece-wise # piece-wise
+
+do_nucinj = no
+fname_nuc = heatingLippuner.h5
+method_heating = none    # PBR LR none
+method_thermalization = const # const BKWM BKWM_1d
+
+do_thermrad_loss = no
+thermradloss_at_photo = no
+
+fname_dyn = magnetar_driven_ej.h5
+fname_light_curve = corr_id_SFHo_13_14_150m_11_text70.lc
+fname_light_curve_layers = none
+fname_sky_map = skymap_kn.h5
+
+use_1d_id = no
+load_r0 = yes
+fname_ejecta_id = corr_id_SFHo_13_14_150m_11_text70.h5
+
+method_single_bw_delta = frac_last
+method_spread = None
+method_eos = Nava13
+method_GammaSh = useJKwithGammaRel # small effect
+method_Up = useEint2 # !
+method_Delta = useJoh06
+use_adiabLoss = yes
+method_Rsh = useGammaSh # "useGammaSh",#"useGammaSh",
+method_dmdr = usingdthdr
+method_dgdr = our # !
+method_shock_vel = shockVel # !
+method_nonreldist = useGm # !
+method_synchrotron = Marg21 # Joh06 # !
+method_tau = smooth
+use_ssa = yes
+method_lf_min = useTheta # useU_e # !
+method_ne = usenprime # ! useNe is better here! (that is what was used before)
+use_dens_prof_behind_jet_for_ejecta = no
+use_exp_rho_decay_as_floor = yes
+use_flat_dens_floor = no
+use_st_dens_profile = no
+use_bm_dens_profile = no
+method_quad = CADRE
+method_comp_mode = observFlux # "comovSpec",#"observFlux"
+emissivity = em
+absorption = abs
+
+# --------------------------- END ---------------------------
+#
+# -------------------------- PWNBW --------------------------
+
+* Parameters
+
+eps_e = 0.1
+eps_b = 0.01
+eps_t = 1.0
+p = 2.05
+ksi_n = 1.
+
+albd_fac = .5
+eps_e_w = .99
+eps_mag_w = .01
+eps_th_w = .1
+gamma_b_w = 1e4
+
+eps_thermalization = 0.5    # used if method_thermalization = const
+eps_nuc0 = 1.2e19           # In (eps_nuc0 / 2.e18) * eps_nuc * eps_th; (Both method)
+alpha = 1.3
+sigma = 0.11
+a_eps_nuc = 0.5
+b_eps_nuc = 2.5
+t_eps_nuc = 1.0
+t0eps = 1.3
+
+which_jet_layer_to_use = 1e5
+steepnes_of_exp_decay = 1.0
+Gamma_when_st_starts = 2.0
+fraction_of_Gamma0_when_bm_for_bm = 1000.
+a = -1
+
+freq1 = 1.e7
+freq2 = 1.e12
+nfreq = 100
+
+rtol_adapt = 1e-5
+save_dyn_every_it = 1
+
+* Settings
+
+run_bws = yes
+load_dynamics = no
+save_dynamics = yes
+do_ele = no
+do_spec = no
+do_lc = no
+do_skymap = no
+
+rhs_type = ej_pwn
+method_collision = none # none
+do_eninj_inside_rhs = no # yes
+method_eats = piece-wise # piece-wise
+
+do_nucinj = no
+fname_nuc = heatingLippuner.h5
+method_heating = none    # PBR LR none
+method_thermalization = const # const BKWM BKWM_1d
+
+do_thermrad_loss = no
+thermradloss_at_photo = no
+
+fname_dyn = pwn_bw.h5
+fname_light_curve = pwn_bw_lc.h5
+fname_light_curve_layers = pwn_bw_lc_layers.h5
+fname_sky_map = skymap_kn.h5
+
+use_1d_id = yes
+load_r0 = yes
+fname_ejecta_id = pwn_1d_id.h5
+
+method_single_bw_delta = frac_last
+method_spread = None
+method_eos = Nava13
+method_GammaSh = useJKwithGammaRel # small effect
+method_Up = useEint2 # !
+method_Delta = useJoh06
+use_adiabLoss = yes
+method_Rsh = useGammaSh # "useGammaSh",#"useGammaSh",
+method_dmdr = usingdthdr
+method_dgdr = our # !
+method_shock_vel = shockVel # !
+method_nonreldist = useGm # !
+method_synchrotron = Marg21 # Joh06 # !
+method_tau = smooth
+use_ssa = yes
+method_lf_min = useTheta # useU_e # !
+method_ne = usenprime # ! useNe is better here! (that is what was used before)
+use_dens_prof_behind_jet_for_ejecta = no
+use_dens_prof_inside_ejecta = yes
+use_exp_rho_decay_as_floor = yes
+use_flat_dens_floor = no
+use_st_dens_profile = no
+use_bm_dens_profile = no
+method_quad = CADRE
+method_comp_mode = observFlux # "comovSpec",#"observFlux"
+emissivity = em
+absorption = abs

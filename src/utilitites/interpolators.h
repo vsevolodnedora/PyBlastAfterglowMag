@@ -55,6 +55,68 @@ static size_t findIndex( const double & x, const Vector & arr, size_t N ) {
 
     return (int)a;
 }
+
+int findClosestIndex(double targetValue, const std::vector<double>& sortedVector, int initialGuess) {
+    int size = sortedVector.size();
+    int low = 0;
+    int high = size - 1;
+    int closestIndex = initialGuess;
+
+    // Check if the initial guess is out of bounds
+    if (closestIndex < 0 || closestIndex >= size)
+        return -1;
+
+    double closestDiff = std::abs(sortedVector[closestIndex] - targetValue);
+
+    // Perform binary search to find the closest element
+    while (low <= high) {
+        int mid = low + (high - low) / 2;
+        double currentDiff = std::abs(sortedVector[mid] - targetValue);
+
+        if (currentDiff < closestDiff) {
+            closestDiff = currentDiff;
+            closestIndex = mid;
+        }
+
+        if (sortedVector[mid] == targetValue)
+            return mid;
+        else if (sortedVector[mid] < targetValue)
+            low = mid + 1;
+        else
+            high = mid - 1;
+    }
+
+    return closestIndex;
+}
+
+std::vector<double> smoothInterpolation(const std::vector<double>& inputFunction, int windowSize) {
+    int inputSize = inputFunction.size();
+    std::vector<double> interpolatedFunction(inputSize);
+
+    for (int i = 0; i < inputSize; i++) {
+        int start = i - windowSize / 2;
+        int end = i + windowSize / 2;
+
+        if (start < 0) {
+            start = 0;
+            end = windowSize - 1;
+        }
+        if (end >= inputSize) {
+            start = inputSize - windowSize;
+            end = inputSize - 1;
+        }
+
+        double sum = 0.0;
+        for (int j = start; j <= end; j++) {
+            sum += inputFunction[j];
+        }
+
+        interpolatedFunction[i] = sum / (end - start + 1);
+    }
+
+    return interpolatedFunction;
+}
+
 static inline double interpSegLin( size_t & a, size_t & b, const double & x, Vector & X, Vector & Y) {
     // take two indexis, 'a' 'b' and two arrays 'X' and 'Y' and interpolate
     // between them 'Y' for at 'x" of "X'
@@ -62,6 +124,13 @@ static inline double interpSegLin( size_t & a, size_t & b, const double & x, Vec
     double xb = X[b];
     double ya = Y[a];
     double yb = Y[b];
+    return ya + (yb-ya) * (x-xa)/(xb-xa);
+}
+static inline double interpSegLin( size_t ia, size_t ib, double xa, double xb, const double & x, Vector & Y) {
+    // take two indexis, 'a' 'b' and two arrays 'X' and 'Y' and interpolate
+    // between them 'Y' for at 'x" of "X'
+    double ya = Y[ia];
+    double yb = Y[ib];
     return ya + (yb-ya) * (x-xa)/(xb-xa);
 }
 static inline double interpSegLog( size_t & a, size_t & b, double x, Vector & X, Vector & Y) {
@@ -74,6 +143,16 @@ static inline double interpSegLog( size_t & a, size_t & b, double x, Vector & X,
     return ya * std::pow(yb/ya, log(x/xa)/log(xb/xa));
 }
 
+static inline double interpSegLog( size_t ia, size_t ib, double xa, double xb, double x, Vector & Y) {
+//        std::cout << a << ' ' << b << ' '<< x << ' '<< X << ' '<< Y << ' '<< N << "\n";
+    double ya = Y[ia];
+    double yb = Y[ib];
+    double res = ya * std::pow(yb/ya, log(x/xa)/log(xb/xa));
+//    if (!std::isfinite(res)){
+//        std::cerr << AT << "\n";
+//    }
+    return res;
+}
 
 class InterpBase{
 public:
@@ -118,7 +197,7 @@ public:
 class Interp1d : public InterpBase{
 public:
 
-    Interp1d(Vector &x, Vector &y) : m_X(x), m_Y(y)
+    Interp1d(Vector & x, Vector & y) : m_X(x), m_Y(y)
     {
         m_nX = x.size();
         m_nY = y.size();
@@ -198,7 +277,7 @@ public:
     }
 
 private:
-    Vector m_X, m_Y;
+    Vector & m_X, & m_Y;
     size_t m_nX, m_nY;
 
 protected:
@@ -634,15 +713,17 @@ public:
     }
 
 
-    double InterpolateBilinear(const double &x, const double &y,
+    inline double InterpolateBilinear(const double &x, const double &y,
                                const int & ix1, const int &ix2, const int & iy1, const int & iy2){
         double z = BilinearInterpolation(
                 m_Z[Idx(ix1, iy1)],
                 m_Z[Idx(ix1, iy2)],
                 m_Z[Idx(ix2, iy1)],
                 m_Z[Idx(ix2, iy2)],
-                m_X[ix1], m_X[ix2], m_Y[iy1], m_Y[iy2], x, y
-        );
+                m_X[ix1], m_X[ix2], m_Y[iy1], m_Y[iy2], x, y );
+//        if (!std::isfinite(z)){
+//            std::cerr << AT << " nan in InterpolateBilinear \n";
+//        }
         return z;
     }
 
@@ -703,10 +784,11 @@ public:
     }
 
 private:
-    Vector m_X, m_Y, m_Z;
+    Vector & m_X, & m_Y, & m_Z;
     size_t m_nX, m_nY, m_nZ;
 
     inline size_t Idx( int x, int y ) const { return x + m_nX * y; } // m_width
+//    inline size_t Idx( int x, int y ) const { return y + m_nY * x; } // m_width
 
     static inline double BilinearInterpolation(double &q11, double &q12, double &q21, double &q22, double &x1,
                                                double &x2, double &y1, double &y2, const double &x, const double &y) {
@@ -809,7 +891,7 @@ private:
     }
 };
 
-inline double lagrangeInterpolation(Vector & x, Vector & y, size_t n, double xp){
+inline static double lagrangeInterpolation(Vector & x, Vector & y, size_t n, double xp){
     double intp = 0;
     for (size_t i = 0; i < n; i++){
         double m = 1;
@@ -823,7 +905,7 @@ inline double lagrangeInterpolation(Vector & x, Vector & y, size_t n, double xp)
     return intp;
 }
 
-inline double dydx(Vector & x, Vector & y, Vector & dy, double dx, size_t idx, double curr_x, bool lagrange_interp=true){
+inline static double dydx(Vector & x, Vector & y, Vector & dy, double dx, size_t idx, double curr_x, bool lagrange_interp=true){
     double dy_idx;
     if (idx == 2){
         // first order derivative

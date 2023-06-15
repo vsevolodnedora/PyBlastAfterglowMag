@@ -42,6 +42,23 @@
 
 #include "H5Cpp.h"
 
+double getDoubleAttr(H5::H5File & h5File, std::string key){
+//        H5::H5File file{LoadH5::filename, H5F_ACC_RDONLY};
+    auto isatt = h5File.attrExists(key);
+    if (!isatt){
+        std::cout << AT << " attribute="<<key<<" does not exists\n";
+        exit(1);
+    }
+    auto att = h5File.openAttribute(key);
+    hsize_t lnSize = att.getStorageSize();
+    double* lpnBuffer = new double[lnSize];
+    H5::DataType lcType = att.getDataType();
+    att.read(lcType, lpnBuffer);
+    double val = *lpnBuffer;
+    delete [] lpnBuffer;
+    return val;
+}
+
 using namespace H5;
 
 class WriteH5
@@ -80,6 +97,7 @@ class LoadH5
       std::vector<int> getDataVint() const;
       std::vector<float> getDataVfloat() const;
       std::vector<double> getDataVDouble() const;
+//      void getDataVDouble(std::vector<>);
       std::vector<std::vector<int> > getData2Dint() const;
       std::vector<std::vector<float> > getData2Dfloat() const;
       std::vector<std::vector<double> > getData2Ddouble() const;
@@ -136,22 +154,22 @@ class LoadH5
       // Here we use the Proxy class to have a single getData function
       Proxy getData() const {return Proxy(this);}
       //
-      double getDoubleAttr(std::string key){
-          H5::H5File file{LoadH5::filename, H5F_ACC_RDONLY};
-          auto isatt = file.attrExists(key);
-          if (!isatt){
-              std::cout << AT << " attribute="<<key<<" does not exists\n";
-              exit(1);
-          }
-          auto att = file.openAttribute(key);
-          hsize_t lnSize = att.getStorageSize();
-          double* lpnBuffer = new double[lnSize];
-          H5::DataType lcType = att.getDataType();
-          att.read(lcType, lpnBuffer);
-          double val = *lpnBuffer;
-          delete [] lpnBuffer;
-          return val;
-      }
+//      double getDoubleAttr(std::string key){
+//          H5::H5File file{LoadH5::filename, H5F_ACC_RDONLY};
+//          auto isatt = file.attrExists(key);
+//          if (!isatt){
+//              std::cout << AT << " attribute="<<key<<" does not exists\n";
+//              exit(1);
+//          }
+//          auto att = file.openAttribute(key);
+//          hsize_t lnSize = att.getStorageSize();
+//          double* lpnBuffer = new double[lnSize];
+//          H5::DataType lcType = att.getDataType();
+//          att.read(lcType, lpnBuffer);
+//          double val = *lpnBuffer;
+//          delete [] lpnBuffer;
+//          return val;
+//      }
 };
 
 
@@ -1045,5 +1063,8 @@ std::vector<std::vector<double> > LoadH5::getData2Ddouble() const
       return err;
    }
 }
+
+
+
 
 #endif
