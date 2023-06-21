@@ -225,7 +225,7 @@ private:
                         m_data[Q::imass][ish][i] *= (frac_of_solid_ang / 2.);
                     }
                 }
-                break;
+                break ;
             case ipiecewise:
                 for (size_t ish = 0; ish < nshells; ish++) {
                     for (size_t i = 0; i < nlayers; i++) {
@@ -233,7 +233,7 @@ private:
                         m_data[Q::imass][ish][i] /= (double) CellsInLayer(i);
                     }
                 }
-                break;
+                break ;
         }
         (*p_log)(LOG_INFO,AT) << "Energy and mass are rescaled."<<"\n";
         /// ---------------------------

@@ -125,7 +125,13 @@ public:
         return p_bws[ish];
     }
     std::unique_ptr<Pars> & getPars(){ return p_pars; }
-    inline size_t nBWs() const { return p_bws.size();}
+    inline size_t nBWs() const {
+        if (p_bws.empty() || p_bws.size() < 1){
+            (*p_log)(LOG_ERR,AT) << " bws are not initizlized\n";
+            exit(1);
+        }
+        return p_bws.size();
+    }
     inline std::vector<std::unique_ptr<BlastWave>> & getBWs() {
         return p_bws;
     }
@@ -928,6 +934,7 @@ public:
                         getBoolOpt("load_r0", m_opts, AT, p_log, false, true),
                         t_arr[0],
                         m_loglevel );
+//                std::cerr << "R0=" << id->get(0,0,EjectaID2::Q::ir) << "\n";
                 setEjectaBwPars(m_pars, m_opts, ii_eq, iljet);
             }
             /// --- For optical depth verbosity ....
@@ -1130,28 +1137,46 @@ private:
 
         bool is_within = false;
         std::vector<size_t> which_within{};
-        size_t n_ejecta_empty_images = 0;
-        std::vector<std::vector<size_t>> n_empty_images;
-        std::vector<size_t> n_empty_images_shells;
+//        size_t n_ejecta_empty_images = 0;
+//        std::vector<std::vector<size_t>> n_empty_images;
+//        std::vector<size_t> n_empty_images_shells;
         size_t nshells_ = nshells();//ejectaStructs.nshells;
         size_t n_layers_ej_ = nlayers();//ejectaStructs.structs[0].m_nlayers;
         if (n_layers_ej_ == 0){
             (*p_log)(LOG_ERR,AT)<<" no layers found to evolve!\n";
             exit(1);
         }
-        std::vector<std::vector<size_t>> n_empty_images_layer_shell;
-        for (auto & n_empty_images_layer : n_empty_images_layer_shell)
-            n_empty_images_layer.resize(nshells_);
+//        std::vector<std::vector<size_t>> n_empty_images_layer_shell;
+//        for (auto & n_empty_images_layer : n_empty_images_layer_shell)
+//            n_empty_images_layer.resize(nshells_);
         /// include blastwave collision between velocioty shells into the run
+        std::vector<std::string> empty_bws{};
+        size_t n_unitinitilized_shells=0;
         for(size_t il = 0; il < n_layers_ej_; il++){
             p_cumShells.push_back(
                     std::make_unique<CumulativeShell>(t_arr, nshells_, il,
                                                       p_log->getLogLevel()) );
             p_cumShells[il]->setPars(pars, opts);
+            empty_bws.emplace_back("il="+std::to_string(il)+" | shells ");
             for (size_t ish = 0; ish < nshells_; ish++){
                 auto & bw = p_cumShells[il]->getBW(ish);
+
+                if (id->get(ish,il,EjectaID2::Q::ir)<=0||
+                    id->get(ish,il,EjectaID2::Q::iek)<=0||
+                    id->get(ish,il,EjectaID2::Q::imass)<=0){
+                    empty_bws[il]+=" "+std::to_string(ish);
+                    n_unitinitilized_shells++;
+                    bw->getPars()->end_evolution = true;
+                    ii_eq += SOL::neq;//bw->getNeq();
+                    continue;
+                }
+                else{
+                    bw->setParams(id, pars, opts, il, ii_eq);
+                    ii_eq += SOL::neq;//bw->getNeq();
+                }
+
 //                auto & struc = ejectaStructs.structs[ish];
-                bw->setParams(id, pars, opts, il, ii_eq);
+
 #if 0
                 switch (id->method_eats) {
                     case EjectaID2::iadaptive:
@@ -1176,11 +1201,11 @@ private:
                 if (bw->getPars()->which_jet_layer_to_use == 0){
                     bw->getPars()->which_jet_layer_to_use = 0; // the fastest
                 }
-                else if(n_layers_ej_ == 0){
-                    n_ejecta_empty_images += 1;
-                    n_empty_images_layer_shell[ish].emplace_back(il);
-//                    std::cerr << AT << "\n jet structure was NOT initialized. No layer selected for ejecta to propagate through.\n";
-                }
+//                else if(n_layers_ej_ == 0){
+////                    n_ejecta_empty_images += 1;
+////                    n_empty_images_layer_shell[ish].emplace_back(il);
+////                    std::cerr << AT << "\n jet structure was NOT initialized. No layer selected for ejecta to propagate through.\n";
+//                }
                 else if(n_layers_ej_ == 0){
                     // NO jet structure was set, so exiting I guess... :)
                     // TODO THIS MIGHT BE WRONG -- why 'n_layers_i'
@@ -1204,7 +1229,7 @@ private:
                                          << "\n";
                     exit(1);
                 }
-                ii_eq += SOL::neq;//bw->getNeq();
+
 
 //                bw->getEATS()->setEatsPars(pars, opts);
 //                bw->getSynchAnPtr()->setPars( pars, opts );
@@ -1216,22 +1241,30 @@ private:
         is_ejBW_init = true;
         is_ejecta_obs_pars_set = true;
 
-        if ((p_log->getLogLevel() > LOG_WARN)) {
-            if (n_ejecta_empty_images > 0) {
-                auto &ccerr = std::cout;
-                ccerr << "Ejecta blastwave is NOT initialized for total n="
-                      << n_ejecta_empty_images << " layers. Specifically:\n";
-                for (size_t ish = 0; ish < n_empty_images_shells.size(); ish++) {
-//                    auto &ejectaStruct = ejectaStructs.structs[n_empty_images_shells[ish]];
-                    size_t n_layers_i = nlayers();//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStruct.nlayers_pw : ejectaStruct.nlayers_a ;
-                    ccerr << "\t [ishell=" << n_empty_images_shells[ish] << " ilayer] = [";
-                    for (size_t il = 0; il < n_empty_images[ish].size(); il++) {
-                        ccerr << n_empty_images[ish][il] << " ";
-                    }
-                    ccerr << "] / (" << n_layers_i << " total layers) \n";
-                }
+        if ((n_unitinitilized_shells > 0)){
+            (*p_log)(LOG_INFO,AT)<<"-------------- NO ID FOR ------------"<<"\n";
+            for (const auto & empty_bw : empty_bws){
+                (*p_log)(LOG_INFO,AT)<<empty_bw<<"\n";
             }
+            (*p_log)(LOG_INFO,AT)<<"-------------------------------------"<<"\n";
         }
+
+//        if ((p_log->getLogLevel() > LOG_WARN)) {
+//            if (n_ejecta_empty_images > 0) {
+//                auto &ccerr = std::cout;
+//                ccerr << "Ejecta blastwave is NOT initialized for total n="
+//                      << n_ejecta_empty_images << " layers. Specifically:\n";
+//                for (size_t ish = 0; ish < n_empty_images_shells.size(); ish++) {
+////                    auto &ejectaStruct = ejectaStructs.structs[n_empty_images_shells[ish]];
+//                    size_t n_layers_i = nlayers();//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStruct.nlayers_pw : ejectaStruct.nlayers_a ;
+//                    ccerr << "\t [ishell=" << n_empty_images_shells[ish] << " ilayer] = [";
+//                    for (size_t il = 0; il < n_empty_images[ish].size(); il++) {
+//                        ccerr << n_empty_images[ish][il] << " ";
+//                    }
+//                    ccerr << "] / (" << n_layers_i << " total layers) \n";
+//                }
+//            }
+//        }
 
         ej_rtol = getDoublePar("rtol_adapt",pars,AT,p_log,-1, true);
 

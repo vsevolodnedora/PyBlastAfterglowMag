@@ -312,7 +312,7 @@ int main(int argc, char** argv) {
     pba.getEjPWN()->setPars(pwn_pars,pwn_opts,working_dir,parfilename,
                             pba.getTburst(),main_pars,ii_eq_t);
 
-    (*p_log)(LOG_INFO, AT) << "Initialization finished [" << timer.checkPoint() << " s]" << "\n";
+    (*p_log)(LOG_INFO, AT) << "Finished reading parfile [" << timer.checkPoint() << " s]" << "\n";
 
     pba.run();
 

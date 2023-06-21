@@ -202,6 +202,8 @@ public:
         // ***********| G R B |***********
         if (p_pars->p_grb->run_bws) {
             auto &ej_bws = p_pars->p_grb->getShells();
+            (*p_log)(LOG_INFO,AT)<<"Initializing GRB blastwaves with "
+                                <<" nlayers="<<ej_bws.size()<<" nshells="<<ej_bws[0]->nBWs()<<"\n";
             for (size_t il = 0; il < ej_bws.size(); il++) {
                 for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
                     ej_bws[il]->getBW(ish)->setInitConditions(m_InitData, ii);
@@ -220,6 +222,8 @@ public:
         // ***********| E J E C T A |***********
         if (p_pars->p_ej->run_bws) {
             auto &ej_bws = p_pars->p_ej->getShells();
+            (*p_log)(LOG_INFO,AT)<<"Initializing kn ejecta blastwaves with "
+                                 <<" nlayers="<<ej_bws.size()<<" nshells="<<ej_bws[0]->nBWs()<<"\n";
             for (size_t il = 0; il < ej_bws.size(); il++) {
                 for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
                     ej_bws[il]->getBW(ish)->setInitConditions(m_InitData, ii);
@@ -233,6 +237,8 @@ public:
         // ***********| E J E C T A    I N   E J E C T A |***********
         if (p_pars->p_ej_pwn2->run_bws) {
             auto &ej_pwnbw = p_pars->p_ej_pwn2->getShells();
+            (*p_log)(LOG_INFO,AT)<<"Initializing blastwaves inside kn ejecta with "
+                                 <<" nlayers="<<ej_pwnbw.size()<<" nshells="<<ej_pwnbw[0]->nBWs()<<"\n";
             for (size_t il = 0; il < ej_pwnbw.size(); il++) {
                 for (size_t ish = 0; ish < ej_pwnbw[il]->nBWs(); ish++) {
                     ej_pwnbw[il]->getBW(ish)->getPars()->curr_ldip = p_pars->p_magnetar->getMagValInt(MAG::ildip,tb0);
@@ -1328,7 +1334,8 @@ private:
 
     }
     /// evaluate RHS
-    static void RHS_comb(double * out_Y,
+#if 0
+    static void RHS_comb_old(double * out_Y,
                          size_t n_eq,
                          const double x,
                          double const * Y,
@@ -1389,7 +1396,8 @@ private:
                         auto &jet_bws = p_pars->p_grb->getShells()[0]->getBWs();
 //                        auto & jet_bws = p_pars->p_grb->getBWs();
                         ej_bw->evaluateRhsDensModel2(out_Y, ii, x, Y,
-                                                     & reinterpret_cast<std::vector<std::unique_ptr<BlastWave>> &>(jet_bws),
+//                                                     & reinterpret_cast<std::vector<std::unique_ptr<BlastWave>> &>(jet_bws),
+                                                     jet_bws,
                                                      p_pars->ix);
                     }
                     else {
@@ -1397,7 +1405,7 @@ private:
 //                            prepareDensProfInFrontOfBW(out_Y, ii, x, Y);
 //                        }
                         ej_bw->evaluateRhsDensModel2(out_Y, ii, x, Y,
-                                                     NULL,
+                                                     std::vector<std::unique_ptr<BlastWave>>{},
                                                      p_pars->ix);
                     }
                     ii += SOL::neq;//ii += ej_bw->getNeq();
@@ -1432,9 +1440,10 @@ private:
         /// *******************| E J E C T A  P W N |**********************
         if (p_pars->p_ej_pwn2->run_bws) {
             auto &ej_layers = p_pars->p_ej_pwn2->getShells();
+            size_t nbws = ej_layers[0]->nBWs();
             for (size_t il = 0; il < ej_layers.size(); il++) {
                 /// evaluate ejecta blast waves rhs
-                for(size_t ish=0; ish < ej_layers[il]->nBWs(); ish++) {
+                for(size_t ish=0; ish < nbws; ish++) {
                     auto & ej_bw = ej_layers[il]->getBW(ish);
                     if (p_pars->p_ej->run_bws) {
                         if (p_pars->p_ej->nshells() < 2){
@@ -1445,7 +1454,7 @@ private:
                         auto &others = p_pars->p_ej->getShells()[il]->getBWs();
 //                        auto & jet_bws = p_pars->p_grb->getBWs();
                         ej_bw->evaluateRhsDensModel2(out_Y, ii, x, Y,
-                                                     & reinterpret_cast<std::vector<std::unique_ptr<BlastWave>> &>(others),
+                                                     & static_cast<std::vector<std::unique_ptr<BlastWave>> &>(others),
                                                      p_pars->ix);
                     }
                     else {
@@ -1456,6 +1465,106 @@ private:
                                                      NULL,
                                                      p_pars->ix);
                     }
+                    ii += SOL::neq;//ii += ej_bw->getNeq();
+                }
+            }
+        }
+
+        // ****************************************
+        // Place to add interaction between blast waves
+        // ****************************************
+
+    }
+#endif
+    static void RHS_comb(double * out_Y,
+                         size_t n_eq,
+                         const double x,
+                         double const * Y,
+                         void *pars){
+
+        auto * p_pars = (struct Pars *) pars;
+        if (!std::isfinite(x)){
+            std::cerr << AT <<" nan in tb!"<<"\n";
+            exit(1);
+        }
+        /// *********************| M A G N E T A R |**********************
+        size_t ii = 0;
+        double ldip = 0;
+        double lacc = 0;
+        if (p_pars->p_magnetar->run_magnetar) {
+            auto & magnetar = p_pars->p_magnetar;
+            magnetar->evaluateRhsMag(out_Y, ii, x, Y);
+            ii += magnetar->getNeq();
+        }
+        else if (p_pars->p_magnetar->load_magnetar){
+            ldip = p_pars->p_magnetar->getMagValInt(MAG::Q::ildip, x);
+            lacc = p_pars->p_magnetar->getMagValInt(MAG::Q::ilacc, x);
+        }
+
+        /// ***************************| G R B |**************************
+        if (p_pars->p_grb->run_bws) {
+            auto &ej_layers = p_pars->p_grb->getShells();
+            for (size_t il = 0; il < ej_layers.size(); il++) {
+                /// evaluate ejecta blast waves rhs
+                for (size_t ish = 0; ish < ej_layers[il]->nBWs(); ish++) {
+                    auto &ej_bw = ej_layers[il]->getBW(ish);
+                    if (ej_bw->getPars()->end_evolution) { ii += SOL::neq; continue; }
+                    ej_bw->evaluateGRBRhsStandardISM(out_Y, ii, x, Y);
+                    ii += SOL::neq;//ii += ej_bw->getNeq();
+                }
+            }
+        }
+
+        /// ********************| Ejecta Energy Injection |****************
+        if (p_pars->p_ej->do_eninj_inside_rhs)
+            updateEnergyInjectionToEjectaBWs(ldip, lacc, const_cast<double *>(Y), pars);
+
+        /// *************************| E J E C T A |***********************
+        if (p_pars->p_ej->run_bws) {
+            auto &ej_layers = p_pars->p_ej->getShells();
+            for (size_t il = 0; il < ej_layers.size(); il++) {
+                for(size_t ish=0; ish < ej_layers[il]->nBWs(); ish++) {
+                    auto & ej_bw = ej_layers[il]->getBW(ish);
+                    if (ej_bw->getPars()->end_evolution) { ii += SOL::neq; continue; }
+                    if (p_pars->p_grb->run_bws) {
+                        /// Run ejecta behind GRB accounting for GRB presence (pass GRB bws through)
+                        if (p_pars->p_grb->nshells() > 1){ std::cerr <<AT << " not implemented\n"; exit(1); }
+                        auto &jet_bws = p_pars->p_grb->getShells()[0]->getBWs();
+                        ej_bw->prepareDensProfileFromJet(out_Y, ii, x, Y, jet_bws, p_pars->ix); // updates p_dens()
+                        ej_bw->evaluateEjectaRhsDens(out_Y, ii, x, Y);
+                    }
+                    else {
+                        /// Run ejecta without GRB presence
+                        ej_bw->setStandardISM(out_Y, ii, x, Y); // updates p_dens()
+                        ej_bw->evaluateEjectaRhsDens(out_Y, ii, x, Y);
+                    }
+                    ii += SOL::neq;//ii += ej_bw->getNeq();
+                }
+            }
+        }
+
+        /// *******************| E J E C T A  R A D  S H O C K |**********************
+        if (p_pars->p_ej_pwn2->run_bws) {
+            auto &ej_layers = p_pars->p_ej_pwn2->getShells();
+            size_t nbws = ej_layers[0]->nBWs();
+            for (size_t il = 0; il < ej_layers.size(); il++) {
+                /// evaluate ejecta blast waves rhs
+                for(size_t ish=0; ish < nbws; ish++) {
+                    auto & ej_bw = ej_layers[il]->getBW(ish);
+                    if (ej_bw->getPars()->end_evolution) { ii += SOL::neq; continue; }
+                    if (!p_pars->p_ej->run_bws) {
+                        std::cerr <<AT << " for evolving BW inside ejecta, ejecta has to be evolved as well...\n";
+                        exit(1);
+                    }
+                    if (p_pars->p_ej->nshells() < 2){
+                        std::cerr <<AT << " for evolving BW inside ejecta, ejecta has to have > 2 shells \n";
+                        exit(1);
+                    }
+                    auto &others = p_pars->p_ej->getShells()[il]->getBWs();
+                    ej_bw->evalDensProfileInsideBWset(out_Y, ii, x, Y, others, p_pars->ix); // update p_dens()
+                    ej_bw->updateNucAtomic(Y,x);
+                    ej_bw->updateCurrentBpwn(Y);
+                    ej_bw->evaluateRhsDensPWN(out_Y, ii, x, Y);
                     ii += SOL::neq;//ii += ej_bw->getNeq();
                 }
             }
