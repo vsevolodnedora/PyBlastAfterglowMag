@@ -207,6 +207,7 @@ public:
             for (size_t il = 0; il < ej_bws.size(); il++) {
                 for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
                     ej_bws[il]->getBW(ish)->setInitConditions(m_InitData, ii);
+                    ej_bws[il]->getBW(ish)->allocateSpaceForEachStepArrays(p_pars->_t_grid.size());
 //                    ej_bws[il]->getBW(ish)->updateNucAtomic( m_InitData, tb0 );
                     ii += SOL::neq;//ej_bws[il]->getBW(ish)->getNeq();
                 }
@@ -227,6 +228,7 @@ public:
             for (size_t il = 0; il < ej_bws.size(); il++) {
                 for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
                     ej_bws[il]->getBW(ish)->setInitConditions(m_InitData, ii);
+                    ej_bws[il]->getBW(ish)->allocateSpaceForEachStepArrays(p_pars->_t_grid.size());
 //                    ej_bws[il]->getBW(ish)->updateNucAtomic( m_InitData, tb0 );
                     ii += SOL::neq;//ii += ej_bws[il]->getBW(ish)->getNeq();
                 }
@@ -244,6 +246,7 @@ public:
                     ej_pwnbw[il]->getBW(ish)->getPars()->curr_ldip = p_pars->p_magnetar->getMagValInt(MAG::ildip,tb0);
                     ej_pwnbw[il]->getBW(ish)->getPars()->curr_lacc = p_pars->p_magnetar->getMagValInt(MAG::ilacc,tb0);
                     ej_pwnbw[il]->getBW(ish)->setInitConditions(m_InitData, ii);
+                    ej_pwnbw[il]->getBW(ish)->allocateSpaceForEachStepArrays(p_pars->_t_grid.size());
 //                    ej_bws[il]->getBW(ish)->updateNucAtomic( m_InitData, tb0 );
                     ii += SOL::neq;//ii += ej_bws[il]->getBW(ish)->getNeq();
                 }
@@ -264,7 +267,7 @@ public:
         // **************************************
 
         // **************************************
-        if ( !isSolutionOk() ) {
+        if ( !isSolutionOk(tb0) ) {
             (*p_log)(LOG_ERR,AT)   << " Unphysical value in the initial data for evolution \n Exiting...";
             exit(1);
         }
@@ -280,6 +283,8 @@ public:
         applyUnits();
         // plug the solution vector to the solution container of a given blast wave
         insertSolution(0);
+        // do the same for a smaller container of variables used in each stubstep
+        insertSolutionSubstep(0);
         // add other variables (that are not part of ODE but still needed)
         addOtherVariables(0);
         // add electron properties (needed for synchron calculation)
@@ -291,7 +296,7 @@ public:
     }
 
     // evolve all blast waves
-    void evolve( const double dx, const size_t ix, const size_t i_x){ advanceTimeStep( dx, ix, i_x ); }
+//    void evolve( const double dx, const size_t ix, const size_t i_x){ advanceTimeSubStep( dx, ix, i_x ); }
 
     void averageSolution(const size_t ix){
 //        Vector m_tmp_time(p_pars->n_substeps);
@@ -374,6 +379,169 @@ public:
             }
         }
     }
+    void insertSolutionSubstep(size_t it){
+        size_t ii = 0;
+        if (p_pars->p_magnetar->run_magnetar) {
+            auto & magnetar = p_pars->p_magnetar;
+//            magnetar->insertSolution(m_CurSol, it, ii);
+            ii += magnetar->getNeq();
+        }
+        if (p_pars->p_grb->run_bws) {
+            auto &ej_bws = p_pars->p_grb->getShells();
+            for (size_t il=0; il<ej_bws.size(); il++){
+                for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
+                    auto &bw = ej_bws[il]->getBW(ish);
+                    bw->insertSolutionSustep(m_CurSol, it, ii);
+                    ii += SOL::neq;//ii += bw->getNeq();
+                }
+            }
+        }
+        if (p_pars->p_ej->run_bws) {
+            auto &ej_bws = p_pars->p_ej->getShells();
+            for (size_t il=0; il<ej_bws.size(); il++){
+                for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
+                    auto &bw = ej_bws[il]->getBW(ish);
+                    bw->insertSolutionSustep(m_CurSol, it, ii);
+                    ii += SOL::neq;//ii += bw->getNeq();
+                }
+            }
+        }
+        if (p_pars->p_ej_pwn2->run_bws) {
+            auto &ej_pwnbw = p_pars->p_ej_pwn2->getShells();
+            for (size_t il=0; il<ej_pwnbw.size(); il++){
+                for(size_t ish=0; ish<ej_pwnbw[il]->nBWs(); ish++) {
+                    auto &bw = ej_pwnbw[il]->getBW(ish);
+                    bw->insertSolutionSustep(m_CurSol, it, ii);
+                    ii += SOL::neq;//ii += bw->getNeq();
+                }
+            }
+        }
+        if (p_pars->p_ej_pwn->run_pwn) {
+            auto & pwns = p_pars->p_ej_pwn->getPWNs();
+            for (auto & pwn : pwns){
+//                pwn->insertSolutionS(m_CurSol, it, ii);
+                ii += pwn->getNeq();
+            }
+        }
+    }
+    void advanceTimeSubStep(const double dx, const size_t ix, const size_t i_x){
+        if (!is_initialized){
+            (*p_log)(LOG_ERR,AT)<<" bw set is not initialized. Cannot evolve\n";
+            exit(1);
+        }
+        Timer timer;
+        Vector & t_grid = p_pars->_t_grid;
+
+        /// update cumulative shell properties
+        if ((p_pars->p_ej->run_bws) && (p_pars->p_ej->do_collision)) {
+            for (auto &cumShell: p_pars->p_ej->getShells()) {
+                size_t _i, _j;
+                cumShell->updateActiveShells();
+                if (!cumShell->checkIfActiveShellsOrdered(m_CurSol, _i, _j)) {
+                    (*p_log)(LOG_ERR, AT) << " shells are not radially ordered: "
+                                          << " shell idx=" << _i << "overruns shell idx=" << _j << "\n";
+                    exit(1);
+//                    cumShell->updateSortActiveShells(m_InitData);
+                }
+            }
+        }
+
+        /// solve the ODE system for x_i = x_{i-1} + dx
+        p_Integrator->Integrate( dx );
+
+        /// extract the solution vector from the ODE solver
+        p_Integrator->GetY( m_CurSol );
+
+        /// check if there one of the layers is terminated #TODO change this to not to use recursive call
+        if ( !isThereATermination() ){
+            if(p_pars->i_restarts > 1){
+                (*p_log)(LOG_ERR,AT)  << " second restart. Should not occure. Exiting...";
+                exit(1);
+            }
+            (*p_log)(LOG_ERR,AT)  << " restarting iteration as there was a termination\n";
+            advanceTimeSubStep(dx, ix, i_x);
+            p_pars->i_restarts += 1;
+        }
+
+
+        /// if blastwave collide, substuep through collision
+        bool is_updated = false;
+        if ((p_pars->p_ej->run_bws) && (p_pars->p_ej->do_collision) && (p_pars->p_ej->nMaxActiveShells() > 1))
+            is_updated = doCollisionSubSteps( ix );
+
+        if (p_pars->p_ej->run_bws && (!is_updated))
+            ejectaUpdate(t_grid[ix], ix, m_CurSol);
+
+//        bool is_laterly_sorted = true;
+//        if ((p_pars->p_ej->run_bws)&&(true)&&(p_pars->p_ej->nMaxActiveShells())>1)
+//            is_laterly_sorted = checkIfLateralShiftIsNeeded();
+
+        /// --- Log main results of the integration
+        double time_took = timer.checkPoint();
+
+
+        if ( ix % 10 == 0 ) {
+            if ((*p_log).getLogLevel()>LOG_WARN){
+                auto & sstream = (*p_log)(LOG_INFO,AT);
+                sstream << "it=" << ix << "/" << t_grid.size()
+                        << " t=" << string_format("%.2e",t_grid[ix]) << " s, "
+                        << string_format("%.2e",t_grid[ix]/CGS::day) << " d "
+                        << "[Solver="<< string_format("%.2e",time_took)<<" s] ";
+//                if (p_pars->p_grb->run_jet_bws){
+//                    p_pars->p_grb->infoFastestLayer(ix, sstream);
+//                }
+                if (p_pars->p_ej->run_bws){
+                    p_pars->p_ej->infoFastestShell(ix, m_TmpSol, m_CurSol, sstream);
+                }
+                sstream << "\n";
+            }
+
+
+//        for(size_t i_ej = 0; i_ej < p_pars->p_bws.size(); i_ej++){
+//            auto & ej = p_pars->p_bws[i_ej];
+//            std::cout << " ish=" << ej->getPars()->ishell
+//                      << " il="  << ej->getPars()->ishell
+//                      << " G=" << string_format("%.2e", ej->getVal(DynRadBlastWave::Q::iGamma, ix))
+//                      << " M2=" << string_format("%.2e", ej->getVal(DynRadBlastWave::Q::iM2, ix))
+//                      << " R=" << string_format("%.2e", ej->getVal(DynRadBlastWave::Q::iR, ix))
+//                      << " rho=" << string_format("%.2e", ej->getDensIsm()->m_rho)
+//                      << " drho=" << string_format("%.2e", ej->getDensIsm()->m_drhodr)
+//                      << " Grho=" << string_format("%.2e", ej->getDensIsm()->m_drhodr)
+//                      << " Grel=" << string_format("%.2e", ej->getDensIsm()->m_GammaRel)
+//                      << " dGrho=" << string_format("%.2e", ej->getDensIsm()->m_dGammaRhodR)
+//                      << " dGrhodG=" << string_format("%.2e", ej->getDensIsm()->m_dGammaReldGamma)
+//                      << " Grel=" << string_format("%.2e", ej->getDensIsm()->m_GammaRel)
+//        }
+//             std::cout << p_pars->p_cumShells[0]->getCurrentIndexes() << "\n";
+//        (*p_log)(LOG_INFO,AT) << "it=" << ix << "/"
+//                                            << t_grid.size() << " t=" << t_grid[ix] << ", " << t_grid[ix]/CGS::day << "\n";
+        }
+
+        /// save previous step in a temporary solution for restarts
+        for (size_t i = 0; i < p_pars->n_tot_eqs; ++i)
+            m_TmpSol[i] = m_CurSol[i];
+
+        /// store the solution for the timestep in a container for averaging
+        p_pars->m_tmp_tsubstes[i_x] = t_grid[ix];
+        for (size_t i = 0; i < p_pars->n_tot_eqs; ++i)
+            m_CurSols[i_x][i] = m_CurSol[i];
+
+//        // apply units, e.g., energy is usually evolved in E/E0
+//        applyUnits();
+
+        /// check if blast wave has fully expanded
+        if (p_pars->p_grb->run_bws)
+            isThereLateralExpansionTermiantion();
+        // check if there are no nans/unphysical vals in solution
+        if ( !isSolutionOk(t_grid[ix]) ) {
+            (*p_log)(LOG_ERR,AT)  << " Unphysical value in the solution \n";
+            exit(1);
+        }
+        p_pars->ix = ix;// latest solution
+        p_pars->dx = dx;// latest solution
+        p_pars->x = t_grid[ix];
+    }
+
 private:
     void applyUnits(){
         size_t ii = 0;
@@ -536,7 +704,7 @@ private:
         return is_ok;
 
     }
-    bool isSolutionOk(){
+    bool isSolutionOk(double x){
 //        auto & magnetar = p_pars->p_magnetar;
 //        auto & jet_bws = p_pars->p_bws_jet;
 //        auto & ej_bws = p_pars->p_cumShells;
@@ -579,6 +747,7 @@ private:
             for (size_t il=0; il<ej_bws.size(); il++){
                 for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
                     auto & bw = ej_bws[il]->getBW(ish);
+                    bw->getPars()->prev_x=x;
                     if ((!bw->getPars()->end_evolution) && (!bw->isSolutionOk(m_CurSol, ii))) {
                         is_ok = false;
                         (*p_log)(LOG_ERR,AT)  << " Dyn. evol. of GRB BW failed "
@@ -596,6 +765,7 @@ private:
             for (size_t il=0; il<ej_bws.size(); il++){
                 for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
                     auto & bw = ej_bws[il]->getBW(ish);
+                    bw->getPars()->prev_x=x;
                     if ((!bw->getPars()->end_evolution) && (!bw->isSolutionOk(m_CurSol, ii))) {
                         is_ok = false;
                         (*p_log)(LOG_ERR,AT)  << " Dyn. evol. of ejecta BW failed "
@@ -613,6 +783,7 @@ private:
             for (size_t il=0; il<ej_pwnbw.size(); il++){
                 for(size_t ish=0; ish<ej_pwnbw[il]->nBWs(); ish++) {
                     auto & bw = ej_pwnbw[il]->getBW(ish);
+                    bw->getPars()->prev_x=x;
                     if ((!bw->getPars()->end_evolution) && (!bw->isSolutionOk(m_CurSol, ii))) {
                         is_ok = false;
                         (*p_log)(LOG_ERR,AT)  << " Dyn. evol. of ejecta PWN BW failed "
@@ -1212,123 +1383,6 @@ private:
         }
 
     }
-    void advanceTimeStep( const double dx, const size_t ix, const size_t i_x){
-        if (!is_initialized){
-            (*p_log)(LOG_ERR,AT)<<" bw set is not initialized. Cannot evolve\n";
-            exit(1);
-        }
-        Timer timer;
-        Vector & t_grid = p_pars->_t_grid;
-
-        /// update cumulative shell properties
-        if ((p_pars->p_ej->run_bws) && (p_pars->p_ej->do_collision)) {
-            for (auto &cumShell: p_pars->p_ej->getShells()) {
-                size_t _i, _j;
-                cumShell->updateActiveShells();
-                if (!cumShell->checkIfActiveShellsOrdered(m_CurSol, _i, _j)) {
-                    (*p_log)(LOG_ERR, AT) << " shells are not radially ordered: "
-                                          << " shell idx=" << _i << "overruns shell idx=" << _j << "\n";
-                    exit(1);
-//                    cumShell->updateSortActiveShells(m_InitData);
-                }
-            }
-        }
-
-        /// solve the ODE system for x_i = x_{i-1} + dx
-        p_Integrator->Integrate( dx );
-
-        /// extract the solution vector from the ODE solver
-        p_Integrator->GetY( m_CurSol );
-
-        /// check if there one of the layers is terminated #TODO change this to not to use recursive call
-        if ( !isThereATermination() ){
-            if(p_pars->i_restarts > 1){
-                (*p_log)(LOG_ERR,AT)  << " second restart. Should not occure. Exiting...";
-                exit(1);
-            }
-            (*p_log)(LOG_ERR,AT)  << " restarting iteration as there was a termination\n";
-            advanceTimeStep( dx, ix, i_x );
-            p_pars->i_restarts += 1;
-        }
-
-
-        /// if blastwave collide, substuep through collision
-        bool is_updated = false;
-        if ((p_pars->p_ej->run_bws) && (p_pars->p_ej->do_collision) && (p_pars->p_ej->nMaxActiveShells() > 1))
-            is_updated = doCollisionSubSteps( ix );
-
-        if (p_pars->p_ej->run_bws && (!is_updated))
-            ejectaUpdate(t_grid[ix], ix, m_CurSol);
-
-//        bool is_laterly_sorted = true;
-//        if ((p_pars->p_ej->run_bws)&&(true)&&(p_pars->p_ej->nMaxActiveShells())>1)
-//            is_laterly_sorted = checkIfLateralShiftIsNeeded();
-
-        /// --- Log main results of the integration
-        double time_took = timer.checkPoint();
-
-
-        if ( ix % 10 == 0 ) {
-            if ((*p_log).getLogLevel()>LOG_WARN){
-                auto & sstream = (*p_log)(LOG_INFO,AT);
-                sstream << "it=" << ix << "/" << t_grid.size()
-                        << " t=" << string_format("%.2e",t_grid[ix]) << " s, "
-                        << string_format("%.2e",t_grid[ix]/CGS::day) << " d "
-                        << "[Solver="<< string_format("%.2e",time_took)<<" s] ";
-//                if (p_pars->p_grb->run_jet_bws){
-//                    p_pars->p_grb->infoFastestLayer(ix, sstream);
-//                }
-                if (p_pars->p_ej->run_bws){
-                    p_pars->p_ej->infoFastestShell(ix, m_TmpSol, m_CurSol, sstream);
-                }
-                sstream << "\n";
-            }
-
-
-//        for(size_t i_ej = 0; i_ej < p_pars->p_bws.size(); i_ej++){
-//            auto & ej = p_pars->p_bws[i_ej];
-//            std::cout << " ish=" << ej->getPars()->ishell
-//                      << " il="  << ej->getPars()->ishell
-//                      << " G=" << string_format("%.2e", ej->getVal(DynRadBlastWave::Q::iGamma, ix))
-//                      << " M2=" << string_format("%.2e", ej->getVal(DynRadBlastWave::Q::iM2, ix))
-//                      << " R=" << string_format("%.2e", ej->getVal(DynRadBlastWave::Q::iR, ix))
-//                      << " rho=" << string_format("%.2e", ej->getDensIsm()->m_rho)
-//                      << " drho=" << string_format("%.2e", ej->getDensIsm()->m_drhodr)
-//                      << " Grho=" << string_format("%.2e", ej->getDensIsm()->m_drhodr)
-//                      << " Grel=" << string_format("%.2e", ej->getDensIsm()->m_GammaRel)
-//                      << " dGrho=" << string_format("%.2e", ej->getDensIsm()->m_dGammaRhodR)
-//                      << " dGrhodG=" << string_format("%.2e", ej->getDensIsm()->m_dGammaReldGamma)
-//                      << " Grel=" << string_format("%.2e", ej->getDensIsm()->m_GammaRel)
-//        }
-//             std::cout << p_pars->p_cumShells[0]->getCurrentIndexes() << "\n";
-//        (*p_log)(LOG_INFO,AT) << "it=" << ix << "/"
-//                                            << t_grid.size() << " t=" << t_grid[ix] << ", " << t_grid[ix]/CGS::day << "\n";
-        }
-
-        /// save previous step in a temporary solution for restarts
-        for (size_t i = 0; i < p_pars->n_tot_eqs; ++i)
-            m_TmpSol[i] = m_CurSol[i];
-
-        /// store the solution for the timestep in a container for averaging
-        p_pars->m_tmp_tsubstes[i_x] = t_grid[ix];
-        for (size_t i = 0; i < p_pars->n_tot_eqs; ++i)
-            m_CurSols[i_x][i] = m_CurSol[i];
-
-//        // apply units, e.g., energy is usually evolved in E/E0
-//        applyUnits();
-
-        /// check if blast wave has fully expanded
-        if (p_pars->p_grb->run_bws)
-            isThereLateralExpansionTermiantion();
-        // check if there are no nans/unphysical vals in solution
-        if ( !isSolutionOk() ) {
-            (*p_log)(LOG_ERR,AT)  << " Unphysical value in the solution \n";
-            exit(1);
-        }
-        p_pars->ix = ix;// latest solution
-        p_pars->dx = dx;// latest solution
-        p_pars->x = t_grid[ix];
-    }
 
     void prepareDensProfInFrontOfBW(double * out_Y, size_t ii, double x, double * Y){
 
@@ -1561,6 +1615,8 @@ private:
                         exit(1);
                     }
                     auto &others = p_pars->p_ej->getShells()[il]->getBWs();
+                    ej_bw->getPars()->curr_ldip = p_pars->p_magnetar->getMagValInt(MAG::ildip,x);
+                    ej_bw->getPars()->curr_lacc = p_pars->p_magnetar->getMagValInt(MAG::ilacc,x);
                     ej_bw->evalDensProfileInsideBWset(out_Y, ii, x, Y, others, p_pars->ix); // update p_dens()
                     ej_bw->updateNucAtomic(Y,x);
                     ej_bw->updateCurrentBpwn(Y);

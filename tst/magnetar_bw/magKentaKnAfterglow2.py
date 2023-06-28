@@ -571,7 +571,7 @@ def run():
                         new_theta_len=4,
                         new_vinf_len=None,
                         verbose=True,
-                        r0type="fromrho", r0frac=0.5, t0=-1,
+                        r0type="fromrho", r0frac=0.5, t0=text/1000,
                         dist="pw")
     dfile_ej = h5py.File(workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5","r")
 
@@ -605,6 +605,8 @@ def run():
     e0_kinetic = m0 * (cgs.c**2 * g0)
     etot = e0/len(m0) + e0_kinetic
     g0 = (etot) / (cgs.c ** 2 * m0)
+    print(f"ID 1D length={len(r_[0,:])}")
+    print(f"ID 1D = {repr(r_[0,:])}")
 
     dfile = h5py.File(workdir+"pwn_1d_id.h5", "w")
     dfile.create_dataset("r",data=r_[0,:])
