@@ -10,19 +10,42 @@ from matplotlib.colors import Normalize, LogNorm
 from matplotlib import cm
 import os
 
-# from PyBlastAfterglowMag import BPA_METHODS as PBA
-from package.src.PyBlastAfterglowMag.interface import BPA_METHODS as PBA
-from package.src.PyBlastAfterglowMag.interface import cgs
-from package.src.PyBlastAfterglowMag.utils import latex_float
-from package.src.PyBlastAfterglowMag.skymap_tools import \
-    (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
+try:
+    from PyBlastAfterglowMag.interface import modify_parfile_par_opt
+    from PyBlastAfterglowMag.interface import PyBlastAfterglow
+    from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
+    from PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma,
+                                           BetFromMom, GamFromMom, MomFromGam)
+    from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+    from PyBlastAfterglowMag.skymap_tools import \
+        (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
+except ImportError:
+    try:
+        from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
+        from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
+        from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
+        from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma,
+                                                           BetFromMom, GamFromMom, MomFromGam)
+        from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+        from package.src.PyBlastAfterglowMag.skymap_tools import \
+            (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
+    except ImportError:
+        raise ImportError("Cannot import PyBlastAfterglowMag")
 
 
 def task_kn_skymap_with_dist_one_time():
 
-    pba = PBA(workingdir=os.getcwd()+'/',readparfileforpaths=True,parfile="parfile.par")
+    workdir = os.getcwd()+'/'
+
+    prepare_grb_ej_id_1d({"struct":"gaussian",
+                          "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
+                          "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":350,"nlayers_a": 10}, type="pw",
+                          outfpath=workdir+"gauss_grb_id.h5")
+
+    pba = PyBlastAfterglow(workingdir=os.getcwd()+'/',readparfileforpaths=True,parfile="parfile.par")
 
     pba.reload_parfile()
+
     pba.run()
 
     time = 240

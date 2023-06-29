@@ -76,6 +76,7 @@ do_spec = no
 do_lc = no
 do_skymap = yes
 
+rhs_type = ej
 method_eats = piece-wise # piece-wise
 method_collision = none
 

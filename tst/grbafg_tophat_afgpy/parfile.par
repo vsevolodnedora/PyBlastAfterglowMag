@@ -13,7 +13,7 @@
 * Parameters
 
 tb0 = 1.e3
-tb1 = 1.e11
+tb1 = 1.e12
 ntb = 1000
 iout = 1
 rtol = 1e-8
@@ -41,7 +41,7 @@ integrator = DOP853E
 
 # --------------------------- END ---------------------------
 #
-# ----------------------- kN afterglow ----------------------
+# ---------------------- GRB afterglow ----------------------
 
 * Parameters
 
@@ -64,17 +64,17 @@ fnu_min_frac = 1e-5
 
 * Settings
 
-method_eats = adaptive # adaptive # piece-wise
+run_bws = yes
+save_dynamics = no
+load_dynamics = no
+do_ele = yes
+do_spec = no
+do_lc = yes
+do_skymap = no
 
-run_jet_bws = yes
-save_j_dynamics = no
-do_j_ele = yes
-do_j_spec = no
-do_j_lc = yes
-do_j_skymap = no
-
+rhs_type = grb_fs
 method_collision = none # none
-method_eats = adaptive # adaptive # piece-wise
+method_eats = piece-wise # adaptive # piece-wise
 
 do_thermrad_loss = no
 
@@ -87,7 +87,7 @@ fname_sky_map = skymap_grb_gauss.h5
 do_nucinj = no
 type = numeric
 fname_ejecta_id = tophat_grb_id.h5
-enforce_angular_grid = yes
+load_r0 = no
 
 method_spread = None
 method_dgdr = our

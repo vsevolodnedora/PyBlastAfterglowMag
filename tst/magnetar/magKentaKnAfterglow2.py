@@ -457,6 +457,60 @@ def plot_spectrum():
     # plt.savefig(os.getcwd()+"/old_pwn_spec.png")
     plt.show()
 
+def plot_obs_spec():
+    workdir = os.getcwd()+'/'
+    pba = PyBlastAfterglow(workingdir=workdir,readparfileforpaths=True,parfile="parfile.par")
+    data = pba.PWN.get_lc(ishell=0,ilayer=0);#/np.reshape(pba.PWN.get_lc_freqs(spec=True),(-1,1))
+    x_arr = pba.PWN.get_lc_times()[1:-1]
+    y_arr = pba.PWN.get_lc_freqs()
+    min_val = data.max()/1e10#//data[data>0].min()
+    max_val = data.max()
+    levels = np.logspace(np.log10(min_val), np.log10(max_val),  10)
+    fig, axes = plt.subplots(nrows=1,ncols=1)
+    ax = axes
+    # cs = ax.contourf(pba.PWN.get_lc_times(spec=True)[1:-1],
+    #                   pba.PWN.get_lc_freqs(spec=True),
+    #                   data,
+    #                   norm=LogNorm(vmin=min_val, vmax=max_val),
+    #                   locator = ticker.LogLocator(),
+    #                   antialiased=True, alpha=1., linewidths=0.4)
+    cf = ax.contourf(x_arr/cgs.day, y_arr, data, levels=levels,
+                     cmap='viridis', norm=LogNorm(vmin=min_val, vmax=max_val),
+                     #locator=ticker.LogLocator(),
+                     antialiased=True, alpha=1., linewidths=0.4)  # ,vmin=1e10,vmax=1e30)
+    ax2_divider = make_axes_locatable(ax)
+    cax2 = ax2_divider.append_axes("top", size="7%", pad="2%")
+
+    ticks = levels#[::4]
+    cbar = fig.colorbar(cf, #location='top',
+                        # ax=ax1,
+                        cax=cax2,#pad=0.1
+                        orientation="horizontal",
+                        # format='%.1e',
+                        ticks=ticks
+                        )
+    cbar.ax.set_xticklabels([r"$10^{" + "{:.0f}".format(i) + "}$" for i in np.log10(ticks)])  # add the labels
+    cax2.xaxis.set_ticks_position("top")
+    cax2.set_title(r"Intensity $F_{\nu'}'$ [mJy]", fontsize=12)
+    cax2.tick_params(direction='in',labelsize=12)
+    ax.set_yscale("log")
+    ax.set_xlim(x_arr[0]/cgs.day, x_arr[-1]/cgs.day)
+    ax.set_ylim(1e9, 1e22)
+    ax.set_xscale("log")
+    ax.set_ylabel(r"Frequency $\nu'$ [Hz]", fontsize=12)
+    ax.set_xlabel(r"Time, days", fontsize=12)
+    # ax.get_yaxis().set_label_coords(-0.15, 0.5)
+
+    # ax.xaxis.set_ticklabels([])
+    ax.minorticks_on()
+    ax.tick_params(axis='both', which='both', labelleft=True,
+                   labelright=False, tick1On=True, tick2On=False,
+                   labelsize=12,
+                   direction='in',
+                   bottom=True, top=True, left=True, right=True)
+    plt.savefig(os.getcwd()+"/pwn_obs_spec.png")
+    plt.show()
+
 def plot_lc():
     workdir = os.getcwd()+'/'
     pba = PyBlastAfterglow(workingdir=workdir,readparfileforpaths=True,parfile="parfile.par")
@@ -481,8 +535,8 @@ def plot_lc():
                      pba.PWN.get_dyn_arr("mom",ishell=0,ilayer=il) / pba.KN.get_dyn_arr("mom",ishell=0,ilayer=il), color=color,ls='-')
         axes[3].plot(pba.KN.get_dyn_arr("tburst",ishell=0,ilayer=il),
                      pba.PWN.get_dyn_arr("Rw",ishell=0,ilayer=il) / pba.KN.get_dyn_arr("R",ishell=0,ilayer=il), color=color,ls='-')
-    axes[0].plot(times,pba.PWN.get_lc(freq=3e9,ishell=None,ilayer=None),color='black',ls='-')
-    axes[0].plot(times,pba.PWN.get_lc(freq=2.4e17,ishell=None,ilayer=None),color='black',ls='-')
+    axes[0].plot(times,pba.PWN.get_lc(freq=3e9,ishell=None,ilayer=None),color='red',ls='-',alpha=0.7,lw=4)
+    axes[0].plot(times,pba.PWN.get_lc(freq=2.4e17,ishell=None,ilayer=None),color='blue',ls='-',alpha=0.7)
     axes[0].set_xscale("log")
     axes[0].set_yscale("log")
     axes[1].set_xscale("log")
@@ -494,6 +548,8 @@ def plot_lc():
 
     plt.legend()
     plt.show()
+
+
 
 def run():
     workdir = os.getcwd()+'/'
@@ -509,7 +565,7 @@ def run():
     prepare_kn_ej_id_2d(files=files,
                         outfpaths=[workdir+f"corr_id_SFHo_13_14_150m_11_text{int(text)}.h5"],
                         req_times=np.array([text]),
-                        new_theta_len=20,
+                        new_theta_len=4,
                         new_vinf_len=None,
                         verbose=True,
                         r0type="fromrho", r0frac=0.5, t0=-1,
@@ -536,8 +592,9 @@ def run():
 
 def main():
     # os.getcwd()
-    # run()
-    plot_lc()
+    run()
+    # plot_lc()
+    plot_obs_spec()
     # plot_spectrum()
     # plot_skymaps_()
 

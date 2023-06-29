@@ -13,10 +13,10 @@
 * Parameters
 
 tb0 = 1.e3
-tb1 = 1.e11
-ntb = 1000
-iout = 1
-rtol = 1e-12
+tb1 = 1.e13
+ntb = 10000
+iout = 10
+rtol = 3e-14
 nmax = 1000
 
 A0 = -1
@@ -37,21 +37,13 @@ lc_use_freq_to_time = no
 skymap_freqs = array 1e9
 skymap_times = array 20736000
 
-integrator = DOP853E
+integrator = DOP853
 
 # --------------------------- END ---------------------------
 #
 # ---------------------- GRB afterglow ----------------------
 
 * Parameters
-
-Eiso_c = 1e52
-Gamma0c = 300.
-M0c = -1.
-theta_c = 0.085
-theta_w = 0.2618
-nlayers_pw = 350
-nlayers_a = 10
 
 a = 1.0
 fraction_of_Gamma0_when_spread = 0.1
@@ -66,30 +58,36 @@ freq1 = 1.e5
 freq2 = 1.e22
 nfreq = 200
 
-save_dyn_every_it = 10
+save_dyn_every_it = 1
 rtol_adapt = 1e-5
 fnu_min_frac = 1e-4
 
 * Settings
 
-run_jet_bws = yes
-save_j_dynamics = no
-do_j_ele = yes
-do_j_spec = no
-do_j_lc = no
-do_j_skymap = yes
+run_bws = yes
+save_dynamics = yes
+load_dynamics = no
+do_ele = yes
+do_spec = no
+do_lc = no
+do_skymap = yes
 
+rhs_type = grb_fs
+method_collision = none # none
 method_eats = piece-wise # adaptive # piece-wise
 
-type = gaussian
-gflat = no
+do_thermrad_loss = no
 
+use_1d_id = yes
 fname_dyn = dyn_grb_gauss.h5
 fname_light_curve = lc_grb_gauss.h5
 fname_light_curve_layers = none
 fname_sky_map = skymap_grb_gauss.h5
 
 do_nucinj = no
+type = numeric
+fname_ejecta_id = gauss_grb_id.h5
+load_r0 = no
 
 method_spread = AA
 method_dgdr = our

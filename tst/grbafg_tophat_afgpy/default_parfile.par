@@ -13,7 +13,7 @@
 * Parameters
 
 tb0 = 1.e3
-tb1 = 1.e11
+tb1 = 1.e12
 ntb = 1000
 iout = 1
 rtol = 1e-8
@@ -26,7 +26,7 @@ r_ism = -1
 n_ism = 1.e-3
 d_l = 3.09e26
 z = 0.028
-theta_obs = 0.0
+theta_obs = 0
 
 * Settings
 
@@ -44,14 +44,6 @@ integrator = DOP853E
 # ---------------------- GRB afterglow ----------------------
 
 * Parameters
-
-Eiso_c = 1.e52
-Gamma0c = 150.
-M0c = -1.
-theta_c = 0.1
-theta_w = 0.1
-nlayers_pw = 150
-nlayers_a = 1
 
 a = 0.0
 fraction_of_Gamma0_when_spread = 0.1
@@ -72,24 +64,30 @@ fnu_min_frac = 1e-5
 
 * Settings
 
+run_bws = yes
+save_dynamics = no
+load_dynamics = no
+do_ele = yes
+do_spec = no
+do_lc = yes
+do_skymap = no
+
+rhs_type = grb_fs
+method_collision = none # none
 method_eats = piece-wise # adaptive # piece-wise
 
-run_jet_bws = yes
-save_j_dynamics = no
-do_j_ele = yes
-do_j_spec = no
-do_j_lc = yes
-do_j_skymap = no
+do_thermrad_loss = no
 
-type = uniform
-gflat = no
-
-fname_dyn = dyn_grb_gauss.h5
-fname_light_curve = lc_grb_gauss.h5
+use_1d_id = yes
+fname_dyn = dyn_grb_tophad.h5
+fname_light_curve = tophat_0_WSPN99.h5
 fname_light_curve_layers = none
 fname_sky_map = skymap_grb_gauss.h5
 
 do_nucinj = no
+type = numeric
+fname_ejecta_id = tophat_grb_id.h5
+load_r0 = no
 
 method_spread = None
 method_dgdr = our
@@ -102,7 +100,7 @@ method_Rsh = useGammaSh
 method_dmdr = usingdthdr
 method_shock_vel = sameAsBW
 use_dens_prof_behind_jet_for_ejecta = no
-method_synchrotron = Joh06
+method_synchrotron = WSPN99
 method_lf_min = useU_e
 method_ne = usenprime
 method_tau = smooth

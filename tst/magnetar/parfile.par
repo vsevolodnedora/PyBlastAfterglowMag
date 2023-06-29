@@ -26,12 +26,12 @@ r_ej = -1
 n_ism = 0.001
 d_l = 3.0857e+26
 z = 0.001
-theta_obs = 0 # 1.4 # 0.785 # 45.
+theta_obs = 1.4 # 1.4 # 0.785 # 45.
 
 * Settings
 
-lc_freqs = array logspace 1e9 2.4e17 10
-lc_times = array logspace 1.e4 1.e6 150
+lc_freqs = array logspace 1e9 2.4e19 20
+lc_times = array logspace 1.e2 1.e8 150
 lc_use_freq_to_time = no
 
 spec_times = array logspace 1.1e1 1e7 400
@@ -85,9 +85,9 @@ save_pwn_every_it = 1
 
 do_opt_depth_ej_calc = no
 
-run_pwn = no
-load_pwn = yes
-save_pwn = no
+run_pwn = yes
+load_pwn = no
+save_pwn = yes
 do_lc = yes
 do_skymap = no
 do_spec = yes
@@ -134,9 +134,9 @@ save_dyn_every_it = 1
 
 * Settings
 
-run_bws = no
-load_dynamics = yes
-save_dynamics = no
+run_bws = yes
+load_dynamics = no
+save_dynamics = yes
 do_ele = no
 do_spec = no
 do_lc = no

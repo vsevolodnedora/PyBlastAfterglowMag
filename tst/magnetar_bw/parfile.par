@@ -14,8 +14,8 @@
 
 tb0 = 1.e1
 tb1 = 1.e11 #1e11
-ntb = 100000
-iout = 100
+ntb = 10000
+iout = 10
 rtol = 1.e-12
 nmax = 1000
 
@@ -41,7 +41,7 @@ spec_freqs = array logspace 1.e7 1.e22 200 # 3.e9 2.4e17 2.4e21
 skymap_freqs = array 3.e9 2.4e17
 skymap_times = array logspace 8.e2 2e7 50
 
-integrator = DOP853
+integrator = DOP853E
 method_eats = piece-wise # piece-wise
 
 # --------------------------- END ---------------------------
@@ -211,6 +211,8 @@ do_nucinj = no
 fname_nuc = heatingLippuner.h5
 method_heating = none    # PBR LR none
 method_thermalization = const # const BKWM BKWM_1d
+
+method_thick_for_rho = bw_radius #
 
 do_thermrad_loss = no
 thermradloss_at_photo = no

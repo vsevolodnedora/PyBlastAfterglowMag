@@ -1,55 +1,42 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Constants
-dt = 0.01  # Time step
-dx = 0.01  # Spatial step
-t_max = 10.0  # Maximum simulation time
-x_max = 10.0  # Maximum spatial extent
+# Circle parameters
+r1 = 2  # Radius of inner circle
+r2 = 4  # Radius of middle circle
+r3 = 6  # Radius of outer circle
 
-# Grid parameters
-Nt = int(t_max / dt) + 1  # Number of time steps
-Nx = int(x_max / dx) + 1  # Number of spatial steps
+# Point coordinates
+theta1 = np.pi / 6  # Angle for point on inner circle (in radians)
+theta3 = np.pi / 3  # Angle for point on outer circle (in radians)
 
-# Arrays to store PWN and ejecta data
-pwn_density = np.zeros(Nx)
-pwn_velocity = np.zeros(Nx)
-ejecta_density = np.zeros(Nx)
-ejecta_velocity = np.zeros(Nx)
-x_values = np.linspace(0.0, x_max, Nx)
+# Convert polar coordinates to Cartesian coordinates
+x1, y1 = r1 * np.cos(theta1), r1 * np.sin(theta1)
+x3, y3 = r3 * np.cos(theta3), r3 * np.sin(theta3)
 
-# Initial conditions
-pwn_density[:] = 1.0
-ejecta_density[:] = 1.0
+# Parametric equation of the line
+x = np.linspace(x1, x3, num=100)
+y = np.linspace(y1, y3, num=100)
 
-# Main simulation loop
-for t in range(Nt):
-    # Update PWN density and velocity
-    pwn_density[1:-1] += dt * (-pwn_velocity[1:-1] * np.diff(pwn_density) / dx)
-    pwn_velocity[1:-1] += dt * (-pwn_velocity[1:-1] * np.diff(pwn_velocity) / dx)
+# Find the intersection point with the middle circle
+t = (r2 - r1) / (r3 - r1)  # Parameter for the intersection point
+x_intersection = x1 + t * (x3 - x1)
+y_intersection = y1 + t * (y3 - y1)
 
-    # Update ejecta density and velocity
-    ejecta_density[1:-1] += dt * (-ejecta_velocity[1:-1] * np.diff(ejecta_density) / dx)
-    ejecta_velocity[1:-1] += dt * (-ejecta_velocity[1:-1] * np.diff(ejecta_velocity) / dx)
-
-    # Reflective boundary conditions
-    pwn_density[0] = pwn_density[1]
-    pwn_density[-1] = pwn_density[-2]
-    pwn_velocity[0] = -pwn_velocity[1]
-    pwn_velocity[-1] = -pwn_velocity[-2]
-
-    ejecta_density[0] = ejecta_density[1]
-    ejecta_density[-1] = ejecta_density[-2]
-    ejecta_velocity[0] = -ejecta_velocity[1]
-    ejecta_velocity[-1] = -ejecta_velocity[-2]
-
-# Plotting the results
-plt.figure(figsize=(10, 5))
-plt.plot(x_values, pwn_density, label='PWN Density')
-plt.plot(x_values, ejecta_density, label='Ejecta Density')
-plt.xlabel('Position')
-plt.ylabel('Density')
+# Plotting
+circle1 = plt.Circle((0, 0), r1, color='r', fill=False)
+circle2 = plt.Circle((0, 0), r2, color='g', fill=False)
+circle3 = plt.Circle((0, 0), r3, color='b', fill=False)
+plt.gca().add_patch(circle1)
+plt.gca().add_patch(circle2)
+plt.gca().add_patch(circle3)
+plt.plot(x, y, 'k--', label='Line')
+plt.plot(x_intersection, y_intersection, 'ro', label='Intersection')
+plt.plot([x1, x3], [y1, y3], 'ko', label='Given Points')
+plt.xlabel('X')
+plt.ylabel('Y')
+plt.axis('equal')
 plt.legend()
+plt.title('Intersection of Line with Middle Circle')
 plt.grid(True)
-plt.title('Evolution of PWN and Ejecta Shells')
 plt.show()

@@ -10,10 +10,21 @@ from matplotlib.colors import Normalize, LogNorm
 from matplotlib import cm
 import os
 
-# from PyBlastAfterglowMag import BPA_METHODS as PBA
-from package.src.PyBlastAfterglowMag.interface import BPA_METHODS as PBA
-from package.src.PyBlastAfterglowMag.interface import cgs, modify_parfile_par_opt
-from package.src.PyBlastAfterglowMag.utils import latex_float
+try:
+    from PyBlastAfterglowMag.interface import modify_parfile_par_opt
+    from PyBlastAfterglowMag.interface import PyBlastAfterglow
+    from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
+    from PyBlastAfterglowMag.utils import latex_float, cgs, get_beta, get_Gamma
+    from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+except ImportError:
+    try:
+        from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
+        from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
+        from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
+        from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma)
+        from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+    except ImportError:
+        raise ImportError("Cannot import PyBlastAfterglowMag")
 
 afterglowpy = True
 
@@ -37,6 +48,9 @@ def tst_against_afgpy(withSpread = False,
     # pba_0 = PBA(os.getcwd()+"/", readparfileforpaths=True)
     # pba_016 = PBA(os.getcwd()+"/", readparfileforpaths=True)
 
+    prepare_grb_ej_id_1d({"Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.1,
+                          "nlayers_pw": 150, "nlayers_a": 1, "struct":"tophat"},type="pw",outfpath="tophat_grb_id.h5")
+
     lls, lbls = [], []
     for (i_thetaobs, i_freq, i_color) in [
         # (thetaObs, freqobs, "blue"),
@@ -52,13 +66,14 @@ def tst_against_afgpy(withSpread = False,
                                newopts={"method_synchrotron":"Joh06", "fname_light_curve":"tophat_{}_joh06.h5"
                                .format( str(i_thetaobs).replace(".",""))},
                                parfile="parfile2.par", newparfile="parfile.par",keep_old=False)
-        pba = PBA(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
+        pba = PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
         # pba.reload_parfile()
+
 
         pba.run()
 
-        ax.plot(pba.get_jet_lc_times() / cgs.day,
-                pba.get_jet_lc_totalflux(freq=i_freq), color=i_color, ls='-',
+        ax.plot(pba.GRB.get_lc_times() / cgs.day,
+                pba.GRB.get_lc_totalflux(freq=i_freq), color=i_color, ls='-',
                 label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
 
         pba.clear()
@@ -72,8 +87,8 @@ def tst_against_afgpy(withSpread = False,
 
         pba.run()
 
-        ax.plot(pba.get_jet_lc_times() / cgs.day,
-                pba.get_jet_lc_totalflux(freq=i_freq), color=i_color, ls=':',
+        ax.plot(pba.GRB.get_lc_times() / cgs.day,
+                pba.GRB.get_lc_totalflux(freq=i_freq), color=i_color, ls=':',
                 label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
 
         pba.clear()
