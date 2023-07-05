@@ -57,6 +57,7 @@ class EATS{
 //        VecVector & m_data;
 //        Vector & tb_arr;
         double ctheta0 = -1.;
+        size_t n_sublayers_image_adaptive = 10;
 //        inline Vector & operator[](BW::Q ivn){ return this->m_data[ivn]; }
 //        inline double & operator()(BW::Q ivn, size_t ir){ return this->m_data[ivn][ir]; }
 //        Vector getTbGrid(size_t every_it) {
@@ -85,7 +86,7 @@ class EATS{
             obsangle = obs_angle;
             // ---
             if (m_tburst.empty()){
-                std::cerr << AT<< " empty array\n";
+                std::cerr << AT<< " isEmpty array\n";
                 exit(1);
             }
 //            nr = m_tburst.size();
@@ -113,6 +114,10 @@ class EATS{
                                       << " tbutst[0]=" << m_tburst[0]
                                       << " R[0]=" << m_r[0]
                                       << "\n";
+            }
+            if(m_mu[0]==m_mu[m_mu.size()-1] and m_mu[0]==0){
+                (*p_log)(LOG_ERR,AT) << " m_mu[0]=m_mu[-1]=0 for [il="
+                    <<ilayer<<"] m_i_end_r="<<m_i_end_r<<"\n";
             }
             if (ttobs.empty())
                 ttobs.resize( m_r.size(), std::numeric_limits<double>::max() );
@@ -306,12 +311,7 @@ public:
                                         void * params )){
         p_pars->fluxFunc = fluxFunc;
     }
-//    void setFuncOptDepth(void (* funcOptDepth)(double & frac, double ctheta, double r,
-//                                               double phi, double theta,
-//                                               double phi_obs, double theta_obs, double r_obs,
-//                                               double mu, double time, double freq, void * params)){
-//        p_pars->funcOptDepth = funcOptDepth;
-//    }
+
     void setFluxFuncA(void (* fluxFuncA)(double & flux_dens, double & r, double & ctheta, double theta, double phi,
                                          size_t ia, size_t ib, double mu, double t_e, double t_obs, double nu_obs,
                                          void * params )){
@@ -355,7 +355,19 @@ public:
 //        std::cout<<image.m_f_tot<<"\n";
     }
 
-
+    /// evaluate intensity/flux density distribution using adaptive summation
+    void evalImageA(Image & image, Image & im_pj, Image & im_cj, double obs_time, double obs_freq, double atol){
+        Vector phi_grid = EjectaID2::getCphiGridPW( p_pars->ilayer );
+        computeImageA(im_pj, im_cj, obs_time, obs_freq, atol);
+        /// combine the two images (use full 'ncells' array, and fill only cells that correspond to this layer)
+        for (size_t icell = 0; icell < phi_grid.size(); ++icell) {
+            for (size_t ivn = 0; ivn < image.m_n_vn; ++ivn)
+                image(ivn, icell) = im_pj(ivn,icell);
+            for (size_t ivn = 0; ivn < image.m_n_vn; ++ivn)
+                image(ivn,phi_grid.size()+icell) = im_cj(ivn,icell);
+        }
+        image.m_f_tot = (im_pj.m_f_tot + im_cj.m_f_tot);
+    }
 
     bool evalEATSindexes(size_t & ia, size_t & ib,
                            double t_obs, double obs_angle, double ctheta_cell, double phi_cell,
@@ -425,7 +437,7 @@ public:
 
         if ((p_pars->m_r[0] == 0.) && (p_pars->m_gam[0] == 0.)){
             (*p_log)(LOG_WARN,AT) << " [ishell=" << p_pars->ishell << " ilayer="<<p_pars->ilayer << "] "
-                                  << " R[0]=0. Seems not evolved -> returning empty image." << "\n";
+                                  << " R[0]=0. Seems not evolved -> returning isEmpty image." << "\n";
             return;
         }
         if (p_pars->m_i_end_r == 0){
@@ -618,6 +630,119 @@ public:
         image.m_f_tot = flux * CGS::cgs2mJy; /// flux in mJy
     }
 
+    void evalImageFromA(Image & image, double t_obs, double nu_obs, double atol,
+                        Vector & _theta_c_l, Vector & _theta_c_h, std::vector<size_t> & _nphis,
+                        double (*obs_angle)( const double &, const double &, const double & ),
+                        double (*im_xxs)( const double &, const double &, const double & ),
+                        double (*im_yys)( const double &, const double &, const double & )){
+        if ((p_pars->m_r[0] == 0.0) && (p_pars->m_r[p_pars->m_i_end_r - 1] == 0.0)){
+            (*p_log)(LOG_WARN, AT)
+                    << " blast wave not evolved, flux=0 [ishell="<<p_pars->ishell<<", ilayer="<<p_pars->ilayer<<"]\n";
+            return ; //std::move(light_curve);
+        }
+        VecVector fluxes(_theta_c_l.size());
+        for (size_t i = 0; i < _theta_c_l.size(); i++)
+            fluxes[i].resize(_nphis[i]);
+        ///
+
+        size_t ii = 0;
+        for (size_t i = 0; i < _theta_c_l.size(); i++){
+            double theta_c_i   = _theta_c_l[i] + (double) i * dtheta + dtheta / 2.;
+            double theta_c_l = _theta_c_l[i];
+            double theta_c_h = _theta_c_h[i];
+
+            size_t nphi = _nphis[i];
+            double phi_low = 0.;
+            double phi_high = 2. * M_PI;
+            double dphi = (phi_high - phi_low) / (double)nphi;
+            for (size_t iphi = 0; iphi < nphi; iphi++) {
+                double i_phi_0 = phi_low + (double) iphi * dphi;
+                double i_phi_1 = phi_low + ((double) iphi + 1.) * dphi;
+                double cphi = 0.5 * (i_phi_1 - i_phi_0);
+                // -------------------------------------
+                parsPars(t_obs, nu_obs, theta_c_l, theta_c_h,
+                         i_phi_0, i_phi_1, obs_angle);
+                check_pars();
+                double Fcoeff = CGS::cgs2mJy / (4.0 * M_PI * p_pars->d_l * p_pars->d_l); // result will be in mJy
+                p_pars->atol_theta = atol;// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
+                p_pars->atol_phi = atol;//  / (2.0 * Fcoeff);
+                fluxes[i][iphi] = integrate_theta_phi(p_pars); // 2. because Integ_0^pi (not 2pi)
+                /// to get the radius to the (ctheta0,cphi)
+                double ctheta = theta_c_l + 0.5 * (theta_c_h - theta_c_l);
+                double r = 0., mu = 0., gam = 0., ctheta_bw = 0.;
+                double _ = integrand(std::cos(ctheta),
+                                     i_phi_0 + cphi, r, mu, gam, ctheta_bw, p_pars);
+                image(IMG::Q::iintens, ii) = fluxes[ii] * Fcoeff / (r * r * std::abs(mu)) * CGS::cgs2mJy;
+                image(IMG::Q::ixr, ii) = r * im_xxs(ctheta, i_phi_0 + cphi, p_pars->theta_obs);
+                image(IMG::Q::iyr, ii) = r * im_yys(ctheta, i_phi_0 + cphi, p_pars->theta_obs);
+                image(IMG::Q::ir, ii) = r;
+                image(IMG::Q::ictheta, ii) = ctheta;
+                image(IMG::Q::iphi, ii) = i_phi_0 + cphi;
+                image(IMG::Q::imu, ii) = mu;
+            }
+
+        }
+
+
+
+
+
+        double phi_low = 0.;
+        double phi_high = 2. * M_PI;
+//        double dtheta = (p_pars->theta_c_h-p_pars->theta_c_l)/(double)p_pars->nlayers;//ntheta;
+//        size_t nphi = EjectaID2::CellsInLayer(p_pars->ilayer);
+//        double dphi = (phi_high - phi_low) / (double)nphi;
+        double tot_flux = 0;
+//        Vector fluxes(nphi*ntheta, 0);
+        Vector fluxes{};
+//        double atol = light_curve[it] * rtol / (double)p_pars->nlayers;
+        size_t ii = 0;
+        for (size_t ith = 0; ith < p_pars->n_sublayers_image_adaptive; ith++) {
+
+            double dtheta = (p_pars->theta_c_h-p_pars->theta_c_l) / (double) p_pars->n_sublayers_image_adaptive;
+//            double theta_c_i   = p_pars->theta_c_l + (double) ith * dtheta + dtheta / 2.;
+            double i_theta_c_l = p_pars->theta_c_l + (double) ith * dtheta;
+            double i_theta_c_h = p_pars->theta_c_l + (double) (ith + 1) * dtheta;
+
+//            size_t nphi = EjectaID2::CellsInLayer(p_pars->ilayer + ith);
+            double dphi = (phi_high - phi_low) / (double)nphi;
+            for (size_t iphi = 0; iphi < nphi; iphi++) {
+                double i_phi_0 = phi_low + (double) iphi * dphi;
+                double i_phi_1 = phi_low + ((double) iphi + 1.) * dphi;
+                double cphi = 0.5 * (i_phi_1 - i_phi_0);
+                // -------------------------------------
+                parsPars(t_obs, nu_obs, i_theta_c_l, i_theta_c_h,
+                         i_phi_0, i_phi_1, obs_angle);
+                check_pars();
+                double Fcoeff = CGS::cgs2mJy / (4.0 * M_PI * p_pars->d_l * p_pars->d_l); // result will be in mJy
+                p_pars->atol_theta = atol;// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
+                p_pars->atol_phi = atol;//  / (2.0 * Fcoeff);
+                fluxes.push_back(0);
+                fluxes[ii] = integrate_theta_phi(p_pars); // 2. because Integ_0^pi (not 2pi)
+                tot_flux += fluxes[ii] * Fcoeff;
+                /// to get the radius to the (ctheta0,cphi)
+                double ctheta = i_theta_c_l + 0.5 * (i_theta_c_h - i_theta_c_l);
+                double r = 0., mu = 0., gam = 0., ctheta_bw = 0.;
+                double _ = integrand(std::cos(ctheta),
+                                     i_phi_0 + cphi, r, mu, gam, ctheta_bw, p_pars);
+                image(IMG::Q::iintens, ii) = fluxes[ii] * Fcoeff / (r * r * std::abs(mu)) * CGS::cgs2mJy;
+                image(IMG::Q::ixr, ii) = r * im_xxs(ctheta, i_phi_0 + cphi, p_pars->theta_obs);
+                image(IMG::Q::iyr, ii) = r * im_yys(ctheta, i_phi_0 + cphi, p_pars->theta_obs);
+                image(IMG::Q::ir, ii) = r;
+                image(IMG::Q::ictheta, ii) = ctheta;
+                image(IMG::Q::iphi, ii) = i_phi_0 + cphi;
+                image(IMG::Q::imu, ii) = mu;
+                //            image(IMG::Q::itau_comp, ii) = tau_comp;
+                //            image(IMG::Q::itau_bh, i) = tau_BH;
+                //            image(IMG::Q::itau_bf, i) = tau_bf;
+                ii++;
+            }
+            /// eval total flux
+            double flux = std::accumulate(fluxes.begin(), fluxes.end(), decltype(fluxes)::value_type(0));
+            image.m_f_tot = flux * CGS::cgs2mJy; /// flux in mJy
+        }
+    }
+
 #if 0
     void evalImageFromPW_old(Image & image, double t_obs, double nu_obs,
                          double (*obs_angle)( const double &, const double &, const double & ),
@@ -797,6 +922,16 @@ public:
         if (p_pars->counter_jet) // p_eats->counter_jet
             evalImageFromPW(im_cj, obs_time, obs_freq, obsAngleCJ, imageXXsCJ, imageYYsCJ);
     }
+
+    /// get the observed flux density distrib 'image' for 2 projections for given time, freq, angle, distance, red shift
+    void computeImageA(Image & im_pj, Image & im_cj, double obs_time, double obs_freq, double atol){
+        /// evaluateShycnhrotronSpectrum image for primary jet and counter jet
+        evalImageFromA(im_pj, obs_time, obs_freq, atol, obsAngle, imageXXs, imageYYs);
+        if (p_pars->counter_jet) // p_eats->counter_jet
+            evalImageFromA(im_cj, obs_time, obs_freq, atol, obsAngleCJ, imageXXsCJ, imageYYsCJ);
+    }
+
+
     /// evaluateShycnhrotronSpectrum light curve using Adapitve or Piece-Wise EATS method
     void evalLC(EjectaID2::STUCT_TYPE m_method_eats,
                 Image & image, Image & im_pj, Image & im_cj,
@@ -912,7 +1047,8 @@ private:
         return theta_a;
     }
     /// function to be integrated for theta and phi
-    static double integrand( double i_cos_theta, double i_phi, void* params ){
+    static double integrand( double i_cos_theta, double i_phi, double & r, double & mu, double & gam, double & ctheta,
+                             void* params ){
 
         auto * p_pars = (struct Pars *) params; // removing EATS_pars for simplicity
 //        auto & p_syna = p_pars->p_syna;//->getAnSynch();
@@ -929,7 +1065,7 @@ private:
         }
 
         double a_theta = arccos(i_cos_theta);
-        double mu = p_pars->obsangle(a_theta, i_phi, p_pars->theta_obs);
+        mu = p_pars->obsangle(a_theta, i_phi, p_pars->theta_obs);
 
         p_pars->theta = a_theta;
         p_pars->o_phi = i_phi;
@@ -948,10 +1084,12 @@ private:
             return 0.;
         }
         /// -----------------------------------------
-        double flux_dens = 0, r = 0, ctheta=0.;
+        double flux_dens = 0; //r = 0, ctheta=0.;
         p_pars->fluxFuncA(flux_dens, r, ctheta, a_theta, i_phi,
                           ia, ib, mu, t_e, p_pars->t_obs, p_pars->nu_obs, p_pars->m_params);
         /// ----------------------------------------
+        gam = interpSegLog(ia, ib, t_e, tburst, p_pars->m_gam);
+
 #if 0
         /// Observed flux density evaluation (interpolate comoving spectrum)
         if (p_pars->m_method_rad == METHODS_RAD::icomovspec){
@@ -1040,12 +1178,7 @@ private:
             double ctheta = interpSegLin(ia, ib, t_e, tburst, m_data[BW::Q::ictheta]);
             double theta = interpSegLin(ia, ib, t_e, tburst, m_data[BW::Q::itheta]);
 
-            /// save current position
-            p_pars->o_gam = Gamma;
-            p_pars->o_r = r;
-            p_pars->o_mu = mu;
-            p_pars->o_flux = dFnu;
-            p_pars->o_theta_j = theta;
+
 
         }
             /// Observed flux density evaluation (evaluateShycnhrotronSpectrum directly)
@@ -1163,14 +1296,15 @@ private:
                 (*p_pars->p_log)(LOG_ERR,AT) << " flux density is zero ( dFnu = 0 )" << "\n";
             }
 
-            p_pars->o_gam = Gamma;
-            p_pars->o_r = R;
-            p_pars->o_mu = mu;
-            p_pars->o_flux = dFnu;
-            p_pars->o_theta_j = theta;
+
 
         }
 #endif
+//        p_pars->o_gam = Gamma;
+//        p_pars->o_r = r;
+//        p_pars->o_mu = mu;
+//        p_pars->o_flux = flux_dens;
+//        p_pars->o_theta_j = ctheta;
         return flux_dens;
 
     }
@@ -1178,7 +1312,8 @@ private:
         auto * p_eats = (struct Pars *) params; // removing EATS_pars for simplicity
         p_eats->nevals = p_eats->nevals + 1;
         double act = 1 - aomct; // one minus cos theta 0 -> 'doppler_d' cos theta
-        double integ = integrand(act, p_eats->phi, params );
+        double r = 0., mu=0., gam=0., ctheta=0.;
+        double integ = integrand(act, p_eats->phi, r, mu, gam, ctheta, params );
         return integ;
 
     }
@@ -1308,7 +1443,7 @@ private:
     static double integrate_theta_phi( void* params ){
         auto * p_eats = (struct Pars *) params; // removing EATS_pars for simplicity
         double atol = p_eats->atol_theta;
-        // check if the parameters are set TODO wrap it into "run in safe mode"
+        // check if the parameters are set
         if(p_eats->nmax_theta < 0 || p_eats->nmax_phi < 0 || p_eats->rtol_phi < 0
            || p_eats->rtol_theta < 0 || p_eats->atol_theta < 0 || p_eats->atol_phi < 0 ){
             (*p_eats->p_log)(LOG_ERR,AT) << " one of the tolerance parameters for adaptive quad. is not set (< 0). Given:\n"

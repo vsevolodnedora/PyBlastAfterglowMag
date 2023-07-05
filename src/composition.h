@@ -731,7 +731,7 @@ namespace PWNradiationMurase{
         /* This is motivated by more detailed calculation by Murase+15 */
         /// The source of this equations is unclear.
         /// seems to be based on https://iopscience.iop.org/article/10.1088/0004-637X/805/1/82/pdf
-        /// but with no clear corresponding equation. A combination of Eq.23 & 26
+        /// but with no clearEachImage corresponding equation. A combination of Eq.23 & 26
 
         double p_1 = 1.5; //photon index -- modified
         double e_gamma_min;

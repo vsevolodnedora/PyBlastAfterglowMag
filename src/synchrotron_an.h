@@ -1120,7 +1120,7 @@ public:
 //        p_pars = new PWNPars();
         p_pars = std::make_unique<Pars>();
         p_pars->lim_gm_to_1 = false;
-//        m_data.resize( Rad::m_names_.size(), -1. );
+//        m_data.resizeEachImage( Rad::m_names_.size(), -1. );
     }
     ~SynchrotronAnalytic(){ }
 //    PWNPars *& getPars(){ return p_pars; }
@@ -1303,8 +1303,8 @@ public:
 //        double m_gam2 = 1e6;
 //        int ngam = (int)getDoublePar("ngamma",pars,AT,p_log,-1.,true);
 //        m_gamma_arr = TOOLS::MakeLogspaceVec(std::log10(m_gam1), std::log10(m_gam2), ngam, 10);
-//        m_tmp_arr1.resize(m_gamma_arr.size(), 0.);
-//        m_tmp_arr2.resize(m_gamma_arr.size(), 0.);
+//        m_tmp_arr1.resizeEachImage(m_gamma_arr.size(), 0.);
+//        m_tmp_arr2.resizeEachImage(m_gamma_arr.size(), 0.);
 
 
     }
@@ -2038,7 +2038,7 @@ public:
 //            std::cerr << " allocating comoving spectrum array (fs) "
 //                               << " freqs="<<m_freq_grid.size() << " by radii=" << nr << " Spec. grid="
 //                               << m_freq_grid.size() * nr << "\n";
-//            m_spectrum.resize( m_freq_grid.size() * nr );
+//            m_spectrum.resizeEachImage( m_freq_grid.size() * nr );
 //        }
 //    }
 
@@ -2096,9 +2096,9 @@ public:
 //    }
 //    ~SynchrotronAnalyticComoving(){ delete p_pars; }
 //    void allocateSpace(size_t nt){
-//        m_data.resize(n_vars);
+//        m_data.resizeEachImage(n_vars);
 //        for (auto & arr : m_data){
-//            arr.resize( nt, 0. );
+//            arr.resizeEachImage( nt, 0. );
 //        }
 //    }
 //

@@ -581,7 +581,7 @@ public:
         // *************************************
         m_data.resize(m_vnames.size());
         for (auto & arr : m_data)
-            arr.resize( m_mag_time.size() );
+            arr.resizeEachImage( m_mag_time.size() );
         // **************************************
         double ns_mass = getDoublePar("NS_mass0",pars,AT,p_log,-1,true);
         ns_mass *= CGS::solar_m; // Msun -> g
@@ -723,7 +723,7 @@ public:
 
     }
 
-    bool isSolutionOk( double * sol, size_t i ){
+    bool isSolutionOk( double * sol, double x, size_t ix, size_t i ){
         return true;
     }
 
@@ -753,7 +753,7 @@ public:
 //        auto & mag_v_ns = magnetar->m_vnames;
 //        auto t_arr = magnetar->getTbGrid(every_it);
 //
-//        tot_mag_out.resize( mag_v_ns.size() );
+//        tot_mag_out.resizeEachImage( mag_v_ns.size() );
 //        for (size_t ivar = 0; ivar < mag_v_ns.size(); ivar++){
 //            for (size_t it = 0; it < magnetar->getTbGrid().size(); it = it + every_it)
 //                tot_mag_out[ivar].emplace_back( (*magnetar)[ static_cast<Magnetar::Q>(ivar) ][it] );
@@ -957,9 +957,10 @@ public:
         p_log = std::make_unique<logger>(std::cout, std::cerr, m_loglevel, "PWN");
         // ------------
         m_data.resize(PWN::m_vnames.size());
+        size_t n_tb = p_ej->getShells()[0]->getBWs()[0]->get_tburst().size();
         for (auto & arr : m_data)
             if (allocate)
-                arr.resize(p_ej->getShells()[0]->getBWs()[0]->ntb(), 0.0);
+                arr.resize(n_tb, 0.0);
         p_pars = new PWNPars(pp_mag, pp_ej, m_data, m_loglevel);//std::make_unique<PWNPars>();
         p_pars->ilayer = ilayer;
         p_pars->ishell = 0;
@@ -1249,7 +1250,7 @@ public:
         return fac_pwn_dep * (p_pars->eps_e * lsd + p_pars->eps_e * lacc);
     }
 
-    bool isSolutionOk( double * sol, size_t i ){
+    bool isSolutionOk( double * sol, double x, size_t ix, size_t i ){
         bool is_ok = true;
         if (sol[i+Q_SOL::i_Enb] < 0){
             (*p_log)(LOG_ERR,AT)<<"Wrong Enb="<<sol[i+Q_SOL::i_Enb]<<"\n";
@@ -1992,7 +1993,7 @@ public:
                     H5std_string order_string;
                     H5T_order_t order = ftype.getOrder( order_string);
                     size_t size = ftype.getSize();
-//                    vec.resize(1);
+//                    vec.resizeEachImage(1);
                     double * data = new double[npts];
                     if ( order==0 && size == 4 )
                     {
@@ -2017,7 +2018,7 @@ public:
                     datatype.close();
                     dataset.close();
 
-                    if ( pwn->getData()[static_cast<PWN::Q>(ivar)].empty() ){
+                    if (pwn->getData()[static_cast<PWN::Q>(ivar)].empty() ){
                         std::cout << key << " faild" << std::endl;
                         exit(1);
                     }
@@ -2330,17 +2331,17 @@ private:
             for (auto & total_flux_shel : total_flux_shell)
                 total_flux_shel.resize( times.size(), 0.0 );
             for (size_t it = 0; it < times.size(); ++it){
-//                auto images = computeEjectaSkyMapPieceWise( times[it],freqs[ifreq]);
+//                auto images = computeEjectaSkyMapPW( times[it],freqs[ifreq]);
 //                std::vector<Image> images(nshells_);
                 computeSkyMapPieceWise( images, times[it], freqs[ifreq] );
                 for (size_t i_vn = 0; i_vn < IMG::m_names.size(); i_vn++) {
                     for (size_t ish = 0; ish < nshells_; ish++) {
-                        out[ii][i_vn][ish] = images.getImgRef(ish).m_data[i_vn];//arrToVec(images[ish].m_data[i_vn]);
+                        out[ii][i_vn][ish] = images.getReferenceToTheImage(ish).m_data[i_vn];//arrToVec(images[ish].m_data[i_vn]);
                     }
                 }
                 for (size_t ish = 0; ish < nshells_; ish++) {
-                    tota_flux[it] += images.getImgRef(ish).m_f_tot;
-                    total_flux_shell[ish][it] = images.getImgRef(ish).m_f_tot;
+                    tota_flux[it] += images.getReferenceToTheImage(ish).m_f_tot;
+                    total_flux_shell[ish][it] = images.getReferenceToTheImage(ish).m_f_tot;
                 }
                 ii++;
             }
@@ -2455,8 +2456,8 @@ private:
         size_t nlayers_ = nlayers();
         size_t ncells_ =  (int)ncells();
 
-        if (images.empty()){
-            (*p_log)(LOG_ERR,AT) << " empty image passed. Exiting...\n";
+        if (images.isEmpty()){
+            (*p_log)(LOG_ERR,AT) << " isEmpty image passed. Exiting...\n";
             exit(1);
         }
         if (images.size() != nshells_){
@@ -2470,15 +2471,15 @@ private:
         std::vector<size_t> n_empty_images_shells;
         const std::vector<std::string> x {};
         Images tmp (nlayers_, IMG::m_names.size());
-        tmp.resize(ncells_);
+        tmp.resizeEachImage(ncells_);
 //        for (auto & _tmp : tmp)
-//            _tmp.resize( ncells_ );
+//            _tmp.resizeEachImage( ncells_ );
         Image tmp_pj( ncells_, IMG::m_names.size(), 0, loglevel);
         Image tmp_cj( ncells_, IMG::m_names.size(), 0, loglevel);
         for (size_t ishell = 0; ishell < nshells_; ishell++){
 //            for (auto & _tmp : tmp)
 //                _tmp.clearData();
-            tmp.clear();
+            tmp.clearEachImage();
             tmp_pj.clearData(); tmp_cj.clearData();
             std::vector<size_t> n_empty_images_layer;
             for (size_t ilayer = 0; ilayer < nlayers_; ilayer++){
@@ -2493,9 +2494,9 @@ private:
                         << " phi_cells=" << EjectaID2::CellsInLayer(ilayer) << "\n";
                 /// Evaluate a given image --------------------------------------
                 auto & bw_rad = p_pwns[ilayer]->getEATS();
-                bw_rad->evalImagePW(tmp.getImgRef(ilayer), tmp_pj, tmp_cj, obs_time, obs_freq);
+                bw_rad->evalImagePW(tmp.getReferenceToTheImage(ilayer), tmp_pj, tmp_cj, obs_time, obs_freq);
                 /// -------------------------------------------------------------
-                if (tmp.getImgRef(ilayer).m_f_tot == 0){
+                if (tmp.getReferenceToTheImage(ilayer).m_f_tot == 0){
                     n_jet_empty_images += 1;
                     n_empty_images_layer.emplace_back(ilayer);
                 }
@@ -2504,14 +2505,14 @@ private:
                 n_empty_images_shells.emplace_back(ishell);
                 n_empty_images.emplace_back(n_empty_images_layer);
             }
-            combineImages(images.getImgRef(ishell), ncells_, nlayers_, tmp) ;
+            combineImages(images.getReferenceToTheImage(ishell), ncells_, nlayers_, tmp) ;
         }
 
-        /// print which layers/shells gave empty image
+        /// print which layers/shells gave isEmpty image
         if (p_log->getLogLevel() == LOG_INFO) {
             if (n_jet_empty_images > 0) {
                 auto &ccerr = std::cout;
-                ccerr << "PWN at tobs=" << obs_time << " freq=" << obs_freq << " gave an empty images for total n="
+                ccerr << "PWN at tobs=" << obs_time << " freq=" << obs_freq << " gave an isEmpty images for total n="
                       << n_jet_empty_images << " layers. Specifically:\n";
                 for (size_t ish = 0; ish < n_empty_images_shells.size(); ish++) {
 //                auto & ejectaStruct = ejectaStructs.structs[n_empty_images_shells[ish]];

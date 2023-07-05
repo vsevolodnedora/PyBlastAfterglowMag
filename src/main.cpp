@@ -60,6 +60,7 @@ class PyBlastAfterglow{
         double rtol = 1e-5;
         int nmax = 100000;
         int loglevel{};
+        bool do_average_solution = false;
     };
     std::unique_ptr<logger> p_log;
     std::unique_ptr<Pars> p_pars;
@@ -101,6 +102,8 @@ public:
 
         p_pars->rtol = getDoublePar("rtol",pars,AT,p_log,1e-13,true);//(double) pars.at("rtol");
         p_pars->nmax = (int)getDoublePar("nmax",pars,AT,p_log,100000,false);//(double) pars.at("rtol");
+
+        p_pars->do_average_solution = getBoolOpt("do_average_solution",opts,AT,p_log, false, true);
 
         // set options
         std::string opt = "integrator";
@@ -161,7 +164,8 @@ public:
         }
 
         p_model = std::make_unique<EvolveODEsystem>( p_mag, p_grb, p_ej, p_ej_pwn2,p_ej_pwn,
-                                                     t_grid, _t_grid, p_pars->integrator, m_loglevel );
+                                                     t_grid, _t_grid, p_pars->integrator,
+                                                     p_pars->do_average_solution, m_loglevel );
         p_model->pIntegrator()->pPars()->rtol = p_pars->rtol;
         p_model->pIntegrator()->pPars()->atol = p_pars->rtol;
         p_model->pIntegrator()->pPars()->nmax = p_pars->nmax;
@@ -175,7 +179,9 @@ public:
             i_x ++ ;
             p_model->getPars()->i_restarts = 0;
             dt = _t_grid[it] - _t_grid[it - 1];
-            p_model->evolve(dt, it, i_x);
+            p_model->advanceTimeSubStep(dt, it, i_x);
+            p_model->insertSolutionSubstep(it, _t_grid[it]);
+
             if ((it % p_pars->iout == 0)) {
                 p_model->storeSolution(ixx);
 //                (*p_log)(LOG_INFO,AT)<<"Storing solution at i="<<ixx<<" t="<<t_grid[ixx]<<"\n";
@@ -187,9 +193,6 @@ public:
 
         (*p_log)(LOG_INFO, AT) << "evolution is completed\n";
     }
-
-
-
 };
 
 
@@ -209,13 +212,12 @@ int main(int argc, char** argv) {
     /// ------------------------------------------------------
     if (argc<4){
 //        working_dir = "../tst/grbafg_gauss_offaxis/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-//        working_dir = "../tst/grbafg_gauss_offaxis_io/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-//        working_dir = "../tst/grbafg_skymap_io/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../tst/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/knafg_nrinformed/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/knafg_nrinformed_eats/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/magnetar/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-        working_dir = "../tst/magnetar_bw/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/magnetar_bw/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_tophat_wind/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/knafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
@@ -318,7 +320,7 @@ int main(int argc, char** argv) {
 
     (*p_log)(LOG_INFO, AT) << "evolution finished [" << timer.checkPoint() << " s]" << "\n";
 
-//    pba.getMag()->saveMagnetarEvolution();
+//    pba.getMag()->saveMagnetarEvolution(); // TODO add magnetar here
 
     pba.getGRB()->computeAndOutputObservables(main_pars, main_opts);
 

@@ -111,6 +111,9 @@ public:
         }
         return std::move ( cphis );
     }
+//    static Vector getCphiGridA( size_t ilayer){
+//        getCphiGridA
+//    }
     static void getCphiGridPW( Vector & cphis, size_t ilayer ){
         size_t cil = CellsInLayer(ilayer);
 //        Vector cphis ( cil );
@@ -137,12 +140,11 @@ private:
             m_data[Q::itheta_c_l][ish][i] = i_theta_c_l;//thetas_c_l[i] = i_theta_c_l ;
             m_data[Q::itheta_c_h][ish][i] = i_theta_c_h;//thetas_c_h[i] = i_theta_c_h ;
         }
-        int x = 1;
     }
     void _init_pw_grid(size_t ish, size_t nlayers, double theta_w){
         m_data[ictheta][ish].resize(nlayers,0.);
         Vector theta_pw ( nlayers + 1 );
-//        cthetas0.resize( nlayers_pw );
+//        cthetas0.resizeEachImage( nlayers_pw );
         for (size_t i = 0; i < nlayers + 1; i++){
             double fac = (double)i / (double)nlayers;
             theta_pw[i] = 2.0 * std::asin( fac * std::sin(theta_w / 2.0 ) );
@@ -206,6 +208,7 @@ private:
         (*p_log)(LOG_INFO,AT) << "Initial data loaded with nshells="<<nshells<<" m_nlayers="<<nlayers<<"\n";
         /// ---------------------------
         for (size_t ish = 0; ish < nshells; ish++){
+            (*p_log)(LOG_ERR,AT)<<" theta_core is NOT given in new ID. Fix it by evaluating it FROM profile!\n";
             theta_wing = m_data[Q::itheta][ish][nlayers-1];
             theta_core = m_data[Q::itheta][ish][nlayers-1];
             _init_a_grid(ish, nlayers, theta_wing);
@@ -538,7 +541,7 @@ public:
         // set piece-wise
         nlayers_pw = n_layers;
         dist_E0_pw.resize( nlayers_pw );
-        dist_Mom0_pw.resize( nlayers_pw );
+        dist_Mom0_pw.resizeEachImage( nlayers_pw );
         dist_M0_pw.resize( nlayers_pw );
         dist_Ye_pw.resize( nlayers_pw );
         dist_s_pw.resize( nlayers_pw );

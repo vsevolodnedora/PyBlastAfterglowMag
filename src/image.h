@@ -48,22 +48,22 @@ struct Image {
             exit(1);
         }
         m_size = size;
-//        m_data.clear();
+//        m_data.clearEachImage();
         m_data.resize(m_n_vn);
         for (auto & arr : m_data){
             arr.resize(size, fill_value);
         }
 
 //            m_size = size;
-//            m_intens.resize(m_size, fill_value );
-//            m_xrs.resize( m_size, fill_value );
-//            m_yrs.resize( m_size, fill_value );
-//            m_rrs.resize( m_size, fill_value );
-//            m_grs.resize( m_size, fill_value );
-//            m_mu.resize( m_size, fill_value );
-//            m_theta_j.resize( m_size, fill_value );
-//            m_thetas.resize( m_size, fill_value );
-//            m_phis.resize( m_size, fill_value );
+//            m_intens.resizeEachImage(m_size, fill_value );
+//            m_xrs.resizeEachImage( m_size, fill_value );
+//            m_yrs.resizeEachImage( m_size, fill_value );
+//            m_rrs.resizeEachImage( m_size, fill_value );
+//            m_grs.resizeEachImage( m_size, fill_value );
+//            m_mu.resizeEachImage( m_size, fill_value );
+//            m_theta_j.resizeEachImage( m_size, fill_value );
+//            m_thetas.resizeEachImage( m_size, fill_value );
+//            m_phis.resizeEachImage( m_size, fill_value );
         m_f_tot = 0.0;
     }
     ~Image(){
@@ -90,7 +90,7 @@ struct Image {
 
     void clearData(){
         if ((m_size == 0)||(m_data.empty())||(m_data[0].empty())){
-            (*p_log)(LOG_ERR,AT) << "cannot clean empty image\n";
+            (*p_log)(LOG_ERR,AT) << "cannot clean isEmpty image\n";
             exit(1);
         }
         for (auto & arr : m_data){
@@ -166,15 +166,15 @@ struct Images{
         for (size_t i = 0; i < n; i++)
             m_images.emplace_back(std::make_unique<Image>(size,n_vn,fill_value,loglevel));
     }
-    void resize(size_t new_size){
+    void resizeEachImage(size_t new_size){
         for (size_t i = 0; i < m_n; i++)
             m_images[i]->resize(new_size);
     }
-    void clear(){
+    void clearEachImage(){
         for (size_t i = 0; i < m_n; i++)
             m_images[i]->clearData();
     }
-    bool empty() const {
+    bool isEmpty() const {
         if (m_n == 0 || m_images.empty()){
             return true;
         }
@@ -183,7 +183,7 @@ struct Images{
     size_t size() const {return m_images.size();}
     std::vector<std::unique_ptr<Image>> & getImgs(){return m_images;}
     std::unique_ptr<Image> & getImg(size_t i){return m_images[i];}
-    Image & getImgRef(size_t i){return * m_images[i];}
+    Image & getReferenceToTheImage(size_t i){return * m_images[i];}
 };
 
 void combineImages(Image & image, size_t ncells, size_t nlayers, Images & images){
@@ -192,7 +192,7 @@ void combineImages(Image & image, size_t ncells, size_t nlayers, Images & images
         std::cerr << AT << "\n";
         exit(1);
     }
-    size_t size = images.getImgRef(0).m_size;
+    size_t size = images.getReferenceToTheImage(0).m_size;
     for (auto & im : images.getImgs()){
         if (im->m_size != size){
             std::cerr << AT << " error...\n";
@@ -205,7 +205,7 @@ void combineImages(Image & image, size_t ncells, size_t nlayers, Images & images
     image.resize(2 * ncells, 0. );
     for (size_t ilayer = 0; ilayer < nlayers; ilayer++){
         size_t ncells_in_layer = EjectaID2::CellsInLayer(ilayer);//struc.cil[ilayer];
-        auto & tmp = images.getImgRef(ilayer);
+        auto & tmp = images.getReferenceToTheImage(ilayer);
 //        if ( tmp.m_size != 2 * ncells_in_layer ){
 //            std::cerr <<  " Error !" << "\n";
 //            std::cerr << AT << "\n";
