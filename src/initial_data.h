@@ -124,23 +124,62 @@ public:
     static size_t CellsInLayer(const size_t &i_layer){
         return 2 * i_layer + 1;
     }
-private:
+
+
     /// initial grid for [a] EATS method
-    void _init_a_grid(size_t ish, size_t nlayers, double theta_w){
-        m_data[Q::itheta_c][ish].resize(nlayers,0.);
-        m_data[Q::itheta_c_h][ish].resize(nlayers,0.);
-        m_data[Q::itheta_c_l][ish].resize(nlayers,0.);
+    static void _init_a_grid(Vector & theta_c_l, Vector & theta_c_h, Vector & theta_c, size_t nlayers, double theta_w){
+        theta_c_l.resize(nlayers,0.);
+        theta_c_h.resize(nlayers,0.);
+        theta_c.resize(nlayers,0.);
         double dtheta = theta_w / (double) nlayers;
         for (size_t i = 0; i < nlayers; i++) {
             /// account for geometry
             double theta_c_i   = (double) i * dtheta + dtheta / 2.;
             double i_theta_c_l = (double) i * dtheta;
             double i_theta_c_h = (double) (i + 1) * dtheta;
-            m_data[Q::itheta_c][ish][i]   = theta_c_i;//thetas_c[i] = theta_c_i ;
-            m_data[Q::itheta_c_l][ish][i] = i_theta_c_l;//thetas_c_l[i] = i_theta_c_l ;
-            m_data[Q::itheta_c_h][ish][i] = i_theta_c_h;//thetas_c_h[i] = i_theta_c_h ;
+            theta_c[i]   = theta_c_i;//thetas_c[i] = theta_c_i ;
+            theta_c_l[i] = i_theta_c_l;//thetas_c_l[i] = i_theta_c_l ;
+            theta_c_h[i] = i_theta_c_h;//thetas_c_h[i] = i_theta_c_h ;
         }
     }
+
+    static void _evalCellsInLayer(size_t nlayers, std::vector<size_t> & cil){
+        cil.resize( nlayers );
+        for (size_t i = 0; i < nlayers; i++)
+            cil[i] = CellsInLayer(i);
+    }
+
+    static size_t _evalTotalNcells(size_t nlayers){
+        /// evaluateShycnhrotronSpectrum the number of phi cells in each 'theta' layer
+        std::vector<size_t> cil;
+        _evalCellsInLayer(nlayers, cil);
+        size_t ncells = std::accumulate(cil.begin(), cil.end(), decltype(cil)::value_type(0));
+        return ncells;
+    }
+private:
+
+    //    void _init_a_grid(size_t ish, size_t nlayers, double theta_w){
+//        m_data[Q::itheta_c][ish].resize(nlayers,0.);
+//        m_data[Q::itheta_c_h][ish].resize(nlayers,0.);
+//        m_data[Q::itheta_c_l][ish].resize(nlayers,0.);
+//        double dtheta = theta_w / (double) nlayers;
+//        for (size_t i = 0; i < nlayers; i++) {
+//            /// account for geometry
+//            double theta_c_i   = (double) i * dtheta + dtheta / 2.;
+//            double i_theta_c_l = (double) i * dtheta;
+//            double i_theta_c_h = (double) (i + 1) * dtheta;
+//            m_data[Q::itheta_c][ish][i]   = theta_c_i;//thetas_c[i] = theta_c_i ;
+//            m_data[Q::itheta_c_l][ish][i] = i_theta_c_l;//thetas_c_l[i] = i_theta_c_l ;
+//            m_data[Q::itheta_c_h][ish][i] = i_theta_c_h;//thetas_c_h[i] = i_theta_c_h ;
+//        }
+//    }
+
+    /// initial grid for [a] EATS method
+    void _init_a_grid(size_t ish, size_t nlayers, double theta_w) {
+        _init_a_grid(m_data[Q::itheta_c_l][ish], m_data[Q::itheta_c_h][ish], m_data[Q::itheta_c][ish],
+                     nlayers, theta_w);
+    }
+
     void _init_pw_grid(size_t ish, size_t nlayers, double theta_w){
         m_data[ictheta][ish].resize(nlayers,0.);
         Vector theta_pw ( nlayers + 1 );
@@ -160,15 +199,8 @@ private:
             m_data[Q::itheta_c_h][ish][i] = theta_pw[i+1];//thetas_c_h[i] = i_theta_c_h ;
         }
 
-        /// evaluateShycnhrotronSpectrum the number of phi cells in each 'theta' layer
-        std::vector<size_t> cil ( nlayers );
-        for (size_t i = 0; i < nlayers; i++)
-            cil[i] = CellsInLayer(i);
-        ncells = std::accumulate(cil.begin(), cil.end(),
-                                 decltype(cil)::value_type(0));
-//        ncells =  cil.sum(); /// total number of cells
-
-
+        /// eval the number of phi cells in each 'theta' layer
+        ncells = _evalTotalNcells(nlayers);
     }
     void _load_id_file(std::string & path_to_table, bool & use_1d_id, bool loadr0, double t0){
         if (!std::experimental::filesystem::exists(path_to_table))
