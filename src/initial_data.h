@@ -103,6 +103,14 @@ public:
         return ctheta;
     }
     /// phi grid for a given layer (given number of phi cells)
+    static Vector getCphiGridPW_( size_t cil ){
+        Vector cphis ( cil );
+        for (size_t j = 0; j < cil; j++){
+            cphis[j] = (double)j * 2.0 * CGS::pi / (double)cil;
+        }
+        return std::move ( cphis );
+    }
+    /// phi grid for a given layer (given number of phi cells)
     static Vector getCphiGridPW( size_t ilayer ){
         size_t cil = CellsInLayer(ilayer);
         Vector cphis ( cil );

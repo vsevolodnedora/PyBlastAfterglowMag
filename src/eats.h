@@ -357,10 +357,10 @@ public:
     }
 
     /// evaluate intensity/flux density distribution using adaptive summation
-    void evalImageA(Image & image, Image & im_pj, Image & im_cj, double ctheta, size_t isublayer,
+    void evalImageA(Image & image, Image & im_pj, Image & im_cj, double theta_l, double theta_h, size_t isublayer,
                     double obs_time, double obs_freq, double atol){
         size_t ncells = EjectaID2::CellsInLayer( isublayer );
-        computeImageA(im_pj, im_cj, ctheta, isublayer, obs_time, obs_freq, atol);
+        computeImageA(im_pj, im_cj, theta_l, theta_h, isublayer, obs_time, obs_freq, atol);
         /// combine the two images (use full 'ncells' array, and fill only cells that correspond to this layer)
         for (size_t icell = 0; icell < ncells; ++icell) {
             for (size_t ivn = 0; ivn < image.m_n_vn; ++ivn)
@@ -631,7 +631,9 @@ public:
         double flux = std::accumulate(fluxes.begin(), fluxes.end(), decltype(fluxes)::value_type(0));
         image.m_f_tot = flux * CGS::cgs2mJy; /// flux in mJy
     }
-    void evalImageFromA(Image & image, double t_obs, double nu_obs, double atol, double ctheta, size_t isublayer,
+#if 0
+    void evalImageFromA(Image & image, double t_obs, double nu_obs, double atol, double theta_l, double theta_h,
+                        size_t isublayer,
                         double (*obs_angle)( const double &, const double &, const double & ),
                         double (*im_xxs)( const double &, const double &, const double & ),
                         double (*im_yys)( const double &, const double &, const double & )) {
@@ -681,12 +683,11 @@ public:
 //        exit(1);
 
     }
+#endif
 
-
-#if 0
+#if 1
     void evalImageFromA(Image & image, double t_obs, double nu_obs, double atol,
-//                        Vector & _theta_c_l, Vector & _theta_c_h, std::vector<size_t> & _nphis,
-                        double theta_c_l, double theta_c_h, size_t nphi,
+                        double theta_c_l, double theta_c_h, size_t isublayer,
                         double (*obs_angle)( const double &, const double &, const double & ),
                         double (*im_xxs)( const double &, const double &, const double & ),
                         double (*im_yys)( const double &, const double &, const double & )) {
@@ -696,6 +697,15 @@ public:
                     << "]\n";
             return; //std::move(light_curve);
         }
+        parsPars(t_obs, nu_obs, p_pars->theta_c_l, p_pars->theta_c_h,
+                 0, 2.*CGS::pi, obs_angle);
+        check_pars();
+
+        /// update for integration
+        p_pars->current_theta_cone_hi = theta_c_h;
+        p_pars->current_theta_cone_low = theta_c_l;
+
+
         /// total cells across all sublayers
 //        size_t ncells = 0;
 //        for (size_t i = 0; i < _theta_c_l.size(); i++)
@@ -706,19 +716,20 @@ public:
 //            exit(1);
 //        }
         ///
-        Vector fluxes(nphi,0.);
+        size_t cil = EjectaID2::CellsInLayer(isublayer);
+        Vector cphis = EjectaID2::getCphiGridPW_(cil+1); // +1 to get boundaries
+        Vector fluxes(cphis.size(),0.);
         size_t ii = 0;
-        double phi_low = 0.;
-        double phi_high = 2. * M_PI;
-        double dphi = (phi_high - phi_low) / (double) nphi;
-        for (size_t iphi = 0; iphi < nphi; iphi++) {
-            double i_phi_0 = phi_low + (double) iphi * dphi;
-            double i_phi_1 = phi_low + ((double) iphi + 1.) * dphi;
+//        double phi_low = 0.;
+//        double phi_high = 2. * M_PI;
+//        double dphi = (phi_high - phi_low) / (double) nphi;
+        for (size_t iphi = 0; iphi < cphis.size()-1; iphi++) {
+            double i_phi_0 = cphis[iphi];
+            double i_phi_1 = cphis[iphi+1];
             double cphi = 0.5 * (i_phi_1 - i_phi_0);
+            p_pars->current_phi_hi = i_phi_1; // Update for integrator
+            p_pars->current_phi_low = i_phi_0;
             // -------------------------------------
-            parsPars(t_obs, nu_obs, p_pars->theta_c_l, p_pars->theta_c_h,
-                     i_phi_0, i_phi_1, obs_angle);
-            check_pars();
             double Fcoeff = CGS::cgs2mJy / (4.0 * M_PI * p_pars->d_l * p_pars->d_l); // result will be in mJy
             p_pars->atol_theta = atol;// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
             p_pars->atol_phi = atol;//  / (2.0 * Fcoeff);
@@ -728,9 +739,11 @@ public:
             double r = 0., mu = 0., gam = 0., ctheta_bw = 0.;
             double _ = integrand(std::cos(ctheta),
                                  i_phi_0 + cphi, r, mu, gam, ctheta_bw, p_pars);
+            double x = r * im_xxs(ctheta, i_phi_0 + cphi, p_pars->theta_obs);
+            double y = r * im_yys(ctheta, i_phi_0 + cphi, p_pars->theta_obs);
             image(IMG::Q::iintens, ii) = fluxes[ii] * Fcoeff / (r * r * std::abs(mu));
-            image(IMG::Q::ixr, ii) = r * im_xxs(ctheta, i_phi_0 + cphi, p_pars->theta_obs);
-            image(IMG::Q::iyr, ii) = r * im_yys(ctheta, i_phi_0 + cphi, p_pars->theta_obs);
+            image(IMG::Q::ixr, ii) = x;
+            image(IMG::Q::iyr, ii) = y;
             image(IMG::Q::ir, ii) = r;
             image(IMG::Q::ictheta, ii) = ctheta_bw;
             image(IMG::Q::iphi, ii) = i_phi_0 + cphi;
@@ -922,13 +935,13 @@ public:
     }
 
     /// get the observed flux density distrib 'image' for 2 projections for given time, freq, angle, distance, red shift
-    void computeImageA(Image & im_pj, Image & im_cj, double ctheta, size_t isublayer,
+    void computeImageA(Image & im_pj, Image & im_cj, double theta_l , double theta_h, size_t isublayer,
                        double obs_time, double obs_freq, double atol){
         /// evaluateShycnhrotronSpectrum image for primary jet and counter jet
-        evalImageFromA(im_pj, obs_time, obs_freq, atol, ctheta, isublayer,
+        evalImageFromA(im_pj, obs_time, obs_freq, atol, theta_l, theta_h, isublayer,
                        obsAngle, imageXXs, imageYYs);
         if (p_pars->counter_jet) // p_eats->counter_jet
-            evalImageFromA(im_cj, obs_time, obs_freq, atol, ctheta, isublayer,
+            evalImageFromA(im_cj, obs_time, obs_freq, atol, theta_l, theta_h, isublayer,
                            obsAngleCJ, imageXXsCJ, imageYYsCJ);
     }
 
@@ -1350,8 +1363,8 @@ private:
             exit(1);
         }
         /// For a given phi, integrate over 1 - cos(theta) (to avoid sin(theta->0) errors)
-        double sin_half_theta_0 = sin(0.5 * theta_0);
-        double sin_half_theta_1 = sin(0.5 * theta_1);
+        double sin_half_theta_0 = std::sin(0.5 * theta_0);
+        double sin_half_theta_1 = std::sin(0.5 * theta_1);
         double one_minus_cos_theta_0 = 2.0 * sin_half_theta_0 * sin_half_theta_0;
         double one_minus_cos_theta_1 = 2.0 * sin_half_theta_1 * sin_half_theta_1;
 

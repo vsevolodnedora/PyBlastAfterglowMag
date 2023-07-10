@@ -67,8 +67,7 @@ struct Image {
         m_f_tot = 0.0;
     }
     ~Image(){
-//        std::cerr << AT << " deleting image...\n";
-//        delete p_log;
+        std::cerr << AT << " deleting image... size ="<<m_size<<"\n";
     }
 
     void resize(size_t size, double fill_value=0.){

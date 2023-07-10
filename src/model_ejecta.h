@@ -1165,7 +1165,7 @@ private:
                 if (id->get(ish,il,EjectaID2::Q::ir)<=0||
                     id->get(ish,il,EjectaID2::Q::iek)<=0||
                     id->get(ish,il,EjectaID2::Q::imass)<=0){
-                    empty_bws[il]+=" "+std::to_string(ish);
+                    empty_bws[il]+=" "+std::to_string(ish) + " ENDING evolution";
                     n_unitinitilized_shells++;
                     bw->getPars()->end_evolution = true;
                     ii_eq += SOL::neq;//bw->getNeq();
@@ -1243,11 +1243,11 @@ private:
         is_ejecta_obs_pars_set = true;
 
         if ((n_unitinitilized_shells > 0)){
-            (*p_log)(LOG_INFO,AT)<<"-------------- NO ID FOR ------------"<<"\n";
+            (*p_log)(LOG_WARN,AT)<<"-------------- NO ID FOR ------------"<<"\n";
             for (const auto & empty_bw : empty_bws){
-                (*p_log)(LOG_INFO,AT)<<empty_bw<<"\n";
+                (*p_log)(LOG_WARN,AT)<<empty_bw<<"\n";
             }
-            (*p_log)(LOG_INFO,AT)<<"-------------------------------------"<<"\n";
+            (*p_log)(LOG_WARN,AT)<<"-------------------------------------"<<"\n";
         }
 
 //        if ((p_log->getLogLevel() > LOG_WARN)) {
@@ -1622,40 +1622,42 @@ private:
 //        size_t nsublayers = ;
 
         /// for skymap we need an extended grid of layers so that there is enough resolution for the image
-//        Vector theta_c_h{};
-//        std::vector<size_t> cils{};
-//        EjectaID2::_init_a_grid(theta_c_l, theta_c_h, theta_c, nlayers_ * nsublayers, CGS::pi/2.);
-//        EjectaID2::_evalCellsInLayer(nlayers_ * nsublayers, cils);
-//        size_t tot_ncells = EjectaID2::_evalTotalNcells(nlayers_ * nsublayers);
+        Vector theta_c{};
+        Vector theta_c_l{};
+        Vector theta_c_h{};
+        std::vector<size_t> cils{};
+        EjectaID2::_init_a_grid(theta_c_l, theta_c_h, theta_c, nlayers_ * nsublayers, CGS::pi/2.);
+        EjectaID2::_evalCellsInLayer(nlayers_ * nsublayers, cils);
+        size_t ncells = EjectaID2::_evalTotalNcells(nlayers_ * nsublayers);
 
-        size_t ntheta = nlayers_*nsublayers;
-        Vector cthetas0;
-        Vector thetas ( ntheta + 1 );
-        cthetas0.resize( ntheta );
-        for (size_t i = 0; i < ntheta + 1; i++){
-            double fac = (double)i / (double)ntheta;
-            thetas[i] = 2.0 * asin( fac * sin(M_PI / 2.0 ) );
-        }
-        for (size_t i = 0; i < ntheta; ++i){
-            cthetas0[i] = 0.5 * ( thetas[i+1] + thetas[i] );
-        }
-        std::vector<size_t> cil;
-        cil.resize(ntheta );
-        for (size_t i = 0; i < ntheta; i++)
-            cil[i] = EjectaID2::CellsInLayer(i);
-        size_t ncells = (size_t)std::accumulate(cil.begin(), cil.end(),0); /// total number of cells
-
-        Vector all_cthetas(ncells );
-        Vector all_cphis(ncells );
-        int k = 0;
-        for (size_t i = 0; i < ntheta; i++){
-            for (size_t j = 0; j < cil[i]; j++){
-                all_cthetas[k] = cthetas0[i];
-                all_cphis[k] = (double)j * 2.0 * CGS::pi / (double)cil[i];
-                k++;
-            }
-//                std::cout << all_cphis << "\ncells";
-        }
+//        size_t ntheta = nlayers_*nsublayers;
+//        Vector cthetas0;
+//        Vector thetas ( ntheta + 1 );
+//        cthetas0.resize( ntheta );
+//        for (size_t i = 0; i < ntheta + 1; i++){
+//            double fac = (double)i / (double)ntheta;
+//            thetas[i] = 2.0 * asin( fac * sin(M_PI / 2.0 ) );
+//        }
+//        for (size_t i = 0; i < ntheta; ++i){
+//            cthetas0[i] = 0.5 * ( thetas[i+1] + thetas[i] );
+//        }
+//        std::vector<size_t> cil;
+//        cil.resize(ntheta );
+//        for (size_t i = 0; i < ntheta; i++)
+//            cil[i] = EjectaID2::CellsInLayer(i);
+//        size_t ncells = (size_t)std::accumulate(cil.begin(), cil.end(),0); /// total number of cells
+//
+//        Vector all_cthetas(ncells );
+//        Vector all_cphis(ncells );
+//        int k = 0;
+//        for (size_t i = 0; i < ntheta; i++){
+//            for (size_t j = 0; j < cil[i]; j++){
+//                all_cthetas[k] = cthetas0[i];
+//                all_cphis[k] = (double)j * 2.0 * CGS::pi / (double)cil[i];
+//                k++;
+//            }
+////                std::cout << all_cphis << "\ncells";
+//        }
 
 
         if (images.isEmpty()){
@@ -1686,6 +1688,8 @@ private:
 //            }
 //        }
 
+
+
         std::vector<std::vector<size_t>> n_empty_images;
         std::vector<size_t> n_empty_images_shells;
         const std::vector<std::string> x {};
@@ -1700,11 +1704,11 @@ private:
 //            for (auto & _tmp : tmp)
 //                _tmp.clearData();
             tmpImagesSet.clearEachImage();
-            tmp_pj.clearData(); tmp_cj.clearData();
             std::vector<size_t> n_empty_images_layer;
             double atol=0; // TODO make it depend on the layer flux density
             size_t ii = 0;
             for (size_t ilayer = 0; ilayer < nlayers_; ilayer++){
+                tmp_pj.clearData(); tmp_cj.clearData();
                 /// prepare sublayers
                 (*p_log)(LOG_INFO,AT)
                         << " EJECTA LC obs_time="<<obs_time<<" obs_freq="<<obs_freq
@@ -1718,11 +1722,11 @@ private:
 //                                   obs_time, obs_freq, atol);
 
                 for(size_t iilayer = 0; iilayer < nsublayers; iilayer++){
-                    double dtheta = (2 * M_PI) / ntheta;
-                    double dphi = 2.0 * CGS::pi / ntheta;
-                    double ctheta = cthetas0[ii];
+//                    double dtheta = (2 * M_PI) / ntheta;
+//                    double dphi = 2.0 * CGS::pi / ntheta;
+//                    double ctheta = cthetas0[ii];
                     bw_rad->evalImageA(tmpImagesSet.getReferenceToTheImage(ii), tmp_pj, tmp_cj,
-                                       ctheta, ii,
+                                       theta_c_l[ii], theta_c_h[ii], ii,
                                        obs_time, obs_freq, atol);
                     if (tmpImagesSet.getReferenceToTheImage(ilayer).m_f_tot == 0){
                         n_jet_empty_images += 1; n_empty_images_layer.emplace_back(ilayer);
@@ -1739,7 +1743,8 @@ private:
                 n_empty_images_shells.emplace_back(ishell);
                 n_empty_images.emplace_back(n_empty_images_layer);
             }
-            combineImages(images.getReferenceToTheImage(ishell), ncells, nlayers_*nsublayers, tmpImagesSet) ;
+            auto & ims = images.getReferenceToTheImage(ishell);
+            combineImages(ims, ncells, nlayers_*nsublayers, tmpImagesSet) ;
         }
 
         /// print which layers/shells gave isEmpty image
