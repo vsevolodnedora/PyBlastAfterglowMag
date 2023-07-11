@@ -13,10 +13,10 @@
 
 namespace IMG{
     //    std::vector<std::string> m_names{"theta", "phi", "r", "theta_j", "theta0", "mu", "xrs", "yrs", "gamma", "fluxes", "intensity", "gm", "gc", "B", "tburst", "tt"};
-    std::vector<std::string> m_names{"mu", "xrs", "yrs", "intensity", "r", "ctheta", "phi",
+    std::vector<std::string> m_names{"mu", "xrs", "yrs", "intensity", "r", "ctheta", "cphi",
                                      "tau_compton", "tau_bh", "tau_bf"};
 //    enum Q { itheta, iphi, ir, itheta_j, itheta0, imu, ixr, iyr, igam, iflux, iintens, igm, igc, iB, itburst, itt };
-    enum Q {imu, ixr, iyr, iintens, ir, ictheta, iphi,
+    enum Q {imu, ixr, iyr, iintens, ir, ictheta, icphi,
             itau_comp, itau_bh, itau_bf};
 }
 
@@ -67,7 +67,7 @@ struct Image {
         m_f_tot = 0.0;
     }
     ~Image(){
-        std::cerr << AT << " deleting image... size ="<<m_size<<"\n";
+//        std::cerr << AT << " deleting image... size ="<<m_size<<"\n";
     }
 
     void resize(size_t size, double fill_value=0.){
@@ -182,7 +182,13 @@ struct Images{
     size_t size() const {return m_images.size();}
     std::vector<std::unique_ptr<Image>> & getImgs(){return m_images;}
     std::unique_ptr<Image> & getImg(size_t i){return m_images[i];}
-    Image & getReferenceToTheImage(size_t i){return * m_images[i];}
+    Image & getReferenceToTheImage(size_t i){
+        if (i>m_images.size()-1){
+            std::cerr << AT << " index is out of boundary\n";
+            exit(1);
+        }
+        return * m_images[i];
+    }
 };
 
 void combineImages(Image & image, size_t ncells, size_t nlayers, Images & images){

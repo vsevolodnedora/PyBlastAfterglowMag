@@ -1626,7 +1626,8 @@ private:
         Vector theta_c_l{};
         Vector theta_c_h{};
         std::vector<size_t> cils{};
-        EjectaID2::_init_a_grid(theta_c_l, theta_c_h, theta_c, nlayers_ * nsublayers, CGS::pi/2.);
+//        EjectaID2::_init_a_grid(theta_c_l, theta_c_h, theta_c, nlayers_ * nsublayers, CGS::pi/2.);
+        EjectaID2::_init_pw_grid(theta_c_l, theta_c_h, theta_c, nlayers_ * nsublayers, id->theta_wing);
         EjectaID2::_evalCellsInLayer(nlayers_ * nsublayers, cils);
         size_t ncells = EjectaID2::_evalTotalNcells(nlayers_ * nsublayers);
 
@@ -1725,6 +1726,7 @@ private:
 //                    double dtheta = (2 * M_PI) / ntheta;
 //                    double dphi = 2.0 * CGS::pi / ntheta;
 //                    double ctheta = cthetas0[ii];
+                    tmpImagesSet.getReferenceToTheImage(ii).resize(ncells*2);
                     bw_rad->evalImageA(tmpImagesSet.getReferenceToTheImage(ii), tmp_pj, tmp_cj,
                                        theta_c_l[ii], theta_c_h[ii], ii,
                                        obs_time, obs_freq, atol);
