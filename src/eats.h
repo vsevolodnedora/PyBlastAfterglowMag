@@ -7,8 +7,8 @@
 
 #include "utilitites/pch.h"
 #include "utilitites/utils.h"
-#include "blastwave.h"
-#include "blastwave_components.h"
+#include "blastwave/blastwave.h"
+#include "blastwave/blastwave_components.h"
 #include "utilitites/interpolators.h"
 #include "utilitites/ode_solvers.h"
 #include "utilitites/quadratures.h"
@@ -349,8 +349,8 @@ public:
         for (size_t icell = 0; icell < phi_grid.size(); ++icell) {
             for (size_t ivn = 0; ivn < image.m_n_vn; ++ivn)
                 image(ivn, icell) = im_pj(ivn,icell);
-//            for (size_t ivn = 0; ivn < image.m_n_vn; ++ivn)
-//                image(ivn,phi_grid.size()+icell) = im_cj(ivn,icell);
+            for (size_t ivn = 0; ivn < image.m_n_vn; ++ivn)
+                image(ivn,phi_grid.size()+icell) = im_cj(ivn,icell);
         }
         image.m_f_tot = (im_pj.m_f_tot + im_cj.m_f_tot);
 //        std::cout<<image.m_f_tot<<"\n";
@@ -370,8 +370,8 @@ public:
         for (size_t icell = 0; icell < ncells; ++icell) {
             for (size_t ivn = 0; ivn < image.m_n_vn; ++ivn)
                 image(ivn, icell) = im_pj(ivn,icell);
-//            for (size_t ivn = 0; ivn < image.m_n_vn; ++ivn)
-//                image(ivn,ncells+icell) = im_cj(ivn,icell);
+            for (size_t ivn = 0; ivn < image.m_n_vn; ++ivn)
+                image(ivn,ncells+icell) = im_cj(ivn,icell);
         }
 //        image.m_f_tot = im_pj.m_f_tot+im_cj.m_f_tot;//evalFluxDensA(obs_time, obs_freq, atol);
         image.m_f_tot = evalFluxDensA(obs_time, obs_freq, atol);

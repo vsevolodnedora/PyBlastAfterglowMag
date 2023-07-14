@@ -8,7 +8,7 @@
 #include "utilitites/pch.h"
 #include "utilitites/utils.h"
 #include "utilitites/interpolators.h"
-#include "blastwave_components.h"
+#include "blastwave/blastwave_components.h"
 #include "initial_data.h"
 
 namespace IMG{
@@ -101,16 +101,12 @@ struct Image {
     VecVector & getAllArrs(){ return m_data; }
     inline Vector & operator[](size_t iv_n){ return this->m_data[iv_n]; }
     inline double & operator()(size_t iv_n, size_t ii){
-//        if(iv_n > m_names.size()-1){
-//            if (USELOGGER){ (*p_log)(LOG_ERR) << " Access beyong memory index="<<ii<<" is above max="<<m_size-1<<"\n"; }
-//            else{
-//                std::cout << AT << " Access beyong memory index="<<iv_n<<" is above name_max="<<m_names.size()-1<<"\n";
-//            }
+//        if(iv_n > m_n_vn-1){
+//            std::cerr << AT << " Access beyong memory index="<<iv_n<<" is above name_max="<<m_n_vn-1<<"\n";
 //            exit(1);
 //        }
 //        if (ii > m_size-1){
-//            if (USELOGGER){ (*p_log)(LOG_ERR) << " Access beyong memory index="<<ii<<" is above max="<<m_size-1<<"\n"; }
-//            else{ std::cout << AT << " Access beyong memory index="<<ii<<" is above max="<<m_size-1<<"\n"; }
+//            std::cerr << AT << " Access beyong memory index="<<ii<<" is above max="<<m_size-1<<"\n";
 //            exit(1);
 //        }
         return this->m_data[iv_n][ii];
@@ -205,9 +201,8 @@ void combineImages(Image & image, size_t ncells, size_t nlayers, Images & images
     }
 
     size_t ii = 0;
-    size_t icell = 0;
-//    Image image(2 * struc.ncells, 0. );
-    image.resize(2 * ncells, 0. );
+    if (image.m_size!=2*ncells)
+        image.resize(2 * ncells, 0. );
     for (size_t ilayer = 0; ilayer < nlayers; ilayer++){
         size_t ncells_in_layer = EjectaID2::CellsInLayer(ilayer);//struc.cil[ilayer];
         auto & tmp = images.getReferenceToTheImage(ilayer);
@@ -225,19 +220,9 @@ void combineImages(Image & image, size_t ncells, size_t nlayers, Images & images
                 (image)(ivn, ncells + ii + icj) = tmp(ivn, ncells_in_layer + icj);
         }
         ii += ncells_in_layer;
-//
-//        if (ilayer == 0) ii = 0;
-//        else ii = struc.cil[ilayer-1];
-//        for (size_t icell = 0; icell < struc.cil[ilayer]; icell++) {
-////            if (ii+ncells > images[it].fluxes_layer.size()-1){ exit(1); }
-//            for (size_t ivn = 0; ivn < image.m_names.size(); ivn++)
-//                image(ivn, ii) = tmp(ivn, icell);
-//            ii++;
-//        }
+
         image.m_f_tot += tmp.m_f_tot;
     }
-//    std::cout << image[Image::iintens].min() << ", " << image[Image::iintens].max() << "\n";
-//    return image;//#std::move(image);
 }
 
 static inline double cosToSin(const double &cos_theta){

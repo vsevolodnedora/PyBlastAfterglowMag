@@ -10,7 +10,8 @@
 #include "utilitites/utils.h"
 #include "utilitites/interpolators.h"
 #include "utilitites/quadratures.h"
-#include "blastwave_components.h"
+#include "blastwave/blastwave_components.h"
+
 
 class RadiationBase{
 public:

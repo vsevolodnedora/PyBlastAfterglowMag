@@ -13,7 +13,8 @@
 #include "utilitites/rootfinders.h"
 #include "image.h"
 #include "synchrotron_an.h"
-#include "blastwave_components.h"
+#include "blastwave/blastwave_components.h"
+#include "blastwave/blastwave_collision.h"
 #include "model_magnetar.h"
 #include "model_ejecta.h"
 

@@ -15,8 +15,9 @@
 #include "synchrotron_an.h"
 
 //#include "model_magnetar.h"
-#include "blastwave_components.h"
-#include "blastwave.h"
+#include "blastwave/blastwave_components.h"
+#include "blastwave/blastwave.h"
+#include "blastwave/blastwave_collision.h"
 
 
 /// Radially structured blastwave collection
@@ -1746,6 +1747,7 @@ private:
                 n_empty_images.emplace_back(n_empty_images_layer);
             }
             auto & ims = images.getReferenceToTheImage(ishell);
+            ims.resize(2 * ncells, 0. );
             combineImages(ims, ncells, nlayers_*nsublayers, tmpImagesSet) ;
         }
 

@@ -47,7 +47,7 @@
 // include necessary files
 #include "utilitites/utils.h"
 #include "utilitites/H5Easy.h"
-#include "blastwave.h"
+#include "blastwave/blastwave.h"
 #include "model_ejecta.h"
 #include "model_evolve.h"
 #include "model_magnetar.h"
@@ -213,7 +213,7 @@ int main(int argc, char** argv) {
     if (argc<4){
 //        working_dir = "../tst/grbafg_gauss_offaxis/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-        working_dir = "../tst/grbafg_skymap_eats/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/grbafg_skymap_eats/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/knafg_nrinformed/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/knafg_nrinformed_eats/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
@@ -221,7 +221,7 @@ int main(int argc, char** argv) {
 //        working_dir = "../tst/magnetar_bw/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_tophat_wind/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-//        working_dir = "../tst/knafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../tst/knafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../projects/grbtophat_parallel/"; parfilename="tophat_EisoC500_Gamma0c1000_thetaC50_thetaW50_theta00_nism10_p22_epse05_epsb05_parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../projects/grbgauss_mcmc/working/"; parfilename="tophat_7549a8d74ce86fc502b087d8eb0e341656ee536a.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/problems/"; parfilename="tst.par"; loglevel=LOG_INFO;

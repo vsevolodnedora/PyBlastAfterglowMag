@@ -5,13 +5,10 @@
 #ifndef SRC_BLASTWAVE_COMPONENTS_H
 #define SRC_BLASTWAVE_COMPONENTS_H
 
-#include "utilitites/pch.h"
-#include "utilitites/utils.h"
-#include "utilitites/interpolators.h"
-#include "utilitites/quadratures.h"
-
-/* ------------- EQUATIONS ----------------- */
-
+#include "../utilitites/pch.h"
+#include "../utilitites/utils.h"
+#include "../utilitites/interpolators.h"
+#include "../utilitites/quadratures.h"
 
 inline namespace EQS{
     inline double MomFromGam(const double gam){
