@@ -906,20 +906,20 @@ inline static double lagrangeInterpolation(Vector & x, Vector & y, size_t n, dou
 }
 
 inline static double dydx(Vector & x, Vector & y, Vector & dy, double dx, size_t idx, double curr_x, bool lagrange_interp=true){
-    double dy_idx;
-    if (idx == 2){
+    double dy_idx=-1;
+    if (idx == 1){
         // first order derivative
         dy_idx = (y[idx] - y[idx-1]) / dx;
     }
-    if (idx == 3){
+    if (idx == 2){
         // second order derivative
         dy_idx = (3.*y[idx] - 4.*y[idx-1] + y[idx-2]) / (2. * dx); //
     }
-    if (idx == 4){
+    if (idx == 3){
         // third order derivative
         dy_idx = (10. * y[idx] - 15.*y[idx-1] + 6.*y[idx-2] - y[idx-3]) / (6. * dx); // error O(dx^2)
     }
-    if (idx >= 5){
+    if (idx >= 4){
         dy_idx = (35. * y[idx] - 56. * y[idx-1] + 28. * y[idx-2] - 8. * y[idx-3] + y[idx-4]) / (20. * dx);
     }
 

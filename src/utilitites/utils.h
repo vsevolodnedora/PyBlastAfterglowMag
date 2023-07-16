@@ -269,7 +269,7 @@ Vector arrToVec(Vector & array){
 }
 //void vecToArr(Vector & source, Array & target){
 //    if ((target.size() != source.size())){
-//        target.resize(source.size(), 0.0);
+//        target.resizeEachImage(source.size(), 0.0);
 //    }
 //    for (size_t i = 0; i < source.size(); ++i)
 //        target[i] = source[i];
@@ -390,7 +390,7 @@ std::ostream& stream_arr(std::ostream& os, vecarr &data, std::vector<std::string
 //        std::cerr << AT<< "\n";
         exit(1);
     }
-    if (data.empty()) {
+    if (data.isEmpty()) {
         (*p_log)(LOG_ERR,  AT) << "Error! Empty vector of data cannot be outputed"
                           << "Exiting...\n";
         std::cerr << AT<< "\n";
@@ -1091,7 +1091,7 @@ void cast_times_freqs(Vector& lc_times, Vector& lc_freqs,
                       Vector& _times, Vector& _freqs,
                       bool is_one_to_one_already, std::unique_ptr<logger> & p_log){
     if (lc_times.empty() || lc_freqs.empty()){
-        (*p_log)(LOG_ERR,AT)<<" empty time or freq arr.\n";
+        (*p_log)(LOG_ERR,AT)<<" isEmpty time or freq arr.\n";
         exit(1);
     }
     if (is_one_to_one_already){
@@ -1213,7 +1213,7 @@ Vector makeVecFromString(const std::string line, std::unique_ptr<logger> & p_log
     std::stringstream sstream(line);
     std::string word;
     while (std::getline(sstream, word, space_char)){
-        word.erase(std::remove_if(word.begin(), word.end(), ispunct), word.end());
+//        word.erase(std::remove_if(word.begin(), word.end(), ispunct), word.end()); // TODO removes '.' from floats
         words.push_back(word);
     }
     if (words.size() == 1){

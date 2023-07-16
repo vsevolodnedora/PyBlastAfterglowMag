@@ -118,6 +118,11 @@ public:
         p_pars->fraction_of_Gamma0_when_spread =
                 (double)getDoublePar("fraction_of_Gamma0_when_spread",pars, AT,p_log,.75,false);
 
+        /// rs parameters
+        p_pars->tprompt = getDoublePar("tprompt",pars,AT,p_log,1000.,false);
+        p_pars->epsilon_rad_rs = getDoublePar("epsilon_rad_rs",pars,AT,p_log,1000.,false);
+        p_pars->rs_shutOff_criterion_rho = getDoublePar("rs_shutOff_criterion_rho",pars,AT,p_log,1000.,false);
+
         // set options
         std::string opt;
         // mass accretion from ISM
@@ -395,6 +400,12 @@ public:
         p_pars->adiabLoss =
                 getBoolOpt("use_adiabLoss", opts, AT,p_log,true, false);
 
+        p_pars->shutOff =
+                getBoolOpt("use_rs", opts, AT,p_log, false, true);
+
+        p_pars->adiabLoss_rs =
+                getBoolOpt("use_adiabLoss_rs", opts, AT,p_log,true, false);
+
         /// set sedov-taylor profile (for jet to be seen by ejecta as it moves behind)
         if (p_pars->use_st_dens_profile) {
             p_sedov->setPars(1.5, 3, 0.); // TODO this should not be here and evaluated for EVERY bw...
@@ -591,6 +602,8 @@ public:
         else{
             if(opts.at(opt) == "grb_fs")
                 rhs_type = RHS_TYPES::iGRG_FS;
+            else if(opts.at(opt) == "grb_fsrs")
+                rhs_type = RHS_TYPES::iGRG_FSRS;
             else if(opts.at(opt) == "ej")
                 rhs_type = RHS_TYPES::iEJ;
             else if(opts.at(opt) == "ej_pwn")
@@ -600,7 +613,7 @@ public:
                                      <<" given: " << opts.at(opt)
                                      << " is not recognized. "
                                      << "Possible options: "
-                                     << " grb_fs " << " ej " << " ej_pwn " << "\n";
+                                     << " grb_fs "<< " grb_fsrs " << " ej " << " ej_pwn " << "\n";
 //                std::cerr << AT << "\n";
                 exit(1);
             }

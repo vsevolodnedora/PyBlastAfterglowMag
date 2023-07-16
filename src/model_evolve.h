@@ -543,6 +543,9 @@ public:
         /// check if blast wave has fully expanded
         if (p_pars->p_grb->run_bws)
             isThereLateralExpansionTermiantion();
+        /// check if blast wave has fully expanded
+        if (p_pars->p_grb->run_bws)
+            isThereReverseShockTermiantion();
         // check if there are no nans/unphysical vals in solution
         if ( !isSolutionOk( t_grid[ix], ix ) ) {
             (*p_log)(LOG_ERR,AT)  << " Unphysical value in the solution \n";
@@ -718,6 +721,41 @@ private:
         }
         return is_ok;
 
+    }
+    bool isThereReverseShockTermiantion(){
+//        auto & jet_bws = p_pars->p_bws_jet;
+//        auto & ej_bws = p_pars->p_bws;
+#if 0
+        size_t ii = 0; bool is_ok = true;
+        if (p_pars->p_grb->run_bws) {
+            if (p_pars->p_grb->nshells() > 1){
+                (*p_log)(LOG_ERR,AT)<<"not implemented\n";
+                exit(1);
+            }
+            auto & jet_bws = p_pars->p_grb->getShells()[0]->getBWs();
+//            auto & jet_bws = p_pars->p_grb->getBWs();
+            for (size_t i = 0; i < jet_bws.size(); i++) {
+                if (jet_bws[i]->isToStopLateralExpansion(m_CurSol, ii)) {
+                    is_ok = false;
+                    jet_bws[i]->getPars()->end_spreading = true; // SET TO END
+                }
+                ii += jet_bws[i]->getNeq();
+            }
+        }
+        return is_ok;
+#endif
+        size_t ii = 0; bool is_ok = true;
+        auto & ej_bws = p_pars->p_grb->getShells();
+        for (size_t il=0; il<ej_bws.size(); il++){
+            for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
+                auto & bw = ej_bws[il]->getBW(ish);
+                if (bw->isToStopReverseShock(m_CurSol, ii)) {
+                    is_ok = false;
+                }
+                ii += SOL::neq;//ii += bw->getNeq();
+            }
+        }
+        return is_ok;
     }
     bool isSolutionOk(double x, size_t ix){
 //        auto & magnetar = p_pars->p_magnetar;
@@ -1578,7 +1616,7 @@ private:
                 for (size_t ish = 0; ish < ej_layers[il]->nBWs(); ish++) {
                     auto &ej_bw = ej_layers[il]->getBW(ish);
                     if (ej_bw->getPars()->end_evolution) { ii += SOL::neq; continue; }
-                    ej_bw->evaluateGRBRhsStandardISM(out_Y, ii, x, Y);
+                    ej_bw->evaluateGRBRhs(out_Y, ii, x, Y);
                     ii += SOL::neq;//ii += ej_bw->getNeq();
                 }
             }

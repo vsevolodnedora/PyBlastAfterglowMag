@@ -10,7 +10,7 @@
 
 /* ------------- EQUATIONS ----------------- */
 
-enum RHS_TYPES { iGRG_FS, iEJ, iEJ_PWN };
+enum RHS_TYPES { iGRG_FS, iGRG_FSRS, iEJ, iEJ_PWN };
 
 
 enum METHODS_Up { iuseEint2, iuseGamma }; // energy density behind the shock
@@ -62,6 +62,7 @@ struct Pars{
     double R0 = -1.;
     double tb0 = -1.;
     double Gamma0 = -1.;
+    double beta0 = -1.;
     double mom0 = -1.;
     double E0 = -1.;
     double Eint0 = 0.;
@@ -173,6 +174,15 @@ struct Pars{
     double curr_ldip=-1.;
     double curr_lacc=-1.;
     double curr_b_pwn=-1.;
+
+
+    // --------- RS ---------------
+    bool shutOff = false; /// include Reverse shock now?
+    bool adiabLoss_rs = false;
+    double tprompt = 0.;
+    double epsilon_rad_rs = 0.;
+    double rs_shutOff_criterion_rho = 0.;
+
 };
 
 /// Each BlastWave collects the following data
@@ -181,6 +191,7 @@ namespace BW{
         // -- dynamics ---
         iR, iRsh, irho, idrhodr, iGammaCBM, iGammaREL, idGammaCBMdr, idGammaRELdGamma, iPcbm, idPCBMdrho, iMCBM, iCSCBM,
         iGamma, ibeta, imom, iEint2, iU_p, itheta, ictheta, iErad2, iEsh2, iEad2, iM2,
+        iEint3, iErad3, iEad3, iEsh3, iM3, ideltaR4, iGamma43, iadi3, irho4, irho3, ithichness_rs, iU_p3,
         itcomov, itburst, itt, ithickness, iadi, irho2, iGammaFsh,
         // --- electrons  ---
         igm, igc, igM, iB, iTheta, iz_cool, ix, inprime, iacc_frac,
@@ -200,6 +211,7 @@ namespace BW{
             "R", "Rsh", "rho", "drhodr", "GammaRho", "GammaRel", "dGammaRhodr", "dGammaReldGamma", "PCBM", "dPCBMdrho", "MCBM", "CSCBM",
             "Gamma", "beta", "mom", "Eint2", "U_p", "theta", "ctheta", "Erad2", "Esh2", "Ead2", "M2",
             "tcomov", "tburst", "tt", "thickness", "adi", "rho2", "GammaFsh",
+            "Eint3", "Erad3", "iEad3", "Esh3", "M3", "deltaR4", "Gamma43", "adi3", "rho4", "rho3", "thichness_rs", "U_p3",
             // --- electrons
             "gamma_min", "gamma_c", "gamma_max", "B", "ThetaTherm", "z_cool", "x", "nprime", "accel_frac",
             // --- observables
@@ -213,7 +225,7 @@ namespace BW{
             // --- FOR PWN ---
             "WR", "Wmom", "Wenb", "Wepwn", "Wtt", "Wb", "WGamma", "Wdr"
     };
-    static constexpr size_t NVALS = 66; // number of variables to save
+    static constexpr size_t NVALS = 78; // number of variables to save
 //    static constexpr size_t DERIVATIVES_NVALS = 14; // number of variables to save for derivatives at EACH step
 
     /// ---
@@ -224,12 +236,21 @@ namespace BW{
 
 /// Each blastwave evolution computes the following data
 namespace SOL{
-    enum QS { iR, iRsh, itt, itcomov, imom, iEint2, itheta, iErad2, iEsh2, iEad2, iM2,
+//    enum QS { iR, iRsh, itt, itcomov, imom, iEint2, itheta, iErad2, iEsh2, iEad2, iM2,
+//             iRw, iWmom, iWenb, iWepwn, iWtt};
+//    std::vector<std::string> vars { "R", "Rsh", "tt", "tcomov", "mom",
+//                                    "Eint2", "theta", "Erad2", "Esh2", "Ead2", "M2",
+//                                    "Rw", "momW", "enbW", "EpwnW", "ttW"};
+
+    enum QS { iR, iRsh, itt, itcomov, imom, iEint2, iEint3, itheta,
+            iErad2, iErad3, iEsh2, iEsh3, iEad2, iEad3, iM2, iM3, ideltaR4,
         iRw, iWmom, iWenb, iWepwn, iWtt};
     std::vector<std::string> vars { "R", "Rsh", "tt", "tcomov", "mom",
-                                    "Eint2", "theta", "Erad2", "Esh2", "Ead2", "M2",
+                                    "Eint2", "Eint3", "theta",
+                                    "Erad2", "Erad3", "Esh2", "Esh3", "Ead2", "Ead3", "M2", "M3", "deltaR4",
                                     "Rw", "momW", "enbW", "EpwnW", "ttW"};
-    const static int neq = 17;
+
+    const static int neq = 22;
 }
 
 #endif //SRC_BLASTWAVE_PARS_H
