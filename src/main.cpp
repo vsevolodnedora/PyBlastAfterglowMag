@@ -211,8 +211,9 @@ int main(int argc, char** argv) {
     std::string working_dir; std::string parfilename;
     /// ------------------------------------------------------
     if (argc<4){
+        working_dir = "../tst/dynamics_rs/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_gauss_offaxis/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-        working_dir = "../tst/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_skymap_eats/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/knafg_nrinformed/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
@@ -265,6 +266,10 @@ int main(int argc, char** argv) {
     std::unique_ptr<logger>(p_log);
     p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "main");
     Timer timer;
+    if ( BW::m_vnames[BW::Q::iM3] != "M3"){
+        (*p_log)(LOG_ERR,AT) << " static assert BW v_ns failed BW::m_vnames[BW::Q::iM3]="<<BW::m_vnames[BW::Q::iM3]<<" != M3"<<"\n";
+        exit(1);
+    }
     /// ------------------------------------------------------
     PyBlastAfterglow pba(loglevel);
     /// read main parameters of the model
@@ -323,13 +328,13 @@ int main(int argc, char** argv) {
 
 //    pba.getMag()->saveMagnetarEvolution(); // TODO add magnetar here
 
-    pba.getGRB()->computeAndOutputObservables(main_pars, main_opts);
+    pba.getGRB()->processEvolved(main_pars, main_opts);
 
-    pba.getEj()->computeAndOutputObservables(main_pars, main_opts);
+    pba.getEj()->processEvolved(main_pars, main_opts);
 
-    pba.getEjPWN2()->computeAndOutputObservables(main_pars,main_opts);
+    pba.getEjPWN2()->processEvolved(main_pars, main_opts);
 
-    pba.getEjPWN()->computeAndOutputObservables(main_pars,main_opts);
+    pba.getEjPWN()->processEvolved(main_pars, main_opts);
 
 }
 

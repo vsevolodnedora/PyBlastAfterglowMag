@@ -2068,7 +2068,7 @@ public:
 
     }
 
-    void computeAndOutputObservables(StrDbMap & main_pars, StrStrMap & main_opts){
+    void processEvolved(StrDbMap & main_pars, StrStrMap & main_opts){
         if (run_pwn || load_pwn) {
             is_obs_pars_set = true;
             bool lc_freq_to_time = getBoolOpt("lc_use_freq_to_time",main_opts,AT,p_log,false,true);

@@ -950,7 +950,7 @@ public:
         }
     }
 
-    void computeAndOutputObservables(StrDbMap & main_pars, StrStrMap & main_opts){
+    void processEvolved(StrDbMap & main_pars, StrStrMap & main_opts){
         /// work on GRB afterglow
         if (run_bws || load_dyn){
             bool lc_freq_to_time = getBoolOpt("lc_use_freq_to_time",main_opts,AT,p_log,false,true);
@@ -1384,7 +1384,10 @@ private:
                     auto & arr = bw->getData()[static_cast<BW::Q>(ivar)];
                     for (size_t it = 0; it < arr.size(); it++)
                         tot_dyn_out[ii][it] = arr[it];
-
+//                    if (BW::m_vnames[BW::Q::iM3] == "M3"){
+//                        std::cout << AT << "\n" << arr << "\n";
+//                        exit(1);
+//                    }
                     size_t size = tot_dyn_out[ii].size();
                     auto & x = tot_dyn_out[ii];
                     ii++;

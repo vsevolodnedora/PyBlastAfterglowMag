@@ -82,6 +82,11 @@ public:
         m_InitData = new double [ p_pars->n_tot_eqs ];
         m_CurSol   = new double [ p_pars->n_tot_eqs ];
         m_TmpSol   = new double [ p_pars->n_tot_eqs ]; // for shell collision
+        /// init all arrays with zeroes
+        for (size_t k = 0; k < p_pars->n_tot_eqs; k++){
+            m_InitData[k] = 0.;m_CurSol[k]=0.;m_TmpSol[k]=0.;
+        }
+
         m_CurSols  = new double * [ p_pars->n_substeps ];
         for (size_t j = 0; j < p_pars->n_substeps; ++j) // store result after each substep
             m_CurSols[j] = new double[p_pars->n_tot_eqs];
@@ -262,7 +267,6 @@ public:
             }
         }
 
-
         //************| S E T  I N I T I A L  V E C T O R |******
         for (size_t i = 0; i < p_pars->n_tot_eqs; i++){
             m_TmpSol[i] = m_InitData[i]; /// will be used for ix-1 solutions for restarts.
@@ -297,7 +301,6 @@ public:
         // add other variables (that are not part of ODE but still needed)
         addOtherVariables(0);
         // add electron properties (needed for synchron calculation)
-
 //        addComputeForwardShockMicrophysics(0);
         p_pars->prev_x = p_pars->_t_grid[0];
         p_pars->prev_ix = 0;
