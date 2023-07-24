@@ -36,38 +36,6 @@ except:
 curdir = os.getcwd() + '/' #"/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglow_dev/PyBlastAfterglow/src/PyBlastAfterglow/tests/dyn/"
 
 
-class RefData():
-    def __init__(self,workdir:str):
-        self.workdir = workdir
-        self.keys = ["tburst",
-                    "tcomov",
-                    "Gamma",
-                    "Eint2",
-                    "Eint3",
-                    "theta",
-                    "Erad2",
-                    "Erad3",
-                    "Esh2",
-                    "Esh3",
-                    "Ead2",
-                    "Ead3",
-                    "M2",
-                    "M3",
-                    "deltaR4"]
-        self.refdata = None
-    def idx(self, key : str) -> int:
-        return self.keys.index(key)
-    def load(self) -> None:
-        self.refdata = np.loadtxt(self.workdir+"reference_fsrs.txt")
-    def get(self,key) -> np.ndarray:
-        if (self.refdata is None):
-            self.load()
-        if (key in self.keys):
-            return np.array(self.refdata[:,self.idx(key)])
-        elif (key=="mom"):
-            return np.array(self.refdata[:,self.idx("Gamma")]*get_beta(self.refdata[:,self.idx("Gamma")]))
-        else:
-            raise KeyError(f"key={key} is not recognized")
 def tst_dynamics_fsrs(withSpread = False,
                       savefig = "compare_uniform_afgpy.png"):
     # prepare ID
@@ -100,7 +68,7 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
     # prepare_grb_ej_id_1d({"Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.1,
     #                       "nlayers_pw": 50, "nlayers_a": 1, "struct":"tophat"},
     #                      type="pw",outfpath="tophat_grb_id.h5")
-    prepare_grb_ej_id_1d({"Eiso_c":1.e53, "Gamma0c": 1000., "M0c": -1.,"theta_c": np.pi/8., "theta_w": np.pi/2.,
+    prepare_grb_ej_id_1d({"Eiso_c":2*1.e53, "Gamma0c": 1000., "M0c": -1.,"theta_c": np.pi/8., "theta_w": np.pi/2.,
                           "nlayers_pw": 1, "nlayers_a": 1, "struct":"tophat"},
                          type="pw",outfpath="tophat_grb_id.h5")
 
@@ -119,9 +87,6 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
                            parfile="default_parfile.par", newparfile="parfile.par",keep_old=True)
     pba_fsrs = PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
     pba_fsrs.run(loglevel="info")
-
-    ref = RefData(workdir)
-
 
     # print(pba_fs.GRB.get_dyn_arr(v_n="M3",ishell=0,ilayer=0))
 
@@ -172,11 +137,6 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
             if (v_n_x == "tburst"): x_arr /=cgs.day;
             ax.plot(x_arr, y_arr, ls='--', color=color, label=layer)
             i=i+1
-
-            # --- plot ref data
-            x_arr = ref.get(v_n_x)
-            if (v_n_x == "tburst"): x_arr /=cgs.day;
-            ax.plot(x_arr, ref.get(v_n), ls=':', color=color)
 
         ax.set_xlabel(v_n_x)
         if (v_n_x == "tburst"): ax.set_xlabel(v_n_x + " [day]")
@@ -305,12 +265,8 @@ def tst_against_afgpy(withSpread = False,
     plt.show()
 
 if __name__ == '__main__':
-    # plot_ejecta_layers(ishells=(0,), ilayers=(0,),
-    #                    v_n_x = "R", v_n_ys = ("Eint2", "mom", "M3", "Eint3","deltaR4", "rho4"), colors_by="layers",legend=False,
-    #                    figname="dyn_layers_fs.png")
     plot_ejecta_layers(ishells=(0,), ilayers=(0,),
-                       # v_n_x = "tburst", v_n_ys = ("mom", "M2", "M3", "Eint2", "Eint3","deltaR4"), colors_by="layers",legend=False,
-                       v_n_x = "tburst", v_n_ys = ("mom", "M2", "Eint2"), colors_by="layers",legend=False,
+                       v_n_x = "R", v_n_ys = ("B", "B_rs", "gamma_min", "gamma_min_rs","gamma_c", "gamma_c_rs"), colors_by="layers",legend=False,
                        figname="dyn_layers_fs.png")
     # tst_against_afgpy()
     exit(0)

@@ -1114,14 +1114,16 @@ class SynchrotronAnalytic : public RadiationBase{
     Vector m_tmp_arr1{};
     Vector m_tmp_arr2{};
     /// -------------------------------------------------------
+    bool is_rs = false;
 public:
     ///
-    SynchrotronAnalytic( int loglevel ){
+    SynchrotronAnalytic( int loglevel, bool _is_rs ){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "SynchrotronAnalytic");
 //        p_pars = new PWNPars();
         p_pars = std::make_unique<Pars>();
         p_pars->lim_gm_to_1 = false;
 //        m_data.resizeEachImage( Rad::m_names_.size(), -1. );
+        is_rs = _is_rs;
     }
     ~SynchrotronAnalytic(){ }
 //    PWNPars *& getPars(){ return p_pars; }
@@ -1129,19 +1131,21 @@ public:
     /// set model parameters
     void setPars(StrDbMap & pars, StrStrMap & opts){
         // set parameters
-        p_pars->ksi_n = getDoublePar("ksi_n",pars,AT,p_log,1.,false);//pars.at("ksi_n");
-        p_pars->eps_e = getDoublePar("eps_e",pars,AT,p_log,-1,true);//pars.at("eps_e");
-        p_pars->eps_b = getDoublePar("eps_b",pars,AT,p_log,-1,true);//pars.at("eps_b");
-        p_pars->eps_t = getDoublePar("eps_t",pars,AT,p_log,0.,true);//pars.at("eps_t");
-        p_pars->p = getDoublePar("p",pars,AT,p_log,-1,true);//pars.at("p");
-        p_pars->mu = getDoublePar("mu",pars,AT,p_log,0.62,false);//pars.at("mu");
-        p_pars->mu_e = getDoublePar("mu_e",pars,AT,p_log,1.18,false);//pars.at("mu_e");
-        p_pars->beta_min = getDoublePar("beta_min",pars,AT,p_log,1.e-5,false);//pars.at("beta_min");
-
+        std::string _ss = "";
+        if (is_rs)
+            _ss += "_rs";
+        p_pars->ksi_n = getDoublePar("ksi_n"+_ss,pars,AT,p_log,1.,false);//pars.at("ksi_n");
+        p_pars->eps_e = getDoublePar("eps_e"+_ss,pars,AT,p_log,-1,true);//pars.at("eps_e");
+        p_pars->eps_b = getDoublePar("eps_b"+_ss,pars,AT,p_log,-1,true);//pars.at("eps_b");
+        p_pars->eps_t = getDoublePar("eps_t"+_ss,pars,AT,p_log,0.,true);//pars.at("eps_t");
+        p_pars->p = getDoublePar("p"+_ss,pars,AT,p_log,-1,true);//pars.at("p");
+        p_pars->mu = getDoublePar("mu"+_ss,pars,AT,p_log,0.62,false);//pars.at("mu");
+        p_pars->mu_e = getDoublePar("mu_e"+_ss,pars,AT,p_log,1.18,false);//pars.at("mu_e");
+        p_pars->beta_min = getDoublePar("beta_min"+_ss,pars,AT,p_log,1.e-5,false);//pars.at("beta_min");
 
         // set options
         std::string opt;
-        opt = "method_synchrotron";
+        opt = "method_synchrotron"+_ss;
         METHODS val_synch;
         if ( opts.find(opt) == opts.end() ) {
             (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
@@ -1169,7 +1173,7 @@ public:
         }
         p_pars->m_sychMethod = val_synch;
 
-        opt = "method_nonreldist";
+        opt = "method_nonreldist"+_ss;
         SynchrotronAnalytic::METHOD_NONRELDIST val_monreldist;
         if ( opts.find(opt) == opts.end() ) {
             (*p_log)(LOG_WARN,AT) << " Option for " << opt << " is not set. Using default value.\n";
@@ -1191,7 +1195,7 @@ public:
         }
         p_pars->m_method_nonreldist = val_monreldist;
 
-        opt = "method_lf_min";
+        opt = "method_lf_min"+_ss;
         SynchrotronAnalytic::METHODS_LFMIN val_lfmin;
         if ( opts.find(opt) == opts.end() ) {
             (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
@@ -1217,7 +1221,7 @@ public:
         }
         p_pars->m_methodsLfmin = val_lfmin;
 
-        bool tmp = getBoolOpt("use_ssa", opts, AT,p_log, false, true);
+        bool tmp = getBoolOpt("use_ssa"+_ss, opts, AT,p_log, false, true);
         if (tmp) p_pars->m_methods_ssa = SynchrotronAnalytic::METHODS_SSA::iSSAon;
         else p_pars->m_methods_ssa = SynchrotronAnalytic::METHODS_SSA::iSSAoff;
 
@@ -1271,7 +1275,7 @@ public:
         p_pars->m_marg21opt_abs = val_abs;
         // ---
 #endif
-        opt = "method_tau";
+        opt = "method_tau"+_ss;
         METHOD_TAU methodTau;
         if ( opts.find(opt) == opts.end() ) {
             (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
@@ -1346,6 +1350,10 @@ public:
         }
         if (n_prime <= 0){
             (*p_log)(LOG_ERR,AT) << " n_prime is not set (n_prime="<<n_prime<<")\n";
+            exit(1);
+        }
+        if ((epime < 0) || !std::isfinite(epime)){
+            (*p_log)(LOG_ERR,AT) << " epime is not set (epime="<<epime<<")\n";
             exit(1);
         }
 

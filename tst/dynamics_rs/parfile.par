@@ -83,8 +83,8 @@ do_spec = no
 do_lc = no
 do_skymap = no
 
-do_rs = no
-rhs_type = grb_fs
+do_rs = yes
+rhs_type = grb_fsrs
 method_collision = none # none
 method_eats = piece-wise # adaptive # piece-wise
 allow_termination = no
@@ -92,7 +92,7 @@ allow_termination = no
 do_thermrad_loss = no
 
 use_1d_id = yes
-fname_dyn = dyn_grb_tophad.h5
+fname_dyn = dyn_bw_fsrs.h5
 fname_light_curve = lc_grb_tophad.h5
 fname_light_curve_layers = none
 fname_sky_map = skymap_grb_gauss.h5

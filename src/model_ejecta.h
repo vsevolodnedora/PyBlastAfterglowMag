@@ -49,7 +49,7 @@ public:
     std::vector<std::string> m_vnames{
             "r", "rho", "beta", "delta", "vol", "dtau", "taucum", "taucum0", "eth", "temp", "lum", "tdiff"
     };
-    CumulativeShell(Vector t_grid, size_t nshells, int ilayer, int loglevel){
+    CumulativeShell(Vector t_grid, size_t nshells, int ilayer, size_t n_substeps, int loglevel){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "CumulativeShell");
         p_coll = std::make_unique<BlastWaveCollision>(loglevel);
         p_pars = std::make_unique<Pars>();
@@ -57,7 +57,7 @@ public:
         p_pars->nshells=nshells;
         p_pars->n_active_shells=nshells;
         for (size_t ishell = 0; ishell < nshells; ishell++)
-            p_bws.emplace_back(std::make_unique<BlastWave>(t_grid, ishell, ilayer, loglevel ) );
+            p_bws.emplace_back(std::make_unique<BlastWave>(t_grid, ishell, ilayer, n_substeps, loglevel ) );
         if (t_grid.empty())
             return;
         m_data.resize(m_vnames.size());
@@ -669,7 +669,8 @@ public:
             }
 
             ///store also velocity
-            double m_beta = EQS::BetFromMom( Y[bw->getPars()->ii_eq + SOL::QS::imom] );
+//            double m_beta = EQS::BetFromMom( Y[bw->getPars()->ii_eq + SOL::QS::imom] );
+            double m_beta = Beta( Y[bw->getPars()->ii_eq + SOL::QS::iGamma] );
             if (m_beta > 1){
                 (*p_log)(LOG_ERR,AT) << " m_beta="<<m_beta<<"\n";
                 exit(1);
@@ -959,6 +960,10 @@ public:
             Vector skymap_freqs = makeVecFromString(getStrOpt("skymap_freqs",main_opts,AT,p_log,"",true), p_log);
             Vector skymap_times = makeVecFromString(getStrOpt("skymap_times",main_opts,AT,p_log,"",true), p_log);
 
+            if (do_ele)
+                setPreComputeEjectaAnalyticElectronsPars();
+//                (*p_log)(LOG_INFO, AT) << "jet analytic synch. electrons finished [" << timer.checkPoint() << " s]" << "\n";
+
             if (save_dyn)
                 saveEjectaBWsDynamics(
                         working_dir,
@@ -969,9 +974,13 @@ public:
                 loadEjectaBWDynamics(working_dir,
                                      getStrOpt("fname_dyn", m_opts, AT, p_log, "", true));
 
-            if (do_ele)
-                setPreComputeEjectaAnalyticElectronsPars();
-//                (*p_log)(LOG_INFO, AT) << "jet analytic synch. electrons finished [" << timer.checkPoint() << " s]" << "\n";
+            if (do_spec)
+                computeSaveEjectaSpectrum(
+                        working_dir,
+                        getStrOpt("fname_spectrum", m_opts, AT, p_log, "", true),
+                        getStrOpt("fname_spectrum_layers", m_opts, AT, p_log, "", true),
+                        lc_times, lc_freqs, main_pars, m_pars, lc_freq_to_time
+                        );
 
             if (do_lc) {
                 computeSaveEjectaLightCurveAnalytic(
@@ -1018,27 +1027,50 @@ public:
             size_t n_decel = 0;
             for (size_t ish = 0; ish < p_cumShells[il]->getPars()->n_active_shells; ish++){
                 auto & bws = p_cumShells[il]->getBW(ish);
-                double MomIm1 = Ym1[bws->getPars()->ii_eq + SOL::QS::imom];
-                double MomI = Y[bws->getPars()->ii_eq + SOL::QS::imom];
+//                double MomIm1 = Ym1[bws->getPars()->ii_eq + SOL::QS::imom];
+                double GamIm1 = Ym1[bws->getPars()->ii_eq + SOL::QS::iGamma];
+//                double MomI = Y[bws->getPars()->ii_eq + SOL::QS::imom];
+                double GamI = Y[bws->getPars()->ii_eq + SOL::QS::iGamma];
                 double Eint2I = Y[bws->getPars()->ii_eq + SOL::QS::iEint2];
                 double Mom0 = bws->getPars()->mom0;
-                if (MomI > MomIm1){
+                double Gam0 = bws->getPars()->Gamma0;
+//                if (MomI > MomIm1){
+//                    /// acceleration
+//                    n_accel += 1;
+//                }
+//                else if (MomI < MomIm1){
+//                    /// deceleration
+//                    n_decel += 1;
+//                }
+//                /// find fastest
+//                if (MomI/Mom0 > Mom_max_over_Gamma0){
+//                    Mom_max_over_Gamma0 = MomI/Mom0;
+//                    il_wich_fastest = (int)il;
+//                    ish_with_fastest = (int)ish;
+//                }
+//                /// find slowest
+//                if (MomI/Mom0 < Mom_min_over_Gamma0){
+//                    Mom_min_over_Gamma0 = MomI/Mom0;
+//                    il_with_slowest = (int)il;
+//                    ish_with_slowest = (int)ish;
+//                }
+                if (GamI > GamIm1){
                     /// acceleration
                     n_accel += 1;
                 }
-                else if (MomI < MomIm1){
+                else if (GamI < GamIm1){
                     /// deceleration
                     n_decel += 1;
                 }
                 /// find fastest
-                if (MomI/Mom0 > Mom_max_over_Gamma0){
-                    Mom_max_over_Gamma0 = MomI/Mom0;
+                if (GamI/Gam0 > Mom_max_over_Gamma0){
+                    Mom_max_over_Gamma0 = GamI/Gam0;
                     il_wich_fastest = (int)il;
                     ish_with_fastest = (int)ish;
                 }
                 /// find slowest
-                if (MomI/Mom0 < Mom_min_over_Gamma0){
-                    Mom_min_over_Gamma0 = MomI/Mom0;
+                if (GamI/Gam0 < Mom_min_over_Gamma0){
+                    Mom_min_over_Gamma0 = GamI/Gam0;
                     il_with_slowest = (int)il;
                     ish_with_slowest = (int)ish;
                 }
@@ -1098,6 +1130,8 @@ private:
 
         run_bws = getBoolOpt("run_bws", opts, AT, p_log, false, true);
         load_dyn = getBoolOpt("load_dynamics", opts, AT, p_log, false, true);
+        size_t n_substeps = (size_t)getDoublePar("n_store_substeps",pars,AT,p_log,10, true);
+
         if ((!run_bws) && (!load_dyn))
             return;
 
@@ -1105,7 +1139,7 @@ private:
             is_ejecta_obs_pars_set = true;
             for(size_t il = 0; il < nlayers(); il++) {
                 p_cumShells.push_back(
-                        std::make_unique<CumulativeShell>(Vector {}, nshells(), il,
+                        std::make_unique<CumulativeShell>(Vector {}, nshells(), il, n_substeps,
                                                           p_log->getLogLevel()));
                 p_cumShells[il]->setPars(pars, opts);
                 for (size_t ish = 0; ish < nshells(); ish++){
@@ -1156,7 +1190,7 @@ private:
         size_t n_unitinitilized_shells=0;
         for(size_t il = 0; il < n_layers_ej_; il++){
             p_cumShells.push_back(
-                    std::make_unique<CumulativeShell>(t_arr, nshells_, il,
+                    std::make_unique<CumulativeShell>(t_arr, nshells_, il, n_substeps,
                                                       p_log->getLogLevel()) );
             p_cumShells[il]->setPars(pars, opts);
             empty_bws.emplace_back("il="+std::to_string(il)+" | shells ");
@@ -2551,6 +2585,91 @@ public:
                                                           in_group_names,
                                                           other_data,other_names,attrs);
 
+    }
+
+    void computeSaveEjectaSpectrum(std::string workingdir,std::string fname, std::string fname_shells_layers,
+                                             Vector lc_times, Vector lc_freqs, StrDbMap & main_pars, StrDbMap & ej_pars,
+                                             bool lc_freq_to_time){
+
+        (*p_log)(LOG_ERR,AT)<<" NOT IMPLEMENTED! \n";
+        exit(1);
+
+
+        Vector _times, _freqs;
+        cast_times_freqs(lc_times,lc_freqs,_times,_freqs,lc_freq_to_time,p_log);
+
+        (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta spectrum with analytic synchrotron...\n";
+
+//        size_t nshells = p_cumShells->nshells();
+//        size_t m_nlayers = p_cumShells->m_nlayers();
+//        size_t ncells =  (int)p_cumShells->ncells();
+
+        if (!is_ejecta_anal_synch_computed){
+            std::cerr << " ejecta analytic electrons were not evolved. Cannot evaluateShycnhrotronSpectrum light curve (analytic) exiting...\n";
+            std::cerr << AT << " \n";
+            exit(1);
+        }
+        if (!is_ejecta_obs_pars_set){
+            std::cerr << " ejecta observer parameters are not set. Cannot evaluateShycnhrotronSpectrum light curve (analytic) exiting...\n";
+            std::cerr << AT << " \n";
+            exit(1);
+        }
+
+//        auto & tmp = getShells()[0]->getBW(0)->getSynchAnPtr();
+
+        std::vector< // layers / shells
+                std::vector< // options
+                        std::vector<double>>> // freqs*times
+        out {};
+
+        /// evaluate light curve
+        auto light_curve = evalEjectaLightCurves( _times, _freqs);
+
+        /// save total lightcurve
+        size_t n = _times.size();
+        Vector total_fluxes (n, 0.0);
+        for (size_t itnu = 0; itnu < n; ++itnu) {
+            size_t ishil = 0;
+            for (size_t ishell = 0; ishell < nshells(); ++ishell) {
+                for (size_t ilayer = 0; ilayer < nlayers(); ++ilayer) {
+                    total_fluxes[itnu] += light_curve[ishell][ilayer][itnu];
+                    ishil++;
+                }
+            }
+        }
+        std::vector<std::string> other_names { "times", "freqs", "total_fluxes" };
+        VecVector out_data {_times, _freqs, total_fluxes};
+
+        std::unordered_map<std::string,double> attrs{ {"nshells", nshells()}, {"nlayers", nlayers()} };
+        for (auto& [key, value]: main_pars) { attrs[key] = value; }
+        for (auto& [key, value]: ej_pars) { attrs[key] = value; }
+        p_out->VectorOfVectorsH5(out_data, other_names, workingdir+fname,  attrs);
+
+
+        /// save light curve for each shell and layer
+        if (fname_shells_layers == "none")
+            return;
+        std::vector<std::string> group_names;
+        VecVector total_fluxes_shell_layer(nshells()*nlayers());
+        size_t ii = 0;
+        for (size_t ishell = 0; ishell < nshells(); ++ishell) {
+            for (size_t ilayer = 0; ilayer < nlayers(); ++ilayer) {
+                group_names.emplace_back("shell=" + std::to_string(ishell) + " layer=" + std::to_string(ilayer));
+                total_fluxes_shell_layer[ii].resize(n,0.);
+                for (size_t ifnu = 0; ifnu < n; ifnu++){
+                    total_fluxes_shell_layer[ii][ifnu] = light_curve[ishell][ilayer][ifnu];
+                }
+                ii++;
+            }
+        }
+        total_fluxes_shell_layer.emplace_back(_times);
+        total_fluxes_shell_layer.emplace_back(_freqs);
+        total_fluxes_shell_layer.emplace_back(total_fluxes);
+
+        group_names.emplace_back("times");
+        group_names.emplace_back("freqs");
+        group_names.emplace_back("total_fluxes");
+        p_out->VectorOfVectorsH5(total_fluxes_shell_layer, group_names, workingdir+fname,  attrs);
     }
 
     void computeSaveEjectaLightCurveAnalytic(std::string workingdir,std::string fname, std::string fname_shells_layers,

@@ -14,10 +14,10 @@
 
 tb0 = 3335.64
 tb1 = 7.03823e+17
-ntb = 100000
+ntb = 1000
 iout = 1
-rtol = 1.e-8
-nmax = 100000
+rtol = 1e-8
+nmax = 1000
 
 A0 = -1
 s = -1
@@ -78,7 +78,7 @@ fnu_min_frac = 1e-5
 run_bws = yes
 save_dynamics = yes
 load_dynamics = no
-do_ele = no
+do_ele = yes
 do_spec = no
 do_lc = no
 do_skymap = no
