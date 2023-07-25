@@ -13,11 +13,11 @@
 * Parameters
 
 tb0 = 3335.64
-tb1 = 7.03823e+17
-ntb = 100000
+tb1 = 7.03823e+17 # 318568. # 7.03823e+17
+ntb = 1000
 iout = 1
-rtol = 1.e-8
-nmax = 100000
+rtol = 1.e-6
+nmax = 1000
 
 A0 = -1
 s = -1
@@ -72,6 +72,8 @@ nfreq = 200
 save_dyn_every_it = 10
 rtol_adapt = 1e-5
 fnu_min_frac = 1e-5
+
+rs_Gamma0_frac_no_exceed = .98
 
 * Settings
 

@@ -100,7 +100,10 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
     # prepare_grb_ej_id_1d({"Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.1,
     #                       "nlayers_pw": 50, "nlayers_a": 1, "struct":"tophat"},
     #                      type="pw",outfpath="tophat_grb_id.h5")
-    prepare_grb_ej_id_1d({"Eiso_c":1.e53, "Gamma0c": 1000., "M0c": -1.,"theta_c": np.pi/8., "theta_w": np.pi/2.,
+    theta_h = np.pi/2.
+    one_min_cos = 2. * np.sin(0.5 * theta_h) * np.sin(0.5 * theta_h)
+    ang_size_layer = 2.0 * np.pi * one_min_cos / (4.0 * np.pi)
+    prepare_grb_ej_id_1d({"Eiso_c":1.e53/ang_size_layer, "Gamma0c": 700, "M0c": -1.,"theta_c": theta_h, "theta_w": theta_h,
                           "nlayers_pw": 1, "nlayers_a": 1, "struct":"tophat"},
                          type="pw",outfpath="tophat_grb_id.h5")
 
@@ -176,7 +179,7 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
             # --- plot ref data
             x_arr = ref.get(v_n_x)
             if (v_n_x == "tburst"): x_arr /=cgs.day;
-            ax.plot(x_arr, ref.get(v_n), ls=':', color=color)
+            ax.plot(x_arr, ref.get(v_n), ls=':', color='red', lw=2.)
 
         ax.set_xlabel(v_n_x)
         if (v_n_x == "tburst"): ax.set_xlabel(v_n_x + " [day]")
@@ -309,8 +312,8 @@ if __name__ == '__main__':
     #                    v_n_x = "R", v_n_ys = ("Eint2", "mom", "M3", "Eint3","deltaR4", "rho4"), colors_by="layers",legend=False,
     #                    figname="dyn_layers_fs.png")
     plot_ejecta_layers(ishells=(0,), ilayers=(0,),
-                       # v_n_x = "tburst", v_n_ys = ("mom", "M2", "M3", "Eint2", "Eint3","deltaR4"), colors_by="layers",legend=False,
-                       v_n_x = "tburst", v_n_ys = ("mom", "M2", "Eint2"), colors_by="layers",legend=False,
+                       v_n_x = "tburst", v_n_ys = ("mom", "M2", "M3", "Eint2", "Eint3","deltaR4"), colors_by="layers",legend=False,
+                       # v_n_x = "tburst", v_n_ys = ("mom", "M2", "Eint2"), colors_by="layers",legend=False,
                        figname="dyn_layers_fs.png")
     # tst_against_afgpy()
     exit(0)
