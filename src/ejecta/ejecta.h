@@ -55,7 +55,7 @@ public:
                 loadEjectaBWDynamics(working_dir,
                                      getStrOpt("fname_dyn", m_opts, AT, p_log, "", true));
 
-            if (do_spec)
+            if (do_spec && save_spec)
                 computeSaveEjectaSpectrum(
                         working_dir,
                         getStrOpt("fname_spectrum", m_opts, AT, p_log, "", true),
@@ -309,17 +309,35 @@ public:
         Vector _times, _freqs;
         cast_times_freqs(t_arr,spec_freqs,_times,_freqs,lc_freq_to_time,p_log);
 
+        std::string var = getStrOpt("spec_var_out",m_opts,AT,p_log,"em", true);
+        if ((var == "em_rs" || var == "abs_rs") && (!p_cumShells[0]->getBW(0)->getPars()->do_rs)){
+            (*p_log)(LOG_INFO,AT) << " cannot ahve 'spec_var_out = 'em_rs or 'abs_rs' if 'do_rs = no' \n ";
+            exit(1);
+        }
 
         for (size_t itnu = 0; itnu < n; ++itnu) {
             size_t ishil = 0;
             for (size_t ishell = 0; ishell < nshells(); ++ishell) {
                 for (size_t ilayer = 0; ilayer < nlayers(); ++ilayer) {
-                    auto & spectrum = p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_em;
-                    if (spectrum.size()<1){
-                        (*p_log)(LOG_INFO,AT) << " spectrum is not initialized for a BW \n ";
+                    if (var == "em")
+                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_em[itnu];
+                    else if (var == "abs")
+                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_abs[itnu];
+                    else if (var == "em_rs")
+                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_em_rs[itnu];
+                    else if (var == "abs_rs")
+                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_abs_rs[itnu];
+                    else{
+                        (*p_log)(LOG_INFO,AT) << " spec_var_out is not recognized. Possible options: "
+                            << " em "<< " abs "<<" em_rs " <<" abs_rs "<<" Givem="<<var<<"\n";
                         exit(1);
                     }
-                    total_power[itnu] += spectrum[itnu];
+//                    auto & spectrum = p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_em;
+//                    if (spectrum.size()<1){
+//                        (*p_log)(LOG_INFO,AT) << " spectrum is not initialized for a BW \n ";
+//                        exit(1);
+//                    }
+//                    total_power[itnu] += spectrum[itnu];
                     ishil ++;
                 }
             }
@@ -344,8 +362,24 @@ public:
                 group_names.emplace_back("shell=" + std::to_string(ishell) + " layer=" + std::to_string(ilayer));
                 total_fluxes_shell_layer[ii].resize(n,0.);
                 auto & spectrum = p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_em;
-                for (size_t ifnu = 0; ifnu < n; ifnu++)
-                    total_fluxes_shell_layer[ii][ifnu] = spectrum[ifnu];
+                for (size_t ifnu = 0; ifnu < n; ifnu++) {
+
+                    if (var == "em")
+                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_em[ifnu];
+                    else if (var == "abs")
+                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_abs[ifnu];
+                    else if (var == "em_rs")
+                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_em_rs[ifnu];
+                    else if (var == "abs_rs")
+                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_abs_rs[ifnu];
+                    else{
+                        (*p_log)(LOG_INFO,AT) << " spec_var_out is not recognized. Possible options: "
+                                              << " em "<< " abs "<<" em_rs " <<" abs_rs "<<" Givem="<<var<<"\n";
+                        exit(1);
+                    }
+
+//                    total_fluxes_shell_layer[ii][ifnu] = spectrum[ifnu];
+                }
                 ii++;
             }
         }

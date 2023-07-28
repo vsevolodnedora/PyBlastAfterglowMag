@@ -38,7 +38,7 @@ struct Pars{
     std::unique_ptr<SynchrotronAnalytic> p_syna_rs = nullptr;
 
     std::unique_ptr<logger> p_log;
-    Vector m_freq_arr{}; Vector m_synch_em{}; Vector m_synch_abs{};
+    Vector m_freq_arr{}; Vector m_synch_em{}; Vector m_synch_abs{}; Vector m_synch_em_rs{}; Vector m_synch_abs_rs{};
     VecVector & m_data;
     VecVector & m_data_tmp;
 

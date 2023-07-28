@@ -42,10 +42,12 @@ public:
         size_t & ish = p_pars->ishell;
         size_t & il = p_pars->ilayer;
 
+        /// get freq. boundaries for calculation of the comoving spectrum
         double freq1 = getDoublePar("freq1", pars, AT, p_log,1.e7, true);//pars.at("freq1");
         double freq2 = getDoublePar("freq2", pars, AT, p_log,1.e14, true);//pars.at("freq2");
         size_t nfreq = (size_t)getDoublePar("nfreq", pars, AT, p_log,100, true);//pars.at("nfreq");
 
+        /// allocate space for the comoving spectrum
         p_pars->m_freq_arr = TOOLS::MakeLogspaceVec(log10(freq1), log10(freq2),(int)nfreq);
         if (p_pars->m_method_rad == METHODS_RAD::icomovspec){
             (*p_log)(LOG_INFO,AT) << " allocating comoving spectrum array (fs) "
@@ -53,6 +55,10 @@ public:
                                   << p_pars->m_freq_arr.size() * p_pars->nr << "\n";
             p_pars->m_synch_em.resize( p_pars->m_freq_arr.size() * p_pars->nr );
             p_pars->m_synch_abs.resize( p_pars->m_freq_arr.size() *p_pars->nr );
+            if (p_pars->do_rs){
+                p_pars->m_synch_em_rs.resize( p_pars->m_freq_arr.size() * p_pars->nr );
+                p_pars->m_synch_abs_rs.resize( p_pars->m_freq_arr.size() * p_pars->nr );
+            }
         }
 
         p_pars->theta_obs = getDoublePar("theta_obs", pars, AT, p_log,-1, true);//pars.at("theta_obs");
@@ -201,17 +207,26 @@ public:
             return;
         (*p_log)(LOG_INFO,AT) << " computing analytic comoving spectrum "
                                  " [ish="<<p_pars->ishell<<" il="<<p_pars->ilayer<<"] \n";
+
+        if (p_pars->m_freq_arr.size() < 1){
+            (*p_log)(LOG_ERR,AT) << " array for comoving spectrum is not initialized Exiting...\n";
+            exit(1);
+        }
+        if (p_pars->m_synch_em.size() < 1){
+            (*p_log)(LOG_ERR,AT)<< " array for comoving spectrum frequencies is not initialized Exiting...\n";
+            exit(1);
+        }
+        if (p_pars->do_rs){
+            if (p_pars->m_synch_em_rs.size() < 1){
+                (*p_log)(LOG_ERR,AT)<< " array for comoving spectrum frequencies for RS is not initialized Exiting...\n";
+                exit(1);
+            }
+        }
+
         for (size_t it = 0; it < p_pars->nr; ++it) {
             //        auto & p_eats = p_pars; // removing EATS_pars for simplicity
             /// exit if the obs. radiation method of choice does not need comoving spectrum
-            if (p_pars->m_freq_arr.size() < 1){
-                (*p_log)(LOG_ERR,AT) << " array for comoving spectrum is not initialized Exiting...\n";
-                exit(1);
-            }
-            if (p_pars->m_synch_em.size() < 1){
-                (*p_log)(LOG_ERR,AT)<< " array for comoving spectrum frequencies is not initialized Exiting...\n";
-                exit(1);
-            }
+
             size_t nfreq = p_pars->m_freq_arr.size();
 //        (*p_log)(LOG_INFO) << " computing comoving intensity spectum for "
 //                              << p_syna->getFreqArr().size() << " grid";
@@ -268,7 +283,7 @@ public:
                 /// evaluateShycnhrotronSpectrum emissivity and absorption for each frequency
                 for (size_t ifreq = 0; ifreq < p_pars->m_freq_arr.size(); ++ifreq){
                     /// evaluateShycnhrotronSpectrum all types of emissivities and absoprtions
-                    p_syna->evaluateShycnhrotronSpectrum(
+                    p_syna_rs->evaluateShycnhrotronSpectrum(
                             m_data[BW::Q::irho3][it] / CGS::mp,//m_data[Q::iM2][it] / CGS::mp,
                             m_data[BW::Q::iM3][it] / CGS::mp,//m_data[Q::iM2][it] / CGS::mp,
                             m_data[BW::Q::iacc_frac][it],
@@ -284,8 +299,8 @@ public:
                     /// add evaluated data to the storage
 //            double thick_tau = EQS::shock_delta(m_data[Q::iRsh][it],m_data[Q::iGammaFsh][it]);
 //            p_syna->addIntensity(thick_tau, 0., 1.);
-                    p_pars->m_synch_em[ifreq + nfreq * it] += p_syna->getPars()->em;
-                    p_pars->m_synch_abs[ifreq + nfreq * it] += p_syna->getPars()->abs;
+                    p_pars->m_synch_em_rs[ifreq + nfreq * it] = p_syna_rs->getPars()->em;
+                    p_pars->m_synch_abs_rs[ifreq + nfreq * it] = p_syna_rs->getPars()->abs;
                 }
 
             }
@@ -565,6 +580,44 @@ public:
             /// save the result in image
             ctheta = interpSegLin(ia, ib, t_e, tburst, m_data[BW::Q::ictheta]);
             double theta = interpSegLin(ia, ib, t_e, tburst, m_data[BW::Q::itheta]);
+
+            if (p_pars->do_rs){
+                Interp2d int_em_rs(p_pars->m_freq_arr, r_arr, p_pars->m_synch_em_rs);
+                Interp2d int_abs_rs(p_pars->m_freq_arr, r_arr, p_pars->m_synch_abs_rs);
+                double em_prime_rs = int_em_rs.InterpolateBilinear(nuprime, r, ia_nu, ib_nu, ia, ib);
+                double abs_prime_rs = int_abs_rs.InterpolateBilinear(nuprime, r, ia_nu, ib_nu, ia, ib);
+                double em_lab_rs = em_prime_rs / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
+                double abs_lab_rs = abs_prime_rs * delta_D; // conversion of absorption (see vanEerten+2010)
+
+                double GammaShock_rs = interpSegLog(ia, ib, t_e, tburst, m_data[BW::Q::iGamma43]);
+                double dr_rs = interpSegLog(ia, ib, t_e, tburst, m_data[BW::Q::ithichness_rs]);
+                double dr_tau_rs = EQS::shock_delta(r, GammaShock_rs); // TODO this is added becasue in Johanneson Eq. I use ncells
+
+                double beta_shock_rs;
+                switch (p_pars->method_shock_vel) {
+
+                    case isameAsBW:
+                        beta_shock_rs = EQS::Beta(Gamma);
+                        break;
+                    case ishockVel:
+//                double u = sqrt(GammaShock * GammaShock - 1.0);
+//                double us = 4.0 * u * sqrt((u * u + 1) / (8. * u * u + 9.)); // from the blast wave velocity -> evaluateShycnhrotronSpectrum shock velocity
+                        beta_shock_rs = EQS::Beta(GammaShock_rs);//us / sqrt(1. + us * us);
+                        break;
+                }
+                double ashock_rs = (1.0 - mu * beta_shock_rs); // shock velocity beaming factor
+                dr_rs /= ashock_rs; // TODO why is this here? What it means? Well.. Without it GRB LCs do not work!
+                dr_tau_rs /= ashock_rs;
+                double dtau_rs = RadiationBase::optical_depth(abs_lab_rs,dr_tau_rs, mu, beta_shock_rs);
+                double intensity_rs = RadiationBase::computeIntensity(em_lab_rs, dtau_rs,
+                                                                   p_syna->getPars()->method_tau);
+                if (intensity_rs < 0 || std::isfinite(intensity_rs)){
+                    (*p_pars->p_log)(LOG_ERR,AT)<<"intensity_rs = "<<intensity_rs<<"\n";
+                    exit(1);
+                }
+                flux_dens += (intensity_rs * r * r * dr_rs); //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+            }
+
         }
         else{
             r = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::iR]);

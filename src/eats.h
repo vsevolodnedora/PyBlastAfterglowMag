@@ -1306,7 +1306,7 @@ private:
                                                   frac, B, gm, gM, gc, Theta, z_cool,
                                                   t_e, mu, R, thick, thick, params);
 //            dFnu*=(p_pars->d_l*p_pars->d_l*2.);
-#if 0
+#if 1
             /* -- Reverse shock --- */
             double dFnu_rs = 0.0;
             if (p_pars->synch_rs){

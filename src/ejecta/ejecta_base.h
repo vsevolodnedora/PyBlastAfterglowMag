@@ -42,7 +42,7 @@ public:
     /// -------------------------------------
 
     bool do_eninj_inside_rhs = false;
-    bool run_bws=false, save_dyn=false, load_dyn=false, do_ele=false, do_spec=false, do_lc=false, do_skymap=false;
+    bool run_bws=false, save_dyn=false, load_dyn=false, do_ele=false, do_spec=false, save_spec=false, do_lc=false, do_skymap=false;
     bool do_collision = false;
     bool do_nuc = false;
     bool is_ejecta_obs_pars_set = false;
@@ -118,12 +118,13 @@ public:
 //        StrDbMap m_pars; StrStrMap m_opts;
 //        run_bws=false; bool save_dyn=false, do_ele=false, do_spec=false, do_lc=false, do_skymap=false;
         if ((!m_pars.empty()) || (!m_opts.empty())) {
-            run_bws = getBoolOpt("run_bws", m_opts, AT, p_log, false, true);
-            save_dyn = getBoolOpt("save_dynamics", m_opts, AT, p_log, false, true);
-            load_dyn = getBoolOpt("load_dynamics", m_opts, AT, p_log, false, true);
-            do_ele = getBoolOpt("do_ele", m_opts, AT, p_log, false, true);
-            do_spec = getBoolOpt("do_spec", m_opts, AT, p_log, false, true);
-            do_lc = getBoolOpt("do_lc", m_opts, AT, p_log, false, true);
+            run_bws   = getBoolOpt("run_bws", m_opts, AT, p_log, false, true);
+            save_dyn  = getBoolOpt("save_dynamics", m_opts, AT, p_log, false, true);
+            load_dyn  = getBoolOpt("load_dynamics", m_opts, AT, p_log, false, true);
+            do_ele    = getBoolOpt("do_ele", m_opts, AT, p_log, false, true);
+            do_spec   = getBoolOpt("do_spec", m_opts, AT, p_log, false, true);
+            save_spec = getBoolOpt("save_spec", m_opts, AT, p_log, false, true);
+            do_lc     = getBoolOpt("do_lc", m_opts, AT, p_log, false, true);
             do_skymap = getBoolOpt("do_skymap", m_opts, AT, p_log, false, true);
             for (auto &key: {"n_ism", "d_l", "z", "theta_obs", "A0", "s", "r_ej", "r_ism"}) {
                 if (main_pars.find(key) == main_pars.end()) {
@@ -135,7 +136,7 @@ public:
             m_opts["workingdir"] = working_dir; // For loading Nuclear Heating table
             if (run_bws || load_dyn) {
                 std::string fname_ejecta_id = getStrOpt("fname_ejecta_id", m_opts, AT, p_log, "", true);
-                bool use_1d_id = getBoolOpt("use_1d_id", m_opts, AT, p_log, false, true);
+//                bool use_1d_id = getBoolOpt("use_1d_id", m_opts, AT, p_log, false, true);
                 if (!std::experimental::filesystem::exists(working_dir + fname_ejecta_id)) {
                     (*p_log)(LOG_ERR, AT) << " File not found. " + working_dir + fname_ejecta_id << "\n";
                     exit(1);
