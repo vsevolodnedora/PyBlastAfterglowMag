@@ -5,7 +5,7 @@
 #ifndef SRC_BLASTWAVE_PARS_H
 #define SRC_BLASTWAVE_PARS_H
 
-#include "../synchrotron_an.h"
+//#include "../synchrotron_an.h"
 #include "../eats.h"
 
 /* ------------- EQUATIONS ----------------- */
@@ -35,6 +35,8 @@ struct Pars{
         p_log = std::make_unique<logger>(std::cout,std::cerr,loglevel,"PWNPars");
     }
     std::unique_ptr<SynchrotronAnalytic> p_syna = nullptr;
+    std::unique_ptr<SynchrotronAnalytic> p_syna_rs = nullptr;
+
     std::unique_ptr<logger> p_log;
     Vector m_freq_arr{}; Vector m_synch_em{}; Vector m_synch_abs{};
     VecVector & m_data;
@@ -177,11 +179,15 @@ struct Pars{
 
 
     // --------- RS ---------------
+    double rs_Gamma0_frac_no_exceed = 0.98;
+    bool do_rs = false;
     bool shutOff = false; /// include Reverse shock now?
     bool adiabLoss_rs = false;
     double tprompt = 0.;
     double epsilon_rad_rs = 0.;
     double rs_shutOff_criterion_rho = 0.;
+    double prev_dGammadR=0;
+    double prev_dRdt = 0;
 
 };
 
@@ -195,6 +201,7 @@ namespace BW{
         itcomov, itburst, itt, ithickness, iadi, irho2, iGammaFsh,
         // --- electrons  ---
         igm, igc, igM, iB, iTheta, iz_cool, ix, inprime, iacc_frac,
+        igm_rs, igc_rs, igM_rs, iB3, iTheta_rs, iz_cool_rs, ix_rs, inprime_rs, iacc_frac_rs,
         // --- observables ---
         imu,
         // ---
@@ -206,14 +213,15 @@ namespace BW{
         // -- PWN
         i_Rw, i_Wmom, i_Wenb, i_Wepwn, i_Wtt, i_Wb, i_WGamma, i_Wdr
     };
-    std::vector<std::string> m_vnames{
+    const std::vector<std::string> m_vnames{
             // --- dynamics ---
             "R", "Rsh", "rho", "drhodr", "GammaRho", "GammaRel", "dGammaRhodr", "dGammaReldGamma", "PCBM", "dPCBMdrho", "MCBM", "CSCBM",
             "Gamma", "beta", "mom", "Eint2", "U_p", "theta", "ctheta", "Erad2", "Esh2", "Ead2", "M2",
-            "tcomov", "tburst", "tt", "thickness", "adi", "rho2", "GammaFsh",
             "Eint3", "Erad3", "iEad3", "Esh3", "M3", "deltaR4", "Gamma43", "adi3", "rho4", "rho3", "thichness_rs", "U_p3",
+            "tcomov", "tburst", "tt", "thickness", "adi", "rho2", "GammaFsh",
             // --- electrons
             "gamma_min", "gamma_c", "gamma_max", "B", "ThetaTherm", "z_cool", "x", "nprime", "accel_frac",
+            "gamma_min_rs", "gamma_c_rs", "gamma_max_rs", "B_rs", "ThetaTherm_rs", "z_cool_rs", "x_rs", "nprime_rs", "accel_frac_rs",
             // --- observables
             "mu",
             // ---
@@ -225,7 +233,7 @@ namespace BW{
             // --- FOR PWN ---
             "WR", "Wmom", "Wenb", "Wepwn", "Wtt", "Wb", "WGamma", "Wdr"
     };
-    static constexpr size_t NVALS = 78; // number of variables to save
+    static constexpr size_t NVALS = 87; // number of variables to save
 //    static constexpr size_t DERIVATIVES_NVALS = 14; // number of variables to save for derivatives at EACH step
 
     /// ---
@@ -242,10 +250,10 @@ namespace SOL{
 //                                    "Eint2", "theta", "Erad2", "Esh2", "Ead2", "M2",
 //                                    "Rw", "momW", "enbW", "EpwnW", "ttW"};
 
-    enum QS { iR, iRsh, itt, itcomov, imom, iEint2, iEint3, itheta,
+    enum QS { iR, iRsh, itt, itcomov, iGamma, iEint2, iEint3, itheta,
             iErad2, iErad3, iEsh2, iEsh3, iEad2, iEad3, iM2, iM3, ideltaR4,
         iRw, iWmom, iWenb, iWepwn, iWtt};
-    std::vector<std::string> vars { "R", "Rsh", "tt", "tcomov", "mom",
+    std::vector<std::string> vars { "R", "Rsh", "tt", "tcomov", "Gamma",
                                     "Eint2", "Eint3", "theta",
                                     "Erad2", "Erad3", "Esh2", "Esh3", "Ead2", "Ead3", "M2", "M3", "deltaR4",
                                     "Rw", "momW", "enbW", "EpwnW", "ttW"};

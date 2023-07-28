@@ -38,12 +38,15 @@ skymap_freqs = array 1e9
 skymap_times = array 20736000
 
 integrator = DOP853
+do_average_solution = no
 
 # --------------------------- END ---------------------------
 #
 # ---------------------- GRB afterglow ----------------------
 
 * Parameters
+
+n_store_substeps = 10
 
 a = 1.0
 fraction_of_Gamma0_when_spread = 0.1
@@ -62,9 +65,16 @@ save_dyn_every_it = 1
 rtol_adapt = 1e-5
 fnu_min_frac = 1e-4
 
+nsublayers = 20
+
+tprompt = 0.
+epsilon_rad_rs = 0.
+rs_shutOff_criterion_rho = 1e-50 # criterion when to shut down the reverse shock
+
 * Settings
 
 run_bws = yes
+allow_termination = no
 save_dynamics = yes
 load_dynamics = no
 do_ele = yes
@@ -72,9 +82,11 @@ do_spec = no
 do_lc = no
 do_skymap = yes
 
+do_rs = no
 rhs_type = grb_fs
 method_collision = none # none
 method_eats = piece-wise # adaptive # piece-wise
+use_rs = no
 
 do_thermrad_loss = no
 
@@ -88,6 +100,7 @@ do_nucinj = no
 type = numeric
 fname_ejecta_id = gauss_grb_id.h5
 load_r0 = no
+
 
 method_spread = AA
 method_dgdr = our

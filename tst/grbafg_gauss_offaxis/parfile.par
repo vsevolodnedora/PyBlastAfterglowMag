@@ -30,6 +30,8 @@ theta_obs = 0.3752
 
 * Settings
 
+do_average_solution = no
+
 lc_freqs = array 3.e9
 lc_times = array logspace 1.e4 1.e10 150
 lc_use_freq_to_time = no      # one-to-one for freq and times
@@ -45,6 +47,9 @@ integrator = DOP853
 
 * Parameters
 
+n_store_substeps = 10
+
+tprompt = 1.e3
 a = 1.0
 fraction_of_Gamma0_when_spread = 0.1
 
@@ -72,11 +77,13 @@ do_spec = no
 do_lc = yes
 do_skymap = no
 
+do_rs = no
 rhs_type = grb_fs
 method_collision = none # none
 method_eats = piece-wise # adaptive # piece-wise
 
 do_thermrad_loss = no
+allow_termination = no
 
 use_1d_id = yes
 fname_dyn = dyn_grb_gauss.h5

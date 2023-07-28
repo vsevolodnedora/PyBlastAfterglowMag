@@ -30,6 +30,8 @@ theta_obs = 0
 
 * Settings
 
+do_average_solution = no
+
 lc_freqs = array 1e9 1e18
 lc_times = array logspace 1.e4 1.e10 100
 lc_use_freq_to_time = no
@@ -45,6 +47,7 @@ integrator = DOP853E
 
 * Parameters
 
+tprompt = 1e3
 a = 0.0
 fraction_of_Gamma0_when_spread = 0.1
 
@@ -75,6 +78,8 @@ do_skymap = no
 rhs_type = grb_fs
 method_collision = none # none
 method_eats = piece-wise # adaptive # piece-wise
+allow_termination = no
+use_rs = no
 
 do_thermrad_loss = no
 
@@ -88,6 +93,10 @@ do_nucinj = no
 type = numeric
 fname_ejecta_id = tophat_grb_id.h5
 load_r0 = no
+
+tprompt = 0.
+epsilon_rad_rs = 0.
+rs_shutOff_criterion_rho = 1e-50 # criterion when to shut down the reverse shock
 
 method_spread = None
 method_dgdr = our

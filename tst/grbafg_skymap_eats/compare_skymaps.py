@@ -10,45 +10,59 @@ from matplotlib.colors import Normalize, LogNorm
 from matplotlib import cm
 import os
 
-try:
-    from PyBlastAfterglowMag.interface import modify_parfile_par_opt
-    from PyBlastAfterglowMag.interface import PyBlastAfterglow
-    from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
-    from PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma,
-                                           BetFromMom, GamFromMom, MomFromGam)
-    from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
-    from PyBlastAfterglowMag.skymap_tools import \
-        (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
-except ImportError:
-    try:
-        from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
-        from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
-        from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
-        from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma,
-                                                           BetFromMom, GamFromMom, MomFromGam)
-        from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
-        from package.src.PyBlastAfterglowMag.skymap_tools import \
-            (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
-    except ImportError:
-        raise ImportError("Cannot import PyBlastAfterglowMag")
+# try:
+#     from PyBlastAfterglowMag.interface import modify_parfile_par_opt
+#     from PyBlastAfterglowMag.interface import PyBlastAfterglow
+#     from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
+#     from PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma,
+#                                            BetFromMom, GamFromMom, MomFromGam)
+#     from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+#     from PyBlastAfterglowMag.skymap_tools import \
+#         (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
+# except ImportError:
+#     try:
+#         from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
+#         from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
+#         from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
+#         from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma,
+#                                                            BetFromMom, GamFromMom, MomFromGam)
+#         from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+#         from package.src.PyBlastAfterglowMag.skymap_tools import \
+#             (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
+#     except ImportError:
+#         raise ImportError("Cannot import PyBlastAfterglowMag")
 
-
+from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
+from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
+from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
+from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma,
+                                                   BetFromMom, GamFromMom, MomFromGam)
+from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+from package.src.PyBlastAfterglowMag.skymap_tools import \
+    (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
 def task_kn_skymap_with_dist_one_time():
 
     workdir = os.getcwd()+'/'
+    prepare_grb_ej_id_1d({"Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.1,
+                          "nlayers_pw": 50, "nlayers_a": 1, "struct":"tophat"},type="a",outfpath="tophat_grb_id.h5")
+    modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main", newpars={},newopts={},
+                          parfile="parfile.par", newparfile="parfile.par", keep_old=False)
+    pba = PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
 
-    prepare_grb_ej_id_1d({"struct":"gaussian",
-                          "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
-                          "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":150,"nlayers_a": 10}, type="pw",
-                          outfpath=workdir+"gauss_grb_id.h5")
+    # prepare_grb_ej_id_1d({"struct":"tophat",
+    #                       "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
+    #                       "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":350,"nlayers_a": 10}, type="a",
+    #                       outfpath=workdir+"gauss_grb_id.h5")
 
-    pba = PyBlastAfterglow(workingdir=os.getcwd()+'/',readparfileforpaths=True,parfile="parfile.par")
+    # pba = PyBlastAfterglow(workingdir=os.getcwd()+'/',readparfileforpaths=True,parfile="parfile.par")
 
     pba.reload_parfile()
 
     pba.run()
 
-    time = 240
+
+
+    times = [1.,10.,40.,100.,200.]
     workdir = os.getcwd() + '/'
     sim = "BLh_M13641364_M0_LK_SR"
     # # res_dir_kn = "/media/vsevolod/Data/postprocessed5/{}/outflow_1/geo//afterglow/tst_spec_maps/".format(sim)
@@ -62,7 +76,7 @@ def task_kn_skymap_with_dist_one_time():
         "workingdir" : workdir,
         "parfile1":  "parfile.par",
         "parfile2":  "parfile.par",
-        "time": time, "freq": 1e9, "title":"BLh $q=1.00$"
+        "time": times[3], "freq": 1e9, "title":"BLh $q=1.00$"
     }
 
     fname = workdir+ "precomputed_grb_skymap"#"int_"+sim + "_with_hists_time{}_".format(time) + prefix_th
@@ -94,7 +108,7 @@ def task_kn_skymap_with_dist_one_time():
             # {}
         },
         "grb_skymap": {
-            "hist_nx": 1024, "hist_ny": 512, "spec": False,
+            "hist_nx": 128, "hist_ny": 128, "spec": False,
             "smooth": {},  # {"type": "gaussian", "sigma": 10},
             "cm": {"color": 'cyan', "marker": "+"},
             "ysize": {"capsize": 2, "color": "cyan", "lw": 0.5},

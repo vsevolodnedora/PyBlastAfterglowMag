@@ -10,7 +10,7 @@
 #include "utilitites/utils.h"
 #include "utilitites/interpolators.h"
 
-#include "model_ejecta.h"
+#include "ejecta/ejecta.h"
 
 class Magnetar_OLD{
     struct Pars{

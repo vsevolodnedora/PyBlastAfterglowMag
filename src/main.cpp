@@ -48,7 +48,7 @@
 #include "utilitites/utils.h"
 #include "utilitites/H5Easy.h"
 #include "blastwave/blastwave.h"
-#include "model_ejecta.h"
+#include "ejecta/ejecta.h"
 #include "model_evolve.h"
 #include "model_magnetar.h"
 //#include "model_h"
@@ -211,10 +211,11 @@ int main(int argc, char** argv) {
     std::string working_dir; std::string parfilename;
     /// ------------------------------------------------------
     if (argc<4){
-//        working_dir = "../tst/dynamics_rs/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-        working_dir = "../tst/spectrum_rs/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/grbafg_gauss_dyn_rs/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/grbafg_gauss_spec_rs/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/grbafg_gauss_lc_rs/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_gauss_offaxis/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-//        working_dir = "../tst/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../tst/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_skymap_eats/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/knafg_nrinformed/"; parfilename = "parfile.par"; loglevel=LOG_INFO;

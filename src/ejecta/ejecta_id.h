@@ -2,10 +2,10 @@
 // Created by vsevolod on 04/04/23.
 //
 
-#include "utilitites/utils.h"
-#include "utilitites/logger.h"
-#include "utilitites/pch.h"
-#include "utilitites/H5Easy.h"
+//#include "utilitites/utils.h"
+//#include "utilitites/logger.h"
+//#include "utilitites/pch.h"
+//#include "utilitites/H5Easy.h"
 
 #ifndef SRC_INITIAL_DATA_H
 #define SRC_INITIAL_DATA_H

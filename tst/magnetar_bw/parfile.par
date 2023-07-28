@@ -65,6 +65,8 @@ fname_mag = magnetar.h5
 
 * Parameters
 
+n_store_substeps = 10
+
 eps_e = 0.1
 eps_b = 0.01
 eps_t = 1.0

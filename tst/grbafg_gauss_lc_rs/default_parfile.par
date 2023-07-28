@@ -13,10 +13,10 @@
 * Parameters
 
 tb0 = 3335.64
-tb1 = 7.03823e+17 # 318568. # 7.03823e+17
+tb1 = 7.03823e+17
 ntb = 1000
 iout = 1
-rtol = 1.e-6
+rtol = 1e-8
 nmax = 1000
 
 A0 = -1
@@ -73,28 +73,28 @@ save_dyn_every_it = 10
 rtol_adapt = 1e-5
 fnu_min_frac = 1e-5
 
-rs_Gamma0_frac_no_exceed = .98
-
 * Settings
 
 run_bws = yes
 save_dynamics = yes
 load_dynamics = no
-do_ele = no
-do_spec = no
+do_ele = yes
+do_spec = yes
 do_lc = no
 do_skymap = no
 
-do_rs = yes
-rhs_type = grb_fsrs
+do_rs = no
+rhs_type = grb_fs
 method_collision = none # none
-method_eats = piece-wise # adaptive # piece-wise
+method_eats = adaptive # adaptive # piece-wise
 allow_termination = no
 
 do_thermrad_loss = no
 
 use_1d_id = yes
-fname_dyn = dyn_bw_fsrs.h5
+fname_dyn = dyn_grb_tophad.h5
+fname_spectrum = spec_grb_layers.h5
+fname_spectrum_layers = spec_grb.h5
 fname_light_curve = lc_grb_tophad.h5
 fname_light_curve_layers = none
 fname_sky_map = skymap_grb_gauss.h5
@@ -126,7 +126,7 @@ method_tau = smooth
 use_ssa = yes
 emissivity = em
 absorption = abs
-method_comp_mode = observFlux   # "comovSpec"
+method_comp_mode = comovSpec #  observFlux   # "comovSpec"
 method_quad = CADRE
 
 method_synchrotron_rs = WSPN99

@@ -5,9 +5,9 @@
 #ifndef SRC_BLASTWAVE_COMPONENTS_H
 #define SRC_BLASTWAVE_COMPONENTS_H
 
-#include "../utilitites/pch.h"
-#include "../utilitites/utils.h"
-#include "../utilitites/interpolators.h"
+//#include "../utilitites/pch.h"
+//#include "../utilitites/utils.h"
+//#include "../utilitites/interpolators.h"
 #include "../utilitites/quadratures.h"
 
 inline namespace EQS{
@@ -30,6 +30,10 @@ inline namespace EQS{
     double Beta(double const &Gamma){
 //        return sqrt(1.0 - pow(Gamma, -2)); || std::sqrt(1.-std::pow(Gamma*Gamma,-2.))
         return (1. / Gamma) * sqrt( (Gamma - 1.) * (Gamma + 1.) );
+    }
+    double BetaFromGammaM1(double const &GammaM1){
+//        return sqrt(1.0 - pow(Gamma, -2)); || std::sqrt(1.-std::pow(Gamma*Gamma,-2.))
+        return (1. / (GammaM1 + 1.0)) * sqrt( GammaM1 * (GammaM1 + 2.0) );
     }
     double Beta2(double const &Gamma){
         return (Gamma-1.) * (Gamma+1.) / ( Gamma * Gamma );
@@ -80,7 +84,7 @@ inline namespace EQS{
      * basic form was dmdr = 2 * cgs.pi * R ** 2. * rho * one_minus_costheta / m_pars["m_scale"]
      *
      */
-    double dmdr(double &Gamma, double &RR, double &thetaE, double &theta, double &rho, double aa){
+    double dmdr(const double Gamma, const double RR, const double thetaE, const double theta, const double rho, const double aa){
 
         // First term: change in swept-up mass due to the change in solid angle
         // double t1 = 0. if (aa < 0) else (1. / 3.) * np.sin(itheta) / (iGamma ** (1. + aa) * itheta ** (aa));
@@ -89,7 +93,7 @@ inline namespace EQS{
         double t2 = (cos(thetaE) - cos(theta));
         return 2.0 * CGS::pi * rho * (t1 + t2) * RR * RR;
     }
-    double dmdr(double &Gamma, double &RR, double &dthetadR, double &theta, double &rho){
+    double dmdr(const double Gamma, const double RR, const double dthetadR, const double theta, const double rho){
         return 2.*CGS::pi*rho*((1.- cos(theta)) + (1./3.)* sin(theta)*RR*dthetadR)*RR*RR;
     }
 
@@ -271,11 +275,11 @@ inline namespace EQS{
 
     // *************************** NAVA et al 2013 *******************
 
-    inline double get_GammaEff(const double &Gamma, const double &gammaAdi){
+    inline double get_GammaEff(const double Gamma, const double gammaAdi){
         return (gammaAdi * Gamma * Gamma - gammaAdi + 1.0) / Gamma;
     }
 
-    inline double get_dGammaEffdGamma(const double &Gamma, const double &gammaAdi){
+    inline double get_dGammaEffdGamma(const double Gamma, const double gammaAdi){
         return (gammaAdi * Gamma * Gamma + gammaAdi - 1.0) / (Gamma * Gamma);
     }
 
@@ -315,11 +319,11 @@ inline namespace EQS{
     /*
      * Adiabatic index in the 3rd region (See Nava+2013)
      */
-    inline double get_gamma43_minus_one(const double &Gamma,
-                                        const double &Gamma0,
-                                        const double &beta,
-                                        const double &beta0,
-                                        const double &beta_switch=0.999995){
+    inline double get_gamma43_minus_one(const double Gamma,
+                                        const double Gamma0,
+                                        const double beta,
+                                        const double beta0,
+                                        const double beta_switch=0.999995){
         /*
          * Idea:
          *
@@ -395,10 +399,13 @@ inline namespace EQS{
         if (Eint3 != 0)
             h_3 = fh_factor3 * (dM3dR / M3 - dlnrho4dR);
 
-        double dGammadR = -((Gamma - 1.0) * (GammaEff + 1.0) * dM2dR + (Gamma - Gamma0 + GammaEff3 * gamma43_m1) *
-                                                                       dM3dR - h_2 - h_3) / ((M2 + M3) + Eint2 * dGammaEffdGamma + Eint3 * dGammaEff3dGamma + f_2 + f_3);
-
-        return dGammadR;
+        long double dGammadR = -((Gamma - 1.0) * (GammaEff + 1.0) * dM2dR + (Gamma - Gamma0 + GammaEff3 * gamma43_m1) *
+                    dM3dR - h_2 - h_3) / ((M2 + M3) + Eint2 * dGammaEffdGamma + Eint3 * dGammaEff3dGamma + f_2 + f_3);
+//        if (dGammadR > 0 and Gamma > .95 * Gamma0){
+//            std::cerr << " error dGammadR > 0 and Gamma > .59 * Gamma0 \n";
+//            exit(1);
+//        }
+        return (double)dGammadR;
 
     }
     /*

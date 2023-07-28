@@ -6,7 +6,7 @@
 #define SRC_BLASTWAVE_BASE_H
 
 #include "../composition.h"
-#include "blastwave_components.h"
+//#include "blastwave_components.h"
 #include "blastwave_pars.h"
 
 class BlastWaveBase{
@@ -31,10 +31,10 @@ protected:
     Vector frac_psr_dep_{};
 public:
     bool is_initialized = false;
-    BlastWaveBase(Vector & tb_arr, size_t ishell, size_t ilayer, int loglevel): m_tb_arr(tb_arr){
+    BlastWaveBase(Vector & tb_arr, size_t ishell, size_t ilayer, size_t n_substeps, int loglevel): m_tb_arr(tb_arr){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BW_Base");
 
-        size_t n_substeps = 10;
+//        size_t n_substeps = 10;
 
         /// the container for the final solution
         if (m_data.empty()){
@@ -57,12 +57,6 @@ public:
                 arr.resize( tb_arr.size(), 0.0);
             }
         }
-        /// if no evolution required; do not allocate memory for each variable
-        if (m_data_tmp[BW::Q::itburst].size() < 1) {
-            for (auto & arr : m_data_tmp) {
-                arr.resize( n_substeps, 0.0);
-            }
-        }
         // ---------------------- Methods
 //        p_pars = std::make_unique<PWNPars>(); //
         p_pars = new Pars(m_data, m_data_tmp, loglevel); //
@@ -74,18 +68,20 @@ public:
         p_sedov = std::make_unique<SedovTaylor>();
         p_bm = std::make_unique< BlandfordMcKee2>();
         p_nuc = std::make_unique<NuclearAtomic>(loglevel);
-
-//        p_eats_fs->setFuncOptDepth(optDepthPW);
+        /// if no evolution required; do not allocate memory for each variable
+        p_pars->n_substeps = n_substeps;
+        if (m_data_tmp[BW::Q::itburst].size() < 1) {
+            for (auto & arr : m_data_tmp) {
+                arr.resize( p_pars->n_substeps, 0.0);
+            }
+        }
         /// ----------------------
         p_pars->loglevel = loglevel;
         p_pars->nr = m_tb_arr.size();
         p_pars->ilayer = ilayer;
         p_pars->ishell = ishell;
-//        ish = ishell;
-//        il = ilayer;
         p_pars->n_substeps = n_substeps;
         is_initialized = true;
-
     }
     void setBaseParams(std::unique_ptr<EjectaID2> & id, StrDbMap & pars, StrStrMap & opts, size_t ilayer, size_t ii_eq){
 
@@ -117,11 +113,13 @@ public:
                 (double)getDoublePar("fraction_of_Gamma0_when_bm_for_bm",pars, AT,p_log,1.98,false);
         p_pars->fraction_of_Gamma0_when_spread =
                 (double)getDoublePar("fraction_of_Gamma0_when_spread",pars, AT,p_log,.75,false);
+        p_pars->rs_Gamma0_frac_no_exceed =
+                (double)getDoublePar("rs_Gamma0_frac_no_exceed",pars, AT,p_log,.98,false);
 
         /// rs parameters
         p_pars->tprompt = getDoublePar("tprompt",pars,AT,p_log,1000.,false);
-        p_pars->epsilon_rad_rs = getDoublePar("epsilon_rad_rs",pars,AT,p_log,1000.,false);
-        p_pars->rs_shutOff_criterion_rho = getDoublePar("rs_shutOff_criterion_rho",pars,AT,p_log,1000.,false);
+        p_pars->epsilon_rad_rs = getDoublePar("epsilon_rad_rs",pars,AT,p_log,.0,false);
+        p_pars->rs_shutOff_criterion_rho = getDoublePar("rs_shutOff_criterion_rho",pars,AT,p_log,1.e-50,false);
 
         // set options
         std::string opt;
@@ -400,8 +398,7 @@ public:
         p_pars->adiabLoss =
                 getBoolOpt("use_adiabLoss", opts, AT,p_log,true, false);
 
-        p_pars->shutOff =
-                getBoolOpt("use_rs", opts, AT,p_log, false, true);
+        p_pars->do_rs = getBoolOpt("do_rs", opts, AT,p_log, false, true);
 
         p_pars->adiabLoss_rs =
                 getBoolOpt("use_adiabLoss_rs", opts, AT,p_log,true, false);
@@ -418,18 +415,13 @@ public:
         size_t & ish = p_pars->ishell;
         size_t & il = p_pars->ilayer;
 
-        p_pars->E0        = id->get(ish,il,EjectaID2::Q::iek);//latStruct.dist_E0_pw[ilayer];
-        p_pars->Ye0       = id->get(ish,il,EjectaID2::Q::iye);//latStruct.dist_Ye_pw[ilayer];
-        p_pars->s0        = id->get(ish,il,EjectaID2::Q::is);//latStruct.dist_s_pw[ilayer];
-        p_pars->M0        = id->get(ish,il,EjectaID2::Q::imass);//latStruct.dist_M0_pw[ilayer];
-        p_pars->R0        = id->get(ish,il,EjectaID2::Q::ir);//latStruct.dist_M0_pw[ilayer];
-//        if (p_pars->R0 <= 0 || !std::isfinite(p_pars->R0)){
-//            (*p_log)(LOG_ERR,AT)<<" p_pars->R0="<<p_pars->R0<<"\n";
-//            exit(1);
-//        }
-//        std::cerr << "R["<<0<<"] ="<<id->get(ish,il,EjectaID2::Q::ir)<<"\n";
-
-        p_pars->mom0      = id->get(ish,il,EjectaID2::Q::imom);//latStruct.dist_Mom0_pw[ilayer];
+        p_pars->E0        = (double)id->get(ish,il,EjectaID2::Q::iek);//latStruct.dist_E0_pw[ilayer];
+        p_pars->Ye0       = (double)id->get(ish,il,EjectaID2::Q::iye);//latStruct.dist_Ye_pw[ilayer];
+        p_pars->s0        = (double)id->get(ish,il,EjectaID2::Q::is);//latStruct.dist_s_pw[ilayer];
+        p_pars->M0        = (double)id->get(ish,il,EjectaID2::Q::imass);//latStruct.dist_M0_pw[ilayer];
+        p_pars->R0        = (double)id->get(ish,il,EjectaID2::Q::ir);//latStruct.dist_M0_pw[ilayer];
+        p_pars->mom0      = (double)id->get(ish,il,EjectaID2::Q::imom);//latStruct.dist_Mom0_pw[ilayer];
+        p_pars->Gamma0    = GamFromMom(id->get(ish,il,EjectaID2::Q::imom));//latStruct.dist_Mom0_pw[ilayer];
         p_pars->tb0       = m_tb_arr.empty() ? 0 : m_tb_arr[0];
         p_pars->theta_a   = 0.;
         p_pars->theta_b0  = ((id->method_eats) == EjectaID2::ipiecewise)
@@ -619,6 +611,10 @@ public:
             }
         }
         p_pars->m_rhs = rhs_type;
+        if (p_pars->do_rs && p_pars->m_rhs!=RHS_TYPES::iGRG_FSRS){
+            (*p_log)(LOG_ERR,AT)<<" if do_rs = yes, the rhs_type should be 'grb_fsrs' \n";
+            exit(1);
+        }
 
         opt = "method_ne";
         METHOD_NE methodNe;
@@ -802,17 +798,17 @@ public:
     std::unique_ptr<BlandfordMcKee2> & getBM(){ return p_bm; }
     std::unique_ptr<LinearRegression> & getLRforDelta(){ return p_lr_delta; }
     std::unique_ptr<LinearRegression> & getLRforVol(){ return p_lr_vol; }
-    size_t ntb() const { return m_tb_arr.size(); }
-    Vector & getTbGrid() {return m_tb_arr;}
-    Vector getTbGrid(size_t every_it) {
-        if ((every_it == 1)||(every_it==0)) return m_tb_arr;
-        Vector tmp{};
-        for (size_t it = 0; it < m_tb_arr.size(); it = it + every_it){
-            tmp.push_back(m_tb_arr[it]);
-        }
-//        Vector tmp2 (tmp.data(), tmp.size());
-        return std::move(tmp);
-    }
+//    size_t ntb() const { return m_tb_arr.size(); }
+//    Vector & getTbGrid() {return m_tb_arr;}
+//    Vector getTbGrid(size_t every_it) {
+//        if ((every_it == 1)||(every_it==0)) return m_tb_arr;
+//        Vector tmp{};
+//        for (size_t it = 0; it < m_tb_arr.size(); it = it + every_it){
+//            tmp.push_back(m_tb_arr[it]);
+//        }
+////        Vector tmp2 (tmp.data(), tmp.size());
+//        return std::move(tmp);
+//    }
     inline Vector & operator[](unsigned ll){ return this->m_data[ll]; }
     inline double & operator()(size_t ivn, size_t ir){ return this->m_data[ivn][ir]; }
     inline double ctheta(double theta){
@@ -852,7 +848,7 @@ public:
     }
     inline VecVector & getData(){ return m_data; }
     inline Vector & getData(BW::Q var){ return m_data[ var ]; }
-    inline VecVector & getDataTMP(){return m_data_tmp;}
+//    inline VecVector & getDataTMP(){return m_data_tmp;}
     inline Vector & get_tburst(){return m_tb_arr;}
     ~BlastWaveBase(){ delete p_pars; }
 };

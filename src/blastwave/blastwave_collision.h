@@ -5,7 +5,7 @@
 #ifndef SRC_BLAST_WAVE_COLLISION_H
 #define SRC_BLAST_WAVE_COLLISION_H
 
-#include "../eats.h"
+//#include "../eats.h"
 
 /// how to collide two blastwaves
 class BlastWaveCollision{
@@ -59,8 +59,10 @@ public:
             exit(1);
         }
         /// get relevant parameters
-        double gam1 = EQS::GamFromMom( Y[bw1->getPars()->ii_eq + SOL::QS::imom] );
-        double beta1 = EQS::BetFromMom( Y[bw1->getPars()->ii_eq + SOL::QS::imom] );
+//        double gam1 = EQS::GamFromMom( Y[bw1->getPars()->ii_eq + SOL::QS::imom] );
+        double gam1 = Y[bw1->getPars()->ii_eq + SOL::QS::iGamma];
+//        double beta1 = EQS::BetFromMom( Y[bw1->getPars()->ii_eq + SOL::QS::imom] );
+        double beta1 = Beta( Y[bw1->getPars()->ii_eq + SOL::QS::iGamma] );
         double m0_1 = bw1->getPars()->M0;
         double m2_1 = Y[bw1->getPars()->ii_eq + SOL::QS::iM2];
         double m2_1_ = m2_1 * m0_1;
@@ -68,8 +70,10 @@ public:
         double eint2_1_ = eint2_1 * bw1->getPars()->M0 * CGS::c * CGS::c;
         double adi1 = bw1->getEos()->getGammaAdi(gam1, beta1);
         /// --------------------
-        double gam2 = EQS::GamFromMom( Y[bw2->getPars()->ii_eq + SOL::QS::imom] );
-        double beta2 = EQS::BetFromMom( Y[bw2->getPars()->ii_eq + SOL::QS::imom] );
+//        double gam2 = EQS::GamFromMom( Y[bw2->getPars()->ii_eq + SOL::QS::imom] );
+        double gam2 = Y[bw2->getPars()->ii_eq + SOL::QS::iGamma];
+//        double beta2 = EQS::BetFromMom( Y[bw2->getPars()->ii_eq + SOL::QS::imom] );
+        double beta2 = Beta( Y[bw2->getPars()->ii_eq + SOL::QS::iGamma] );
         double m0_2 = bw2->getPars()->M0;
         double m2_2 = Y[bw2->getPars()->ii_eq + SOL::QS::iM2];
         double m2_2_ = m2_2 * m0_2;
@@ -100,6 +104,7 @@ public:
         if (m2_c==1)
             m2_c = m2_1 + m2_2;
         double mom_c = i_gM * EQS::Beta(i_gM);
+        double gam_c = i_gM;
         /// update the shell composition (mass averaged)
         double ye_c = (bw1->getPars()->Ye0 * bw1->getPars()->M0 + bw2->getPars()->Ye0 * bw2->getPars()->M0)
                       / (bw1->getPars()->M0 + bw2->getPars()->M0);
@@ -115,7 +120,8 @@ public:
             bw2->getPars()->end_evolution = true;
             bw1->getPars()->M0 = m0_c;
             bw1->getPars()->Ye0 = ye_c;
-            Y[bw1->getPars()->ii_eq + SOL::QS::imom] = mom_c;
+//            Y[bw1->getPars()->ii_eq + SOL::QS::imom] = mom_c;
+            Y[bw1->getPars()->ii_eq + SOL::QS::iGamma] = gam_c;
             Y[bw1->getPars()->ii_eq + SOL::QS::iEint2] = eint2_c;
             Y[bw1->getPars()->ii_eq + SOL::QS::iM2] = m2_c;
         }
@@ -123,7 +129,8 @@ public:
             bw1->getPars()->end_evolution = true;
             bw2->getPars()->M0 = m0_c;
             bw2->getPars()->Ye0 = ye_c;
-            Y[bw2->getPars()->ii_eq + SOL::QS::imom] = mom_c;
+//            Y[bw2->getPars()->ii_eq + SOL::QS::imom] = mom_c;
+            Y[bw2->getPars()->ii_eq + SOL::QS::iGamma] = gam_c;
             Y[bw2->getPars()->ii_eq + SOL::QS::iEint2] = eint2_c;
             Y[bw2->getPars()->ii_eq + SOL::QS::iM2] = m2_c;
         }

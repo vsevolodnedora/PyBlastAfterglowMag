@@ -9,7 +9,7 @@
 #include "utilitites/utils.h"
 #include "utilitites/interpolators.h"
 #include "blastwave/blastwave_components.h"
-#include "initial_data.h"
+#include "ejecta/ejecta_id.h"
 
 namespace IMG{
     //    std::vector<std::string> m_names{"theta", "phi", "r", "theta_j", "theta0", "mu", "xrs", "yrs", "gamma", "fluxes", "intensity", "gm", "gc", "B", "tburst", "tt"};

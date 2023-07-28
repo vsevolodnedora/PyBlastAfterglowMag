@@ -5,8 +5,8 @@
 #ifndef SRC_BLASTWAVE_RADIATION_H
 #define SRC_BLASTWAVE_RADIATION_H
 
-#include "blastwave_components.h"
-#include "blastwave_base.h"
+//#include "blastwave_components.h"
+//#include "blastwave_base.h"
 #include "blastwave_base.h"
 
 class BlastWaveRadiation : public BlastWaveBase{
@@ -14,11 +14,12 @@ class BlastWaveRadiation : public BlastWaveBase{
     std::unique_ptr<EATS> p_eats_fs = nullptr;
     std::unique_ptr<EATS> p_eats_opt_depth = nullptr;
 public:
-    BlastWaveRadiation(Vector & tb_arr, size_t ishell, size_t ilayer, int loglevel)
-            : BlastWaveBase(tb_arr,ishell,ilayer, loglevel){
+    BlastWaveRadiation(Vector & tb_arr, size_t ishell, size_t ilayer,size_t n_substeps, int loglevel)
+            : BlastWaveBase(tb_arr,ishell,ilayer,n_substeps, loglevel){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BW_radiation");
         //        p_rad = std::make_unique<BlastWaveRadiation>(m_data, ishell, ilayer, loglevel);
-        p_pars->p_syna = std::make_unique<SynchrotronAnalytic>(loglevel);
+        p_pars->p_syna = std::make_unique<SynchrotronAnalytic>(loglevel, false);
+        p_pars->p_syna_rs = std::make_unique<SynchrotronAnalytic>(loglevel, true);
         /// EATS integrator for forward shock
 //        p_eats_pars = new EatsPars(m_data); /// for static methods (data link)
         p_eats_fs = std::make_unique<EATS>(m_data[BW::Q::itburst],
@@ -41,9 +42,9 @@ public:
         size_t & ish = p_pars->ishell;
         size_t & il = p_pars->ilayer;
 
-        double freq1 = getDoublePar("freq1", pars, AT, p_log,1.e7, false);//pars.at("freq1");
-        double freq2 = getDoublePar("freq2", pars, AT, p_log,1.e14, false);//pars.at("freq2");
-        size_t nfreq = (size_t)getDoublePar("nfreq", pars, AT, p_log,100, false);//pars.at("nfreq");
+        double freq1 = getDoublePar("freq1", pars, AT, p_log,1.e7, true);//pars.at("freq1");
+        double freq2 = getDoublePar("freq2", pars, AT, p_log,1.e14, true);//pars.at("freq2");
+        size_t nfreq = (size_t)getDoublePar("nfreq", pars, AT, p_log,100, true);//pars.at("nfreq");
 
         p_pars->m_freq_arr = TOOLS::MakeLogspaceVec(log10(freq1), log10(freq2),(int)nfreq);
         if (p_pars->m_method_rad == METHODS_RAD::icomovspec){
@@ -67,7 +68,10 @@ public:
                 id->get(ish,il,EjectaID2::Q::itheta_c_h),
                 id->theta_wing,
                 getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false));
+
         p_pars->p_syna->setPars(pars, opts);
+        if (p_pars->do_rs)
+            p_pars->p_syna_rs->setPars(pars, opts);
     }
     std::unique_ptr<EATS> & getFsEATS(){ return p_eats_fs; }
     /// ----------------- BLAST WAVE RADIATION ------------
@@ -100,21 +104,11 @@ public:
 //            std::cerr << AT << " at it="<<it<<" U_e="<<m_data[Q::iU_e][it]<<" and rho2="<<m_data[Q::irho2][it]<<" skipping electron calc.\n";
             return;
         }
-//        if(m_data[Q::iGammaREL][it]<=1.){
-//            std::cerr << AT << " at it="<<it<<" iGammaREL="<<m_data[Q::iGammaREL][it]<<" skipping electron calc.\n";
-//            exit(1);
-//        }
+
         double Gamma_; // TODO should be GammaSh
         if (m_data[BW::Q::iGammaREL][it] > 0.) Gamma_ = m_data[BW::Q::iGammaREL][it];
         else Gamma_ = m_data[BW::Q::iGamma][it];
 
-        /// for observer frame evaluation, the rad. needs TT, while for comov. spectrum it needs tcomov
-        // TODO Check if time is TT or tburst here
-//        Array * tmp_time;
-//        if (p_syn->getPars()->method_comp_mode==SynchrotronAnalytic::METHODS_RAD::icomovspec)
-//            *tmp_time = m_data[Q::itt][it];
-//        else
-//            *tmp_time = m_data[Q::itburst][it];
         p_syna->evaluateElectronDistribution(m_data[BW::Q::iU_p][it],
                                              m_data[BW::Q::iGamma][it],
 //                               m_data[Q::iGamma][it],
@@ -132,9 +126,7 @@ public:
         m_data[BW::Q::iz_cool][it] = p_syna->getPars()->z_cool;
         m_data[BW::Q::inprime][it] = p_syna->getPars()->n_prime;
         m_data[BW::Q::iacc_frac][it] = p_syna->getPars()->accel_frac;
-//        if ( m_data[Q::iGamma][it] < 5 ){
-//            exit(1);
-//        }
+
         if ((!std::isfinite( m_data[BW::Q::igm][it] )) || (m_data[BW::Q::iB][it] < 0.)) {
             (*p_log)(LOG_ERR,AT) << " Wrong value at i=" << it << " tb=" << m_data[BW::Q::itburst][it]
                                  << " iR=" << m_data[BW::Q::iR][it] << "\n"
@@ -156,12 +148,35 @@ public:
                                  << "\n";
             exit(1);
         }
+
+
+        /// compute electron distribution in reverse shock
+        if (p_pars->do_rs && (it > 0) && (m_data[BW::Q::iGamma43][it] > 0)){
+            auto & p_syna_rs = p_pars->p_syna_rs;
+            p_syna_rs->evaluateElectronDistribution(m_data[BW::Q::iU_p3][it],
+                                                 m_data[BW::Q::iGamma][it],
+//                               m_data[Q::iGamma][it],
+                                                 m_data[BW::Q::iGamma43][it],
+                                                 m_data[BW::Q::itt][it], // TODO WHICH TIME IS HERE? tbirst? tcomov? observer time (TT)
+//                               m_data[Q::itburst][it], // emission time (TT)
+                                                 m_data[BW::Q::irho3][it] / CGS::mp);
+            // adding
+            m_data[BW::Q::iB3][it]        = p_syna_rs->getPars()->B;
+            m_data[BW::Q::igm_rs][it]     = p_syna_rs->getPars()->gamma_min;
+            m_data[BW::Q::igM_rs][it]     = p_syna_rs->getPars()->gamma_max;
+            m_data[BW::Q::igc_rs][it]     = p_syna_rs->getPars()->gamma_c;
+            m_data[BW::Q::iTheta_rs][it]  = p_syna_rs->getPars()->Theta;
+//        m_data[Q::ix][it]      = p_syn->getPars()->x; // IT is not evaluated/ It depends in freq
+            m_data[BW::Q::iz_cool_rs][it] = p_syna_rs->getPars()->z_cool;
+            m_data[BW::Q::inprime_rs][it] = p_syna_rs->getPars()->n_prime;
+            m_data[BW::Q::iacc_frac_rs][it] = p_syna_rs->getPars()->accel_frac;
+        }
+
     }
     void computeForwardShockElectronAnalyticVars(){
-        for (size_t it = 0; it < p_pars->nr; it++){
-//                std::cout << nr<<"\n";
+        for (size_t it = 0; it < p_pars->nr; it++)
             addComputeForwardShockMicrophysics(it);
-        }
+
         /// check if electron spectrum failed for any reason
         if ((m_data[BW::Q::iR][0]>0)&&(p_pars->n_fialed_electrons == p_pars->nr)&&(!p_pars->end_evolution)){
             (*p_log)(LOG_ERR,AT)
@@ -176,37 +191,77 @@ public:
                     << " iterations starting from it=" << p_pars->i0_failed_elecctrons<<"\n";
         }
     }
+
+    /// comoving spectrum
     void computeForwardShockSynchrotronAnalyticSpectrum(){
-        if (p_pars->m_method_rad==METHODS_RAD::icomovspec) {
-            if (p_pars->R0 < 0)
-                return;
-            (*p_log)(LOG_INFO,AT) << " computing analytic comoving spectrum\n";
-            for (size_t it = 0; it < p_pars->nr; ++it) {
-                //        auto & p_eats = p_pars; // removing EATS_pars for simplicity
-                /// exit if the obs. radiation method of choice does not need comoving spectrum
-                if (p_pars->m_freq_arr.size() < 1){
-                    (*p_log)(LOG_ERR,AT) << " array for comoving spectrum is not initialized \n Exiting...\n";
-                    exit(1);
-                }
-                if (p_pars->m_synch_em.size() < 1){
-                    (*p_log)(LOG_ERR,AT)<< " array for comoving spectrum frequencies is not initialized \n Exiting...\n";
-                    exit(1);
-                }
-                size_t nfreq = p_pars->m_freq_arr.size();
+        if (p_pars->m_method_rad != METHODS_RAD::icomovspec)
+            return;
+
+        if (p_pars->R0 < 0)
+            return;
+        (*p_log)(LOG_INFO,AT) << " computing analytic comoving spectrum "
+                                 " [ish="<<p_pars->ishell<<" il="<<p_pars->ilayer<<"] \n";
+        for (size_t it = 0; it < p_pars->nr; ++it) {
+            //        auto & p_eats = p_pars; // removing EATS_pars for simplicity
+            /// exit if the obs. radiation method of choice does not need comoving spectrum
+            if (p_pars->m_freq_arr.size() < 1){
+                (*p_log)(LOG_ERR,AT) << " array for comoving spectrum is not initialized Exiting...\n";
+                exit(1);
+            }
+            if (p_pars->m_synch_em.size() < 1){
+                (*p_log)(LOG_ERR,AT)<< " array for comoving spectrum frequencies is not initialized Exiting...\n";
+                exit(1);
+            }
+            size_t nfreq = p_pars->m_freq_arr.size();
 //        (*p_log)(LOG_INFO) << " computing comoving intensity spectum for "
 //                              << p_syna->getFreqArr().size() << " grid";
-                /// -- check if there are any data first
-                double beta_;
-                if (m_data[BW::Q::iGammaREL][it] > 0.) beta_ = EQS::Beta( m_data[BW::Q::iGammaREL][it] );
-                else beta_ = m_data[BW::Q::ibeta][it];
+            /// -- check if there are any data first
+            double beta_;
+            if (m_data[BW::Q::iGammaREL][it] > 0.) beta_ = EQS::Beta( m_data[BW::Q::iGammaREL][it] );
+            else beta_ = m_data[BW::Q::ibeta][it];
 
-                auto & p_syna = p_pars->p_syna;
-                /// if BW is not evolved to this 'it' or velocity is smaller than minimum
-                if ((m_data[BW::Q::iR][it] < 1) || (beta_ < p_syna->getPars()->beta_min))
-                    return;
+            auto & p_syna = p_pars->p_syna;
+            /// if BW is not evolved to this 'it' or velocity is smaller than minimum
+            if ((m_data[BW::Q::iR][it] < 1) || (beta_ < p_syna->getPars()->beta_min))
+                return;
 
-                if (m_data[BW::Q::igm][it] == 0){
-                    (*p_log)(LOG_ERR,AT)<< " in evolved blast wave, found gm = 0" << "\n";
+            if (m_data[BW::Q::igm][it] == 0){
+                (*p_log)(LOG_ERR,AT)<< " in evolved blast wave, found gm = 0" << "\n";
+                exit(1);
+            }
+
+            /// evaluateShycnhrotronSpectrum emissivity and absorption for each frequency
+            for (size_t ifreq = 0; ifreq < p_pars->m_freq_arr.size(); ++ifreq){
+                /// evaluateShycnhrotronSpectrum all types of emissivities and absoprtions
+                p_syna->evaluateShycnhrotronSpectrum(
+                        m_data[BW::Q::irho2][it] / CGS::mp,//m_data[Q::iM2][it] / CGS::mp,
+                        m_data[BW::Q::iM2][it] / CGS::mp,//m_data[Q::iM2][it] / CGS::mp,
+                        m_data[BW::Q::iacc_frac][it],
+                        m_data[BW::Q::iB][it],
+                        m_data[BW::Q::igm][it],
+                        m_data[BW::Q::igM][it],
+                        m_data[BW::Q::igc][it],
+                        m_data[BW::Q::iTheta][it],
+                        m_data[BW::Q::iz_cool][it],
+//                                       m_data[Q::irho2][it] / CGS::mp,
+                        p_pars->m_freq_arr[ifreq]
+                );
+                /// add evaluated data to the storage
+//            double thick_tau = EQS::shock_delta(m_data[Q::iRsh][it],m_data[Q::iGammaFsh][it]);
+//            p_syna->addIntensity(thick_tau, 0., 1.);
+                p_pars->m_synch_em[ifreq + nfreq * it] = p_syna->getPars()->em;
+                p_pars->m_synch_abs[ifreq + nfreq * it] = p_syna->getPars()->abs;
+            }
+
+            /// Reverse shock
+            if (p_pars->do_rs && (it > 0) && (m_data[BW::Q::iGamma43][it] > 0)){
+                auto & p_syna_rs = p_pars->p_syna_rs;
+                if (m_data[BW::Q::igm_rs][it] == 0){
+                    (*p_log)(LOG_ERR,AT)<< " gm_rs = 0" << "\n";
+                    exit(1);
+                }
+                if (m_data[BW::Q::iB3][it] <= 0){
+                    (*p_log)(LOG_ERR,AT)<< " B3 <= 0" << "\n";
                     exit(1);
                 }
 
@@ -214,25 +269,27 @@ public:
                 for (size_t ifreq = 0; ifreq < p_pars->m_freq_arr.size(); ++ifreq){
                     /// evaluateShycnhrotronSpectrum all types of emissivities and absoprtions
                     p_syna->evaluateShycnhrotronSpectrum(
-                            m_data[BW::Q::irho2][it] / CGS::mp,//m_data[Q::iM2][it] / CGS::mp,
-                            m_data[BW::Q::iM2][it] / CGS::mp,//m_data[Q::iM2][it] / CGS::mp,
+                            m_data[BW::Q::irho3][it] / CGS::mp,//m_data[Q::iM2][it] / CGS::mp,
+                            m_data[BW::Q::iM3][it] / CGS::mp,//m_data[Q::iM2][it] / CGS::mp,
                             m_data[BW::Q::iacc_frac][it],
-                            m_data[BW::Q::iB][it],
-                            m_data[BW::Q::igm][it],
-                            m_data[BW::Q::igM][it],
-                            m_data[BW::Q::igc][it],
-                            m_data[BW::Q::iTheta][it],
-                            m_data[BW::Q::iz_cool][it],
+                            m_data[BW::Q::iB3][it],
+                            m_data[BW::Q::igm_rs][it],
+                            m_data[BW::Q::igM_rs][it],
+                            m_data[BW::Q::igc_rs][it],
+                            m_data[BW::Q::iTheta_rs][it],
+                            m_data[BW::Q::iz_cool_rs][it],
 //                                       m_data[Q::irho2][it] / CGS::mp,
                             p_pars->m_freq_arr[ifreq]
                     );
                     /// add evaluated data to the storage
 //            double thick_tau = EQS::shock_delta(m_data[Q::iRsh][it],m_data[Q::iGammaFsh][it]);
 //            p_syna->addIntensity(thick_tau, 0., 1.);
-                    p_pars->m_synch_em[ifreq + nfreq * it] = p_syna->getPars()->em;
-                    p_pars->m_synch_abs[ifreq + nfreq * it] = p_syna->getPars()->abs;
+                    p_pars->m_synch_em[ifreq + nfreq * it] += p_syna->getPars()->em;
+                    p_pars->m_synch_abs[ifreq + nfreq * it] += p_syna->getPars()->abs;
                 }
+
             }
+
         }
     }
 

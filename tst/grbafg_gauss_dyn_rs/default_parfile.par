@@ -56,16 +56,16 @@ fraction_of_Gamma0_when_spread = 0.1
 eps_e = 0.1
 eps_b = 0.01
 eps_t = 0.
-p = 2.2
+p = 2.4
 ksi_n = 1.
 
-eps_e_rs = 0.1
-eps_b_rs = 0.01
+eps_e_rs = 0.01
+eps_b_rs = 0.001
 eps_t_rs = 0.
-p_rs = 2.2
+p_rs = 2.1
 ksi_n_rs = 1.
 
-freq1 = 1.e5
+freq1 = 1.e9 # spectrum
 freq2 = 1.e22
 nfreq = 200
 

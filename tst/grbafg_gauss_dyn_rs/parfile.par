@@ -13,10 +13,10 @@
 * Parameters
 
 tb0 = 3335.64
-tb1 = 7.03823e+17
+tb1 = 7.03823e+17 # 318568. # 7.03823e+17
 ntb = 1000
 iout = 1
-rtol = 1e-8
+rtol = 1.e-6
 nmax = 1000
 
 A0 = -1
@@ -56,16 +56,16 @@ fraction_of_Gamma0_when_spread = 0.1
 eps_e = 0.1
 eps_b = 0.01
 eps_t = 0.
-p = 2.2
+p = 2.4
 ksi_n = 1.
 
-eps_e_rs = 0.1
-eps_b_rs = 0.01
+eps_e_rs = 0.01
+eps_b_rs = 0.001
 eps_t_rs = 0.
-p_rs = 2.2
+p_rs = 2.1
 ksi_n_rs = 1.
 
-freq1 = 1.e5
+freq1 = 1.e9 # spectrum
 freq2 = 1.e22
 nfreq = 200
 
@@ -73,12 +73,14 @@ save_dyn_every_it = 10
 rtol_adapt = 1e-5
 fnu_min_frac = 1e-5
 
+rs_Gamma0_frac_no_exceed = .98
+
 * Settings
 
 run_bws = yes
 save_dynamics = yes
 load_dynamics = no
-do_ele = yes
+do_ele = no
 do_spec = no
 do_lc = no
 do_skymap = no
@@ -86,7 +88,7 @@ do_skymap = no
 do_rs = yes
 rhs_type = grb_fsrs
 method_collision = none # none
-method_eats = piece-wise # adaptive # piece-wise
+method_eats = adaptive # piece-wise
 allow_termination = no
 
 do_thermrad_loss = no

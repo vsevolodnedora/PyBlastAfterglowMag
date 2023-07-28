@@ -12,6 +12,8 @@
 
 * Parameters
 
+n_store_substeps = 10
+
 tb0 = 1.e1
 tb1 = 1.e11 #1e11
 ntb = 100000

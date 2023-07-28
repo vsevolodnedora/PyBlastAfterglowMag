@@ -54,20 +54,29 @@ class RefData():
                     "M2",
                     "M3",
                     "deltaR4"]
+        self.keys = [
+            "R", "rho", "dlnrhodr", "Gamma", "Eint2", "U_e", "theta", "ctheta", "Erad2", "Esh2", "Ead2", "M2",
+                    "tcomov", "tburst", "tt", "delta", "W",
+                    "Gamma43", "Eint3", "U_e3", "Erad3", "Esh3", "Ead3", "M3", "rho4", "deltaR4", "W3"
+        ]
         self.refdata = None
     def idx(self, key : str) -> int:
         return self.keys.index(key)
     def load(self) -> None:
-        self.refdata = np.loadtxt(self.workdir+"reference_fsrs.txt")
-    def get(self,key) -> np.ndarray:
+        # self.refdata = np.loadtxt(self.workdir+"reference_fsrs.txt")
+        self.refdata = h5py.File(self.workdir+"reference_dyn.h5",'r')
+    def get(self,il,key) -> np.ndarray:
         if (self.refdata is None):
             self.load()
         if (key in self.keys):
-            return np.array(self.refdata[:,self.idx(key)])
+            return np.array(np.array(self.refdata[f"layer={il}"][key]))
         elif (key=="mom"):
-            return np.array(self.refdata[:,self.idx("Gamma")]*get_beta(self.refdata[:,self.idx("Gamma")]))
+            return np.array(np.array(self.refdata[f"layer={il}"]["Gamma"])) * \
+                get_beta(np.array(np.array(self.refdata[f"layer={il}"]["Gamma"])))
         else:
             raise KeyError(f"key={key} is not recognized")
+    def close(self) -> None:
+        self.refdata.close()
 def tst_dynamics_fsrs(withSpread = False,
                       savefig = "compare_uniform_afgpy.png"):
     # prepare ID
@@ -93,7 +102,7 @@ def tst_dynamics_fsrs(withSpread = False,
     plt.show()
 def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
                        v_n_x = "R", v_n_ys = ("rho", "mom"), colors_by="layers",legend=False,
-                       figname="dyn_layers_fsrs.png"):
+                       figname="dyn_layers_fsrs.png", run_fs_only=False):
 
     # prepare ID
     workdir = os.getcwd()+"/"
@@ -103,22 +112,23 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
     theta_h = np.pi/2.
     one_min_cos = 2. * np.sin(0.5 * theta_h) * np.sin(0.5 * theta_h)
     ang_size_layer = 2.0 * np.pi * one_min_cos / (4.0 * np.pi)
-    prepare_grb_ej_id_1d({"Eiso_c":1.e53/ang_size_layer, "Gamma0c": 700, "M0c": -1.,"theta_c": theta_h, "theta_w": theta_h,
-                          "nlayers_pw": 1, "nlayers_a": 1, "struct":"tophat"},
-                         type="pw",outfpath="tophat_grb_id.h5")
+    prepare_grb_ej_id_1d({"Eiso_c":1.e53, "Gamma0c": 1000., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.3,
+                          "nlayers_pw": 50, "nlayers_a": 10, "struct":"gaussian"},
+                           type="a",outfpath="tophat_grb_id.h5")
 
-    # run fs-only model
-    modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
-                           newopts={"rhs_type":"grb_fs", "outfpath":"grb_fs.h5", "do_rs":"no",
-                                    "fname_dyn":"dyn_bw_fs.h5","fname_light_curve":"lc_grb_tophad.h5"},
-                           parfile="default_parfile.par", newparfile="parfile.par",keep_old=True)
-    pba_fs = PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
-    pba_fs.run(loglevel="info")
+    ### run fs-only model
+    if(run_fs_only):
+        modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
+                               newopts={"rhs_type":"grb_fs", "outfpath":"grb_fs.h5", "do_rs":"no",
+                                        "fname_dyn":"dyn_bw_fs.h5","fname_light_curve":"lc_grb_tophad.h5", "method_eats": "adaptive"},
+                               parfile="default_parfile.par", newparfile="parfile.par",keep_old=True)
+        pba_fs = PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
+        pba_fs.run(loglevel="info")
 
     # run fsrs model
     modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
                            newopts={"rhs_type":"grb_fsrs", "outfpath":"grb_fsrs.h5", "do_rs":"yes",
-                                    "fname_dyn":"dyn_bw_fsrs.h5","fname_light_curve":"lc_grb_tophad.h5"},
+                                    "fname_dyn":"dyn_bw_fsrs.h5","fname_light_curve":"lc_grb_tophad.h5", "method_eats": "adaptive"},
                            parfile="default_parfile.par", newparfile="parfile.par",keep_old=True)
     pba_fsrs = PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
     pba_fsrs.run(loglevel="info")
@@ -141,7 +151,7 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
     # print(dfile.keys())
     # print(dfile["layer=0"]["M2"])
 
-    fid, axes = plt.subplots(ncols=1, nrows=len(v_n_ys), figsize=(6,6),sharex="all")
+    fid, axes = plt.subplots(ncols=1, nrows=len(v_n_ys), figsize=(4.6,4.2),sharex="all")
     # norm = Normalize(vmin=0, vmax=dfile.attrs["nlayers"])
     cmap = cm.viridis
     mynorm = Normalize(vmin=0,vmax=len(ishells)*len(ilayers))#norm(len(ishells)*len(ilayers))
@@ -149,18 +159,19 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
     for iv_n, v_n in enumerate(v_n_ys):
         ax = axes[iv_n] if len(v_n_ys) > 1 else axes
         i = 0
-        for il, layer in enumerate(layers):
-            x_arr = pba_fs.GRB.get_dyn_arr(v_n=v_n_x,ishell=ishells[0],ilayer=il)#  np.array(dfile[layer][v_n_x])
-            y_arr = pba_fs.GRB.get_dyn_arr(v_n=v_n,ishell=ishells[0],ilayer=il)#np.array(dfile[layer][v_n])
-            y_arr = y_arr[x_arr > 0]
-            x_arr = x_arr[x_arr > 0]
-            # if (v_n == "R"):
-            # y_arr = y_arr/y_arr.max()
-            if (colors_by=="layers"): color=cmap(mynorm(int(i)))#color=cmap(norm(int(layer.split("layer=")[-1])))
-            else: color=cmap(mynorm(int(i)))#color=cmap(norm(int(layer.split("shell=")[-1].split("layer=")[0])))
-            if (v_n_x == "tburst"): x_arr /=cgs.day;
-            ax.plot(x_arr, y_arr, ls='-', color=color, label=layer)
-            i=i+1
+        if(run_fs_only):
+            for il, layer in enumerate(layers):
+                x_arr = pba_fs.GRB.get_dyn_arr(v_n=v_n_x,ishell=ishells[0],ilayer=il)#  np.array(dfile[layer][v_n_x])
+                y_arr = pba_fs.GRB.get_dyn_arr(v_n=v_n,ishell=ishells[0],ilayer=il)#np.array(dfile[layer][v_n])
+                y_arr = y_arr[x_arr > 0]
+                x_arr = x_arr[x_arr > 0]
+                # if (v_n == "R"):
+                # y_arr = y_arr/y_arr.max()
+                if (colors_by=="layers"): color=cmap(mynorm(int(i)))#color=cmap(norm(int(layer.split("layer=")[-1])))
+                else: color=cmap(mynorm(int(i)))#color=cmap(norm(int(layer.split("shell=")[-1].split("layer=")[0])))
+                if (v_n_x == "tburst"): x_arr /=cgs.day;
+                ax.plot(x_arr, y_arr, ls='-', color=color, label=layer)
+                i=i+1
         # --------------------------------
         i = 0
         for il, layer in enumerate(layers):
@@ -177,21 +188,24 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
             i=i+1
 
             # --- plot ref data
-            x_arr = ref.get(v_n_x)
+            x_arr = ref.get(il, v_n_x)
             if (v_n_x == "tburst"): x_arr /=cgs.day;
-            ax.plot(x_arr, ref.get(v_n), ls=':', color='red', lw=2.)
+            ax.plot(x_arr, ref.get(il, v_n), ls=':', color='red', lw=2.)
 
-        ax.set_xlabel(v_n_x)
-        if (v_n_x == "tburst"): ax.set_xlabel(v_n_x + " [day]")
-        ax.set_ylabel(v_n)
+        # ax.set_xlabel(v_n_x)
+
+        ax.set_ylabel(v_n,fontsize=12)
         ax.set_xscale("log")
         ax.set_yscale("log")
         # axes[iv_n].legend()
+        ax.set_xlim(1e-2,1e7)
         ax.grid()
         ax.set_xscale("log")
         ax.set_yscale("log")
         # ax.set_xlim(5e-1,4e3)
+    if (v_n_x == "tburst"): ax.set_xlabel(v_n_x + " [day]",fontsize=12)
     if legend: plt.legend()
+    plt.tight_layout()
     plt.savefig(workdir+figname, dpi=256)
     plt.show()
 
@@ -311,9 +325,9 @@ if __name__ == '__main__':
     # plot_ejecta_layers(ishells=(0,), ilayers=(0,),
     #                    v_n_x = "R", v_n_ys = ("Eint2", "mom", "M3", "Eint3","deltaR4", "rho4"), colors_by="layers",legend=False,
     #                    figname="dyn_layers_fs.png")
-    plot_ejecta_layers(ishells=(0,), ilayers=(0,),
-                       v_n_x = "tburst", v_n_ys = ("mom", "M2", "M3", "Eint2", "Eint3","deltaR4"), colors_by="layers",legend=False,
-                       # v_n_x = "tburst", v_n_ys = ("mom", "M2", "Eint2"), colors_by="layers",legend=False,
+    plot_ejecta_layers(ishells=(0,), ilayers=(0,2,4,6,9),
+                       v_n_x = "tburst", v_n_ys = ("mom", "M2", "M3", "Eint2", "Eint3","Gamma43","rho4"), colors_by="layers",legend=False,
+                       # v_n_x = "tburst", v_n_ys = ("mom", "M3", "Eint3"), colors_by="layers",legend=False,
                        figname="dyn_layers_fs.png")
     # tst_against_afgpy()
     exit(0)

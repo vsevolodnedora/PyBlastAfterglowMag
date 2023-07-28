@@ -2,17 +2,17 @@
 // Created by vsevolod on 27/07/23.
 //
 
-#ifndef SRC_MODEL_CUMSHELL_H
-#define SRC_MODEL_CUMSHELL_H
+#ifndef SRC_EJECTA_CUMSHELL_H
+#define SRC_EJECTA_CUMSHELL_H
 
-#include "utilitites/pch.h"
-#include "utilitites/utils.h"
-#include "utilitites/interpolators.h"
-#include "utilitites/ode_solvers.h"
-#include "utilitites/quadratures.h"
-#include "utilitites/rootfinders.h"
-#include "image.h"
-#include "synchrotron_an.h"
+//#include "../utilitites/pch.h"
+//#include "../utilitites/utils.h"
+//#include "../utilitites/interpolators.h"
+//#include "../utilitites/ode_solvers.h"
+//#include "../utilitites/quadratures.h"
+//#include "../utilitites/rootfinders.h"
+//#include "../image.h"
+//#include "../synchrotron_an.h"
 
 //#include "model_magnetar.h"
 //#include "blastwave/blastwave_components.h"
@@ -813,4 +813,4 @@ public:
     }
 };
 
-#endif //SRC_MODEL_CUMSHELL_H
+#endif //SRC_EJECTA_CUMSHELL_H

@@ -16,7 +16,7 @@
 #include "blastwave/blastwave_components.h"
 #include "blastwave/blastwave_collision.h"
 #include "model_magnetar.h"
-#include "model_ejecta.h"
+#include "ejecta/ejecta.h"
 
 class EvolveODEsystem{
     struct Pars{

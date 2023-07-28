@@ -38,12 +38,15 @@ skymap_freqs = array 1e9 1e18
 skymap_times = array logspace 8.e5 2e9 50
 
 integrator = DOP853E
+do_average_solution = no
 
 # --------------------------- END ---------------------------
 #
 # ----------------------- kN afterglow ----------------------
 
 * Parameters
+
+n_store_substeps = 10
 
 eps_e = 0.1
 eps_b = 0.1
@@ -85,12 +88,15 @@ fname_light_curve = lc_DD2_M135135_M0.h5
 fname_light_curve_layers = none
 fname_sky_map = skymap_kn.h5
 
+do_rs = no
 use_1d_id = no
 fname_ejecta_id = ejecta_id_DD2_M135135_M0.h5
 load_r0 = no
 
 do_thermrad_loss = no
 do_nucinj = no
+
+allow_termination = no
 
 method_spread = None
 method_eos = Nava13
