@@ -26,7 +26,7 @@ r_ism = -1
 n_ism = 1e-2
 d_l = 3.09e26
 z = 0.028
-theta_obs = 0
+theta_obs = 0.2
 
 * Settings
 
@@ -80,23 +80,24 @@ save_dynamics = yes
 load_dynamics = no
 do_ele = yes
 do_spec = yes
-do_lc = no
+save_spec = no
+do_lc = yes
 do_skymap = no
 
 do_rs = yes
 rhs_type = grb_fsrs
 method_collision = none # none
-method_eats = adaptive # piece-wise
+method_eats = piece-wise # piece-wise
 allow_termination = no
 
 do_thermrad_loss = no
 
 use_1d_id = yes
 fname_dyn = dyn_bw_fsrs.h5
-fname_spectrum = lc_grb_tophad.h5
-fname_spectrum_layers = spec_fsrs_layers.h5
-fname_light_curve = lc_grb_tophad.h5
-fname_light_curve_layers = none
+fname_spectrum = spec_grb_layers.h5
+fname_spectrum_layers = spec_grb.h5
+fname_light_curve = lc_grb_fsrs.h5
+fname_light_curve_layers = lc_grb_fsrs_layers.h5
 fname_sky_map = skymap_grb_gauss.h5
 
 do_nucinj = no
