@@ -1001,7 +1001,7 @@ public:
         double rho4 = 0.;
         double dlnrho4dR = 0.;
         if ((!p_pars->shutOff) && (Gamma < 0.99*p_pars->Gamma0)){ // and (not M3 > 1.):# and (deltaR4 > 0): # the last assures that jet is decelerating
-            double alpha_of = p_pars->tprompt * p_pars->beta0 * CGS::c;
+            double alpha_of = p_pars->tprompt * p_pars->beta0 * CGS::c / p_pars->ncells;// * EjectaID2::CellsInLayer(p_pars->ilayer);
             ddeltaR4dR = (1.0 / (beta*beta*beta*beta) -
                           1.0 / (p_pars->beta0*p_pars->beta0*p_pars->beta0*p_pars->beta0)) /
                          (1.0 / beta + 1.0 / p_pars->beta0) /

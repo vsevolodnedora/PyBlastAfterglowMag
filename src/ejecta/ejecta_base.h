@@ -574,7 +574,7 @@ public:
         Vector theta_c_h{};
         std::vector<size_t> cils{};
 //        EjectaID2::_init_a_grid(theta_c_l, theta_c_h, theta_c, nlayers_ * nsublayers, CGS::pi/2.);
-        EjectaID2::_init_pw_grid(theta_c_l, theta_c_h, theta_c, nlayers_ * nsublayers, id->theta_wing);
+        EjectaID2::_init_pw_grid(theta_c_l, theta_c_h, theta_c, nlayers_ * nsublayers, CGS::pi/2.);//id->theta_wing);
         EjectaID2::_evalCellsInLayer(nlayers_ * nsublayers, cils);
         size_t ncells = EjectaID2::_evalTotalNcells(nlayers_ * nsublayers);
 
@@ -655,6 +655,7 @@ public:
             std::vector<size_t> n_empty_images_layer;
             double atol=0; // TODO make it depend on the layer flux density
             size_t ii = 0;
+            double tot_flux = 0;
             for (size_t ilayer = 0; ilayer < nlayers_; ilayer++){
                 tmp_pj.clearData(); tmp_cj.clearData();
                 /// prepare sublayers
@@ -668,7 +669,7 @@ public:
 //                                   all_cthetas, all_cphis, 0, 0,
 //                                   EjectaID2::CellsInLayer(ii),
 //                                   obs_time, obs_freq, atol);
-
+                double rtol = 1e-6;
                 for(size_t iilayer = 0; iilayer < nsublayers; iilayer++){
 //                    double dtheta = (2 * M_PI) / ntheta;
 //                    double dphi = 2.0 * CGS::pi / ntheta;
@@ -683,6 +684,18 @@ public:
                     ii++;
                 }
 
+//                double atol = tot_flux * rtol / (double)nlayers();
+//                double layer_flux = bw_rad->evalFluxDensA(obs_time,obs_freq, atol);
+//                tmpImagesSet.getReferenceToTheImage(ilayer).m_f_tot = layer_flux;// / (double)nsublayers;
+//                tot_flux += layer_flux;
+
+
+//                double atol = tot_flux * rtol / (double)nlayers();
+//                tmpImagesSet.getReferenceToTheImage(ilayer).m_f_tot;
+//                double layer_flux = bw_rad->evalFluxDensA(obs_time,obs_freq, atol);
+//                layer_flux *= (double)nsublayers;
+//                tmpImagesSet.getReferenceToTheImage(ilayer).m_f_tot = layer_flux;
+//                tot_flux += layer_flux;
 //                bw_rad->evalImageA(tmpImagesSet.getReferenceToTheImage(ilayer), tmp_pj, tmp_cj,
 //                                   _theta_c_l, _theta_c_h, _nphis, obs_time, obs_freq, atol);
 //                bw_rad->evalImageA(tmp.getReferenceToTheImage(ilayer), tmp_pj, tmp_cj, obs_time, obs_freq);
@@ -692,9 +705,13 @@ public:
                 n_empty_images_shells.emplace_back(ishell);
                 n_empty_images.emplace_back(n_empty_images_layer);
             }
-            auto & ims = images.getReferenceToTheImage(ishell);
-            ims.resize(2 * ncells, 0. );
-            combineImages(ims, ncells, nlayers_*nsublayers, tmpImagesSet) ;
+            auto & imageForEntireShell = images.getReferenceToTheImage(ishell);
+            imageForEntireShell.resize(2 * ncells, 0. );
+            combineImages(imageForEntireShell, ncells, nlayers_ * nsublayers, tmpImagesSet) ;
+//
+//            double atol = tot_flux * rtol / (double)nlayers();
+//            double layer_flux = bw_rad->evalFluxDensA(obs_time,obs_freq, atol);
+//            imageForEntireShell.m_f_tot = layer_flux;
         }
 
         /// print which layers/shells gave isEmpty image

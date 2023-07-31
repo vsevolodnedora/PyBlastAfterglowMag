@@ -26,7 +26,7 @@ r_ism = -1
 n_ism = 0.00031
 d_l = 1.27e+26
 z = 0.0099
-theta_obs = 0.0
+theta_obs = 0 # 1.57
 
 * Settings
 
@@ -65,7 +65,7 @@ save_dyn_every_it = 1
 rtol_adapt = 1e-5
 fnu_min_frac = 1e-4
 
-nsublayers = 41
+nsublayers = 201
 
 * Settings
 
@@ -75,13 +75,14 @@ save_dynamics = yes
 load_dynamics = no
 do_ele = yes
 do_spec = no
+save_spec = no
 do_lc = no
 do_skymap = yes
 
 do_rs = no
 rhs_type = grb_fs
 method_collision = none # none
-method_eats = adaptive # adaptive # piece-wise
+method_eats = adaptive # piece-wise
 
 do_thermrad_loss = no
 
@@ -93,7 +94,7 @@ fname_sky_map = skymap_grb_tophat.h5
 
 do_nucinj = no
 type = numeric
-fname_ejecta_id = tophat_grb_id.h5
+fname_ejecta_id = tophat_grb_id_a.h5
 load_r0 = no
 
 

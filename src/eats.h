@@ -319,7 +319,6 @@ public:
         p_pars->fluxFuncA = fluxFuncA;
     }
     /// ----------------------------------------------------------------------------------------------
-    void updateObsPars(StrDbMap & pars){p_pars->updateObsPars(pars);}
     /// evaluate flux density using adaptive integrator
     double evalFluxDensA(double t_obs, double nu_obs, double atol) {
         double fluxdens = 0.;
@@ -373,9 +372,13 @@ public:
             for (size_t ivn = 0; ivn < image.m_n_vn; ++ivn)
                 image(ivn,ncells+icell) = im_cj(ivn,icell);
         }
-//        image.m_f_tot = im_pj.m_f_tot+im_cj.m_f_tot;//evalFluxDensA(obs_time, obs_freq, atol);
-        image.m_f_tot = evalFluxDensA(obs_time, obs_freq, atol);
+        image.m_f_tot = im_pj.m_f_tot + im_cj.m_f_tot;//evalFluxDensA(obs_time, obs_freq, atol);
+//        image.m_f_tot = evalFluxDensA(obs_time, obs_freq, atol);
     }
+
+    /// ----------------------------------------------------------------------------------------------
+
+
 
     bool evalEATSindexes(size_t & ia, size_t & ib,
                            double t_obs, double obs_angle, double ctheta_cell, double phi_cell,
@@ -637,7 +640,7 @@ public:
         double flux = std::accumulate(fluxes.begin(), fluxes.end(), decltype(fluxes)::value_type(0));
         image.m_f_tot = flux * CGS::cgs2mJy; /// flux in mJy
     }
-#if 0
+#if 1
     void evalImageFromA(Image & image, double t_obs, double nu_obs, double atol,
                         double theta_c_l, double theta_c_h, size_t isublayer,
                         double (*obs_angle)( const double &, const double &, const double & ),
@@ -649,8 +652,10 @@ public:
         check_pars();
         double summed_intensity = 0;
         double Fcoeff = cgs2mJy / (4. * M_PI * p_pars->d_l * p_pars->d_l);
-        Vector phi_edges = EjectaID2::getCphiGridPW(isublayer+1);
-        double ctheta = theta_c_l+0.5*(theta_c_l+theta_c_h);
+//        Vector phi_edges = EjectaID2::getCphiGridPW(isublayer+1);
+        size_t cil = EjectaID2::CellsInLayer(isublayer);
+        Vector phi_edges = EjectaID2::getCphiGridPW_(cil); // +1 to get boundaries
+        double ctheta = theta_c_l+0.5*(theta_c_h-theta_c_l);
         Vector intensities(phi_edges.size(),0.);
 
         size_t ii = 0;
@@ -664,8 +669,8 @@ public:
             p_pars->atol_theta = atol;// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
             p_pars->atol_phi = atol;//  / (2.0 * Fcoeff);
             // check if th[i] is above the lower boundary of EATS segment [theta_low-theta_hi]
-//            if (ctheta < p_pars->theta_c_l)
-//                continue;
+            if (ctheta < p_pars->theta_c_l)
+                continue;
             // if jet is spreading, compute the upper boundary of the jet
             double th_b = find_jet_edge(i_phi_0+cphi, p_pars->theta_obs, //p_pars->cos_theta_obs, p_pars->sin_theta_obs,
                                         p_pars->theta_c_h, p_pars->m_mu, p_pars->m_theta,//m_data[BW::Q::itheta],
@@ -678,13 +683,15 @@ public:
             double r = 0., mu = 0., gam = 0., ctheta_bw = 0.;
             intensities[ii] = integrand(cos(ctheta ), i_phi_0+cphi,
                                          r, mu, gam, ctheta_bw, p_pars);
-//            intensity *= std::cos(all_cthetas[i]) * dtheta * dphi; // Can I do this?.. who knows!
-            summed_intensity += intensities[ii] * Fcoeff;
+            double dtheta = theta_c_h-theta_c_l;
+            double dphi = i_phi_1-i_phi_0;
+//            intensities[ii] *= dphi * dtheta;// * std::cos(ctheta);// * std::cos(ctheta); // Can I do this?.. who knows!
+            summed_intensity += intensities[ii];// * Fcoeff;
 
             double x = r * im_xxs(ctheta, i_phi_0+cphi, p_pars->theta_obs);
             double y = r * im_yys(ctheta, i_phi_0+cphi, p_pars->theta_obs);
 
-            image(IMG::Q::iintens,ii) = intensities[ii];
+            image(IMG::Q::iintens,ii) = intensities[ii] * Fcoeff / ( r * r * std::abs(mu));//* phi_edges.size();
 //            image(IMG::Q::igam,i) = p_pars->o_gam;
             image(IMG::Q::ir,ii) = r;
             image(IMG::Q::imu,ii) = mu;
@@ -695,17 +702,22 @@ public:
             image(IMG::Q::iyr,ii) = y;//
             ii++;
         }
-        double flux = std::accumulate(intensities.begin(), intensities.end(), decltype(intensities)::value_type(0));
-        image.m_f_tot = flux * Fcoeff; /// flux in mJy
+//        double flux = std::accumulate(intensities.begin(), intensities.end(), decltype(intensities)::value_type(0));
+//        image.m_f_tot = flux * Fcoeff; /// flux in mJy
+        summed_intensity *= Fcoeff;
+        image.m_f_tot = summed_intensity;
 
+//        p_pars->current_phi_hi = 0.; // Update for integrator
+//        p_pars->current_phi_low = 2.*CGS::pi;
+//        double tot_flux = evalFluxDensA(t_obs, nu_obs, atol);
 
-//        std::cout << "\t Correct flux="<<tot_flux_ref<<" Sum from map=" << summed_intensity << "\n";
+//        std::cout << "\t Correct flux="<<tot_flux<<" Sum from map=" << summed_intensity << "\n";
 //        exit(1);
 
     }
 #endif
 
-#if 1
+#if 0
     void evalImageFromA(Image & image, double t_obs, double nu_obs, double atol,
                         double theta_c_l, double theta_c_h, size_t isublayer,
                         double (*obs_angle)( const double &, const double &, const double & ),
@@ -724,7 +736,7 @@ public:
         /// update for integration
         p_pars->current_theta_cone_hi = theta_c_h;
         p_pars->current_theta_cone_low = theta_c_l;
-
+        double dtheta = theta_c_h - theta_c_l;
 
         /// total cells across all sublayers
 //        size_t ncells = 0;
@@ -749,6 +761,7 @@ public:
             double i_phi_0 = phi_edges[iphi-1];
             double i_phi_1 = phi_edges[iphi];
             double cphi = 0.5 * (i_phi_1 - i_phi_0);
+            double dphi = i_phi_1-i_phi_0;
             p_pars->current_phi_hi = i_phi_1; // Update for integrator
             p_pars->current_phi_low = i_phi_0;
             // -------------------------------------
@@ -757,12 +770,17 @@ public:
             fluxes[ii] = integrate_theta_phi(p_pars); // 2. because Integ_0^pi (not 2pi)
             /// to get the radius to the (ctheta0,cphi)
             double ctheta = theta_c_l + 0.5 * (theta_c_h - theta_c_l);
+
+
             double r = 0., mu = 0., gam = 0., ctheta_bw = 0.;
             double _ = integrand(std::cos(ctheta),
                                  i_phi_0 + cphi, r, mu, gam, ctheta_bw, p_pars);
+//            fluxdens += 2. * Fcoeff * integrate_theta_phi(p_pars);
+//            fluxes[ii] *= (dtheta * dphi);
+
             double x = r * im_xxs(ctheta, i_phi_0+cphi, p_pars->theta_obs);
             double y = r * im_yys(ctheta, i_phi_0+cphi, p_pars->theta_obs);
-            image(IMG::Q::iintens, ii) = fluxes[ii] * Fcoeff / (r * r * std::abs(mu));
+            image(IMG::Q::iintens, ii) = fluxes[ii];// * Fcoeff / (r * r * std::abs(mu));
             image(IMG::Q::ixr, ii) = x;
             image(IMG::Q::iyr, ii) = y;
             image(IMG::Q::ir, ii) = r;
@@ -775,7 +793,7 @@ public:
             ii++;
         }
         double flux = std::accumulate(fluxes.begin(), fluxes.end(), decltype(fluxes)::value_type(0));
-        image.m_f_tot = flux * Fcoeff; /// flux in mJy
+        image.m_f_tot = flux;// * Fcoeff; /// flux in mJy
     }
 #endif
 #if 0
@@ -1116,7 +1134,7 @@ private:
         /// interpolate the time in comobing frame that corresponds to the t_obs in observer frame
         double t_e = interpSegLin(ia, ib, mu, mu_arr, tburst);
         t_e = check_emission_time(t_e, mu, p_pars->t_obs, mu_arr, (int) p_pars->m_i_end_r);
-        if (t_e < 0.0) {
+        if (t_e < 0.0||!std::isfinite(t_e)) {
             // REMOVING LOGGER
             (*p_pars->p_log)(LOG_ERR,AT) << " t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";
 //            std::cerr << AT  << "Error t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";

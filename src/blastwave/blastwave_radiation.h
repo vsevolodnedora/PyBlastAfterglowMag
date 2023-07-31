@@ -415,6 +415,49 @@ public:
 //        image(Image::ixr, i) = r * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
 //        image(Image::iyr, i) = r * im_yys(ctheta, phi_cell, p_pars->theta_obs);
 //        image(Image::imu, i) = mu_arr[i];
+
+            if (p_pars->do_rs && !(m_data[BW::Q::ithichness_rs][ia] ==0 || m_data[BW::Q::ithichness_rs][ib]==0)){
+                Interp2d int_em_rs(p_pars->m_freq_arr, m_data[BW::Q::iR], p_pars->m_synch_em_rs);
+                Interp2d int_abs_rs(p_pars->m_freq_arr, m_data[BW::Q::iR], p_pars->m_synch_abs_rs);
+                double em_prime_rs = int_em_rs.InterpolateBilinear(nuprime, r, ia_nu, ib_nu, ia, ib);
+                double abs_prime_rs = int_abs_rs.InterpolateBilinear(nuprime, r, ia_nu, ib_nu, ia, ib);
+                double em_lab_rs = em_prime_rs / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
+                double abs_lab_rs = abs_prime_rs * delta_D; // conversion of absorption (see vanEerten+2010)
+
+                double GammaShock_rs = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::iGamma43]);
+                double dr_rs = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::ithichness_rs]);
+
+                double dr_tau_rs = EQS::shock_delta(r, GammaShock_rs); // TODO this is added becasue in Johanneson Eq. I use ncells
+
+                double beta_shock_rs;
+                switch (p_pars->method_shock_vel) {
+
+                    case isameAsBW:
+                        beta_shock_rs = EQS::Beta(Gamma);
+                        break;
+                    case ishockVel:
+//                double u = sqrt(GammaShock * GammaShock - 1.0);
+//                double us = 4.0 * u * sqrt((u * u + 1) / (8. * u * u + 9.)); // from the blast wave velocity -> evaluateShycnhrotronSpectrum shock velocity
+                        beta_shock_rs = EQS::Beta(GammaShock_rs);//us / sqrt(1. + us * us);
+                        break;
+                }
+                double ashock_rs = (1.0 - mu * beta_shock_rs); // shock velocity beaming factor
+                dr_rs /= ashock_rs; // TODO why is this here? What it means? Well.. Without it GRB LCs do not work!
+                dr_tau_rs /= ashock_rs;
+                double dtau_rs = RadiationBase::optical_depth(abs_lab_rs,dr_tau_rs, mu, beta_shock_rs);
+                double intensity_rs = RadiationBase::computeIntensity(em_lab_rs, dtau_rs,
+                                                                      p_pars->p_syna->getPars()->method_tau);
+                if (intensity_rs < 0 || !std::isfinite(intensity_rs)){
+                    (*p_pars->p_log)(LOG_ERR,AT)<<"intensity_rs = "<<intensity_rs<<"\n";
+                    exit(1);
+                }
+                double flux_dens_rs = intensity_rs * r * r * dr_rs;
+                if (flux_dens_rs < 0 || !std::isfinite(flux_dens_rs)){
+                    (*p_pars->p_log)(LOG_ERR,AT)<<"flux_dens_rs = "<<flux_dens_rs<<"\n";
+                    exit(1);
+                }
+                flux_dens += flux_dens_rs * (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);; //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+            }
         }
         else{
             double Gamma = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::iGamma]);
@@ -559,7 +602,6 @@ public:
 
             double beta_shock;
             switch (p_pars->method_shock_vel) {
-
                 case isameAsBW:
                     beta_shock = EQS::Beta(Gamma);
                     break;
@@ -581,7 +623,7 @@ public:
             ctheta = interpSegLin(ia, ib, t_e, tburst, m_data[BW::Q::ictheta]);
             double theta = interpSegLin(ia, ib, t_e, tburst, m_data[BW::Q::itheta]);
 
-            if (p_pars->do_rs){
+            if (p_pars->do_rs && !(m_data[BW::Q::ithichness_rs][ia] ==0 || m_data[BW::Q::ithichness_rs][ib]==0)){
                 Interp2d int_em_rs(p_pars->m_freq_arr, r_arr, p_pars->m_synch_em_rs);
                 Interp2d int_abs_rs(p_pars->m_freq_arr, r_arr, p_pars->m_synch_abs_rs);
                 double em_prime_rs = int_em_rs.InterpolateBilinear(nuprime, r, ia_nu, ib_nu, ia, ib);
@@ -591,6 +633,7 @@ public:
 
                 double GammaShock_rs = interpSegLog(ia, ib, t_e, tburst, m_data[BW::Q::iGamma43]);
                 double dr_rs = interpSegLog(ia, ib, t_e, tburst, m_data[BW::Q::ithichness_rs]);
+
                 double dr_tau_rs = EQS::shock_delta(r, GammaShock_rs); // TODO this is added becasue in Johanneson Eq. I use ncells
 
                 double beta_shock_rs;
@@ -611,18 +654,29 @@ public:
                 double dtau_rs = RadiationBase::optical_depth(abs_lab_rs,dr_tau_rs, mu, beta_shock_rs);
                 double intensity_rs = RadiationBase::computeIntensity(em_lab_rs, dtau_rs,
                                                                    p_syna->getPars()->method_tau);
-                if (intensity_rs < 0 || std::isfinite(intensity_rs)){
+                if (intensity_rs < 0 || !std::isfinite(intensity_rs)){
                     (*p_pars->p_log)(LOG_ERR,AT)<<"intensity_rs = "<<intensity_rs<<"\n";
                     exit(1);
                 }
-                flux_dens += (intensity_rs * r * r * dr_rs); //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+                double flux_dens_rs = intensity_rs * r * r * dr_rs;
+                if (flux_dens_rs < 0 || !std::isfinite(flux_dens_rs)){
+                    (*p_pars->p_log)(LOG_ERR,AT)<<"flux_dens_rs = "<<flux_dens_rs<<"\n";
+                    exit(1);
+                }
+                flux_dens += flux_dens_rs; //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
             }
 
         }
         else{
             r = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::iR]);
             if (!std::isfinite(r)) {
-                (*p_pars->p_log)(LOG_ERR,AT) << " R is NAN in integrand for radiation" << "\n";
+                (*p_pars->p_log)(LOG_ERR,AT) << " R is NAN in integrand for radiation"
+                    << " t_e="<<t_e
+                    << " m_data[BW::Q::iR][ia]="<<m_data[BW::Q::iR][ia]
+                    << " m_data[BW::Q::iR][ib]="<<m_data[BW::Q::iR][ib]
+                    << " m_data[BW::Q::itburst][ia]="<<m_data[BW::Q::itburst][ia]
+                    << " m_data[BW::Q::itburst][ib]="<<m_data[BW::Q::itburst][ib]
+                    << "\n";
                 // REMOVING LOGGER
 //            std::cerr  << "R = " << R << "\n";
 //            std::cout << " R = " << m_data[BW::Q::iR] << "\n";
