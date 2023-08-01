@@ -1433,28 +1433,28 @@ def _plot_skymap_with_hists(ax_main, ax_histx, ax_histy, pb, tmp,
     # ax.axvline(x=x2, color='gray', linestyle='dotted')
     # ax.axvline(x=xcs_m, color='gray', linestyle='solid')
     if ("cm" in tmp.keys()) and len(tmp["cm"].keys()) > 0:
-        ax_main.plot(xc, yc, **tmp["cm"])
-        ax_histx.axvline(x=xc, color=tmp["cm"]["color"], linestyle='dashed')
-        ax_histy.axhline(y=yc, color=tmp["cm"]["color"], linestyle='dashed')
+        if (not (ax_main is None)): ax_main.plot(xc, yc, **tmp["cm"])
+        if (not (ax_histx is None)): ax_histx.axvline(x=xc, color=tmp["cm"]["color"], linestyle='dashed')
+        if (not (ax_histy is None)): ax_histy.axhline(y=yc, color=tmp["cm"]["color"], linestyle='dashed')
     if ("ysize" in tmp.keys()) and len(tmp["ysize"].keys()) > 0:
         if (len(tmp["smooth"].keys()) > 0):
             i_zz_y = smooth_interpolated_skymap_with_gaussian_kernel(i_zz=i_zz_y, type=tmp["smooth"]["type"],
                                                                         sigma=tmp["smooth"]["sigma"])
         y1, y2 = get_skymap_fwhm(grid_y, i_zz_y, yc)
-        ax_main.errorbar([xc, xc], [y1, y2], xerr=[int_x.max() / 10, int_x.max() / 10], **tmp["ysize"])
-        ax_histy.plot(i_zz_y * 1e3, grid_y, lw=1., ls='-', drawstyle='steps', color=tmp["ysize"]["color"])
-        ax_histy.axhline(y=y2, color=tmp["ysize"]["color"], linestyle='dotted')
-        ax_histy.axhline(y=y1, color=tmp["ysize"]["color"], linestyle='dotted')
+        if (not (ax_main is None)): ax_main.errorbar([xc, xc], [y1, y2], xerr=[int_x.max() / 10, int_x.max() / 10], **tmp["ysize"])
+        if (not (ax_histy is None)): ax_histy.plot(i_zz_y * 1e3, grid_y, lw=1., ls='-', drawstyle='steps', color=tmp["ysize"]["color"])
+        if (not (ax_histy is None)): ax_histy.axhline(y=y2, color=tmp["ysize"]["color"], linestyle='dotted')
+        if (not (ax_histy is None)): ax_histy.axhline(y=y1, color=tmp["ysize"]["color"], linestyle='dotted')
     if ("xsize" in tmp.keys()) and len(tmp["xsize"].keys()) > 0:
         if (len(tmp["smooth"].keys()) > 0):
             i_zz_x = smooth_interpolated_skymap_with_gaussian_kernel(i_zz=i_zz_x, type=tmp["smooth"]["type"],
                                                                         sigma=tmp["smooth"]["sigma"])
         x1, x2 = get_skymap_fwhm(grid_x, i_zz_x, xc)
-        ax_main.errorbar([x1, x2], [yc, yc], yerr=[int_y.max() / 10, int_y.max() / 10], **tmp["xsize"])
-        ax_histx.plot(grid_x, i_zz_x * 1e3, lw=1., ls='-', drawstyle='steps',
+        if (not (ax_main is None)): ax_main.errorbar([x1, x2], [yc, yc], yerr=[int_y.max() / 10, int_y.max() / 10], **tmp["xsize"])
+        if (not (ax_histx is None)): ax_histx.plot(grid_x, i_zz_x * 1e3, lw=1., ls='-', drawstyle='steps',
                       color=tmp["xsize"]["color"])  # , color='blue')
-        ax_histx.axvline(x=x2, color=tmp["xsize"]["color"], linestyle='dotted')
-        ax_histx.axvline(x=x1, color=tmp["xsize"]["color"], linestyle='dotted')
+        if (not (ax_histx is None)): ax_histx.axvline(x=x2, color=tmp["xsize"]["color"], linestyle='dotted')
+        if (not (ax_histx is None)): ax_histx.axvline(x=x1, color=tmp["xsize"]["color"], linestyle='dotted')
     # --------------------
     # if len(tmp["pcolormesh"].keys()) > 0:
     #     # levels = np.geomspace(int_ration[~np.isnan(int_ration)].min(), int_ration[~np.isnan(int_ration)].max(), 50)

@@ -21,6 +21,7 @@ import re
 import os
 import sys
 import argparse
+from matplotlib.colors import LogNorm, Normalize
 
 from .id_maker_tools import (reinterpolate_hist, reinterpolate_hist2, compute_ek_corr)
 from .utils import (cgs, get_Gamma, get_Beta, find_nearest_index, MomFromGam, GamFromMom, BetFromMom)
@@ -276,13 +277,14 @@ def get_ej_data_for_text(files : list[str],
     else:
         return (sorted_pars_list, sorted_vals)
 
+
 def prepare_kn_ej_id_2d(files : list[str],
                         outfpaths : list[str],
                         dist="pw",
                         req_times=np.array([25]),
                         new_theta_len=None,
                         new_vinf_len=None,
-                        r0type="fromrho", t0=100, r0frac=0.5,
+                        r0type="fromrho", t0=.1, r0frac=0.5,
                         verbose = True,
                         ):
 
@@ -307,6 +309,51 @@ def prepare_kn_ej_id_2d(files : list[str],
         ye_corr = pars["ye"].T
         rho_corr = pars["rho"].T
 
+        if (r0type == "fromrho"):
+            r = np.zeros_like(mass_corr)
+            for ith in range(len(theta_corr2)):
+                r_base = t0 * cgs.c * vinf_corr2[0]
+                r[0,ith] = r_base
+                for ir in range(1,len(vinf_corr2)):
+                    if (mass_corr[ir,ith]==0. or rho_corr[ir,ith]==0.):
+                        print(f"Error ir={ir} ith={ith} mass={mass_corr[ir,ith]} rho={rho_corr[ir,ith]}. Setting mass to 0.")
+                        mass_corr[ir,ith]=0.
+                        continue
+                    r_i = (3./4.) * (1./np.pi) * len(theta_corr2) * mass_corr[ir,ith] / rho_corr[ir,ith] + r[ir-1,ith]**3
+                    r_i = r_i**(1./3.)
+                    r[ir,ith] = r_i
+                    if ((r_i <= r[ir-1,ith]) or (~np.isfinite(r[ir,ith]))):
+                        raise ValueError()
+        elif (r0type == "frombeta"):
+            r = np.zeros_like(mass_corr)
+            t = t0
+            for ith in range(len(theta_corr2)):
+                for ir in range(len(vinf_corr2)):
+                    r[ir,ith] = BetFromMom(vinf_corr2[ir])*cgs.c * t # TODO THis is theta independent!
+        else:
+            raise KeyError(f"r0type={r0type} is not recognized")
+
+
+        # fig, axes = plt.subplots(ncols=1, nrows=3, figsize=(5,9),sharex='all')
+        # im=axes[0].pcolormesh(theta_corr2* 180 / np.pi,vinf_corr2,mass_corr,norm=LogNorm(mass_corr[mass_corr>0].max()*1e-3,mass_corr[mass_corr>0].max()))
+        # axes[0].set_title("Mass")
+        # axes[0].set_ylabel("beta")
+        # # axes[0].set_xticklabels(["{:.1f}".format(val) for val in theta_corr2 * 180 / np.pi])
+        # # axes[0].set_yticklabels(["{:.2f}".format(val) for val in vinf_corr2])
+        # # axes[0].set_yscale('log')
+        # plt.colorbar(im)
+        # im=axes[1].pcolormesh(theta_corr2* 180 / np.pi,vinf_corr2,rho_corr,norm=LogNorm(rho_corr[rho_corr>0].max()*1e-3,rho_corr[rho_corr>0].max()))
+        # axes[1].set_title("rho")
+        # axes[1].set_ylabel("beta")
+        # plt.colorbar(im)
+        # im=axes[2].pcolormesh(theta_corr2* 180 / np.pi,vinf_corr2,r,norm=LogNorm(r[r>0].max()*1e-3,r[r>0].max()))
+        # axes[2].set_title("r")
+        # axes[2].set_ylabel("beta")
+        # axes[2].set_xlabel("theta")
+        # plt.colorbar(im)
+        # plt.show()
+
+
         ctheta_corr3 = np.zeros_like(ek_corr2)
         theta_corr3 = np.zeros_like(ek_corr2)
         for imom in range(len(vinf_corr2)):
@@ -316,28 +363,42 @@ def prepare_kn_ej_id_2d(files : list[str],
         for ith in range(len(theta_corr2)):
             mom_corr3[:,ith]=np.array( vinf_corr2*get_Gamma(vinf_corr2))
 
-        if (r0type == "fromrho"):
-            r = np.zeros_like(mass_corr)
-            for ith in range(len(ctheta_corr3[0,:])):
-                idx = 0
-                k = r0frac#0.5
-                r[idx,ith] = (k*(3/4./np.pi)*rho_corr[idx,ith]*mass_corr[idx,ith])**(1./3.)
+        # if (r0type == "fromrho"):
+        #     r = np.zeros_like(mass_corr)
+        #     for ith in range(len(ctheta_corr3[0,:])):
+        #         idx = 0
+        #         k = r0frac#0.5
+        #         r[idx,ith] = (k*(3/4./np.pi)*rho_corr[idx,ith]*mass_corr[idx,ith])**(1./3.)
+        #
+        #         if (r[idx,ith] == 0):
+        #             raise ValueError()
+        #         for ir in range(1,len(mom_corr3[:,0]),1):
+        #             _val = (3./4./np.pi)*rho_corr[ir,ith]*mass_corr[ir,ith]
+        #             if (_val < 0):
+        #                 raise ValueError(f"val={_val}")
+        #             _rm1 = r[ir-1,ith]**3
+        #             if(mass_corr[ir,ith]>0):
+        #                 r[ir,ith] = (_rm1 + _val)**(1./3.)
+        #             if ((r[ir-1,ith]>r[ir,ith])and(r[ir,ith]>0)):
+        #                 raise ValueError(f"ir={ir} r[ir-1,ith]={r[ir-1,ith]} r[ir,ith]={r[ir,ith]}")
+        # elif (r0type == "frombeta"):
+        #     r = np.zeros_like(mass_corr)
+        #     t = t0
+        #     for ith in range(len(ctheta_corr3[0,:])):
+        #         for ir in range(0,len(mom_corr3[:,0]),1):
+        #             r[ir,ith] =  BetFromMom(mom_corr3[ir,ith])*cgs.c * t
+        # else:
+        #     raise KeyError(f"r0type={r0type} is not recognized")
 
-                if (r[idx,ith] == 0):
-                    raise ValueError()
-                for ir in range(1,len(mom_corr3[:,0]),1):
-                    _val = (3./4./np.pi)*rho_corr[ir,ith]*mass_corr[ir,ith]
-                    _rm1 = r[ir-1,ith]**3
-                    if(mass_corr[ir,ith]>0):
-                        r[ir,ith] = (_rm1 + _val)**(1./3.)
-        elif (r0type == "frombeta"):
-            r = np.zeros_like(mass_corr)
-            t = t0
-            for ith in range(len(ctheta_corr3[0,:])):
-                for ir in range(0,len(mom_corr3[:,0]),1):
-                    r[ir,ith] =  BetFromMom(mom_corr3[ir,ith])*cgs.c * t
-        else:
-            raise KeyError(f"r0type={r0type} is not recognized")
+        # check that radii are ordered
+
+        # for i in range(len(ctheta_corr3[0,:])):
+        #     for j in range(len(r[:,0])-1):
+        #         if ((r[j+1,i] > 0) and (not (r[j+1,i] > r[j,i]))):
+        #             print (f"i={i} j={j} and r[j+1,i]={r[j+1,i]} and r[j,i]={r[j,i]}")
+        #             print(r)
+        #             exit(1)
+                # assert r[j+1,i] > r[j,i]
 
         # self.o_pba.setEjectaStructNumeric(theta_corr2, vinf_corr2, ek_corr2, fac, True, self.pars_kn["eats_method"])
 

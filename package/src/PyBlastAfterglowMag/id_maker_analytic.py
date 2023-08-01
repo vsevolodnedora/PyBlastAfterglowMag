@@ -246,10 +246,10 @@ class JetStruct:
         self.dist_s_pw = np.zeros( self.nlayers_pw )
         self.setThetaGridPW()
 
-        one_min_cos = 2 * np.sin(0.5 * theta_h) * np.sin(0.5 * theta_h)
-        ang_size_layer = 2.0 * np.pi * one_min_cos
+        one_min_cos = 2. * np.sin(0.5 * theta_h) * np.sin(0.5 * theta_h)
+        ang_size_layer = 2.0 * np.pi * one_min_cos / (4.0 * np.pi)
         for i in range(len(self.cthetas0)):
-            self.dist_E0_pw[i] = E_iso * ang_size_layer / (4.0 * np.pi)
+            self.dist_E0_pw[i] = E_iso * ang_size_layer
             self.dist_Mom0_pw[i] = MomFromGam(Gamma0)
             # Gamma = GamFromMom(self.dist_Mom0_pw[i])
             # self.dist_M0_pw[i] = M0 < 0 ? dist_E0_pw[i] / (Gamma * CGS::c * CGS::c) : M0 * ang_size_layer / (4 * np.pi);

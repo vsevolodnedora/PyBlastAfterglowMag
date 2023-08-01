@@ -235,7 +235,7 @@ class Base:
                                           sep1="# ---------------------- GRB afterglow ----------------------",
                                           sep2="# --------------------------- END ---------------------------")
         if "fname_dyn" in grb_opts.keys(): self.fpath_dyn = self.res_dir + grb_opts["fname_dyn"]
-        if "fname_spec" in grb_opts.keys(): self.fpath_spec = self.res_dir + grb_opts["fname_spec"]
+        if "fname_spectrum" in grb_opts.keys(): self.fpath_spec = self.res_dir + grb_opts["fname_spectrum"]
         if "fname_light_curve" in grb_opts.keys(): self.fpath_light_curve = self.res_dir + grb_opts["fname_light_curve"]
         if "fname_sky_map" in grb_opts.keys(): self.fpath_sky_map = self.res_dir + grb_opts["fname_sky_map"]
         return (grb_pars,grb_opts)
@@ -437,7 +437,12 @@ def combine_images(xs, ys, datas, verbose=False, hist_or_int="int", shells=False
             edges_y = np.mgrid[ys.min()*extend:ys.max()*extend:ny]
             # grid_x, grid_y = np.mgrid[xrs_i.min() * 1.2:xrs_i.max() * 1.2:nx,
             #                  yrs_i.min() * 1.2:yrs_i.max() * 1.2:ny]
-            i_zz, _ = np.histogramdd(tuple([xs, ys]), bins=tuple([edges_x, edges_y]), weights=datas)
+
+            xs = xs[datas > 0]
+            ys = ys[datas > 0]
+            datas = datas[datas>0]
+
+            i_zz, _ = np.histogramdd(tuple([xs, ys]), bins=tuple([edges_x, edges_y]), weights=datas,normed='density')
             grid_x = 0.5 * (edges_x[1:] + edges_x[:-1])
             grid_y = 0.5 * (edges_y[1:] + edges_y[:-1])
             print(i_zz.shape)
@@ -849,6 +854,8 @@ def get_skymap_lat_dist(all_x, all_y, all_fluxes, collapse_axis="y", fac=1.0, nx
     # edges_x = np.mgrid[all_x.min() * extend:all_y.max() * extend:nx]
     # edges_y = np.mgrid[all_x.min() * extend:all_y.max() * extend:ny]
 
+    if (np.sum(all_x)==0. or np.sum(all_y)==0):
+        raise ValueError(" x_arr or y_arr arrays in the image all FULL 0. Cannot re-interpolate!")
     image = interpolate.griddata(np.array([all_x, all_y]).T * fac, all_fluxes,
                                  (grid_x * fac, grid_y * fac), method='linear', fill_value=0)
     latAvDist, latAvDist2, latMaxDist = lateral_distributions(grid_x, grid_y, image, collapse_axis=collapse_axis)
@@ -1022,13 +1029,13 @@ class Ejecta(Base):
     # ejecta spectrum
     def _check_if_loaded_spec(self):
         if (self.fpath_spec is None):
-            raise IOError("self.fpath_kn_spec is not set")
+            raise IOError("self.fpath_spec is not set")
         if (self.spec_dfile is None):
             self.spec_dfile = h5py.File(self.fpath_spec)
     # ejecta lightcurves
     def _check_if_loaded_lc(self):
         if (self.fpath_light_curve is None):
-            raise IOError("self.fpath_kn_light_curve is not set")
+            raise IOError("self.fpath_light_curve is not set")
         if (self.lc_dfile is None):
             self.lc_dfile = h5py.File(self.fpath_light_curve)
     # ejecta skymaps
@@ -1060,22 +1067,28 @@ class Ejecta(Base):
             for il in range(nlayers):
                 arr.append(self.get_dyn_arr(v_n, ishell=ishell, ilayer=il))
             arr = np.reshape(np.array(arr), newshape=(nlayers, len(arr[0])))
+            if (np.sum(arr) == 0):
+                print(f"Warning np.sum(arr)=0 for ishell={ishell} ilayer={ilayer}")
             return arr
         elif ((ishell is None) and (not ilayer is None)):
             arr = []
             for ish in range(nshells):
                 arr.append(self.get_dyn_arr(v_n, ishell=ish, ilayer=ilayer))
             arr = np.reshape(np.array(arr), newshape=(nshells, len(arr[0])))
+            if (np.sum(arr) == 0):
+                print(f"Warning np.sum(arr)=0 for ishell={ishell} ilayer={ilayer}")
             return arr
         elif ((not ishell is None) and (not ilayer is None)):
             layer = "shell={} layer={} key={}".format(ishell, ilayer, v_n)
             if (not layer in list(dfile.keys())):
-                raise NameError("Layer {} (aka '{}') is not in the ejecta dyn. file.\n Available: {}"
-                                .format(ilayer, layer, dfile.keys()))
+                raise NameError(f"Layer {ilayer} (key '{layer}') is not in the ejecta dyn. file nlayer={nlayers} nshells={nshells}")
             # if (not v_n in dfile[layer].keys()):
             #     raise NameError("v_n {} is not in the ejecta dyn. dfile[{}].keys() \n Avaialble: {}"
             #                     .format(v_n, layer, dfile[layer].keys()))
-            return np.array(dfile[layer])
+            arr = np.array(dfile[layer])
+            if (np.sum(arr) == 0):
+                print(f"Warning np.sum(arr)=0 for ishell={ishell} ilayer={ilayer}")
+            return arr
         else:
             raise NameError()
 
@@ -1127,7 +1140,8 @@ class Ejecta(Base):
         # nshells = int(dfile.attrs["nshells"])
         utimes = self.get_lc_times(spec=spec,unique=True)
         ufreqs = self.get_lc_freqs(spec=spec,unique=True)
-        fluxes = np.array(dfile["total_fluxes"])
+        print(dfile.keys())
+        fluxes =  np.array(dfile["total_power"]) if spec else np.array(dfile["total_fluxes"])
 
         # key = str("totalflux at freq={:.4e}".format(3e9)).replace('.', ',')
         # key = str("totalflux at freq={:.4e}".format(3e9))
@@ -1253,8 +1267,8 @@ class Ejecta(Base):
                 arr = np.array(dfile["shell={} layer={}".format(ishell, ilayer)])
                 if (time is None):
                     data = np.vstack((
-                        [self.get_lc(freq=_freq,ishell= None,ilayer=None,spec=True)[1:-1]
-                            for _freq in self.get_lc_freqs(spec=True,unique=True)]
+                        [self.get_lc(freq=_freq,ishell=ishell,ilayer=ilayer,spec=spec)[1:-1]
+                            for _freq in self.get_lc_freqs(spec=spec,unique=True)]
                     ))
                     return data
 
@@ -1306,6 +1320,8 @@ class Ejecta(Base):
                 arr = np.array(dfile["shell={} layer={}".format(ishell, ilayer)])
                 arr = arr[np.where(freqs==_freq)]
                 fluxes1d = arr  # [freq,time]
+                if (len(fluxes1d)!=len(utimes)):
+                    raise ValueError("size mismatch")
                 return fluxes1d
             else:
                 raise NameError()
@@ -1456,7 +1472,10 @@ class Ejecta(Base):
                 arr = np.array(self.skymap_dfile["totalflux at freq={:.4e}".format(freq)])
                 if (len(arr)==1):
                     return arr[0]
-                assert self.get_skymap_times().min() < time < self.get_skymap_times().max()
+                if (time < self.get_skymap_times().min()):
+                    raise ValueError(f"time {time} < get_skymap_times().min()={self.get_skymap_times().min()}")
+                if (time > self.get_skymap_times().max()):
+                    raise ValueError(f"time {time} > get_skymap_times().max()={self.get_skymap_times().max()}")
                 # self.get_skymap_totfluxes(freq=freq, shell=None, time=None)
                 val = arr[find_nearest_index(self.get_skymap_times(), time)]
                 return val
@@ -1527,7 +1546,7 @@ class Ejecta(Base):
         return (int_x, int_y, int_zz)
 
 
-    def get_skymap(self, time=None, freq=None, ishell=None, verbose=False, remove_mu=False, renormalize=True):
+    def get_skymap(self, time=None, freq=None, ishell=None, verbose=False, remove_mu=False, renormalize=True, normtype="pw"):
 
         # nx = 200
         # ny = 100
@@ -1642,7 +1661,9 @@ class Ejecta(Base):
                     mu_i = np.array(ddfile["mu"][ish])
                     xrs_i = np.array(ddfile["xrs"][ish]) * cgs.rad2mas / d_l  # m -> mas
                     yrs_i = np.array(ddfile["yrs"][ish]) * cgs.rad2mas / d_l  # m -> mas
-                    # rs_i = np.array(ddfile["r"][ish])
+                    rs_i = np.array(ddfile["r"][ish])
+                    cthetas_i = np.array(ddfile["ctheta"][ish])
+                    cphis_i = np.array(ddfile["cphi"][ish])
                     int_i = np.array(ddfile["intensity"][ish]) * ( d_l ** 2 / cgs.rad2mas ** 2 )  # * dfile.attrs["d_L"] ** 2
                     if remove_mu:
                         # idx1 = abs(mu_i) < min_mu # TODO this is overritten!
@@ -1669,11 +1690,20 @@ class Ejecta(Base):
                         # print(theta_i[np.abs(mu_i) < 1e-5])
                         # print(phi_i[np.abs(mu_i) < 1e-5])
                         # print(np.abs(mu_i).min())
+                        # plt.figure(figsize=(4.6, 3.2))
+                        # plt.semilogy(mu_i, int_i / int_i.max(), '.')
+                        # # plt.semilogy(mu_i, int_i / int_i.max(), 'x', color='red')
+                        # # plt.semilogy(mu_i,int_i2/int_i2.max(), 'o', color='red')
+                        # plt.xlabel(
+                        #     r"$\mu=\sin(\theta_{\rm obs}) \sin(\theta) \sin(\phi) + \cos(\theta_{\rm obs}) \cos(\theta)$")
+                        # plt.ylabel(r"$I/I_{\rm max}$")
+                        # plt.tight_layout()
+                        # plt.show()
 
                         # int_i[mu_i < 1e-3] = 0.
                         int_i *= abs( mu_i)  # TODO I was produced as F / (R^2 abs(mu)), where abs(mu)->0 and I->inf. Problem!!!
                         # * np.sqrt(1 - mu_i**2)#/ ((1-mu_i)*(1+mu_i))
-                        import matplotlib.pyplot as plt
+                        # import matplotlib.pyplot as plt
                         # plt.figure(figsize=(4.6,3.2))
                         # plt.semilogy(mu_i,int_i/int_i.max(), '.')
                         # if len(mu_i[idx]) > 0: plt.semilogy(mu_i[idx],int_i[idx]/int_i[idx].max(), 'x', color='red')
@@ -1687,15 +1717,15 @@ class Ejecta(Base):
                     all_yrs.append(yrs_i)
                     all_zz.append(int_i)
 
-                    # import matplotlib.pyplot as plt
-                    # from matplotlib.colors import Normalize, LogNorm
-                    # from matplotlib import cm, rc, rcParams
-                    # import matplotlib.colors as colors
-                    # from mpl_toolkits.axes_grid1 import make_axes_locatable
-                    # from mpl_toolkits.axes_grid1 import ImageGrid
-                    # from mpl_toolkits.axisartist.grid_finder import MaxNLocator
-                    # from matplotlib.colors import BoundaryNorm
-                    # from matplotlib.ticker import MaxNLocator
+                    import matplotlib.pyplot as plt
+                    from matplotlib.colors import Normalize, LogNorm
+                    from matplotlib import cm, rc, rcParams
+                    import matplotlib.colors as colors
+                    from mpl_toolkits.axes_grid1 import make_axes_locatable
+                    from mpl_toolkits.axes_grid1 import ImageGrid
+                    from mpl_toolkits.axisartist.grid_finder import MaxNLocator
+                    from matplotlib.colors import BoundaryNorm
+                    from matplotlib.ticker import MaxNLocator
                     # plt.close()
                     # layers = int(self.get_dyn_obj().attrs["nlayers"])-1
                     # plt.semilogx(self.get_dyn_arr("tt", ilayer=0) / cgs.day, self.get_dyn_arr("ctheta", ilayer=0),
@@ -1710,20 +1740,25 @@ class Ejecta(Base):
                     # plt.legend()
                     # plt.show()
 
+                    # plt.close()
                     # fig = plt.figure()
                     # cmap = cm.get_cmap('inferno')
                     # my_norm = LogNorm(int_i.max() * 1e-1, int_i.max())
                     # ax = fig.add_subplot(projection='3d')
                     # # ax.scatter(xrs_i.flatten(), yrs_i.flatten(), ((theta_i-theta0_i)*180/np.pi).flatten(),  c=cmap(my_norm(int_i.flatten())))
-                    # ax.scatter(xrs_i.flatten(), yrs_i.flatten(), np.log10(rs_i).flatten(), c=cmap(my_norm(int_i.flatten())))
+                    # # ax.scatter(xrs_i.flatten(), yrs_i.flatten(), np.log10(rs_i).flatten(), c=cmap(my_norm(int_i.flatten())))
                     # # ax.scatter(xrs_i.flatten(), yrs_i.flatten(),mu_i.flatten(),  c=cmap(my_norm(int_i.flatten())))
+                    # # ax.scatter(xrs_i.flatten(), yrs_i.flatten(),cthetas_i.flatten(),  c=cmap(my_norm(int_i.flatten())))
+                    # ax.scatter(xrs_i.flatten(), yrs_i.flatten(),np.log10(int_i.flatten()),  c=cmap(my_norm(int_i.flatten())))
+                    # # ax.scatter(xrs_i.flatten(), yrs_i.flatten(),cphis_i.flatten(),  c=cmap(my_norm(int_i.flatten())))
                     # ax.set_xlabel('X Label')
                     # ax.set_ylabel('Y Label')
                     # ax.set_zlabel('I Label')
+                    # ax.set_zlim(np.log10(int_i.flatten()).max()*1.-2,np.log10(int_i.flatten()).max())
                     # plt.show()
 
                 # Problem: changing nlayers changes the image/image, Fnu per pixel; Solution:
-                if renormalize:
+                if (renormalize and normtype=="pw"):
                     print("Renormalizing ejecta skymap (shell by shell separately)")
                     fnus_tot = np.zeros_like(self.get_skymap_times())
                     for i, i_ish in enumerate(i_shells):
@@ -1742,7 +1777,27 @@ class Ejecta(Base):
                             print("\tFnu/mas^2 = {:.2e} mJy/mas^2".format(dfnu))
                         all_zz[i] = (all_fluxes_arr / all_fluxes_arr.max()) * dfnu
                         fnus_tot = fnus_tot + fnus
-
+                elif (renormalize and normtype=="a"):
+                    print("Renormalizing ejecta skymap (shell by shell separately)")
+                    fnus_tot = np.zeros_like(self.get_skymap_times())
+                    for i, i_ish in enumerate(i_shells):
+                        fnus = self.get_skymap_totfluxes(freq=freq, shell=i_ish)
+                        fnu = fnus[find_nearest_index(self.get_skymap_times(), time)]
+                        all_fluxes_arr = np.array(all_zz[i])
+                        delta_x = np.array(all_xrs[i]).max() - np.array(all_xrs[i]).min()
+                        delta_y = np.array(all_yrs[i]).max() - np.array(all_yrs[i]).min()
+                        dfnu = fnu;#/ (delta_x * delta_y)
+                        if verbose:
+                            print("SHELL {}".format(i_ish))
+                            print("\tfnu = {:.2e} ".format(fnu))
+                            print("\tall_x = [{:.2e}, {:.2e}]".format(np.array(all_xrs).min(), np.array(all_xrs).max()))
+                            print("\tall_y = [{:.2e}, {:.2e}]".format(np.array(all_yrs).min(), np.array(all_yrs).max()))
+                            print("\tDelta_x = {:.2f}, Delta_y = {:.2f}]".format(delta_x, delta_y))
+                            print("\tFnu/mas^2 = {:.2e} mJy/mas^2".format(dfnu))
+                        all_zz[i] = (all_fluxes_arr / all_fluxes_arr.max()) * dfnu
+                        fnus_tot = fnus_tot + fnus
+                elif (renormalize):
+                    raise KeyError(f"norm type {normtype} is not recognized")
                 return (all_xrs, all_yrs, all_zz)
 
                 # assess what is the combined grid extend (for all images)
