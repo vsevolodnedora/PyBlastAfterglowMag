@@ -683,9 +683,10 @@ public:
             double r = 0., mu = 0., gam = 0., ctheta_bw = 0.;
             intensities[ii] = integrand(cos(ctheta ), i_phi_0+cphi,
                                          r, mu, gam, ctheta_bw, p_pars);
-            double dtheta = theta_c_h-theta_c_l;
-            double dphi = i_phi_1-i_phi_0;
-//            intensities[ii] *= dphi * dtheta;// * std::cos(ctheta);// * std::cos(ctheta); // Can I do this?.. who knows!
+//            double dtheta = theta_c_h-theta_c_l;
+//            double dphi = i_phi_1-i_phi_0;
+//            intensities[ii] *= dtheta;// * std::cos(ctheta);// * std::cos(ctheta); // Can I do this?.. who knows!
+//            intensities[ii] *= std::cos(ctheta);// * std::cos(ctheta);// * std::cos(ctheta); // Can I do this?.. who knows!
             summed_intensity += intensities[ii];// * Fcoeff;
 
             double x = r * im_xxs(ctheta, i_phi_0+cphi, p_pars->theta_obs);
