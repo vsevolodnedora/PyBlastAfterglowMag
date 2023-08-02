@@ -48,6 +48,7 @@ public:
     bool is_ejecta_obs_pars_set = false;
     bool is_ejecta_anal_ele_computed = false;
     bool is_ejecta_anal_synch_computed = false;
+    double im_max_theta;
     StrDbMap m_pars; StrStrMap m_opts;
     std::string working_dir{}; std::string parfilename{};
     EjectaBase(Vector & t_arr, int loglevel) : t_arr(t_arr), m_loglevel(loglevel){
@@ -156,6 +157,7 @@ public:
             for (auto & arr : status)
                 arr.resize(nshells(), '-');
             tobs_ej_max.resize(nlayers(),0.);
+            im_max_theta = getDoublePar("im_max_theta", m_pars, AT, p_log, CGS::pi/2., true);
         }
         else{
             (*p_log)(LOG_INFO, AT) << "ejecta is not initialized and will not be considered.\n";
@@ -574,7 +576,7 @@ public:
         Vector theta_c_h{};
         std::vector<size_t> cils{};
 //        EjectaID2::_init_a_grid(theta_c_l, theta_c_h, theta_c, nlayers_ * nsublayers, CGS::pi/2.);
-        EjectaID2::_init_pw_grid(theta_c_l, theta_c_h, theta_c, nlayers_ * nsublayers, CGS::pi/2.);//id->theta_wing);
+        EjectaID2::_init_pw_grid(theta_c_l, theta_c_h, theta_c, nlayers_ * nsublayers, im_max_theta);//id->theta_wing);
         EjectaID2::_evalCellsInLayer(nlayers_ * nsublayers, cils);
         size_t ncells = EjectaID2::_evalTotalNcells(nlayers_ * nsublayers);
 
@@ -636,7 +638,7 @@ public:
 //            }
 //        }
 
-
+        double rtol = 1e-6;
 
         std::vector<std::vector<size_t>> n_empty_images;
         std::vector<size_t> n_empty_images_shells;
@@ -648,67 +650,63 @@ public:
         Image tmp_pj( ncells, IMG::m_names.size(), 0, m_loglevel);
         Image tmp_cj( ncells, IMG::m_names.size(), 0, m_loglevel);
         for (size_t ishell = 0; ishell < nshells_; ishell++){
-
-//            for (auto & _tmp : tmp)
-//                _tmp.clearData();
             tmpImagesSet.clearEachImage();
-            std::vector<size_t> n_empty_images_layer;
-            double atol=0; // TODO make it depend on the layer flux density
+            std::vector<size_t> n_empty_images_layer ;
+
             size_t ii = 0;
-            double tot_flux = 0;
+            double tot_flux = 0.;
             for (size_t ilayer = 0; ilayer < nlayers_; ilayer++){
+                auto & bw_rad = p_cumShells[ilayer]->getBW(ishell)->getFsEATS();
+
+                /// eval. total flux.dens from the layer (one BW)
+                double atol = tot_flux * rtol / (double)nlayers();
+                double layer_flux = bw_rad->evalFluxDensA(obs_time,obs_freq, atol);
+//                layer_flux /= (double)nsublayers;
+                tot_flux += layer_flux;
+
+                /// clear emages
                 tmp_pj.clearData(); tmp_cj.clearData();
-                /// prepare sublayers
                 (*p_log)(LOG_INFO,AT)
                         << " EJECTA LC obs_time="<<obs_time<<" obs_freq="<<obs_freq
                         << " vel_shell="<<ishell<<"/"<<nshells()-1
                         << " theta_layer="<<ilayer<<"/"<<nlayers()<<"\n";
-                /// Evaluate a given image --------------------------------------
-                auto & bw_rad = p_cumShells[ilayer]->getBW(ishell)->getFsEATS();
-//                bw_rad->evalImageA(tmpImagesSet.getReferenceToTheImage(ii), tmp_pj, tmp_cj,
-//                                   all_cthetas, all_cphis, 0, 0,
-//                                   EjectaID2::CellsInLayer(ii),
-//                                   obs_time, obs_freq, atol);
-                double rtol = 1e-6;
+
+                /// loop over sublayer and evaluate the intensity distribution
                 for(size_t iilayer = 0; iilayer < nsublayers; iilayer++){
-//                    double dtheta = (2 * M_PI) / ntheta;
-//                    double dphi = 2.0 * CGS::pi / ntheta;
-//                    double ctheta = cthetas0[ii];
                     tmpImagesSet.getReferenceToTheImage(ii).resize(ncells*2);
                     bw_rad->evalImageA(tmpImagesSet.getReferenceToTheImage(ii), tmp_pj, tmp_cj,
                                        theta_c_l[ii], theta_c_h[ii], ii,
                                        obs_time, obs_freq, atol);
+                    /// [debug] trying to account for if thetamax > theta_w hist image does not work...
+//                    auto & ints = tmpImagesSet.getReferenceToTheImage(ii).gerArr(IMG::iintens);
+//                    for (auto & int_ : ints) int_ /=(double)ncells / im_max_theta;
+
+
                     if (tmpImagesSet.getReferenceToTheImage(ilayer).m_f_tot == 0){
                         n_jet_empty_images += 1; n_empty_images_layer.emplace_back(ilayer);
                     }
+                    /// override the image total flux density (normalize to the number of sublayers)
+                    tmpImagesSet.getReferenceToTheImage(ii).m_f_tot = layer_flux / (double)(nsublayers);
                     ii++;
                 }
-
-//                double atol = tot_flux * rtol / (double)nlayers();
-//                double layer_flux = bw_rad->evalFluxDensA(obs_time,obs_freq, atol);
-//                tmpImagesSet.getReferenceToTheImage(ilayer).m_f_tot = layer_flux;// / (double)nsublayers;
-//                tot_flux += layer_flux;
-
-
-//                double atol = tot_flux * rtol / (double)nlayers();
-//                tmpImagesSet.getReferenceToTheImage(ilayer).m_f_tot;
-//                double layer_flux = bw_rad->evalFluxDensA(obs_time,obs_freq, atol);
-//                layer_flux *= (double)nsublayers;
-//                tmpImagesSet.getReferenceToTheImage(ilayer).m_f_tot = layer_flux;
-//                tot_flux += layer_flux;
-//                bw_rad->evalImageA(tmpImagesSet.getReferenceToTheImage(ilayer), tmp_pj, tmp_cj,
-//                                   _theta_c_l, _theta_c_h, _nphis, obs_time, obs_freq, atol);
-//                bw_rad->evalImageA(tmp.getReferenceToTheImage(ilayer), tmp_pj, tmp_cj, obs_time, obs_freq);
-                /// -------------------------------------------------------------
             }
+
             if(!n_empty_images_layer.empty()){
                 n_empty_images_shells.emplace_back(ishell);
                 n_empty_images.emplace_back(n_empty_images_layer);
             }
+            images.getReferenceToTheImage(ishell).m_f_tot = 0.;
             auto & imageForEntireShell = images.getReferenceToTheImage(ishell);
             imageForEntireShell.resize(2 * ncells, 0. );
             combineImages(imageForEntireShell, ncells, nlayers_ * nsublayers, tmpImagesSet) ;
-//
+
+
+
+//            if (imageForEntireShell.m_f_tot != tot_flux){
+//                (*p_log)(LOG_ERR,AT)<<" imageForEntireShell.m_f_tot="<<imageForEntireShell.m_f_tot
+//                    <<" tot_flux="<<tot_flux<<"\n";
+//                exit(1);
+//            }
 //            double atol = tot_flux * rtol / (double)nlayers();
 //            double layer_flux = bw_rad->evalFluxDensA(obs_time,obs_freq, atol);
 //            imageForEntireShell.m_f_tot = layer_flux;
