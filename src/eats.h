@@ -658,16 +658,18 @@ public:
         double ctheta = theta_c_l+0.5*(theta_c_h-theta_c_l);
         Vector intensities(phi_edges.size(),0.);
 
+//        auto & cphis = image.gerArr(IMG::Q::icphi);
+
         size_t ii = 0;
         for (size_t iphi = 1; iphi < phi_edges.size(); iphi++) {
             double i_phi_0 = phi_edges[iphi-1];
             double i_phi_1 = phi_edges[iphi];
             double cphi = 0.5 * (i_phi_1 - i_phi_0);
-            p_pars->current_phi_hi = i_phi_1; // Update for integrator
-            p_pars->current_phi_low = i_phi_0;
+//            p_pars->current_phi_hi = i_phi_1; // Update for integrator
+//            p_pars->current_phi_low = i_phi_0;
             // -------------------------------------
-            p_pars->atol_theta = atol;// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
-            p_pars->atol_phi = atol;//  / (2.0 * Fcoeff);
+//            p_pars->atol_theta = atol;// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
+//            p_pars->atol_phi = atol;//  / (2.0 * Fcoeff);
             // check if th[i] is above the lower boundary of EATS segment [theta_low-theta_hi]
             if (ctheta < p_pars->theta_c_l)
                 continue;
@@ -1085,8 +1087,7 @@ private:
 
         int i = 0;
         // similar to search sorted alborithim :: iteratively approach the 'theta' (theta_a) that correspods to mu
-        while(theta_b - theta_a > 1.0e-5 && i < 100)
-        {
+        while(theta_b - theta_a > 1.0e-5 && i < 100) {
             double theta_c_i = 0.5 * (theta_a + theta_b);          // middle of the two boundaries of the edge [theta_a ... edge ... ... theta_b]
 //            mu = cos(theta_c_i) * cos_th_obs + sin(theta_c_i) * sin_th_obs * cos(phi);  // evaluate 'mu' at the current iteration of the search
             mu = obs_angle(theta_c_i, phi, theta_obs);
