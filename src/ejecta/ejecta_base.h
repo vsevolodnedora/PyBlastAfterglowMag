@@ -576,7 +576,7 @@ public:
         Vector theta_c_h{};
         std::vector<size_t> cils{};
 //        EjectaID2::_init_a_grid(theta_c_l, theta_c_h, theta_c, nlayers_ * nsublayers, CGS::pi/2.);
-        EjectaID2::_init_pw_grid(theta_c_l, theta_c_h, theta_c, nlayers_ * nsublayers, im_max_theta);//id->theta_wing);
+        EjectaID2::_init_a_grid(theta_c_l, theta_c_h, theta_c, nlayers_ * nsublayers, im_max_theta);//id->theta_wing);
         EjectaID2::_evalCellsInLayer(nlayers_ * nsublayers, cils);
         size_t ncells = EjectaID2::_evalTotalNcells(nlayers_ * nsublayers);
 
@@ -644,7 +644,7 @@ public:
         std::vector<size_t> n_empty_images_shells;
         const std::vector<std::string> x {};
         Images tmpImagesSet (nlayers_*nsublayers, IMG::m_names.size());
-        tmpImagesSet.resizeEachImage(ncells);
+        tmpImagesSet.resizeEachImage(ncells*2);
 //        for (auto & _tmp : tmp)
 //            _tmp.resizeEachImage( ncells_ );
         Image tmp_pj( ncells, IMG::m_names.size(), 0, m_loglevel);
@@ -665,7 +665,7 @@ public:
                 tot_flux += layer_flux;
 
                 /// clear emages
-                tmp_pj.clearData(); tmp_cj.clearData();
+//                tmp_pj.clearData(); tmp_cj.clearData();
                 (*p_log)(LOG_INFO,AT)
                         << " EJECTA LC obs_time="<<obs_time<<" obs_freq="<<obs_freq
                         << " vel_shell="<<ishell<<"/"<<nshells()-1
@@ -673,13 +673,26 @@ public:
 
                 /// loop over sublayer and evaluate the intensity distribution
                 for(size_t iilayer = 0; iilayer < nsublayers; iilayer++){
-                    tmpImagesSet.getReferenceToTheImage(ii).resize(ncells*2);
+//                    size_t cil = EjectaID2::CellsInLayer(ii);
+                    double ctheta = theta_c_l[ii]+0.5*(theta_c_h[ii]-theta_c_l[ii]);
+                    for (size_t j = 0; j < cils[ii]; j++){
+                        double cphis = (double)j * 2.0 * CGS::pi / (double)cils[ii];
+                        tmp_pj.gerArr(IMG::Q::icphi)[j] = cphis;
+                        tmp_cj.gerArr(IMG::Q::icphi)[j] = cphis;
+                        tmp_pj.gerArr(IMG::Q::ictheta)[j] = ctheta;
+                        tmp_cj.gerArr(IMG::Q::ictheta)[j] = ctheta;
+                    }
+                    if (tmp_pj.m_size==0||tmp_cj.m_size==0){
+                        (*p_log)(LOG_ERR,AT)<<"error\n";
+                        exit(1);
+                    }
                     bw_rad->evalImageA(tmpImagesSet.getReferenceToTheImage(ii), tmp_pj, tmp_cj,
-                                       theta_c_l[ii], theta_c_h[ii], ii,
+                                       theta_c_l[ii], theta_c_h[ii], cils[ii],
                                        obs_time, obs_freq, atol);
                     /// [debug] trying to account for if thetamax > theta_w hist image does not work...
 //                    auto & ints = tmpImagesSet.getReferenceToTheImage(ii).gerArr(IMG::iintens);
-//                    for (auto & int_ : ints) int_ /=(double)ncells / im_max_theta;
+//                    for (auto & int_ : ints) int_ /=(double)cils[ii];
+//                    for (auto & int_ : ints) int_ /=(im_max_theta/(theta_c_h[ii]-theta_c_l[ii]));
 
 
                     if (tmpImagesSet.getReferenceToTheImage(ilayer).m_f_tot == 0){

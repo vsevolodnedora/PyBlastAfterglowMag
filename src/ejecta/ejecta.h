@@ -220,12 +220,14 @@ public:
                     computeEjectaSkyMapPW(images, times[it], freqs[ifreq]);
                 else if (id->method_eats==EjectaID2::STUCT_TYPE::iadaptive)
                     computeEjectaSkyMapA(images, times[it], freqs[ifreq],
-                                         (size_t)getDoublePar("nsublayers",ej_pars,AT,p_log,0,true));
-                for (size_t i_vn = 0; i_vn < IMG::m_names.size(); i_vn++) {
-                    for (size_t ish = 0; ish < nshells_; ish++) {
-                        out[ii][i_vn][ish] = images.getReferenceToTheImage(ish).m_data[i_vn];//arrToVec(images[ish].m_data[i_vn]);
-                    }
-                }
+                    (size_t)getDoublePar("nsublayers",ej_pars,AT,p_log,0,true));
+
+                /// transfer data from images to output datastructure
+                for (size_t i_vn = 0; i_vn < IMG::m_names.size(); i_vn++)
+                    for (size_t ish = 0; ish < nshells_; ish++)
+                        out[ii][i_vn][ish] = images.getReferenceToTheImage(ish).m_data[i_vn];
+
+
                 for (size_t ish = 0; ish < nshells_; ish++) {
                     tota_flux[it] += images.getReferenceToTheImage(ish).m_f_tot;
                     total_flux_shell[ish][it] = images.getReferenceToTheImage(ish).m_f_tot;

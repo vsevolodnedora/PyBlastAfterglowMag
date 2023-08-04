@@ -35,7 +35,7 @@ lc_times = array logspace 1.e4 1.e10 50
 lc_use_freq_to_time = no
 
 skymap_freqs = array 1e9
-skymap_times = array 86400 864000 3.456e6 8.64e6 1.728e7
+skymap_times = array 86400 864000 3.456e6 8.64e6 1.728e7 3.456e+7 6.912e+7 1.3824e+8
 
 integrator = DOP853
 do_average_solution = no
@@ -66,7 +66,7 @@ rtol_adapt = 1e-5
 fnu_min_frac = 1e-4
 
 nsublayers = 121
-im_max_theta = 0.9
+im_max_theta = 1.57
 
 * Settings
 
@@ -99,7 +99,7 @@ fname_ejecta_id = tophat_grb_id_a.h5
 load_r0 = no
 
 
-method_spread = None
+method_spread = AFGPY
 method_dgdr = our
 method_eos = Nava13
 method_GammaSh = useJKwithGammaRel  # default -- "useGamma"
