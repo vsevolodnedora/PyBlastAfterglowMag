@@ -87,7 +87,7 @@ do_skymap = no
 do_rs = yes
 rhs_type = grb_fsrs
 method_collision = none # none
-method_eats = piece-wise # piece-wise
+method_eats = adaptive # piece-wise
 allow_termination = no
 
 do_thermrad_loss = no

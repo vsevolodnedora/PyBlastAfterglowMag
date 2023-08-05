@@ -82,6 +82,7 @@ do_ele = yes
 do_spec = yes
 do_lc = no
 do_skymap = no
+spec_var_out = -
 
 do_rs = no
 rhs_type = grb_fs

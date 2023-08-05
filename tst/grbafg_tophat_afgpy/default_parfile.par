@@ -49,6 +49,7 @@ integrator = DOP853E
 
 n_store_substeps = 10
 
+im_max_theta = 1.57
 tprompt = 1e3
 a = 0.0
 fraction_of_Gamma0_when_spread = 0.1
@@ -74,9 +75,11 @@ save_dynamics = no
 load_dynamics = no
 do_ele = yes
 do_spec = no
+save_spec = no
 do_lc = yes
 do_skymap = no
 
+do_rs = no
 rhs_type = grb_fs
 method_collision = none # none
 method_eats = piece-wise # adaptive # piece-wise

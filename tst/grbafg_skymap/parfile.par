@@ -65,6 +65,7 @@ save_dyn_every_it = 1
 rtol_adapt = 1e-5
 fnu_min_frac = 1e-4
 
+im_max_theta = 1.57
 nsublayers = 20
 
 tprompt = 0.
@@ -79,6 +80,7 @@ save_dynamics = yes
 load_dynamics = no
 do_ele = yes
 do_spec = no
+save_spec = no
 do_lc = no
 do_skymap = yes
 

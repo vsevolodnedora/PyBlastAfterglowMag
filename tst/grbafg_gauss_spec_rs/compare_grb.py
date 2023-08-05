@@ -146,7 +146,7 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
     plt.show()
 
 def plot_ejecta_layers_spec(freq=1e18,ishells=(0,), ilayers=(0,25,49),colors_by="layers",legend=False,
-                       figname="dyn_layers_fsrs.png", run_fs_only=True):
+                       figname="dyn_layers_fsrs.png", run_fs_only=True,type="a",method_eats="adaptive"):
 
     # prepare ID
     workdir = os.getcwd()+"/"
@@ -158,14 +158,15 @@ def plot_ejecta_layers_spec(freq=1e18,ishells=(0,), ilayers=(0,25,49),colors_by=
     ang_size_layer = 2.0 * np.pi * one_min_cos / (4.0 * np.pi)
     prepare_grb_ej_id_1d({"Eiso_c":1.e53, "Gamma0c": 1000., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.3,
                           "nlayers_pw": 100, "nlayers_a": 40, "struct":"gaussian"},
-                           type="pw",outfpath="tophat_grb_id.h5")
+                           type=type,outfpath="tophat_grb_id.h5")
 
     ### run fs-only model
     if(run_fs_only):
         modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
                                newopts={"rhs_type":"grb_fs", "outfpath":"grb_fs.h5", "do_rs":"no",
                                         "fname_dyn":"dyn_bw_fs.h5","fname_light_curve":"lc_grb_tophad.h5",
-                                        "fname_spectrum_layers":"spec_fs_layers.h5", "method_eats": "adaptive"},
+                                        "fname_spectrum_layers":"spec_fs_layers.h5", "method_eats": method_eats,
+                                        "spec_var_out":"em"},
                                parfile="default_parfile.par", newparfile="parfile.par",keep_old=True)
         pba_fs = PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
         pba_fs.run(loglevel="info")
@@ -174,7 +175,8 @@ def plot_ejecta_layers_spec(freq=1e18,ishells=(0,), ilayers=(0,25,49),colors_by=
     modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
                            newopts={"rhs_type":"grb_fsrs", "outfpath":"grb_fsrs.h5", "do_rs":"yes",
                                     "fname_dyn":"dyn_bw_fsrs.h5","fname_spectrum":"lc_grb_tophad.h5",
-                                    "fname_spectrum_layers":"spec_fsrs_layers.h5", "method_eats": "piece-wise"},
+                                    "fname_spectrum_layers":"spec_fsrs_layers.h5", "method_eats": method_eats,
+                                    "spec_var_out":"em_rs"},
                            parfile="default_parfile.par", newparfile="parfile.par",keep_old=True)
     pba_fsrs = PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
     pba_fsrs.run(loglevel="info")
@@ -278,7 +280,8 @@ def plot_tst_total_spec_resolution(freq=1e18, nlayers=(10,20,40,80,120),legend=F
             modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
                                    newopts={"rhs_type":"grb_fs", "outfpath":"grb_fs.h5", "do_rs":"no",
                                             "fname_dyn":"dyn_bw_fs.h5","fname_light_curve":"lc_grb_tophad.h5",
-                                            "fname_spectrum_layers":"spec_fs_layers.h5", "method_eats": method_eats},
+                                            "fname_spectrum_layers":"spec_fs_layers.h5", "method_eats": method_eats,
+                                            "spec_var_out":"em"},
                                    parfile="default_parfile.par", newparfile="parfile.par",keep_old=True)
             pba_fs = PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
             pba_fs.run(loglevel="info")
@@ -287,7 +290,8 @@ def plot_tst_total_spec_resolution(freq=1e18, nlayers=(10,20,40,80,120),legend=F
         modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
                                newopts={"rhs_type":"grb_fsrs", "outfpath":"grb_fsrs.h5", "do_rs":"yes",
                                         "fname_dyn":"dyn_bw_fsrs.h5","fname_spectrum":"lc_grb_tophad.h5",
-                                        "fname_spectrum_layers":"spec_fsrs_layers.h5", "method_eats": method_eats},
+                                        "fname_spectrum_layers":"spec_fsrs_layers.h5", "method_eats": method_eats,
+                                        "spec_var_out": "em_rs"},
                                parfile="default_parfile.par", newparfile="parfile.par",keep_old=True)
         pba_fsrs = PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
         pba_fsrs.run(loglevel="info")
@@ -318,8 +322,8 @@ if __name__ == '__main__':
     # plot_ejecta_layers(ishells=(0,), ilayers=(0,),
     #                    v_n_x = "tburst", v_n_ys = ("B", "B_rs", "gamma_min", "gamma_min_rs","gamma_c", "gamma_c_rs"), colors_by="layers",legend=False,
     #                    figname="dyn_layers_fs.png")
-    # plot_ejecta_layers_spec(freq=1e9, ishells=(0,), ilayers=(0,2,4,6,9))
+    plot_ejecta_layers_spec(freq=1e9, ishells=(0,), ilayers=(0,2,4,6,9),type="a",method_eats="adaptive")
 
     # plot_tst_total_spec_resolution(freq=1e9, nlayers=(40,80,120,160,200), type="pw",method_eats="piece-wise")
-    plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,20,30,40,50),type="a",method_eats="adaptive")
+    # plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,20,30,40,50),type="a",method_eats="adaptive")
     exit(0)

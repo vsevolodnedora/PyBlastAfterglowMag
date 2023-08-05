@@ -320,6 +320,6 @@ if __name__ == '__main__':
     #                    figname="dyn_layers_fs.png")
     # plot_ejecta_layers_spec(freq=1e9, ishells=(0,), ilayers=(0,2,4,6,9))
 
-    plot_tst_total_spec_resolution(freq=1e9, nlayers=(80,120,160,200), type="pw",method_eats="piece-wise")
-    # plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,20,30,40,50),type="a",method_eats="adaptive")
+    # plot_tst_total_spec_resolution(freq=1e9, nlayers=(80,120,160,200), type="pw",method_eats="piece-wise")
+    plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,20,30,40,50),type="a",method_eats="adaptive")
     exit(0)

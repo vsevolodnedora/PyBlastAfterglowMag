@@ -3,6 +3,15 @@ import numpy as np
 import h5py
 from scipy.integrate import ode
 import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize, LogNorm
+from matplotlib import cm, rc, rcParams
+import matplotlib.colors as colors
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.axes_grid1 import ImageGrid
+from mpl_toolkits.axisartist.grid_finder import MaxNLocator
+from matplotlib.colors import BoundaryNorm
+from matplotlib.ticker import MaxNLocator
+from matplotlib.cm import ScalarMappable
 from scipy import interpolate
 # import pytest
 from pathlib import Path
@@ -42,33 +51,66 @@ curdir = os.getcwd() + '/' #"/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglow_dev
 
 
 def main():
-    workdir = os.getcwd()+'/'
-    pba = PyBlastAfterglow(workingdir=os.curdir+'/',readparfileforpaths=True)
-
-    prepare_grb_ej_id_1d({"struct":"gaussian",
-        "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
-        "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":150,"nlayers_a": 10}, type="pw",
-        outfpath=workdir+"gauss_grb_id.h5")
-
-    pba.run()
-    # print(pba.fpath_kn_light_curve)
-    # print(pba.get_jet_lc_totalflux(freq=1e9))
-
     fig, ax = plt.subplots(figsize=(9,2.5), ncols=1, nrows=1)
 
+    # ----------------------- piece-wise --------------------
+    workdir = os.getcwd()+'/'
+    prepare_grb_ej_id_1d({"struct":"gaussian",
+                          "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
+                          "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":150,"nlayers_a": 10}, type="pw",
+                         outfpath=workdir+"gauss_grb_id.h5")
+    modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
+                           newpars={},
+                           newopts={"method_eats":"piece-wise", "method_spread":"AA"},
+                           parfile="parfile.par", newparfile="parfile.par", keep_old=False)
+
+    pba_pw = PyBlastAfterglow(workingdir=os.curdir+'/',readparfileforpaths=True, parfile="parfile.par")
+    pba_pw.run()
+
+    ax.plot(pba_pw.GRB.get_lc_times(), pba_pw.GRB.get_lc_totalflux(freq=3.e9), ls='-', color="green", label="PBA [PW]")
+    # print(pba_pw.GRB.get_lc_obj().keys())
+    # print(pba_pw.GRB.get_lc_obj().attrs.keys())
+    cmap = cm.get_cmap('Blues')
+    norm = Normalize(vmin=0,vmax=int(pba_pw.GRB.get_lc_obj().attrs["nlayers"]))
+    for il in range(int(pba_pw.GRB.get_lc_obj().attrs["nlayers"])):
+        ax.plot(pba_pw.GRB.get_lc_times(), pba_pw.GRB.get_lc(freq=3.e9, ishell=0, ilayer=il), ls='-', color=cmap(norm(il)), alpha=0.7)
+
+
+    # -------------------- ADAPTIVE ------------------
+    # workdir = os.getcwd()+'/'
+    prepare_grb_ej_id_1d({"struct":"gaussian",
+                          "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
+                          "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":150,"nlayers_a": 10}, type="a",
+                         outfpath=workdir+"gauss_grb_id.h5")
+    modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
+                           newpars={},
+                           newopts={"method_eats":"adaptive", "method_spread":"AFGPY"},
+                           parfile="parfile.par", newparfile="parfile.par", keep_old=False)
+
+    pba_a = PyBlastAfterglow(workingdir=os.curdir+'/',readparfileforpaths=True, parfile="parfile.par")
+    pba_a.run()
+
+    ax.plot(pba_a.GRB.get_lc_times(), pba_a.GRB.get_lc_totalflux(freq=3.e9), ls='-', color="red", label="PBA [A]")
+    # print(pba_pw.GRB.get_lc_obj().keys())
+    # print(pba_pw.GRB.get_lc_obj().attrs.keys())
+    cmap = cm.get_cmap('Reds')
+    norm = Normalize(vmin=0,vmax=int(pba_a.GRB.get_lc_obj().attrs["nlayers"]))
+    for il in range(int(pba_a.GRB.get_lc_obj().attrs["nlayers"])):
+        ax.plot(pba_a.GRB.get_lc_times(), pba_a.GRB.get_lc(freq=3.e9, ishell=0, ilayer=il), ls='-', color=cmap(norm(il)), alpha=0.7)
+
+
+    # print(pba_pw.fpath_kn_light_curve)
+    # print(pba_pw.get_jet_lc_totalflux(freq=1e9))
+
+    # --------- Other Models -----------
     tts_afgpy, ffs_afgpy = np.loadtxt(curdir+"./afgpy_grb170817.txt",unpack=True)
     ax.plot(tts_afgpy, ffs_afgpy, ls=':', color='gray', label='afterglopy')
 
     tts, fluxes = np.loadtxt(curdir+"./jelib_grb170817.txt",unpack=True)
     ax.plot(tts, fluxes*1e26, ls='--', color='gray', label='Joelib')
 
-    ax.plot(pba.GRB.get_lc_times(), pba.GRB.get_lc_totalflux(freq=3.e9), ls='-', color="black", label="PBA")
-    print(pba.GRB.get_lc_obj().keys())
-    print(pba.GRB.get_lc_obj().attrs.keys())
-    for il in range(int(pba.GRB.get_lc_obj().attrs["nlayers"])):
-        ax.plot(pba.GRB.get_lc_times(), pba.GRB.get_lc(freq=3.e9, ishell=0, ilayer=il), ls='-', color="gray")
 
-    print(pba.GRB.get_lc_totalflux(freq=3.e9))
+    # print(pba_pw.GRB.get_lc_totalflux(freq=3.e9))
     ax.grid()
     ax.legend()
     ax.set_xscale("log")

@@ -48,6 +48,7 @@ integrator = DOP853
 * Parameters
 
 n_store_substeps = 10
+im_max_theta = 0
 
 tprompt = 1.e3
 a = 1.0
@@ -72,6 +73,7 @@ fnu_min_frac = 1e-4
 run_bws = yes
 save_dynamics = no
 load_dynamics = no
+save_spec = no
 do_ele = yes
 do_spec = no
 do_lc = yes
@@ -80,7 +82,7 @@ do_skymap = no
 do_rs = no
 rhs_type = grb_fs
 method_collision = none # none
-method_eats = piece-wise # adaptive # piece-wise
+method_eats = adaptive # piece-wise
 
 do_thermrad_loss = no
 allow_termination = no
@@ -96,7 +98,7 @@ type = numeric
 fname_ejecta_id = gauss_grb_id.h5
 load_r0 = no
 
-method_spread = AA
+method_spread = AFGPY
 method_dgdr = our
 method_eos = Nava13
 method_GammaSh = useJKwithGammaRel  # default -- "useGamma"
