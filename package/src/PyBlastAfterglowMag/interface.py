@@ -409,6 +409,7 @@ def combine_images(xs, ys, datas, verbose=False, hist_or_int="int", shells=False
             ny = np.complex(0, ny)
             grid_x, grid_y = np.mgrid[xs.min()*extend:xs.max()*extend:nx, ys.min()*extend:ys.max()*extend:ny]
             i_zz = interp(xs, ys, datas, grid_x, grid_y, 'linear')
+            i_zz = i_zz
         elif hist_or_int == "both":
 
             nx = np.complex(0, nx)
@@ -1134,7 +1135,7 @@ class Ejecta(Base):
             raise ValueError("no unique freqs found in light curve \n {}".format(arr))
         return np.array(arr_u)# np.array(dfile["freqs"])
 
-    def get_lc_totalflux(self, freq=None, spec=False):
+    def get_lc_totalflux(self, freq=None, time=None, spec=False):
         dfile = self.get_lc_obj(spec=spec)
         # nlayers = int(dfile.attrs["nlayers"])
         # nshells = int(dfile.attrs["nshells"])
@@ -1147,9 +1148,18 @@ class Ejecta(Base):
         # key = str("totalflux at freq={:.4e}".format(3e9))
         # arr = np.array(dfile[key])
 
+        if (not time is None):
+            if (not time in utimes):
+                _time = utimes[find_nearest_index(utimes, time)]
+                print(f"Warning: time={time} is not in {utimes} Using time={_time}")
+            else:
+                _time = utimes[int(np.where(utimes==time)[0])]
+
 
         if (freq is None):
             arr = np.vstack(( [fluxes[np.where(self.get_lc_freqs(spec=spec,unique=False)==_freq)] for _freq in ufreqs] ))
+            if (not time is None):
+                raise NotImplementedError("method is not implemented")
             return arr
         else :
             if (freq > ufreqs.max()):
@@ -1161,7 +1171,14 @@ class Ejecta(Base):
                 print(f"Warning: freq={freq} is not in {ufreqs} Using freq={_freq}")
             else:
                 _freq = ufreqs[int(np.where(ufreqs==freq)[0])]
-            arr = fluxes[np.where(self.get_lc_freqs(spec=spec,unique=False) == _freq)]
+
+            if (not time is None):
+                _i = self.get_lc_times(spec=spec,unique=False) == _time
+                _j = self.get_lc_freqs(spec=spec,unique=False) == _freq
+                arr = fluxes[np.where(((self.get_lc_freqs(spec=spec,unique=False) == _freq).astype(int) *
+                                      (self.get_lc_times(spec=spec,unique=False) == _time).astype(int)).astype(bool))]
+            else:
+                arr = fluxes[np.where(self.get_lc_freqs(spec=spec,unique=False) == _freq)]
             return arr
 
 
@@ -1240,7 +1257,7 @@ class Ejecta(Base):
             if ((ishell is None) and (ilayer is None)):
                 fluxes2d = []
                 for ifreq in ufreqs:
-                    fluxes2d.append(self.get_lc_totalflux(freq=ifreq,spec=spec))  # [freq,time]
+                    fluxes2d.append(self.get_lc_totalflux(freq=ifreq,time=_time,spec=spec))  # [freq,time]
                 fluxes2d = np.reshape(np.array(fluxes2d), (len(freqs), len(times)))
                 if (not time is None): return fluxes2d[tidx,:]
                 else: return fluxes2d
@@ -1286,7 +1303,7 @@ class Ejecta(Base):
                 raise ValueError("freq:{} is not in ej_lc Given:{}".format(_freq, ufreqs))
             # ifreq = find_nearest_index(self.get_ej_lc_freqs(), freq)
             if ((ishell is None) and (ilayer is None)):
-                return self.get_lc_totalflux(freq=_freq,spec=spec)
+                return self.get_lc_totalflux(freq=_freq,time=_time,spec=spec)
             elif ((ishell is None) and (not ilayer is None)):
                 print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
                 if (ilayer > nlayers - 1):
@@ -1783,10 +1800,14 @@ class Ejecta(Base):
                     for i, i_ish in enumerate(i_shells):
                         fnus = self.get_skymap_totfluxes(freq=freq, shell=i_ish)
                         fnu = fnus[find_nearest_index(self.get_skymap_times(), time)]
-                        all_fluxes_arr = np.array(all_zz[i])
+                        all_fluxes_arr_old = np.array(all_zz[i])
                         delta_x = np.array(all_xrs[i]).max() - np.array(all_xrs[i]).min()
                         delta_y = np.array(all_yrs[i]).max() - np.array(all_yrs[i]).min()
-                        dfnu = fnu;#/ (delta_x * delta_y)
+                        # grad_x = np.gradient(all_xrs[i])
+                        # diff_x = np.append(np.diff(all_xrs[i]),0)
+                        # diff_y = np.append(np.diff(all_yrs[i]),0)
+                        all_fluxes_arr = np.array(all_zz[i])# * np.abs(diff_x) * np.abs(diff_y)
+                        dfnu = fnu / (delta_x * delta_y)
                         if verbose:
                             print("SHELL {}".format(i_ish))
                             print("\tfnu = {:.2e} ".format(fnu))

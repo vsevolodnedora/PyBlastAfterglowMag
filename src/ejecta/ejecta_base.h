@@ -503,20 +503,21 @@ public:
         std::vector<std::vector<size_t>> n_empty_images;
         std::vector<size_t> n_empty_images_shells;
         const std::vector<std::string> x {};
-        Images tmp (nlayers_, IMG::m_names.size());
-        tmp.resizeEachImage(ncells_);
-//        for (auto & _tmp : tmp)
+        Images tmpImages (nlayers_, IMG::m_names.size());
+        tmpImages.resizeEachImage(ncells_);
+//        for (auto & _tmp : tmpImages)
 //            _tmp.resizeEachImage( ncells_ );
         Image tmp_pj( ncells_, IMG::m_names.size(), 0, m_loglevel);
         Image tmp_cj( ncells_, IMG::m_names.size(), 0, m_loglevel);
         for (size_t ishell = 0; ishell < nshells_; ishell++){
-//            for (auto & _tmp : tmp)
+//            for (auto & _tmp : tmpImages)
 //                _tmp.clearData();
-            tmp.clearEachImage();
-            tmp_pj.clearData(); tmp_cj.clearData();
+            tmpImages.clearEachImage();
             std::vector<size_t> n_empty_images_layer;
             double atol=0; // TODO make it depend on the layer flux density
+            Image & layerImage = images.getReferenceToTheImage(ishell);
             for (size_t ilayer = 0; ilayer < nlayers_; ilayer++){
+                tmp_pj.clearData(); tmp_cj.clearData();
                 /// Evaluate a given image --------------------------------------
                 auto & bw_rad = p_cumShells[ilayer]->getBW(ishell)->getFsEATS();
                 (*p_log)(LOG_INFO,AT)
@@ -524,11 +525,11 @@ public:
                         << " vel_shell="<<ishell<<"/"<<nshells()-1
                         << " theta_layer="<<ilayer<<"/"<<nlayers()
                         << " phi_cells="<<EjectaID2::CellsInLayer(ilayer)<<"\n";
-                bw_rad->evalImagePW(tmp.getReferenceToTheImage(ilayer), tmp_pj, tmp_cj, obs_time, obs_freq);
+                bw_rad->evalImagePW(tmpImages.getReferenceToTheImage(ilayer), tmp_pj, tmp_cj, obs_time, obs_freq);
 
-//                bw_rad->evalImageA(tmp.getReferenceToTheImage(ilayer), tmp_pj, tmp_cj, obs_time, obs_freq);
+//                bw_rad->evalImageA(tmpImages.getReferenceToTheImage(ilayer), tmp_pj, tmp_cj, obs_time, obs_freq);
                 /// -------------------------------------------------------------
-                if (tmp.getReferenceToTheImage(ilayer).m_f_tot == 0){
+                if (tmpImages.getReferenceToTheImage(ilayer).m_f_tot == 0){
                     n_jet_empty_images += 1;
                     n_empty_images_layer.emplace_back(ilayer);
                 }
@@ -537,7 +538,14 @@ public:
                 n_empty_images_shells.emplace_back(ishell);
                 n_empty_images.emplace_back(n_empty_images_layer);
             }
-            combineImages(images.getReferenceToTheImage(ishell), ncells_, nlayers_, tmp) ;
+            combineImages(layerImage, ncells_, nlayers_, tmpImages) ;
+
+//            Vector times {obs_time}; Vector freqs {obs_freq};
+//            auto lc = evalEjectaLightCurves(times, freqs);
+//            double totflux = 0;
+//            for (size_t il = 0; il < nlayers_; il++)
+//                totflux += lc[0][il][0];
+//            std::cout <<" Lc: "<< totflux << " Im: "<<images.getReferenceToTheImage(0).m_f_tot<<" t="<<obs_time<<" nu="<<obs_freq<<"\n";
         }
 
         /// print which layers/shells gave isEmpty image
@@ -579,7 +587,9 @@ public:
         EjectaID2::_init_a_grid(theta_c_l, theta_c_h, theta_c, nlayers_ * nsublayers, im_max_theta);//id->theta_wing);
         EjectaID2::_evalCellsInLayer(nlayers_ * nsublayers, cils);
         size_t ncells = EjectaID2::_evalTotalNcells(nlayers_ * nsublayers);
-
+        if (ncells > 1e6){
+            (*p_log)(LOG_WARN,AT) << " for adaptive EATS image calc. large ncells="<<ncells<<"\n";
+        }
 //        size_t ntheta = nlayers_*nsublayers;
 //        Vector cthetas0;
 //        Vector thetas ( ntheta + 1 );
@@ -695,9 +705,9 @@ public:
 //                    for (auto & int_ : ints) int_ /=(im_max_theta/(theta_c_h[ii]-theta_c_l[ii]));
 
 
-                    if (tmpImagesSet.getReferenceToTheImage(ilayer).m_f_tot == 0){
-                        n_jet_empty_images += 1; n_empty_images_layer.emplace_back(ilayer);
-                    }
+//                    if (tmpImagesSet.getReferenceToTheImage(ilayer).m_f_tot == 0){
+//                        n_jet_empty_images += 1; n_empty_images_layer.emplace_back(ilayer);
+//                    }
                     /// override the image total flux density (normalize to the number of sublayers)
                     tmpImagesSet.getReferenceToTheImage(ii).m_f_tot = layer_flux / (double)(nsublayers);
                     ii++;
@@ -710,6 +720,11 @@ public:
             }
             images.getReferenceToTheImage(ishell).m_f_tot = 0.;
             auto & imageForEntireShell = images.getReferenceToTheImage(ishell);
+            if (std::accumulate(imageForEntireShell.gerArr(IMG::Q::iintens).begin(),
+                                imageForEntireShell.gerArr(IMG::Q::iintens).end(),0.)==0.){
+                (*p_log)(LOG_WARN,AT) << "image summed intensity = 0\n";
+                exit(1);
+            }
             imageForEntireShell.resize(2 * ncells, 0. );
             combineImages(imageForEntireShell, ncells, nlayers_ * nsublayers, tmpImagesSet) ;
 
@@ -760,7 +775,7 @@ public:
                 arrr.resize( obs_times.size(), 0. );
             }
         }
-        double flux_pj, flux_cj; size_t ii = 0;
+//        double flux_pj, flux_cj; size_t ii = 0;
 //        Image image;
         double rtol = ej_rtol;
         Image image_i ( ncells(), IMG::m_names.size(), 0, m_loglevel );
@@ -784,7 +799,7 @@ public:
                 model->getBW(ishell)->getFsEATS()->evalLC(
                         id->method_eats,
                         image_i, im_pj, im_cj, light_curves[ishell][ilayer], obs_times, obs_freqs);
-                ii ++;
+//                ii ++;
             }
         }
         return std::move( light_curves );

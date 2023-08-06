@@ -30,8 +30,8 @@ theta_obs = 0 # 1.57
 
 * Settings
 
-lc_freqs = array 3.e9
-lc_times = array logspace 1.e4 1.e10 50
+lc_freqs = array 1e9
+lc_times = array 86400 864000 3.456e6 8.64e6 1.728e7 3.456e+7 6.912e+7 1.3824e+8
 lc_use_freq_to_time = no
 
 skymap_freqs = array 1e9
@@ -65,7 +65,7 @@ save_dyn_every_it = 1
 rtol_adapt = 1e-5
 fnu_min_frac = 1e-4
 
-nsublayers = 101
+nsublayers = 11
 im_max_theta = 1.57
 
 * Settings
@@ -77,29 +77,29 @@ load_dynamics = no
 do_ele = yes
 do_spec = no
 save_spec = no
-do_lc = no
+do_lc = yes
 do_skymap = yes
 
 do_rs = no
 rhs_type = grb_fs
 method_collision = none # none
-method_eats = adaptive # piece-wise
+method_eats = piece-wise # piece-wise
 
 do_thermrad_loss = no
 
 use_1d_id = yes
 fname_dyn = dyn_grb_tophat.h5
-fname_light_curve = lc_grb_tophat.h5
+fname_light_curve = lc_gauss_a.h5
 fname_light_curve_layers = none
-fname_sky_map = skymap_grb_tophat.h5
+fname_sky_map = skymap_gauss_a.h5
 
 do_nucinj = no
 type = numeric
-fname_ejecta_id = tophat_grb_id_a.h5
+fname_ejecta_id = gauss_grb_id_a.h5
 load_r0 = no
 
 
-method_spread = AFGPY
+method_spread = None
 method_dgdr = our
 method_eos = Nava13
 method_GammaSh = useJKwithGammaRel  # default -- "useGamma"

@@ -208,11 +208,14 @@ public:
         std::vector<std::string> other_names { "times", "freqs" };
         Images images(nshells_,IMG::m_names.size());
 
+
+
         for (size_t ifreq = 0; ifreq < freqs.size(); ifreq++){
             Vector tota_flux(times.size(), 0.0);
             VecVector total_flux_shell( nshells_ );
             for (auto & total_flux_shel : total_flux_shell)
                 total_flux_shel.resize( times.size(), 0.0 );
+
             for (size_t it = 0; it < times.size(); ++it){
 //                auto images = computeEjectaSkyMapPW( times[it],freqs[ifreq]);
 //                std::vector<Image> images(nshells_);
@@ -232,6 +235,15 @@ public:
                     tota_flux[it] += images.getReferenceToTheImage(ish).m_f_tot;
                     total_flux_shell[ish][it] = images.getReferenceToTheImage(ish).m_f_tot;
                 }
+
+
+//                Vector _times {times[it]}; Vector _freqs {freqs[ifreq]};
+//                double _tot_flux = 0;
+//                auto light_curve = evalEjectaLightCurves( _times, _freqs);
+//                for (size_t il = 0; il < nlayers_; il++)
+//                    _tot_flux += light_curve[0][il][0];
+//                std::cout << " lc: "<<_tot_flux<<" im: "<<tota_flux[it]<<" t="<<times[it]<<" nu="<<freqs[ifreq]<<"\n";
+
                 ii++;
             }
             other_data.emplace_back( tota_flux );
@@ -404,23 +416,6 @@ public:
         cast_times_freqs(lc_times,lc_freqs,_times,_freqs,lc_freq_to_time,p_log);
 
         (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta light curve with analytic synchrotron...\n";
-
-//        size_t nshells = p_cumShells->nshells();
-//        size_t m_nlayers = p_cumShells->m_nlayers();
-//        size_t ncells =  (int)p_cumShells->ncells();
-
-//        if (!is_ejecta_anal_synch_computed){
-//            std::cerr << " ejecta analytic electrons were not evolved. Cannot evaluateShycnhrotronSpectrum light curve (analytic) exiting...\n";
-//            std::cerr << AT << " \n";
-//            exit(1);
-//        }
-//        if (!is_ejecta_obs_pars_set){
-//            std::cerr << " ejecta observer parameters are not set. Cannot evaluateShycnhrotronSpectrum light curve (analytic) exiting...\n";
-//            std::cerr << AT << " \n";
-//            exit(1);
-//        }
-
-//        auto & tmp = getShells()[0]->getBW(0)->getSynchAnPtr();
 
         std::vector< // layers / shells
                 std::vector< // options

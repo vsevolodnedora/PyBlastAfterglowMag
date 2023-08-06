@@ -199,7 +199,7 @@ void combineImages(Image & image, size_t ncells, size_t nlayers, Images & images
             std::cerr << AT << " error...\n";
         }
     }
-
+    image.m_f_tot = 0.;
     size_t ii = 0;
     if (image.m_size!=2*ncells)
         image.resize(2 * ncells, 0. );

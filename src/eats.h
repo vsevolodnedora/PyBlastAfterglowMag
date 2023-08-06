@@ -463,6 +463,7 @@ public:
         parsPars(t_obs, nu_obs, 0., 0., 0., 0., obs_angle);
         check_pars();
         size_t cil = EjectaID2::CellsInLayer(p_pars->ilayer);
+        image.m_f_tot = 0.;
 #if 1
 //        Vector ttobs( p_pars->m_r.size(), std::numeric_limits<double>::max() );
         cphis.resize(p_pars->m_i_end_r, std::numeric_limits<double>::max());//= EjectaID2::getCphiGridPW( p_pars->ilayer );
@@ -650,6 +651,7 @@ public:
             (*p_log)(LOG_ERR,AT) << " image is empty\n";
             exit(1);
         }
+        image.m_f_tot = 0.;
         if (cil<1){
             (*p_log)(LOG_ERR,AT) << " cil < 1\n";
             exit(1);
@@ -969,10 +971,6 @@ public:
         if (p_pars->counter_jet) // p_eats->counter_jet
             evalImageFromA(im_cj, obs_time, obs_freq, atol, theta_l, theta_h, cil,
                            obsAngleCJ, imageXXsCJ, imageYYsCJ);
-        if (im_cj.m_size == 0||im_pj.m_size==0){
-            (*p_log)(LOG_ERR,AT)<<"error\n";
-            exit(1);
-        }
     }
 
 

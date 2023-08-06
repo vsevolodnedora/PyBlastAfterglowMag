@@ -162,15 +162,17 @@ def task_kn_skymap_with_dist_one_time(method_eats="piece-wise",type="pw"):
     }
     plot_one_skymap_with_dists(task_to_plot=task_to_plot, settings=settings)
 
+
+
 def compare_skymaps(resolutions=((80,100,120),
                                  # (21,41,81,101,121),
                                  # (21,81,121,161,201),
                                  (381,401,521),
                                  ('red','orange','yellow', 'cyan', 'lime'))):
-    workdir = os.getcwd()+'/'
+
     fig,axes = plt.subplots(ncols=2,nrows=len(resolutions[0])+1,sharex='all',sharey='row',figsize=(5,10))
     times = np.array([1.,10.,40.,100.,200.,400.,800.,1600.])
-    time_ = 200
+    time_ = 1600
     freq = 1e9
     tmp={"hist_nx": 71, "hist_ny": 71, "spec": False,
          "smooth": {},  # {"type": "gaussian", "sigma": 10},
@@ -205,18 +207,15 @@ def compare_skymaps(resolutions=((80,100,120),
 
         # ------ Piece Wise -------
         if (nres_pw > 0):
-            prepare_grb_ej_id_1d({"struct":"gaussian",
-                                  "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
-                                  "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":nlayer_pw,"nlayers_a": 10}, type="pw",
-                                 outfpath=workdir+"gauss_grb_id_pw.h5")
-            # prepare_grb_ej_id_1d({"Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": theta_w, "theta_w": theta_w,
-            #                       "nlayers_pw": nlayer_pw, "nlayers_a": 1, "struct":"tophat"},type='pw',outfpath="tophat_grb_id_pw.h5")
+            prepare_grb_ej_id_1d({"Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": theta_w, "theta_w": theta_w,
+                                  "nlayers_pw": nlayer_pw, "nlayers_a": 1, "struct":"tophat"},type='pw',outfpath="tophat_grb_id_pw.h5")
 
             modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main", newpars={},newopts={},
                                    parfile="parfile.par", newparfile="parfile.par", keep_old=False)
             modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
                                    newpars={},
-                                   newopts={"fname_ejecta_id":"tophat_grb_id_pw.h5","method_eats":"piece-wise"},
+                                   newopts={"fname_ejecta_id":"tophat_grb_id_pw.h5","method_eats":"piece-wise",
+                                            "fname_sky_map":"skymap_gauss_pw.h5", "fname_light_curve":"lc_gauss_pw.h5"},
                                    parfile="parfile.par", newparfile="parfile.par", keep_old=False)
             pba_pw = PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
             pba_pw.run(loglevel='info')
@@ -248,17 +247,14 @@ def compare_skymaps(resolutions=((80,100,120),
 
         # ------ Adaptive -------
         if (nres_a > 0):
-            prepare_grb_ej_id_1d({"struct":"gaussian",
-                                  "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
-                                  "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":nlayer_pw,"nlayers_a": 10}, type="pw",
-                                 outfpath=workdir+"gauss_grb_id_a.h5")
-            # prepare_grb_ej_id_1d({"Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": theta_w, "theta_w": theta_w,
-            #                       "nlayers_pw": 1, "nlayers_a": 1, "struct":"tophat"},type='a',outfpath="tophat_grb_id_a.h5")
+            prepare_grb_ej_id_1d({"Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": theta_w, "theta_w": theta_w,
+                                  "nlayers_pw": 1, "nlayers_a": 1, "struct":"tophat"},type='a',outfpath="tophat_grb_id_a.h5")
             modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main", newpars={},newopts={},
                                    parfile="parfile.par", newparfile="parfile.par", keep_old=False)
             modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
                                    newpars={"nsublayers":nlayer_a},
-                                   newopts={"fname_ejecta_id":"tophat_grb_id_a.h5","method_eats":"adaptive"},
+                                   newopts={"fname_ejecta_id":"tophat_grb_id_a.h5","method_eats":"adaptive",
+                                            "fname_sky_map":"skymap_gauss_a.h5", "fname_light_curve":"lc_gauss_a.h5"},
                                    parfile="parfile.par", newparfile="parfile.par", keep_old=False)
             pba_a = PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
             pba_a.run(loglevel='info')
@@ -280,8 +276,11 @@ def compare_skymaps(resolutions=((80,100,120),
                   grid_x_j, grid_y_j, int_x_j, int_y_j, i_zz_x_j, i_zz_y_j, int_zz_j, xc_m_j, yc_m_j)
 
         tot_fluxes[f"nlayer_a={nlayer_a} nlayer_pw={nlayer_pw}"] = f" PW={pba_pw.GRB.get_skymap_totfluxes(freq=freq,time=time_* cgs.day)}" + \
-                                                         f" A={pba_a.GRB.get_skymap_totfluxes(freq=freq,time=time_* cgs.day)}"
-            # --- COLOBAR
+                                                                       f" lc:({pba_pw.GRB.get_lc(freq=freq,time=time_* cgs.day)})" + \
+                                                                       f" A={pba_a.GRB.get_skymap_totfluxes(freq=freq,time=time_* cgs.day)}" + \
+                                                                       f" lc:({pba_a.GRB.get_lc(freq=freq,time=time_* cgs.day)})"
+
+        # --- COLOBAR
             # ax_cbar = axes[1,i+1]
             # divider = make_axes_locatable(ax_cbar)
             # cax = divider.append_axes('right', size='99%', pad=0.9)
@@ -663,14 +662,13 @@ def compare_skymap_evolution(resolutions=((21,81,121,161,201),
     nlayer_pw = 80
     theta_w = 0.2
     freq = 1.e9
-    tmp = {"hist_nx":91,
-           "hist_ny":91}
+    tmp = {"hist_nx":91, "hist_ny":91}
 
     res = {
-        "pw":{"t":times,"xc":np.zeros_like(times),"yc":np.zeros_like(times),"xsize":np.zeros_like(times), "ysize":np.zeros_like(times)}
+        "pw":{"t":times,"xc":np.zeros_like(times),"yc":np.zeros_like(times),"xsize":np.zeros_like(times), "ysize":np.zeros_like(times),"fnu":np.zeros_like(times)}
     }
     for ir, sublayers in enumerate(resolutions[0]):
-        res[f"a{sublayers}"] = {"t":times,"xc":np.zeros_like(times),"yc":np.zeros_like(times),"xsize":np.zeros_like(times), "ysize":np.zeros_like(times)}
+        res[f"a{sublayers}"] = {"t":times,"xc":np.zeros_like(times),"yc":np.zeros_like(times),"xsize":np.zeros_like(times), "ysize":np.zeros_like(times),"fnu":np.zeros_like(times)}
 
 
     prepare_grb_ej_id_1d({"Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": theta_w, "theta_w": theta_w,
@@ -707,6 +705,7 @@ def compare_skymap_evolution(resolutions=((21,81,121,161,201),
         res["pw"]["yc"][it] = yc_m_j
         res["pw"]["xsize"][it] = x2-x1
         res["pw"]["ysize"][it] = y2-y1
+        res["pw"]["fnu"][it] = pba_pw.GRB.get_skymap_totfluxes(freq=freq,time=t*cgs.day)
 
 
     # adaptive
@@ -744,24 +743,28 @@ def compare_skymap_evolution(resolutions=((21,81,121,161,201),
             res[f"a{nsublayers}"]["yc"][it] = yc_m_j
             res[f"a{nsublayers}"]["xsize"][it] = x2-x1
             res[f"a{nsublayers}"]["ysize"][it] = y2-y1
+            res[f"a{nsublayers}"]["fnu"][it] = pba_a.GRB.get_skymap_totfluxes(freq=freq,time=t*cgs.day)
 
     # plotting
-    fig, axes=plt.subplots(ncols=1,nrows=4,sharex='all',figsize=(10,5))
+    fig, axes=plt.subplots(ncols=1,nrows=5,sharex='all',figsize=(10,7))
     axes[0].plot(res["pw"]["t"], res["pw"]["xc"], color='black', ls='-', lw=2, alpha=1, marker='x')
     axes[1].plot(res["pw"]["t"], res["pw"]["yc"], color='black', ls='-', lw=2, alpha=1, marker='x')
     axes[2].plot(res["pw"]["t"], res["pw"]["xsize"], color='black', ls='-', lw=2, alpha=1, marker='x')
     axes[3].plot(res["pw"]["t"], res["pw"]["ysize"], color='black', ls='-', lw=2, alpha=1, marker='x')
+    axes[4].plot(res["pw"]["t"], res["pw"]["fnu"], color='black', ls='-', lw=2, alpha=1, marker='x')
     for nsublayers, color in zip(resolutions[0],resolutions[1]):
         axes[0].plot(res[f"a{nsublayers}"]["t"], res[f"a{nsublayers}"]["xc"], color=color, ls='-', lw=2, alpha=.7, marker='o')
         axes[1].plot(res[f"a{nsublayers}"]["t"], res[f"a{nsublayers}"]["yc"], color=color, ls='-', lw=2, alpha=.7, marker='o')
         axes[2].plot(res[f"a{nsublayers}"]["t"], res[f"a{nsublayers}"]["xsize"], color=color, ls='-', lw=2, alpha=.7, marker='o')
         axes[3].plot(res[f"a{nsublayers}"]["t"], res[f"a{nsublayers}"]["ysize"], color=color, ls='-', lw=2, alpha=.7, marker='o')
+        axes[4].plot(res[f"a{nsublayers}"]["t"], res[f"a{nsublayers}"]["fnu"], color=color, ls='-', lw=2, alpha=.7, marker='o')
 
     for ax,lbl in zip(axes,["xc", "yc", "xsize", "ysize"]):
         ax.set_ylabel(lbl)
 
     axes[0].set_ylim(-2,2)
     axes[1].set_ylim(-2,2)
+    axes[4].set_yscale('log')
     axes[len(axes)-1].set_xlabel("time [d]")
 
     plt.show()
@@ -772,7 +775,7 @@ def main():
     compare_skymaps(resolutions=((20,40,80,100,120),
                                  # (21,41,81,101,121),
                                  # (81,),
-                                 (21,41,61,81,101),
+                                 (21,81,121,161,201),
                                  # (121,241,381,401,521),
                                  # (121,),
                                  ('red','orange','yellow', 'cyan', 'lime')))
