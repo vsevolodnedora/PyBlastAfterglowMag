@@ -137,6 +137,7 @@ struct Image {
     double m_f_tot{}; // total flux density in the image (in mJy) aka
     // J * (1.0 + z) / (2.0 * d_l * d_l) * CGS::cgs2mJy
     size_t m_size = 0;
+    size_t m_size_active = 0;
 //        Array m_thetas;
 //        Array m_phis;
 //        Array m_theta_j;
@@ -224,6 +225,50 @@ void combineImages(Image & image, size_t ncells, size_t nlayers, Images & images
         image.m_f_tot += tmp.m_f_tot;
     }
 }
+
+void combineImagesA(Image & image, size_t ncells, size_t nlayers, Images & images){
+    if (images.size() != nlayers){
+        std::cerr << " nlayeyers="<<nlayers<<" != n_images="<<images.size()<<"\n";
+        std::cerr << AT << "\n";
+        exit(1);
+    }
+    size_t size = images.getReferenceToTheImage(0).m_size;
+    for (auto & im : images.getImgs()){
+        if (im->m_size != size){
+            std::cerr << AT << " error...\n";
+        }
+    }
+    image.m_f_tot = 0.;
+    size_t ii = 0;
+    if (image.m_size!=2*ncells)
+        image.resize(2 * ncells, 0. );
+    for (size_t ilayer = 0; ilayer < nlayers; ilayer++){
+//        size_t ncells_in_layer = EjectaID2::CellsInLayer(ilayer);//struc.cil[ilayer];
+        auto & tmp = images.getReferenceToTheImage(ilayer);
+        size_t ncells_in_layer = tmp.m_size_active;
+        if (ncells_in_layer == 0){
+            std::cerr<<AT<<" image does not have active cells\n";
+            exit(1);
+        }
+//        if ( tmp.m_size != 2 * ncells_in_layer ){
+//            std::cerr <<  " Error !" << "\n";
+//            std::cerr << AT << "\n";
+//            exit(1);
+//        }
+        for( size_t ipj = 0; ipj < ncells_in_layer; ipj++ ){
+            for (size_t ivn = 0; ivn < image.m_n_vn; ivn++)
+                (image)(ivn, ii + ipj) = tmp(ivn, ipj);
+        }
+        for( size_t icj = 0; icj < ncells_in_layer; icj++ ){
+            for (size_t ivn = 0; ivn < image.m_n_vn; ivn++)
+                (image)(ivn, ncells + ii + icj) = tmp(ivn, ncells_in_layer + icj);
+        }
+        ii += ncells_in_layer;
+
+        image.m_f_tot += tmp.m_f_tot;
+    }
+}
+
 
 static inline double cosToSin(const double &cos_theta){
     return sqrt((1.0 - cos_theta) * (1.0 + cos_theta) );

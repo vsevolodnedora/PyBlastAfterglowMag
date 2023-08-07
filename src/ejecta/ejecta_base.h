@@ -590,6 +590,11 @@ public:
         if (ncells > 1e6){
             (*p_log)(LOG_WARN,AT) << " for adaptive EATS image calc. large ncells="<<ncells<<"\n";
         }
+
+//        size_t nphi = 100;
+//        ncells = nlayers_ * nsublayers * nphi;
+
+
 //        size_t ntheta = nlayers_*nsublayers;
 //        Vector cthetas0;
 //        Vector thetas ( ntheta + 1 );
@@ -685,8 +690,9 @@ public:
                 for(size_t iilayer = 0; iilayer < nsublayers; iilayer++){
 //                    size_t cil = EjectaID2::CellsInLayer(ii);
                     double ctheta = theta_c_l[ii]+0.5*(theta_c_h[ii]-theta_c_l[ii]);
-                    for (size_t j = 0; j < cils[ii]; j++){
-                        double cphis = (double)j * 2.0 * CGS::pi / (double)cils[ii];
+                    size_t nphi = cils[ii];
+                    for (size_t j = 0; j < nphi; j++){
+                        double cphis = (double)j * 2.0 * CGS::pi / (double)nphi;
                         tmp_pj.gerArr(IMG::Q::icphi)[j] = cphis;
                         tmp_cj.gerArr(IMG::Q::icphi)[j] = cphis;
                         tmp_pj.gerArr(IMG::Q::ictheta)[j] = ctheta;
@@ -696,8 +702,9 @@ public:
                         (*p_log)(LOG_ERR,AT)<<"error\n";
                         exit(1);
                     }
+                    tmpImagesSet.getReferenceToTheImage(ii).m_size_active = nphi;
                     bw_rad->evalImageA(tmpImagesSet.getReferenceToTheImage(ii), tmp_pj, tmp_cj,
-                                       theta_c_l[ii], theta_c_h[ii], cils[ii],
+                                       theta_c_l[ii], theta_c_h[ii], nphi,
                                        obs_time, obs_freq, atol);
                     /// [debug] trying to account for if thetamax > theta_w hist image does not work...
 //                    auto & ints = tmpImagesSet.getReferenceToTheImage(ii).gerArr(IMG::iintens);
@@ -709,6 +716,9 @@ public:
 //                        n_jet_empty_images += 1; n_empty_images_layer.emplace_back(ilayer);
 //                    }
                     /// override the image total flux density (normalize to the number of sublayers)
+//                    if (tmpImagesSet.getReferenceToTheImage(ii).m_f_tot==0){
+//                        (*p_log)(LOG_WARN,AT) << "image summed intensity = 0 il="<<ilayer<<" sub_il="<<iilayer<<" nphis="<<nphi<<"\n";
+//                    }
                     tmpImagesSet.getReferenceToTheImage(ii).m_f_tot = layer_flux / (double)(nsublayers);
                     ii++;
                 }
@@ -720,14 +730,19 @@ public:
             }
             images.getReferenceToTheImage(ishell).m_f_tot = 0.;
             auto & imageForEntireShell = images.getReferenceToTheImage(ishell);
+//            if (std::accumulate(imageForEntireShell.gerArr(IMG::Q::iintens).begin(),
+//                                imageForEntireShell.gerArr(IMG::Q::iintens).end(),0.)==0.){
+//                (*p_log)(LOG_WARN,AT) << "image summed intensity = 0\n";
+//                exit(1);
+//            }
+            imageForEntireShell.resize(2 * ncells, 0. );
+            combineImagesA(imageForEntireShell, ncells, nlayers_ * nsublayers, tmpImagesSet) ;
+
             if (std::accumulate(imageForEntireShell.gerArr(IMG::Q::iintens).begin(),
                                 imageForEntireShell.gerArr(IMG::Q::iintens).end(),0.)==0.){
                 (*p_log)(LOG_WARN,AT) << "image summed intensity = 0\n";
                 exit(1);
             }
-            imageForEntireShell.resize(2 * ncells, 0. );
-            combineImages(imageForEntireShell, ncells, nlayers_ * nsublayers, tmpImagesSet) ;
-
 
 
 //            if (imageForEntireShell.m_f_tot != tot_flux){
@@ -741,22 +756,22 @@ public:
         }
 
         /// print which layers/shells gave isEmpty image
-        if (p_log->getLogLevel() == LOG_INFO) {
-            if (n_jet_empty_images > 0) {
-                auto &ccerr = std::cout;
-                ccerr << "Ejecta at tobs=" << obs_time << " freq=" << obs_freq << " gave an isEmpty images for total n="
-                      << n_jet_empty_images << " layers. Specifically:\n";
-                for (size_t ish = 0; ish < n_empty_images_shells.size(); ish++) {
-//                auto & ejectaStruct = ejectaStructs.structs[n_empty_images_shells[ish]];
-//                size_t n_layers_ej = m_nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStruct.nlayers_pw : ejectaStruct.nlayers_a ;
-                    ccerr << "\t [ishell=" << n_empty_images_shells[ish] << " ilayer] = [ ";
-                    for (size_t il = 0; il < n_empty_images[ish].size(); il++) {
-                        ccerr << n_empty_images[ish][il] << " ";
-                    }
-                    ccerr << "] / (" << nlayers_ << " total layers) \n";
-                }
-            }
-        }
+//        if (p_log->getLogLevel() == LOG_INFO) {
+//            if (n_jet_empty_images > 0) {
+//                auto &ccerr = std::cout;
+//                ccerr << "Ejecta at tobs=" << obs_time << " freq=" << obs_freq << " gave an isEmpty images for total n="
+//                      << n_jet_empty_images << " layers. Specifically:\n";
+//                for (size_t ish = 0; ish < n_empty_images_shells.size(); ish++) {
+////                auto & ejectaStruct = ejectaStructs.structs[n_empty_images_shells[ish]];
+////                size_t n_layers_ej = m_nlayers;//(p_pars->ej_method_eats == LatStruct::i_pw) ? ejectaStruct.nlayers_pw : ejectaStruct.nlayers_a ;
+//                    ccerr << "\t [ishell=" << n_empty_images_shells[ish] << " ilayer] = [ ";
+//                    for (size_t il = 0; il < n_empty_images[ish].size(); il++) {
+//                        ccerr << n_empty_images[ish][il] << " ";
+//                    }
+//                    ccerr << "] / (" << nlayers_ << " total layers) \n";
+//                }
+//            }
+//        }
 
 //        return std::move( images );
     }
