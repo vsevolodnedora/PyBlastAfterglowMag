@@ -248,12 +248,12 @@ def compare_skymaps(resolutions=((80,100,120),
         if (nres_a > 0):
             prepare_grb_ej_id_1d({"struct":"gaussian",
                                   "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
-                                  "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":nlayer_pw,"nlayers_a": 90}, type="a",
+                                  "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":nlayer_pw,"nlayers_a": nlayer_a[0]}, type="a",
                                  outfpath=workdir+"gauss_grb_id_a.h5")
             modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main", newpars={},newopts={},
                                    parfile="parfile.par", newparfile="parfile.par", keep_old=False)
             modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
-                                   newpars={"nsublayers":nlayer_a},
+                                   newpars={"nsublayers":nlayer_a[1]},
                                    newopts={"fname_ejecta_id":"gauss_grb_id_a.h5","method_eats":"adaptive",
                                             "fname_sky_map":"skymap_gauss_a.h5", "fname_light_curve":"lc_gauss_a.h5"},
                                    parfile="parfile.par", newparfile="parfile.par", keep_old=False)
@@ -261,7 +261,7 @@ def compare_skymaps(resolutions=((80,100,120),
             pba_a.run(loglevel='info')
 
             all_x_jet, all_y_jet, all_fluxes_jet \
-                = pba_a.GRB.get_skymap(time=time_ * cgs.day, freq=freq, verbose=False, remove_mu=True, renormalize=True, normtype='pw')
+                = pba_a.GRB.get_skymap(time=time_ * cgs.day, freq=freq, verbose=False, remove_mu=True, renormalize=False, normtype='pw')
             int_x_j, int_y_j, int_zz_j = combine_images(all_x_jet, all_y_jet, all_fluxes_jet,
                                                                    hist_or_int="hist", shells=False, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
             grid_y_j, _i_zz_y_j, i_zz_y_j, _ = get_skymap_lat_dist(all_x_jet, all_y_jet, all_fluxes_jet,
@@ -498,14 +498,17 @@ def compare_skymaps_3d(resolutions=((20,40,80,100,120),
         nlayer_pw = resolutions[0][i] if nres_pw > 0 else 0
 
 
-        prepare_grb_ej_id_1d({"Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": theta_w, "theta_w": theta_w,
-                              "nlayers_pw": nlayer_pw, "nlayers_a": 1, "struct":"tophat"},type='pw',outfpath="tophat_grb_id_pw.h5")
-
+        prepare_grb_ej_id_1d({"struct":"gaussian",
+                              "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
+                              "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":nlayer_pw,"nlayers_a": 10}, type="pw",
+                             outfpath="gauss_grb_id_pw.h5")
         modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main", newpars={},newopts={},
                                parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
                                newpars={},
-                               newopts={"fname_ejecta_id":"tophat_grb_id_pw.h5","method_eats":"piece-wise"},
+                               newopts={"fname_ejecta_id":"gauss_grb_id_pw.h5","method_eats":"piece-wise",
+                                        "fname_sky_map":"skymap_gauss_pw.h5", "fname_light_curve":"lc_gauss_pw.h5",
+                                        "use_1d_id": "yes"},
                                parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         pba_pw = PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
         pba_pw.run(loglevel='info')
@@ -535,19 +538,23 @@ def compare_skymaps_3d(resolutions=((20,40,80,100,120),
         ax_a.set_title(f"Tot.Flux={pba_pw.GRB.get_skymap_totfluxes(freq=freq,time=times[3] * cgs.day)}")
         # ---------------------- #
 
-        prepare_grb_ej_id_1d({"Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": theta_w, "theta_w": theta_w,
-                              "nlayers_pw": 1, "nlayers_a": 1, "struct":"tophat"},type='a',outfpath="tophat_grb_id_a.h5")
+        prepare_grb_ej_id_1d({"struct":"gaussian",
+                              "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
+                              "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":nlayer_pw,"nlayers_a": nlayer_a[0]}, type="a",
+                             outfpath="gauss_grb_id_a.h5")
         modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main", newpars={},newopts={},
                                parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
-                               newpars={"nsublayers":nlayer_a},
-                               newopts={"fname_ejecta_id":"tophat_grb_id_a.h5","method_eats":"adaptive"},
+                               newpars={"nsublayers":nlayer_a[1]},
+                               newopts={"fname_ejecta_id":"gauss_grb_id_a.h5","method_eats":"adaptive",
+                                        "fname_sky_map":"skymap_gauss_a.h5", "fname_light_curve":"lc_gauss_a.h5",
+                                        "use_1d_id": "yes"},
                                parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         pba_a = PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
         pba_a.run(loglevel='info')
 
         all_x_jet_a, all_y_jet_a, all_fluxes_jet_a \
-            = pba_a.GRB.get_skymap(time=times[3] * cgs.day, freq=freq, verbose=False, remove_mu=True, renormalize=True, normtype='pw')
+            = pba_a.GRB.get_skymap(time=times[3] * cgs.day, freq=freq, verbose=True, remove_mu=True, renormalize=False, normtype='pw')
 
         ax_b = fig.add_subplot(1, 2, 2, projection='3d')
 
@@ -571,8 +578,8 @@ def compare_skymaps_3d(resolutions=((20,40,80,100,120),
         ax_b.set_title(f"Tot.Flux={pba_a.GRB.get_skymap_totfluxes(freq=freq,time=times[3] * cgs.day)}")
 
 
-    print(f"Piecewise: I[{fluxes_jet_pw.min(),fluxes_jet_pw.max()}]")
-    print(f"Adaptive: I[{fluxes_jet_a.min(),fluxes_jet_a.max()}]")
+    # print(f"Piecewise: I[{fluxes_jet_pw.min(),fluxes_jet_pw.max()}]")
+    # print(f"Adaptive: I[{fluxes_jet_a.min(),fluxes_jet_a.max()}]")
 
     # plt.tight_layout()
     plt.show()
@@ -685,7 +692,8 @@ def compare_skymap_evolution(resolutions=((5,7,9,11,13),
     modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
                            newpars={},
                            newopts={"fname_ejecta_id":"gauss_grb_id_pw.h5","method_eats":"piece-wise",
-                                    "fname_sky_map":"skymap_gauss_pw.h5", "fname_light_curve":"lc_gauss_pw.h5"},
+                                    "fname_sky_map":"skymap_gauss_pw.h5", "fname_light_curve":"lc_gauss_pw.h5",
+                                    "use_1d_id":"yes"},
                            parfile="parfile.par", newparfile="parfile.par", keep_old=False)
     pba_pw = PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
     pba_pw.run(loglevel='info')
@@ -727,7 +735,8 @@ def compare_skymap_evolution(resolutions=((5,7,9,11,13),
         modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
                                newpars={"nsublayers":ir},
                                newopts={"fname_ejecta_id":"gauss_grb_id_a.h5","method_esats":"adaptive",
-                                        "fname_sky_map":"skymap_gauss_a.h5", "fname_light_curve":"lc_gauss_a.h5"},
+                                        "fname_sky_map":"skymap_gauss_a.h5", "fname_light_curve":"lc_gauss_a.h5",
+                                        "use_1d_id": "no"},
                                parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         pba_a = PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
         pba_a.run(loglevel='info')
@@ -786,14 +795,15 @@ def main():
     # task_kn_skymap_with_dist_one_time(method_eats="adaptive",type="a")
     compare_skymaps(resolutions=(#s(80,100,120,140,160),
                                  # (11,17,21,27,37),
-                                 (81,),
-                                 (1,),
+                                 (81,101,111,121),
+                                 # ((20,11),(30,11),(40,11)),
+                                 ((11,21),(21,21),(21,11),(41,11)),
                                  #(5,5,5,5,5),
                                  # (121,241,381,401,521),
                                  # (11,),
                                  ('red','orange','yellow', 'cyan', 'lime')))
     # compare_skymaps_3d(resolutions=((80,),
-    #                              (701,),
+    #                              ((20,21),),
     #                              # (21,81,121,161,201),
     #                              # (121,241,381,401,521),
     #                              ('red','orange','yellow', 'cyan', 'lime')))

@@ -182,6 +182,12 @@ public:
         size_t nshells_ = nshells();
         size_t nlayers_ = nlayers();
 
+        /// for adaptive method: each BW is its own radial shell there, so we split
+        if (id->method_eats==EjectaID2::iadaptive) {
+            nshells_ = nlayers();
+            nlayers_ = 1;
+        }
+
         std::vector< // times & freqs
                 std::vector< // v_ns
                         std::vector< // shells
@@ -206,10 +212,12 @@ public:
         };
         ii = 0;
         std::vector<std::string> other_names { "times", "freqs" };
+
+
         Images images(nshells_,IMG::m_names.size());
 
 
-
+//        Vector _tmp{};
         for (size_t ifreq = 0; ifreq < freqs.size(); ifreq++){
             Vector tota_flux(times.size(), 0.0);
             VecVector total_flux_shell( nshells_ );
@@ -270,7 +278,7 @@ public:
         /// add attributes from model parameters
         std::unordered_map<std::string,double> attrs{
                 {"nshells", nshells_},
-                {"nshells", nlayers_}
+                {"nlayers", nlayers_}
         };
 
         for (auto& [key, value]: main_pars) { attrs[key] = value; }

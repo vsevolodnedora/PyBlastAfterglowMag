@@ -151,6 +151,27 @@ public:
             theta_c_h[i] = i_theta_c_h;//thetas_c_h[i] = i_theta_c_h ;
         }
     }
+    /// initial grid for [a] EATS method
+    static void _init_a_grid_(Vector & theta_c_l, Vector & theta_c_h, Vector & theta_c, size_t nlayers, double theta0, double theta_w){
+        if (theta_c_l.size() != nlayers) theta_c_l.resize(nlayers,0.);
+        if (theta_c_h.size() != nlayers) theta_c_h.resize(nlayers,0.);
+        if (theta_c.size() != nlayers) theta_c.resize(nlayers,0.);
+        double dtheta = (theta_w-theta0) / (double) nlayers;
+        for (size_t i = 0; i < nlayers; i++) {
+            /// account for geometry
+            double theta_c_i   = theta0 + (double) i * dtheta + dtheta / 2.;
+            double i_theta_c_l = theta0 + (double) i * dtheta;
+            double i_theta_c_h = theta0 + (double) (i + 1) * dtheta;
+            theta_c[i]   = theta_c_i;//thetas_c[i] = theta_c_i ;
+            theta_c_l[i] = i_theta_c_l;//thetas_c_l[i] = i_theta_c_l ;
+            theta_c_h[i] = i_theta_c_h;//thetas_c_h[i] = i_theta_c_h ;
+            if (theta_c_h[i] > CGS::pi/2.){
+                std::cerr <<AT<<" theta_c_h[i]="<<theta_c_h[i]<<" > CGS::pi/2.";
+                exit(1);
+            }
+        }
+    }
+
     static void _init_pw_grid(Vector & theta_c_l, Vector & theta_c_h, Vector & theta_c, size_t nlayers, double theta_w){
         Vector theta_pw ( nlayers + 1 );
         for (size_t i = 0; i < nlayers + 1; i++){

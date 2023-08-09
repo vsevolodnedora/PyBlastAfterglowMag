@@ -47,6 +47,7 @@ do_average_solution = no
 * Parameters
 
 n_store_substeps = 10
+im_max_theta = 0
 
 eps_e = 0.1
 eps_b = 0.01
@@ -76,6 +77,7 @@ load_dynamics = no
 save_dynamics = yes
 do_ele = yes
 do_spec = no
+save_spec = no
 do_lc = no
 do_skymap = yes
 

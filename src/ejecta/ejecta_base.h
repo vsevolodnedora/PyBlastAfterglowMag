@@ -158,6 +158,8 @@ public:
                 arr.resize(nshells(), '-');
             tobs_ej_max.resize(nlayers(),0.);
             im_max_theta = getDoublePar("im_max_theta", m_pars, AT, p_log, CGS::pi/2., true);
+            if (im_max_theta <= 0.)
+                im_max_theta = id->theta_wing;
         }
         else{
             (*p_log)(LOG_INFO, AT) << "ejecta is not initialized and will not be considered.\n";
@@ -321,6 +323,10 @@ public:
                 (*p_log)(LOG_WARN,AT)<<empty_bw<<"\n";
             }
             (*p_log)(LOG_WARN,AT)<<"-------------------------------------"<<"\n";
+        }
+        if (n_unitinitilized_shells == nshells_*n_layers_ej_){
+            (*p_log)(LOG_ERR,AT)<<" No BW from ID file were intilazied."<<"\n";
+            exit(1);
         }
 
 //        if ((p_log->getLogLevel() > LOG_WARN)) {
@@ -570,7 +576,7 @@ public:
     }
 
     /// Compute Skymap for adaptive EATS
-    void computeEjectaSkyMapA(Images & images, double obs_time, double obs_freq, size_t nsublayers ){
+    void computeEjectaSkyMapA_old(Images & images, double obs_time, double obs_freq, size_t nsublayers ){
 
         size_t nshells_ = nshells();
         size_t nlayers_ = nlayers();
@@ -590,6 +596,9 @@ public:
         if (ncells > 1e6){
             (*p_log)(LOG_WARN,AT) << " for adaptive EATS image calc. large ncells="<<ncells<<"\n";
         }
+
+
+
 
 //        size_t nphi = 100;
 //        ncells = nlayers_ * nsublayers * nphi;
@@ -670,7 +679,7 @@ public:
 
             size_t ii = 0;
             double tot_flux = 0.;
-            for (size_t ilayer = 0; ilayer < nlayers_; ilayer++){
+            for (size_t ilayer = 0; ilayer < nlayers_; ++ilayer){
                 auto & bw_rad = p_cumShells[ilayer]->getBW(ishell)->getFsEATS();
 
                 /// eval. total flux.dens from the layer (one BW)
@@ -684,7 +693,8 @@ public:
                 (*p_log)(LOG_INFO,AT)
                         << " EJECTA LC obs_time="<<obs_time<<" obs_freq="<<obs_freq
                         << " vel_shell="<<ishell<<"/"<<nshells()-1
-                        << " theta_layer="<<ilayer<<"/"<<nlayers()<<"\n";
+                        << " theta_layer="<<ilayer<<"/"<<nlayers()
+                        <<" Fnu="<<layer_flux<<" mJy \n";
 
                 /// loop over sublayer and evaluate the intensity distribution
                 for(size_t iilayer = 0; iilayer < nsublayers; iilayer++){
@@ -743,7 +753,11 @@ public:
                 (*p_log)(LOG_WARN,AT) << "image summed intensity = 0\n";
                 exit(1);
             }
-
+            if (imageForEntireShell.m_f_tot == 0){
+                (*p_log)(LOG_WARN,AT) << "image summed flux = 0\n";
+                exit(1);
+            }
+            int i = 0;
 
 //            if (imageForEntireShell.m_f_tot != tot_flux){
 //                (*p_log)(LOG_ERR,AT)<<" imageForEntireShell.m_f_tot="<<imageForEntireShell.m_f_tot
@@ -774,6 +788,91 @@ public:
 //        }
 
 //        return std::move( images );
+    }
+
+    /// Compute Skymap for adaptive EATS
+    void computeEjectaSkyMapA(Images & images, double obs_time, double obs_freq, size_t nsublayers ){
+        size_t nlayers_ = nlayers();
+        // ------------------------
+        if (images.isEmpty()){
+            (*p_log)(LOG_ERR,AT) << " isEmpty image passed. Exiting...\n";
+            exit(1);
+        }
+        if (images.size() != nlayers_){
+            (*p_log)(LOG_ERR,AT) << " number of images does not equal to the number of shells. Exiting...\n";
+            exit(1);
+        }
+        // ----------------------
+        double rtol = 1e-6;
+        Images tmpImagesSet (nsublayers, IMG::m_names.size());
+        size_t ii = 0;
+        double tot_flux = 0.;
+        std::vector<size_t> cils(nlayers_ * nsublayers, 100);
+        EjectaID2::_evalCellsInLayer(nlayers_ * nsublayers, cils);
+
+//        size_t ncells = EjectaID2::_evalTotalNcells(nlayers_ * nsublayers);
+        size_t ncells = std::accumulate(cils.begin(), cils.end(), decltype(cils)::value_type(0));
+        tmpImagesSet.resizeEachImage(ncells*2);
+        Image tmp_pj( ncells, IMG::m_names.size(), 0, m_loglevel);
+        Image tmp_cj( ncells, IMG::m_names.size(), 0, m_loglevel);
+
+        Vector theta_c{};
+        Vector theta_c_l{};
+        Vector theta_c_h{};
+
+        for (size_t ilayer = 0; ilayer < nlayers_; ++ilayer){
+
+            auto & bw_rad = p_cumShells[ilayer]->getBW(0)->getFsEATS();
+            double theta_l = p_cumShells[ilayer]->getBW(0)->getPars()->theta_c_l;
+
+//        EjectaID2::_init_a_grid(theta_c_l, theta_c_h, theta_c, nlayers_ * nsublayers, CGS::pi/2.);
+            EjectaID2::_init_a_grid_(theta_c_l, theta_c_h, theta_c, nsublayers, theta_l, im_max_theta);//id->theta_wing);
+
+            double atol = tot_flux * rtol / (double)nlayers();
+            double layer_flux = bw_rad->evalFluxDensA(obs_time,obs_freq, atol);
+            tot_flux += layer_flux;
+            (*p_log)(LOG_INFO,AT)
+                    << " EJECTA LC obs_time="<<obs_time<<" obs_freq="<<obs_freq
+                    << " theta_layer="<<ilayer<<"/"<<nlayers()
+                    << " theta_l="<<theta_l
+                    << " Fnu="<<layer_flux<<" mJy \n";
+            for(size_t iilayer = 0; iilayer < nsublayers; iilayer++){
+                double ctheta = theta_c_l[iilayer];// + 0.5 * (theta_c_h[iilayer] - theta_c_l[iilayer]);
+                size_t nphi = cils[ii];
+                for (size_t j = 0; j < nphi; j++){
+                    double cphis = (double)j * 2.0 * CGS::pi / (double)nphi;
+                    tmp_pj.gerArr(IMG::Q::icphi)[j] = cphis;
+                    tmp_cj.gerArr(IMG::Q::icphi)[j] = cphis;
+                    tmp_pj.gerArr(IMG::Q::ictheta)[j] = ctheta;
+                    tmp_cj.gerArr(IMG::Q::ictheta)[j] = ctheta;
+                }
+                if (tmp_pj.m_size==0||tmp_cj.m_size==0){
+                    (*p_log)(LOG_ERR,AT)<<"error\n";
+                    exit(1);
+                }
+                tmpImagesSet.getReferenceToTheImage(iilayer).m_size_active = nphi;
+                bw_rad->evalImageA(tmpImagesSet.getReferenceToTheImage(iilayer), tmp_pj, tmp_cj,
+                                   theta_c_l[iilayer], theta_c_h[iilayer], nphi,
+                                   obs_time, obs_freq, atol);
+                tmpImagesSet.getReferenceToTheImage(iilayer).m_f_tot = layer_flux / (double)(nsublayers);
+                ii++;
+            }
+            images.getReferenceToTheImage(ilayer).m_f_tot = 0.;
+            auto & imageForEntireShell = images.getReferenceToTheImage(ilayer);
+
+            imageForEntireShell.resize(2 * ncells, 0. );
+            combineImagesA(imageForEntireShell, ncells, nsublayers, tmpImagesSet) ;
+
+//            if (std::accumulate(imageForEntireShell.gerArr(IMG::Q::iintens).begin(),
+//                                imageForEntireShell.gerArr(IMG::Q::iintens).end(),0.)==0.){
+//                (*p_log)(LOG_WARN,AT) << "image summed intensity = 0\n";
+//                exit(1);
+//            }
+            if (imageForEntireShell.m_f_tot == 0){
+                (*p_log)(LOG_WARN,AT) << "image summed flux = 0\n";
+                exit(1);
+            }
+        }
     }
 
     /// Compute lightcurve for piece-wise EATS

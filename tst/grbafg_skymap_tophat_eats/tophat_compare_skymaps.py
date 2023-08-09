@@ -772,13 +772,13 @@ def compare_skymap_evolution(resolutions=((21,81,121,161,201),
 def main():
     # task_kn_skymap_with_dist_one_time(method_eats="piece-wise",type="pw")
     # task_kn_skymap_with_dist_one_time(method_eats="adaptive",type="a")
-    compare_skymaps(resolutions=((20,40,80,100,120),
-                                 # (21,41,81,101,121),
-                                 # (81,),
-                                 (21,81,121,161,201),
-                                 # (121,241,381,401,521),
-                                 # (121,),
-                                 ('red','orange','yellow', 'cyan', 'lime')))
+    # compare_skymaps(resolutions=((20,40,80,100,120),
+    #                              # (21,41,81,101,121),
+    #                              # (81,),
+    #                              (21,81,121,161,201),
+    #                              # (121,241,381,401,521),
+    #                              # (121,),
+    #                              ('red','orange','yellow', 'cyan', 'lime')))
     # compare_skymaps_3d(resolutions=((80,),
     #                              (701,),
     #                              # (21,81,121,161,201),
@@ -802,6 +802,6 @@ def main():
     #                                             ('red','orange')))
 
 
-    # compare_skymap_evolution()
+    compare_skymap_evolution()
 if __name__ == '__main__':
     main()

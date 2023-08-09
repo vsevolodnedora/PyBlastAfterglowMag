@@ -642,6 +642,7 @@ public:
         image.m_f_tot = flux * CGS::cgs2mJy; /// flux in mJy
     }
 #if 1
+
     void evalImageFromA(Image & image, double t_obs, double nu_obs, double atol,
                         double theta_c_l, double theta_c_h, size_t cil,
                         double (*obs_angle)( const double &, const double &, const double & ),
@@ -661,8 +662,8 @@ public:
         check_pars();
         double summed_intensity = 0;
         double Fcoeff = cgs2mJy / (4. * M_PI * p_pars->d_l * p_pars->d_l);
-
-        for (size_t ii = 0; ii < cil; ii++) {
+        size_t ii = 0;
+        for (ii = 0; ii < cil; ii++) {
 
             double cphi = image.gerArr(IMG::Q::icphi)[ii];
             double ctheta = image.gerArr(IMG::Q::ictheta)[ii];
@@ -698,6 +699,7 @@ public:
             image(IMG::Q::ixr,ii) = x;//-1 * sin(obs_theta) * ( sin(_cthetas[ii]) * sin(_cphis[ii])) + cos(obs_theta)*cos(_cthetas[ii]);
             image(IMG::Q::iyr,ii) = y;//
         }
+
         summed_intensity *= Fcoeff;
         image.m_f_tot = summed_intensity;
     }

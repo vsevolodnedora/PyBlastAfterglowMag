@@ -65,8 +65,8 @@ save_dyn_every_it = 1
 rtol_adapt = 1e-5
 fnu_min_frac = 1e-4
 
-nsublayers = 11
-im_max_theta = 1.57
+nsublayers = 201
+im_max_theta = 1.57 # 0. for use theta_wing
 
 * Settings
 
@@ -83,7 +83,7 @@ do_skymap = yes
 do_rs = no
 rhs_type = grb_fs
 method_collision = none # none
-method_eats = piece-wise # piece-wise
+method_eats = adaptive # piece-wise
 
 do_thermrad_loss = no
 
@@ -95,11 +95,11 @@ fname_sky_map = skymap_gauss_a.h5
 
 do_nucinj = no
 type = numeric
-fname_ejecta_id = gauss_grb_id_a.h5
+fname_ejecta_id = tophat_grb_id_a.h5
 load_r0 = no
 
 
-method_spread = None
+method_spread = AFGPY
 method_dgdr = our
 method_eos = Nava13
 method_GammaSh = useJKwithGammaRel  # default -- "useGamma"
