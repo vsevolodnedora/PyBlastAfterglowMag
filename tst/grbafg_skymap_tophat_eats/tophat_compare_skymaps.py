@@ -174,13 +174,13 @@ def compare_skymaps(resolutions=((80,100,120),
     times = np.array([1.,10.,40.,100.,200.,400.,800.,1600.])
     time_ = 1600
     freq = 1e9
-    tmp={"hist_nx": 71, "hist_ny": 71, "spec": False,
+    tmp={"hist_nx": 41, "hist_ny": 41, "spec": False,
          "smooth": {},  # {"type": "gaussian", "sigma": 10},
          "cm": {"color": 'cyan', "marker": "+"},
          "ysize": {"capsize": 2, "color": "cyan", "lw": 0.5},
          "xsize": {"capsize": 2, "color": "cyan", "lw": 0.5},
          "pcolormesh": {"cmap": 'inferno', "set_under": None, "set_over": None, "set_rasterized": True,
-                        "norm": ("linear", "0.01max", "1max"), "facecolor": 0, "alpha": 1.0, "isnan": np.nan}
+                        "norm": ("log", "0.001max", "1max"), "facecolor": 0, "alpha": 1.0, "isnan": 0}
          }
     settings={
         "xlim": (-0.5, 5.0), "ylim": (-2.5, 2.5),
@@ -215,7 +215,7 @@ def compare_skymaps(resolutions=((80,100,120),
             modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
                                    newpars={},
                                    newopts={"fname_ejecta_id":"tophat_grb_id_pw.h5","method_eats":"piece-wise",
-                                            "fname_sky_map":"skymap_gauss_pw.h5", "fname_light_curve":"lc_gauss_pw.h5"},
+                                            "fname_sky_map":"skymap_tophat_pw.h5", "fname_light_curve":"lc_tophat_pw.h5"},
                                    parfile="parfile.par", newparfile="parfile.par", keep_old=False)
             pba_pw = PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
             pba_pw.run(loglevel='info')
@@ -254,13 +254,13 @@ def compare_skymaps(resolutions=((80,100,120),
             modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
                                    newpars={"nsublayers":nlayer_a},
                                    newopts={"fname_ejecta_id":"tophat_grb_id_a.h5","method_eats":"adaptive",
-                                            "fname_sky_map":"skymap_gauss_a.h5", "fname_light_curve":"lc_gauss_a.h5"},
+                                            "fname_sky_map":"skymap_tophat_a.h5", "fname_light_curve":"lc_tophat_a.h5"},
                                    parfile="parfile.par", newparfile="parfile.par", keep_old=False)
             pba_a = PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
             pba_a.run(loglevel='info')
 
             all_x_jet, all_y_jet, all_fluxes_jet \
-                = pba_a.GRB.get_skymap(time=time_ * cgs.day, freq=freq, verbose=False, remove_mu=True, renormalize=True, normtype='pw')
+                = pba_a.GRB.get_skymap(time=time_ * cgs.day, freq=freq, verbose=False, remove_mu=True, renormalize=False, normtype='pw')
             int_x_j, int_y_j, int_zz_j = combine_images(all_x_jet, all_y_jet, all_fluxes_jet,
                                                                    hist_or_int="hist", shells=False, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
             grid_y_j, _i_zz_y_j, i_zz_y_j, _ = get_skymap_lat_dist(all_x_jet, all_y_jet, all_fluxes_jet,
@@ -501,7 +501,8 @@ def compare_skymaps_3d(resolutions=((20,40,80,100,120),
                                parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
                                newpars={},
-                               newopts={"fname_ejecta_id":"tophat_grb_id_pw.h5","method_eats":"piece-wise"},
+                               newopts={"fname_ejecta_id":"tophat_grb_id_pw.h5","method_eats":"piece-wise",
+                                        "fname_sky_map":"skymap_tophat_pw.h5", "fname_light_curve":"lc_tophat_pw.h5"},
                                parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         pba_pw = PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
         pba_pw.run(loglevel='info')
@@ -537,13 +538,14 @@ def compare_skymaps_3d(resolutions=((20,40,80,100,120),
                                parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
                                newpars={"nsublayers":nlayer_a},
-                               newopts={"fname_ejecta_id":"tophat_grb_id_a.h5","method_eats":"adaptive"},
+                               newopts={"fname_ejecta_id":"tophat_grb_id_a.h5","method_eats":"adaptive",
+                                        "fname_sky_map":"skymap_tophat_a.h5", "fname_light_curve":"lc_tophat_a.h5"},
                                parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         pba_a = PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
         pba_a.run(loglevel='info')
 
         all_x_jet_a, all_y_jet_a, all_fluxes_jet_a \
-            = pba_a.GRB.get_skymap(time=times[3] * cgs.day, freq=freq, verbose=False, remove_mu=True, renormalize=True, normtype='pw')
+            = pba_a.GRB.get_skymap(time=times[3] * cgs.day, freq=freq, verbose=False, remove_mu=True, renormalize=False, normtype='pw')
 
         ax_b = fig.add_subplot(1, 2, 2, projection='3d')
 
@@ -574,7 +576,7 @@ def compare_skymaps_3d(resolutions=((20,40,80,100,120),
     plt.show()
 def compare_skymaps_3d_theta_im_max(theta_maxs=((0.2, 0.4, .9, 1.2,  1.57),
                                                  (121,321,521,621,721),
-                                                 ('red','orange','yellow', 'cyan', 'lime')), extend=2, nx = 91, ny = 91):
+                                                 ('red','orange','yellow', 'cyan', 'lime')), extend=2, nx = 31, ny = 31):
 
     theta_w = 0.2# np.pi/2.
     times = [1.,10.,40.,100.,200.]
@@ -607,7 +609,7 @@ def compare_skymaps_3d_theta_im_max(theta_maxs=((0.2, 0.4, .9, 1.2,  1.57),
         pba_a.run(loglevel='info')
 
         all_x_jet_a, all_y_jet_a, all_fluxes_jet_a \
-            = pba_a.GRB.get_skymap(time=times[3] * cgs.day, freq=freq, verbose=False, remove_mu=False, renormalize=True, normtype='a')
+            = pba_a.GRB.get_skymap(time=times[3] * cgs.day, freq=freq, verbose=False, remove_mu=False, renormalize=False, normtype='a')
 
         # ax_b = fig.add_subplot(len(theta_maxs[0]), 2, i*2+1, projection='3d')
         ax_b = fig.add_subplot(len(theta_maxs[0]), 2, i*2+1)
@@ -631,7 +633,7 @@ def compare_skymaps_3d_theta_im_max(theta_maxs=((0.2, 0.4, .9, 1.2,  1.57),
                                                         hist_or_int="hist", shells=False, nx=nx, ny=ny, extend=2)
             # grid_X, grid_Y = np.meshgrid(int_x_j, int_y_j, indexing='ij')
             max = 5.5
-            if my_norm2 is None: my_norm2 = LogNorm(int_zz_j.max() * 1e-2, int_zz_j.max())
+            if my_norm2 is None: my_norm2 = LogNorm(int_zz_j.max() * 1e-1, int_zz_j.max())
             # ax_x = fig.add_subplot(len(theta_maxs[0]), 2, (i+1)*2, projection='3d')
             ax_x = fig.add_subplot(len(theta_maxs[0]), 2, (i+1)*2)
             if int_x_j.ndim == 1:
@@ -772,10 +774,10 @@ def compare_skymap_evolution(resolutions=((21,81,121,161,201),
 def main():
     # task_kn_skymap_with_dist_one_time(method_eats="piece-wise",type="pw")
     # task_kn_skymap_with_dist_one_time(method_eats="adaptive",type="a")
-    # compare_skymaps(resolutions=((20,40,80,100,120),
+    # compare_skymaps(resolutions=((80,),
     #                              # (21,41,81,101,121),
     #                              # (81,),
-    #                              (21,81,121,161,201),
+    #                              (220,),
     #                              # (121,241,381,401,521),
     #                              # (121,),
     #                              ('red','orange','yellow', 'cyan', 'lime')))
@@ -793,13 +795,13 @@ def main():
     #                              ('red','orange','yellow', 'cyan', 'lime')))
 
     # compare_skymaps_3d(resolutions=((80,),
-    #                              (701,),
+    #                              (721,),
     #                              # (21,81,121,161,201),
     #                              # (121,241,381,401,521),
     #                              ('red','orange','yellow', 'cyan', 'lime')))
-    # compare_skymaps_3d_theta_im_max(theta_maxs=((0.2, 0.4,.9,1.57),
-    #                                             (221,221,221,221),
-    #                                             ('red','orange')))
+    compare_skymaps_3d_theta_im_max(theta_maxs=((0, 1.57,),
+                                                (21, 201,),
+                                                ('red','orange')))
 
 
     compare_skymap_evolution()

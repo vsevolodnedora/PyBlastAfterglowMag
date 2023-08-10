@@ -245,8 +245,7 @@ void combineImagesA(Image & image, size_t ncells, size_t nlayers, Images & image
     for (size_t ilayer = 0; ilayer < nlayers; ilayer++){
 //        size_t ncells_in_layer = EjectaID2::CellsInLayer(ilayer);//struc.cil[ilayer];
         auto & tmp = images.getReferenceToTheImage(ilayer);
-        size_t ncells_in_layer = tmp.m_size_active;
-        if (ncells_in_layer == 0){
+        if (tmp.m_size_active == 0){
             std::cerr<<AT<<" image does not have active cells\n";
             exit(1);
         }
@@ -255,15 +254,15 @@ void combineImagesA(Image & image, size_t ncells, size_t nlayers, Images & image
 //            std::cerr << AT << "\n";
 //            exit(1);
 //        }
-        for( size_t ipj = 0; ipj < ncells_in_layer; ipj++ ){
+        for( size_t ipj = 0; ipj < tmp.m_size_active; ipj++ ){
             for (size_t ivn = 0; ivn < image.m_n_vn; ivn++)
                 (image)(ivn, ii + ipj) = tmp(ivn, ipj);
         }
-        for( size_t icj = 0; icj < ncells_in_layer; icj++ ){
+        for( size_t icj = 0; icj < tmp.m_size_active; icj++ ){
             for (size_t ivn = 0; ivn < image.m_n_vn; ivn++)
-                (image)(ivn, ncells + ii + icj) = tmp(ivn, ncells_in_layer + icj);
+                (image)(ivn, ncells + ii + icj) = tmp(ivn, tmp.m_size_active + icj);
         }
-        ii += ncells_in_layer;
+        ii += tmp.m_size_active;
 
         image.m_f_tot += tmp.m_f_tot;
     }

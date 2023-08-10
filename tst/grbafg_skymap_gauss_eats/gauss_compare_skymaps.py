@@ -170,7 +170,7 @@ def compare_skymaps(resolutions=((80,100,120),
     workdir = os.getcwd()+'/'
     fig,axes = plt.subplots(ncols=2,nrows=len(resolutions[0])+1,sharex='all',sharey='row',figsize=(5,10))
     times = np.array([1.,10.,40.,100.,200.,400.,800.,1600.])
-    time_ = 200
+    time_ = 800
     freq = 1e9
     tmp={"hist_nx": 71, "hist_ny": 71, "spec": False,
          "smooth": {},  # {"type": "gaussian", "sigma": 10},
@@ -220,7 +220,7 @@ def compare_skymaps(resolutions=((80,100,120),
             pba_pw.run(loglevel='info')
 
             all_x_jet, all_y_jet, all_fluxes_jet \
-                = pba_pw.GRB.get_skymap(time=time_ * cgs.day, freq=freq, verbose=False, remove_mu=False,renormalize=True)
+                = pba_pw.GRB.get_skymap(time=time_ * cgs.day, freq=freq, verbose=False, remove_mu=True,renormalize=True)
             int_x_j, int_y_j, int_zz_j = combine_images(all_x_jet, all_y_jet, all_fluxes_jet,
                                                         hist_or_int="hist", shells=False, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
             grid_y_j, _i_zz_y_j, i_zz_y_j, _ = get_skymap_lat_dist(all_x_jet, all_y_jet, all_fluxes_jet,
@@ -667,10 +667,10 @@ def compare_skymaps_3d_theta_im_max(theta_maxs=((0.2, 0.4, .9, 1.2,  1.57),
     # plt.tight_layout()
     plt.show()
 
-def compare_skymap_evolution(resolutions=((5,7,9,11,13),
+def compare_skymap_evolution(resolutions=(((11,21),(21,21),(21,11),(41,11)),
                                           ('red','orange','yellow', 'cyan', 'lime'))):
     times = np.array([1.,10.,40.,100.,200.,400.,800.,1600.])
-    nlayer_pw = 80
+    nlayer_pw = 180
     theta_w = 0.2
     freq = 1.e9
     tmp = {"hist_nx":91,
@@ -680,7 +680,7 @@ def compare_skymap_evolution(resolutions=((5,7,9,11,13),
         "pw":{"t":times,"xc":np.zeros_like(times),"yc":np.zeros_like(times),"xsize":np.zeros_like(times), "ysize":np.zeros_like(times),"fnu":np.zeros_like(times)}
     }
     for ir, sublayers in enumerate(resolutions[0]):
-        res[f"a{sublayers}"] = {"t":times,"xc":np.zeros_like(times),"yc":np.zeros_like(times),"xsize":np.zeros_like(times), "ysize":np.zeros_like(times),"fnu":np.zeros_like(times)}
+        res[f"a{sublayers[0]}-{sublayers[1]}"] = {"t":times,"xc":np.zeros_like(times),"yc":np.zeros_like(times),"xsize":np.zeros_like(times), "ysize":np.zeros_like(times),"fnu":np.zeros_like(times)}
 
 
     prepare_grb_ej_id_1d({"struct":"gaussian",
@@ -724,19 +724,19 @@ def compare_skymap_evolution(resolutions=((5,7,9,11,13),
 
 
 # adaptive
-    for ir, nsublayers in enumerate(resolutions[0]):
+    for ir, sublayers in enumerate(resolutions[0]):
 
         prepare_grb_ej_id_1d({"struct":"gaussian",
                               "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
-                              "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":nlayer_pw,"nlayers_a": 10}, type="a",
+                              "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":nlayer_pw,"nlayers_a": sublayers[0]}, type="a",
                              outfpath="gauss_grb_id_a.h5")
         modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main", newpars={},newopts={},
                                parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
-                               newpars={"nsublayers":ir},
-                               newopts={"fname_ejecta_id":"gauss_grb_id_a.h5","method_esats":"adaptive",
+                               newpars={"nsublayers":sublayers[1]},
+                               newopts={"fname_ejecta_id":"gauss_grb_id_a.h5", "method_eats":"adaptive",
                                         "fname_sky_map":"skymap_gauss_a.h5", "fname_light_curve":"lc_gauss_a.h5",
-                                        "use_1d_id": "no"},
+                                        "use_1d_id": "yes"},
                                parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         pba_a = PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
         pba_a.run(loglevel='info')
@@ -744,7 +744,7 @@ def compare_skymap_evolution(resolutions=((5,7,9,11,13),
         for it, t in enumerate(times):
 
             all_x_jet, all_y_jet, all_fluxes_jet \
-                = pba_a.GRB.get_skymap(time=t * cgs.day, freq=freq, verbose=False, remove_mu=True, renormalize=True, normtype='a')
+                = pba_a.GRB.get_skymap(time=t * cgs.day, freq=freq, verbose=False, remove_mu=True, renormalize=False, normtype='a')
             int_x_j, int_y_j, int_zz_j = combine_images(all_x_jet, all_y_jet, all_fluxes_jet,
                                                         hist_or_int="hist", shells=False, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
 
@@ -758,11 +758,11 @@ def compare_skymap_evolution(resolutions=((5,7,9,11,13),
                                                                    collapse_axis="y", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
             x1, x2 = get_skymap_fwhm(grid_x_j, i_zz_x_j, xc_m_j)
 
-            res[f"a{nsublayers}"]["xc"][it] = xc_m_j
-            res[f"a{nsublayers}"]["yc"][it] = yc_m_j
-            res[f"a{nsublayers}"]["xsize"][it] = x2-x1
-            res[f"a{nsublayers}"]["ysize"][it] = y2-y1
-            res[f"a{nsublayers}"]["fnu"][it] = pba_a.GRB.get_skymap_totfluxes(freq=freq,time=t*cgs.day)
+            res[f"a{sublayers[0]}-{sublayers[1]}"]["xc"][it] = xc_m_j
+            res[f"a{sublayers[0]}-{sublayers[1]}"]["yc"][it] = yc_m_j
+            res[f"a{sublayers[0]}-{sublayers[1]}"]["xsize"][it] = x2-x1
+            res[f"a{sublayers[0]}-{sublayers[1]}"]["ysize"][it] = y2-y1
+            res[f"a{sublayers[0]}-{sublayers[1]}"]["fnu"][it] = pba_a.GRB.get_skymap_totfluxes(freq=freq,time=t*cgs.day)
 
 
 # plotting
@@ -773,12 +773,12 @@ def compare_skymap_evolution(resolutions=((5,7,9,11,13),
     axes[2].plot(res["pw"]["t"], res["pw"]["xsize"], color='black', ls='-', lw=2, alpha=1, marker='x')
     axes[3].plot(res["pw"]["t"], res["pw"]["ysize"], color='black', ls='-', lw=2, alpha=1, marker='x')
     axes[4].plot(res["pw"]["t"], res["pw"]["fnu"], color='black', ls='-', lw=2, alpha=1, marker='x')
-    for nsublayers, color in zip(resolutions[0],resolutions[1]):
-        axes[0].plot(res[f"a{nsublayers}"]["t"], res[f"a{nsublayers}"]["xc"], color=color, ls='-', lw=2, alpha=.7, marker='o')
-        axes[1].plot(res[f"a{nsublayers}"]["t"], res[f"a{nsublayers}"]["yc"], color=color, ls='-', lw=2, alpha=.7, marker='o')
-        axes[2].plot(res[f"a{nsublayers}"]["t"], res[f"a{nsublayers}"]["xsize"], color=color, ls='-', lw=2, alpha=.7, marker='o')
-        axes[3].plot(res[f"a{nsublayers}"]["t"], res[f"a{nsublayers}"]["ysize"], color=color, ls='-', lw=2, alpha=.7, marker='o')
-        axes[4].plot(res[f"a{nsublayers}"]["t"], res[f"a{nsublayers}"]["fnu"], color=color, ls='-', lw=2, alpha=.7, marker='o')
+    for sublayers, color in zip(resolutions[0],resolutions[1]):
+        axes[0].plot(res[f"a{sublayers[0]}-{sublayers[1]}"]["t"], res[f"a{sublayers[0]}-{sublayers[1]}"]["xc"], color=color, ls='-', lw=2, alpha=.7, marker='o')
+        axes[1].plot(res[f"a{sublayers[0]}-{sublayers[1]}"]["t"], res[f"a{sublayers[0]}-{sublayers[1]}"]["yc"], color=color, ls='-', lw=2, alpha=.7, marker='o')
+        axes[2].plot(res[f"a{sublayers[0]}-{sublayers[1]}"]["t"], res[f"a{sublayers[0]}-{sublayers[1]}"]["xsize"], color=color, ls='-', lw=2, alpha=.7, marker='o')
+        axes[3].plot(res[f"a{sublayers[0]}-{sublayers[1]}"]["t"], res[f"a{sublayers[0]}-{sublayers[1]}"]["ysize"], color=color, ls='-', lw=2, alpha=.7, marker='o')
+        axes[4].plot(res[f"a{sublayers[0]}-{sublayers[1]}"]["t"], res[f"a{sublayers[0]}-{sublayers[1]}"]["fnu"], color=color, ls='-', lw=2, alpha=.7, marker='o')
 
     for ax,lbl in zip(axes,["xc", "yc", "xsize", "ysize"]):
         ax.set_ylabel(lbl)
@@ -795,13 +795,14 @@ def main():
     # task_kn_skymap_with_dist_one_time(method_eats="adaptive",type="a")
     compare_skymaps(resolutions=(#s(80,100,120,140,160),
                                  # (11,17,21,27,37),
-                                 (81,101,111,121),
+                                 (150,200,250,300),
                                  # ((20,11),(30,11),(40,11)),
-                                 ((11,21),(21,21),(21,11),(41,11)),
+                                 # ((11,41),(21,11),(41,11),(61,2)),
+                                 ((81,1),(61,2),(41,3),(31,5)),
                                  #(5,5,5,5,5),
                                  # (121,241,381,401,521),
                                  # (11,),
-                                 ('red','orange','yellow', 'cyan', 'lime')))
+                                 ('red', 'orange','yellow', 'cyan', 'lime')))
     # compare_skymaps_3d(resolutions=((80,),
     #                              ((20,21),),
     #                              # (21,81,121,161,201),
@@ -821,10 +822,10 @@ def main():
     #                              # (121,241,381,401,521),
     #                              ('red','orange','yellow', 'cyan', 'lime')))
     # compare_skymaps_3d_theta_im_max(theta_maxs=((0.2, 0.4,.9,1.57),
-    #                                             (221,221,221,221),
+    #                                             ((11,21),(21,21),(21,11),(41,11)),
     #                                             ('red','orange')))
 
 
-    # compare_skymap_evolution()
+    compare_skymap_evolution()
 if __name__ == '__main__':
     main()

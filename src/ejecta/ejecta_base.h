@@ -860,6 +860,22 @@ public:
             images.getReferenceToTheImage(ilayer).m_f_tot = 0.;
             auto & imageForEntireShell = images.getReferenceToTheImage(ilayer);
 
+//            size_t ncells_max = 0;
+//            for (size_t iim=0; iim<tmpImagesSet.size(); iim++){
+//                size_t ncells_ = 0;
+//                auto & im = tmpImagesSet.getReferenceToTheImage(iim);
+//                for (size_t ii_ = 0; ii_ < im.m_size; ii_++){
+//                    if (im.gerArr(IMG::Q::iintens)[ii_]>0){
+//                        ncells_++;
+//                    }
+//                }
+//                if (ncells_max<ncells_)
+//                    ncells_max=ncells_;
+//            }
+//            if (ncells_max < ncells){
+//                (*p_log)(LOG_INFO,AT)<<" ncells_max="<<ncells_max<<" ncells="<<ncells<<"\n";
+//            }
+
             imageForEntireShell.resize(2 * ncells, 0. );
             combineImagesA(imageForEntireShell, ncells, nsublayers, tmpImagesSet) ;
 

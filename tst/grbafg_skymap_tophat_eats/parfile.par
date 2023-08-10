@@ -26,7 +26,7 @@ r_ism = -1
 n_ism = 0.00031
 d_l = 1.27e+26
 z = 0.0099
-theta_obs = 0 # 1.57
+theta_obs = 0.9 # 1.57
 
 * Settings
 
@@ -89,9 +89,9 @@ do_thermrad_loss = no
 
 use_1d_id = yes
 fname_dyn = dyn_grb_tophat.h5
-fname_light_curve = lc_gauss_a.h5
+fname_light_curve = lc_tophat_a.h5
 fname_light_curve_layers = none
-fname_sky_map = skymap_gauss_a.h5
+fname_sky_map = skymap_tophat_a.h5
 
 do_nucinj = no
 type = numeric
@@ -99,7 +99,7 @@ fname_ejecta_id = tophat_grb_id_a.h5
 load_r0 = no
 
 
-method_spread = AFGPY
+method_spread = AA
 method_dgdr = our
 method_eos = Nava13
 method_GammaSh = useJKwithGammaRel  # default -- "useGamma"
