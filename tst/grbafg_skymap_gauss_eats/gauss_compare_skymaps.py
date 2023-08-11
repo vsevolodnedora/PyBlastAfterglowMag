@@ -263,7 +263,7 @@ def compare_skymaps(resolutions=((80,100,120),
             all_x_jet, all_y_jet, all_fluxes_jet \
                 = pba_a.GRB.get_skymap(time=time_ * cgs.day, freq=freq, verbose=False, remove_mu=True, renormalize=False, normtype='pw')
             int_x_j, int_y_j, int_zz_j = combine_images(all_x_jet, all_y_jet, all_fluxes_jet,
-                                                                   hist_or_int="hist", shells=False, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+                                                                   hist_or_int="hist", shells=True, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
             grid_y_j, _i_zz_y_j, i_zz_y_j, _ = get_skymap_lat_dist(all_x_jet, all_y_jet, all_fluxes_jet,
                                                                               collapse_axis="x", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
             grid_x_j, _i_zz_x_j, i_zz_x_j, _ = get_skymap_lat_dist(all_x_jet, all_y_jet, all_fluxes_jet,

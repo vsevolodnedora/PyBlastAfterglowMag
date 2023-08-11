@@ -26,7 +26,7 @@ r_ism = -1
 n_ism = 0.00031
 d_l = 1.27e+26
 z = 0.0099
-theta_obs = 0.9 # 1.57
+theta_obs = 0.0 # 1.57
 
 * Settings
 
@@ -65,8 +65,8 @@ save_dyn_every_it = 1
 rtol_adapt = 1e-5
 fnu_min_frac = 1e-4
 
-nsublayers = 201
-im_max_theta = 1.57 # 0. for use theta_wing
+nsublayers = 21
+im_max_theta = 0.2 # 0. for use theta_wing
 
 * Settings
 

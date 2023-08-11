@@ -14,10 +14,12 @@
 namespace IMG{
     //    std::vector<std::string> m_names{"theta", "phi", "r", "theta_j", "theta0", "mu", "xrs", "yrs", "gamma", "fluxes", "intensity", "gm", "gc", "B", "tburst", "tt"};
     std::vector<std::string> m_names{"mu", "xrs", "yrs", "intensity", "r", "ctheta", "cphi",
-                                     "tau_compton", "tau_bh", "tau_bf"};
+//                                     "tau_compton", "tau_bh", "tau_bf"
+    };
 //    enum Q { itheta, iphi, ir, itheta_j, itheta0, imu, ixr, iyr, igam, iflux, iintens, igm, igc, iB, itburst, itt };
     enum Q {imu, ixr, iyr, iintens, ir, ictheta, icphi,
-            itau_comp, itau_bh, itau_bf};
+//            itau_comp, itau_bh, itau_bf
+    };
 }
 
 namespace IMG_TAU{

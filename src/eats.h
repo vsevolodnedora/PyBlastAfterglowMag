@@ -367,10 +367,14 @@ public:
             exit(1);
         }
         for (size_t icell = 0; icell < cil; ++icell) {
-            for (size_t ivn = 0; ivn < image.m_n_vn; ++ivn)
-                image(ivn, icell) = im_pj(ivn,icell);
-            for (size_t ivn = 0; ivn < image.m_n_vn; ++ivn)
-                image(ivn,cil+icell) = im_cj(ivn,icell);
+            for (size_t ivn = 0; ivn < image.m_n_vn; ++ivn) {
+                image(ivn, icell) = im_pj(ivn, icell);
+//                image(IMG::Q::icj, icell) = 0;
+            }
+            for (size_t ivn = 0; ivn < image.m_n_vn; ++ivn) {
+                image(ivn, cil + icell) = im_cj(ivn, icell);
+//                image(IMG::Q::icj, icell) = 1;
+            }
         }
         image.m_f_tot = im_pj.m_f_tot + im_cj.m_f_tot;//evalFluxDensA(obs_time, obs_freq, atol);
 //        image.m_f_tot = evalFluxDensA(obs_time, obs_freq, atol);

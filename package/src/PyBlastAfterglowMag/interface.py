@@ -272,13 +272,17 @@ class Base:
             self.skymap_dfile.close()
             self.skymap_dfile = None
 
-def combine_images(xs, ys, datas, verbose=False, hist_or_int="int", shells=False, nx=200, ny=100, extend=2,
+
+
+def combine_images_old(xs, ys, datas, verbose=False, hist_or_int="int", shells=False, nx=200, ny=100, extend=2,
                    retrun_edges=False, edges_x=None, edges_y=None):
 
     if shells:
         assert len(xs) == len(ys)
         assert len(xs) == len(datas)
+
         nshells = len(xs)
+
 
         xmin_neg, xmin_pos, xmax, xmin = [], [], [], []
         ymin_neg, ymin_pos, ymax, ymin = [], [], [], []
@@ -288,15 +292,402 @@ def combine_images(xs, ys, datas, verbose=False, hist_or_int="int", shells=False
             xrs_i = np.array(xs[ish])
             yrs_i = np.array(ys[ish])
             int_i = np.array(datas[ish])
-            if (np.sum(int_i) == 0):
+
+            # skip empty shells
+            if ((np.sum(int_i) == 0)):
                 continue
+
+            if (len(xrs_i) % 2 > 0):
+                raise ValueError(f"expected to get an even number for ncells. Got:{len(xrs_i)}")
+            ncells = int( len(xrs_i) / 2 )
+
+            # Principle Jet Data
+
+
+            # if (len(xrs_i[xrs_i < 0])) == 0:
+            #     raise ValueError()
+            # if (len(yrs_i[yrs_i < 0])) == 0:
+            #     raise ValueError()
             i_shells.append(ish)
-            xmin_neg.append(xrs_i[xrs_i < 0].min())
-            xmin_pos.append(xrs_i[xrs_i > 0].min())
-            xmax.append(xrs_i.max())
-            xmin.append(xrs_i.min())
-            ymin_neg.append(yrs_i[yrs_i < 0].min())
-            ymin_pos.append(yrs_i[yrs_i > 0].min())
+            xmin_neg.append( xrs_i[xrs_i < 0].min() if len(xrs_i[xrs_i < 0]) > 0 else 0 )
+            xmin_pos.append( xrs_i[xrs_i > 0].min() if len(xrs_i[xrs_i > 0]) > 0 else 0 )
+            xmax.append( xrs_i.max() )
+            xmin.append( xrs_i.min() )
+            ymin_neg.append( yrs_i[yrs_i < 0].min() if len(yrs_i[yrs_i < 0]) > 0 else 0 )
+            ymin_pos.append( yrs_i[yrs_i > 0].min() if len(yrs_i[yrs_i > 0]) > 0 else 0 )
+            ymax.append(yrs_i.max())
+            ymin.append(yrs_i.min())
+            i_min.append(int_i.min())
+            i_max.append(int_i.max())
+        xmin_neg = np.array(xmin_neg)
+        xmin_pos = np.array(xmin_pos)
+        xmax = np.array(xmax)
+        xmin = np.array(xmin)
+        ymin_neg = np.array(ymin_neg)
+        ymin_pos = np.array(ymin_pos)
+        ymax = np.array(ymax)
+        ymin = np.array(ymin)
+        i_min = np.array(i_min)
+        i_max = np.array(i_max)
+        if verbose:
+            for i in range(len(i_shells)):
+                print("\tshell={} xmin_neg={:.2e} xmin_pos={:.2e} xmax={:.2e}".format(i, xmin_neg[i], xmin_pos[i],
+                                                                                      xmax[i]))
+                print("\t         ymin_neg={:.2e} ymin_pos={:.2e} ymax={:.2e}".format(i, ymin_neg[i], ymin_pos[i],
+                                                                                      ymax[i]))
+            print("\toverall X min(xmin_pos) = {:.2e} max(xmax) = {:.2e}".format(xmin_pos.min(), xmax.max()))
+            print("\toverall Y min(ymin_pos) = {:.2e} max(ymax) = {:.2e}".format(ymin_pos.min(), ymax.max()))
+            print("\toverall I min(i_min)    = {:.2e} max(ymax) = {:.2e}".format(i_min.min(), i_max.max()))
+        x_grid = np.concatenate((-1. * np.logspace(np.log10(xmin_pos.min()), np.log10(xmax.max()), nx)[::-1],
+                                 np.logspace(np.log10(xmin_pos.min()), np.log10(xmax.max()), nx)))
+        y_grid = np.concatenate((-1. * np.logspace(np.log10(ymin_pos.min()), np.log10(ymax.max()), ny)[::-1],
+                                 np.logspace(np.log10(ymin_pos.min()), np.log10(ymax.max()), ny)))
+
+        if edges_x is None: edges_x = np.linspace(xmin.min()*extend, xmax.max()*extend, num=nx)
+        if edges_y is None: edges_y = np.linspace(ymin.min()*extend, ymax.max()*extend, num=ny)
+
+        if verbose:
+            print("\tGrid xmin_neg={:.2e} xmin_pos={:.2e} xmax={:.2e}".format(x_grid.min(),
+                                                                              x_grid[x_grid > 0].min(),
+                                                                              x_grid.max()))
+            print("\tGrid ymin_neg={:.2e} ymin_pos={:.2e} ymax={:.2e}".format(y_grid.min(),
+                                                                              y_grid[y_grid > 0].min(),
+                                                                              y_grid.max()))
+        xx_grid, yy_grid = np.meshgrid(x_grid, y_grid)
+        if hist_or_int == "int":
+            zz = np.zeros_like((xx_grid))
+        else:
+            zz = np.zeros((len(edges_x) - 1, len(edges_y) - 1))
+        # interpolate onto the grid that covers all images
+        all_xrs, all_yrs, all_zz = [], [], []
+        for ii, ish in enumerate(i_shells):  # range(len(i_shells))
+            if verbose: print("Pocessing: shell={} [{}/{}]".format(ish, ii, len(i_shells)))
+            xrs_i = np.array(xs[ish])
+            yrs_i = np.array(ys[ish])
+            int_i = np.array(datas[ish])  # * dfile.attrs["d_L"] ** 2
+
+            if hist_or_int == "int":
+                # nx = np.complex(0, nx)
+                # ny = np.complex(0, ny)
+                # grid_x, grid_y = np.mgrid[xrs_i.min() * 1.2:xrs_i.max() * 1.2:nx,
+                #                  yrs_i.min() * 1.2:yrs_i.max() * 1.2:ny]
+                i_zz = interp(xrs_i, yrs_i, int_i, xx_grid, yy_grid, 'linear')
+                # return (grid_x, grid_y, i_zz, xrs_i, yrs_i, int_i)
+            else:
+                # nx = 100
+                # ny = 100
+                # nx = np.complex(0, nx + 1)
+                # ny = np.complex(0, ny + 1)
+                # edges_x = np.mgrid[xrs_i.min() * 1.2:xrs_i.max() * 1.2:nx]
+                # edges_y = np.mgrid[yrs_i.min() * 1.2:yrs_i.max() * 1.2:ny]
+                # grid_x, grid_y = np.mgrid[xrs_i.min() * 1.2:xrs_i.max() * 1.2:nx,
+                #                  yrs_i.min() * 1.2:yrs_i.max() * 1.2:ny]
+                i_zz, _ = np.histogramdd(tuple([xrs_i, yrs_i]), bins=tuple([edges_x, edges_y]), weights=int_i)
+                # grid_x = 0.5 * (edges_x[1:] + edges_x[:-1])
+                # grid_y = 0.5 * (edges_y[1:] + edges_y[:-1])
+                # return (grid_x, grid_y, i_zz, xrs_i, yrs_i, int_i)
+
+            zz += i_zz
+            # all_xrs.append(xrs_i)
+            # all_yrs.append(yrs_i)
+            # all_zz.append(int_i)
+            #
+            # if hist_or_int == "int":
+            #     i_zz = interp(xrs_i, yrs_i, int_i, xx_grid, yy_grid, 'linear')
+            #     zz += i_zz
+            #     all_xrs.append(xrs_i)
+            #     all_yrs.append(yrs_i)
+            #     all_zz.append(int_i)
+            # else:
+            #     nx = 2000
+            #     ny = 1000
+            #     nx = np.complex(0, nx + 1)
+            #     ny = np.complex(0, ny + 1)
+            #     edges_x = np.mgrid[x_grid.min():x_grid.max():nx]
+            #     edges_y = np.mgrid[y_grid.min():yrs_i.max():ny]
+            #     # grid_x, grid_y = np.mgrid[xrs_i.min() * 1.2:xrs_i.max() * 1.2:nx,
+            #     #                  yrs_i.min() * 1.2:yrs_i.max() * 1.2:ny]
+            #     i_zz, _ = np.histogramdd(tuple([xrs_i, yrs_i]), bins=tuple([edges_x, edges_y]), weights=int_i)
+        xx_grid = 0.5 * (edges_x[1:] + edges_x[:-1])
+        yy_grid = 0.5 * (edges_y[1:] + edges_y[:-1])
+        #     return (grid_x, grid_y, i_zz, xrs_i, yrs_i, int_i)
+
+        if retrun_edges:
+            return (xx_grid, yy_grid, zz, edges_x, edges_y)
+        else:
+            return (xx_grid, yy_grid, zz)
+    else:
+
+        xs = np.concatenate(xs)
+        ys = np.concatenate(ys)
+        datas = np.concatenate(datas)
+
+        if hist_or_int == "int":
+            nx = np.complex(0, nx)
+            ny = np.complex(0, ny)
+            grid_x, grid_y = np.mgrid[xs.min()*extend:xs.max()*extend:nx, ys.min()*extend:ys.max()*extend:ny]
+            i_zz = interp(xs, ys, datas, grid_x, grid_y, 'linear')
+            i_zz = i_zz
+        elif hist_or_int == "both":
+
+            nx = np.complex(0, nx)
+            ny = np.complex(0, ny)
+            grid_x, grid_y = np.mgrid[xs.min():xs.max():nx, ys.min():ys.max():ny]
+            i_zz = interp(xs, ys, datas, grid_x, grid_y, 'linear')
+
+            nx = np.complex(0, nx + 1)
+            ny = np.complex(0, ny + 1)
+            edges_x = np.mgrid[xs.min():xs.max():nx]
+            edges_y = np.mgrid[ys.min():ys.max():ny]
+            # grid_x, grid_y = np.mgrid[xrs_i.min() * 1.2:xrs_i.max() * 1.2:nx,
+            #                  yrs_i.min() * 1.2:yrs_i.max() * 1.2:ny]
+            i_zz, _ = np.histogramdd(tuple([grid_x.flatten(), grid_y.flatten()]), bins=tuple([edges_x, edges_y]),
+                                     weights=i_zz.T.flatten())
+            grid_x = 0.5 * (edges_x[1:] + edges_x[:-1])
+            grid_y = 0.5 * (edges_y[1:] + edges_y[:-1])
+            # print(i_zz.shape)
+        else:
+
+            # nx = 200
+            # ny = 100
+            nx = np.complex(0, nx + 1)
+            ny = np.complex(0, ny + 1)
+            edges_x = np.mgrid[xs.min()*extend:xs.max()*extend:nx]
+            edges_y = np.mgrid[ys.min()*extend:ys.max()*extend:ny]
+            # grid_x, grid_y = np.mgrid[xrs_i.min() * 1.2:xrs_i.max() * 1.2:nx,
+            #                  yrs_i.min() * 1.2:yrs_i.max() * 1.2:ny]
+
+            xs = xs[datas > 0]
+            ys = ys[datas > 0]
+            datas = datas[datas>0]
+
+            i_zz, _ = np.histogramdd(tuple([xs, ys]), bins=tuple([edges_x, edges_y]), weights=datas,normed='density')
+            grid_x = 0.5 * (edges_x[1:] + edges_x[:-1])
+            grid_y = 0.5 * (edges_y[1:] + edges_y[:-1])
+            print(i_zz.shape)
+
+        # i_zz = ndimage.uniform_filter(i_zz, )
+        # i_zz = ndimage.filters.gaussian_filter(i_zz, [10,10], mode='reflect')
+
+        return (grid_x, grid_y, i_zz)
+    #
+    # assert len(xs) == len(ys)
+    # assert len(xs) == len(datas)
+    # nshells = len(xs)
+    # nx = 1000
+    # ny = 1000
+    # xmin_neg, xmin_pos, xmax, xmin = [], [], [], []
+    # ymin_neg, ymin_pos, ymax, ymin = [], [], [], []
+    # i_min, i_max = [], []
+    # i_shells = []
+    # for ish in range(nshells):
+    #     xrs_i = np.array(xs[ish])
+    #     yrs_i = np.array(ys[ish])
+    #     int_i = np.array(datas[ish])
+    #     if (np.sum(int_i) == 0):
+    #         continue
+    #     i_shells.append(ish)
+    #     xmin_neg.append(xrs_i[xrs_i < 0].min())
+    #     xmin_pos.append(xrs_i[xrs_i > 0].min())
+    #     xmax.append(xrs_i.max())
+    #     xmin.append(xrs_i.min())
+    #     ymin_neg.append(yrs_i[yrs_i < 0].min())
+    #     ymin_pos.append(yrs_i[yrs_i > 0].min())
+    #     ymax.append(yrs_i.max())
+    #     ymin.append(yrs_i.min())
+    #     i_min.append(int_i.min())
+    #     i_max.append(int_i.max())
+    # xmin_neg = np.array(xmin_neg)
+    # xmin_pos = np.array(xmin_pos)
+    # xmax = np.array(xmax)
+    # ymin_neg = np.array(ymin_neg)
+    # ymin_pos = np.array(ymin_pos)
+    # ymax = np.array(ymax)
+    # i_min = np.array(i_min)
+    # i_max = np.array(i_max)
+    # if verbose:
+    #     for i in range(len(i_shells)):
+    #         print("\tshell={} xmin_neg={:.2e} xmin_pos={:.2e} xmax={:.2e}".format(i, xmin_neg[i], xmin_pos[i],
+    #                                                                               xmax[i]))
+    #         print("\t         ymin_neg={:.2e} ymin_pos={:.2e} ymax={:.2e}".format(i, ymin_neg[i], ymin_pos[i],
+    #                                                                               ymax[i]))
+    #     print("\toverall X min(xmin_pos) = {:.2e} max(xmax) = {:.2e}".format(xmin_pos.min(), xmax.max()))
+    #     print("\toverall Y min(ymin_pos) = {:.2e} max(ymax) = {:.2e}".format(ymin_pos.min(), ymax.max()))
+    #     print("\toverall I min(i_min)    = {:.2e} max(ymax) = {:.2e}".format(i_min.min(), i_max.max()))
+    # x_grid = np.concatenate((-1. * np.logspace(np.log10(xmin_pos.min()), np.log10(xmax.max()), nx)[::-1],
+    #                          np.logspace(np.log10(xmin_pos.min()), np.log10(xmax.max()), nx)))
+    # y_grid = np.concatenate((-1. * np.logspace(np.log10(ymin_pos.min()), np.log10(ymax.max()), ny)[::-1],
+    #                          np.logspace(np.log10(ymin_pos.min()), np.log10(ymax.max()), ny)))
+    #
+    # edges_x = np.linspace(xmin.min(), xmax.max(), num=nx)
+    # edges_y = np.linspace(ymin.min(), ymax.max(), num=ny)
+    #
+    # if verbose:
+    #     print("\tGrid xmin_neg={:.2e} xmin_pos={:.2e} xmax={:.2e}".format(x_grid.min(),
+    #                                                                       x_grid[x_grid > 0].min(),
+    #                                                                       x_grid.max()))
+    #     print("\tGrid ymin_neg={:.2e} ymin_pos={:.2e} ymax={:.2e}".format(y_grid.min(),
+    #                                                                       y_grid[y_grid > 0].min(),
+    #                                                                       y_grid.max()))
+    # xx_grid, yy_grid = np.meshgrid(x_grid, y_grid)
+    # if hist_or_int == "int":
+    #     zz = np.zeros_like((xx_grid))
+    # else:
+    #     zz = np.zeros((len(edges_x) - 1, len(edges_y) - 1))
+    # # interpolate onto the grid that covers all images
+    # all_xrs, all_yrs, all_zz = [], [], []
+    # for ii, ish in enumerate(i_shells):  # range(len(i_shells))
+    #     if verbose: print("Pocessing: shell={} [{}/{}]".format(ish, ii, len(i_shells)))
+    #     xrs_i = np.array(xs[ish])
+    #     yrs_i = np.array(ys[ish])
+    #     int_i = np.array(datas[ish])  # * dfile.attrs["d_L"] ** 2
+    #
+    #     if hist_or_int == "int":
+    #         # nx = np.complex(0, nx)
+    #         # ny = np.complex(0, ny)
+    #         # grid_x, grid_y = np.mgrid[xrs_i.min() * 1.2:xrs_i.max() * 1.2:nx,
+    #         #                  yrs_i.min() * 1.2:yrs_i.max() * 1.2:ny]
+    #         i_zz = interp(xrs_i, yrs_i, int_i, xx_grid, yy_grid, 'linear')
+    #         # return (grid_x, grid_y, i_zz, xrs_i, yrs_i, int_i)
+    #     else:
+    #         # nx = 100
+    #         # ny = 100
+    #         # nx = np.complex(0, nx + 1)
+    #         # ny = np.complex(0, ny + 1)
+    #         # edges_x = np.mgrid[xrs_i.min() * 1.2:xrs_i.max() * 1.2:nx]
+    #         # edges_y = np.mgrid[yrs_i.min() * 1.2:yrs_i.max() * 1.2:ny]
+    #         # grid_x, grid_y = np.mgrid[xrs_i.min() * 1.2:xrs_i.max() * 1.2:nx,
+    #         #                  yrs_i.min() * 1.2:yrs_i.max() * 1.2:ny]
+    #         i_zz, _ = np.histogramdd(tuple([xrs_i, yrs_i]), bins=tuple([edges_x, edges_y]), weights=int_i)
+    #         # grid_x = 0.5 * (edges_x[1:] + edges_x[:-1])
+    #         # grid_y = 0.5 * (edges_y[1:] + edges_y[:-1])
+    #         # return (grid_x, grid_y, i_zz, xrs_i, yrs_i, int_i)
+    #
+    #     zz += i_zz
+    #     all_xrs.append(xrs_i)
+    #     all_yrs.append(yrs_i)
+    #     all_zz.append(int_i)
+    #     #
+    #     # if hist_or_int == "int":
+    #     #     i_zz = interp(xrs_i, yrs_i, int_i, xx_grid, yy_grid, 'linear')
+    #     #     zz += i_zz
+    #     #     all_xrs.append(xrs_i)
+    #     #     all_yrs.append(yrs_i)
+    #     #     all_zz.append(int_i)
+    #     # else:
+    #     #     nx = 2000
+    #     #     ny = 1000
+    #     #     nx = np.complex(0, nx + 1)
+    #     #     ny = np.complex(0, ny + 1)
+    #     #     edges_x = np.mgrid[x_grid.min():x_grid.max():nx]
+    #     #     edges_y = np.mgrid[y_grid.min():yrs_i.max():ny]
+    #     #     # grid_x, grid_y = np.mgrid[xrs_i.min() * 1.2:xrs_i.max() * 1.2:nx,
+    #     #     #                  yrs_i.min() * 1.2:yrs_i.max() * 1.2:ny]
+    #     #     i_zz, _ = np.histogramdd(tuple([xrs_i, yrs_i]), bins=tuple([edges_x, edges_y]), weights=int_i)
+    #     #     grid_x = 0.5 * (edges_x[1:] + edges_x[:-1])
+    #     #     grid_y = 0.5 * (edges_y[1:] + edges_y[:-1])
+    #     #     return (grid_x, grid_y, i_zz, xrs_i, yrs_i, int_i)
+    # # if verbose:
+    #     # print("\tAfter interpolation: I [{:.2e}, {:.2e}] Sum = {:.2e} [Total expected {:.2e}]"
+    #     #       .format(zz.min(), zz.max(), np.sum(zz), float(
+    #     #     np.array(dfile["totalflux at freq={:.4e}".format(freq)])[find_nearest_index(times, time)])))
+
+    return (xx_grid, yy_grid, zz, all_xrs, all_yrs, all_zz)
+
+def combine_images(xs, ys, datas, verbose=False, hist_or_int="int", shells=False, nx=200, ny=100, extend=2,
+                   retrun_edges=False, edges_x=None, edges_y=None):
+
+    if (not shells):
+        raise KeyError(" shells should be true (delete this keyword) ")
+
+    assert len(xs) == len(ys), f"shells must have the same xs{len(xs)} ys={len(ys)}"
+    assert len(xs) == len(datas), f"shells must have the same xs{len(xs)} datas={len(datas)}"
+
+    # principle jet
+    xmin_neg, xmin_pos, xmax, xmin = [], [], [], []
+    ymin_neg, ymin_pos, ymax, ymin = [], [], [], []
+    i_min, i_max = [], []
+    i_shells = []
+
+    nshells = len(xs)
+
+    for ish in range(nshells):
+        xrs_i = np.array(xs[ish])
+        yrs_i = np.array(ys[ish])
+        int_i = np.array(datas[ish])
+
+        # skip empty shells
+        if ((np.sum(int_i) == 0)):
+            continue
+
+        if (len(xrs_i) % 2 > 0):
+            raise ValueError(f"expected to get an even number for ncells. Got:{len(xrs_i)}")
+        ncells = int( len(xrs_i) / 2 )
+
+        i_shells.append(ish)
+
+        xrs_i = xrs_i[:ncells]
+        yrs_i = yrs_i[:ncells]
+        int_i = int_i[:ncells]
+
+        xmin_neg.append( xrs_i[xrs_i < 0].min() if len(xrs_i[xrs_i < 0]) > 0 else 0 )
+        xmin_pos.append( xrs_i[xrs_i > 0].min() if len(xrs_i[xrs_i > 0]) > 0 else 0 )
+        xmax.append( xrs_i.max() )
+        xmin.append( xrs_i.min() )
+        ymin_neg.append( yrs_i[yrs_i < 0].min() if len(yrs_i[yrs_i < 0]) > 0 else 0 )
+        ymin_pos.append( yrs_i[yrs_i > 0].min() if len(yrs_i[yrs_i > 0]) > 0 else 0 )
+        ymax.append(yrs_i.max())
+        ymin.append(yrs_i.min())
+        i_min.append(int_i.min())
+        i_max.append(int_i.max())
+
+        x_grid = np.concatenate((-1. * np.logspace(np.log10(xmin_pos.min()), np.log10(xmax.max()), nx)[::-1],
+                                 np.logspace(np.log10(xmin_pos.min()), np.log10(xmax.max()), nx)))
+        y_grid = np.concatenate((-1. * np.logspace(np.log10(ymin_pos.min()), np.log10(ymax.max()), ny)[::-1],
+                                 np.logspace(np.log10(ymin_pos.min()), np.log10(ymax.max()), ny)))
+
+
+
+
+
+    if shells:
+        assert len(xs) == len(ys)
+        assert len(xs) == len(datas)
+
+        nshells = len(xs)
+
+
+        xmin_neg, xmin_pos, xmax, xmin = [], [], [], []
+        ymin_neg, ymin_pos, ymax, ymin = [], [], [], []
+        i_min, i_max = [], []
+        i_shells = []
+        for ish in range(nshells):
+            xrs_i = np.array(xs[ish])
+            yrs_i = np.array(ys[ish])
+            int_i = np.array(datas[ish])
+
+            # skip empty shells
+            if ((np.sum(int_i) == 0)):
+                continue
+
+            if (len(xrs_i) % 2 > 0):
+                raise ValueError(f"expected to get an even number for ncells. Got:{len(xrs_i)}")
+            ncells = int( len(xrs_i) / 2 )
+
+            # Principle Jet Data
+
+
+            # if (len(xrs_i[xrs_i < 0])) == 0:
+            #     raise ValueError()
+            # if (len(yrs_i[yrs_i < 0])) == 0:
+            #     raise ValueError()
+            i_shells.append(ish)
+            xmin_neg.append( xrs_i[xrs_i < 0].min() if len(xrs_i[xrs_i < 0]) > 0 else 0 )
+            xmin_pos.append( xrs_i[xrs_i > 0].min() if len(xrs_i[xrs_i > 0]) > 0 else 0 )
+            xmax.append( xrs_i.max() )
+            xmin.append( xrs_i.min() )
+            ymin_neg.append( yrs_i[yrs_i < 0].min() if len(yrs_i[yrs_i < 0]) > 0 else 0 )
+            ymin_pos.append( yrs_i[yrs_i > 0].min() if len(yrs_i[yrs_i > 0]) > 0 else 0 )
             ymax.append(yrs_i.max())
             ymin.append(yrs_i.min())
             i_min.append(int_i.min())
@@ -855,10 +1246,18 @@ def get_skymap_lat_dist(all_x, all_y, all_fluxes, collapse_axis="y", fac=1.0, nx
     # edges_x = np.mgrid[all_x.min() * extend:all_y.max() * extend:nx]
     # edges_y = np.mgrid[all_x.min() * extend:all_y.max() * extend:ny]
 
-    if (np.sum(all_x)==0. or np.sum(all_y)==0):
+    # if (np.sum(all_x)==0. or np.sum(all_y)==0):
+    if (np.sum(all_fluxes)==0.):
         raise ValueError(" x_arr or y_arr arrays in the image all FULL 0. Cannot re-interpolate!")
-    image = interpolate.griddata(np.array([all_x, all_y]).T * fac, all_fluxes,
-                                 (grid_x * fac, grid_y * fac), method='linear', fill_value=0)
+    if (all_x.min()==0 and all_x.max()==0):
+        raise ValueError(" x_arr arrays in the image all FULL 0. Cannot re-interpolate!")
+    if (all_y.min()==0 and all_y.max()==0):
+        raise ValueError(" x_arr arrays in the image all FULL 0. Cannot re-interpolate!")
+    try:
+        image = interpolate.griddata(np.array([all_x, all_y]).T * fac, all_fluxes,
+                                     (grid_x * fac, grid_y * fac), method='linear', fill_value=0)
+    except:
+        raise ValueError("failed interpolation.")
     latAvDist, latAvDist2, latMaxDist = lateral_distributions(grid_x, grid_y, image, collapse_axis=collapse_axis)
     if collapse_axis == "y":
         return (grid_x[:, 0], latAvDist, latAvDist2, latMaxDist)
@@ -1586,16 +1985,28 @@ class Ejecta(Base):
             # print(dfile.keys())
             ddfile = dfile["time={:.4e} freq={:.4e}".format(time, freq)]
             if (not (ishell is None)):
-                r_i = np.array(ddfile["r"][ishell])
+                # r_i = np.array(ddfile["r"][ishell])
                 mu_i = np.array(ddfile["mu"][ishell])
                 xrs_i = np.array(ddfile["xrs"][ishell]) * cgs.rad2mas / d_l  # m -> mas
                 yrs_i = np.array(ddfile["yrs"][ishell]) * cgs.rad2mas / d_l  # m -> mas
                 int_i = np.array(ddfile["intensity"][ishell]) * (d_l ** 2 / cgs.rad2mas ** 2)  # -> mJy / mas^2
-                gam_i = np.array(ddfile["gamma"][ishell])
-                B_i = np.array(ddfile["B"][ishell])
-                tb_i = np.array(ddfile["tburst"][ishell])
-                theta_i = np.array(ddfile["theta"][ishell])
-                phi_i = np.array(ddfile["phi"][ishell])
+                # gam_i = np.array(ddfile["gamma"][ishell])
+                # B_i = np.array(ddfile["B"][ishell])
+                # tb_i = np.array(ddfile["tburst"][ishell])
+                # theta_i = np.array(ddfile["theta"][ishell])
+                # phi_i = np.array(ddfile["phi"][ishell])
+
+                mu_i = mu_i[int_i > 0]
+                xrs_i = xrs_i[int_i > 0] # m -> mas
+                yrs_i = yrs_i[int_i > 0]  # m -> mas
+                int_i = int_i[int_i > 0]  # -> mJy / mas^2
+
+                if (np.sum(int_i)==0.):
+                    raise ValueError(" x_arr or y_arr arrays in the image all FULL 0. Cannot re-interpolate!")
+                if (xrs_i.min()==0 and xrs_i.max()==0):
+                    raise ValueError(" x_arr arrays in the image all FULL 0. Cannot re-interpolate!")
+                if (yrs_i.min()==0 and yrs_i.max()==0):
+                    raise ValueError(" x_arr arrays in the image all FULL 0. Cannot re-interpolate!")
 
                 if remove_mu:
                     print("Removing 'mu' from ejecta skymap")
@@ -1667,8 +2078,20 @@ class Ejecta(Base):
                     int_i = np.array(ddfile["intensity"][ish]) * (d_l ** 2 / cgs.rad2mas ** 2)  # -> mJy / mas^2
                     # mu_i = np.array(ddfile["mu"][ish])
 
-                    if (np.sum(int_i) == 0):
+                    sumi = np.sum(int_i)
+
+
+                    if (sumi == 0):
                         continue
+
+                    nnonzero = np.count_nonzero(sumi)
+
+                    if (xrs_i.min()==0 and xrs_i.max()==0 and nnonzero != 1):
+                        raise ValueError(" x_arr arrays in the image all FULL 0. Cannot re-interpolate!")
+                    if (yrs_i.min()==0 and yrs_i.max()==0 and nnonzero != 1):
+                        raise ValueError(" x_arr arrays in the image all FULL 0. Cannot re-interpolate!")
+
+
                     i_shells.append(ish)
                     # if remove_mu:
                     #     print("Removing 'mu' from ejecta skymap")
@@ -1678,10 +2101,16 @@ class Ejecta(Base):
                     mu_i = np.array(ddfile["mu"][ish])
                     xrs_i = np.array(ddfile["xrs"][ish]) * cgs.rad2mas / d_l  # m -> mas
                     yrs_i = np.array(ddfile["yrs"][ish]) * cgs.rad2mas / d_l  # m -> mas
-                    rs_i = np.array(ddfile["r"][ish])
-                    cthetas_i = np.array(ddfile["ctheta"][ish])
-                    cphis_i = np.array(ddfile["cphi"][ish])
+                    # rs_i = np.array(ddfile["r"][ish])
+                    # cthetas_i = np.array(ddfile["ctheta"][ish])
+                    # cphis_i = np.array(ddfile["cphi"][ish])
                     int_i = np.array(ddfile["intensity"][ish]) * ( d_l ** 2 / cgs.rad2mas ** 2 )  # * dfile.attrs["d_L"] ** 2
+
+                    mu_i = mu_i[int_i > 0]
+                    xrs_i = xrs_i[int_i > 0] # m -> mas
+                    yrs_i = yrs_i[int_i > 0]  # m -> mas
+                    int_i = int_i[int_i > 0]  # -> mJy / mas^2
+
                     if remove_mu:
                         # idx1 = abs(mu_i) < min_mu # TODO this is overritten!
                         # int_i[idx1] =
@@ -1785,11 +2214,18 @@ class Ejecta(Base):
                         delta_x = np.array(all_xrs[i]).max() - np.array(all_xrs[i]).min()
                         delta_y = np.array(all_yrs[i]).max() - np.array(all_yrs[i]).min()
                         dfnu = fnu / (delta_x * delta_y)
+                        if (~np.isfinite(dfnu)):
+                            for i, val in enumerate(np.array(all_yrs[i])):
+                                if (~np.isfinite(val)):
+                                    print(f"i={i} val={val}")
+                            raise ValueError(f"dfnu={dfnu} ishell={i_ish}")
                         if verbose:
                             print("SHELL {}".format(i_ish))
                             print("\tfnu = {:.2e} ".format(fnu))
-                            print("\tall_x = [{:.2e}, {:.2e}]".format(np.array(all_xrs).min(), np.array(all_xrs).max()))
-                            print("\tall_y = [{:.2e}, {:.2e}]".format(np.array(all_yrs).min(), np.array(all_yrs).max()))
+                            print("\tdfnu = {:.2e} ".format(dfnu))
+                            print("\tall_fluxes_arr.max() = {:.2e} ".format(all_fluxes_arr.max()))
+                            print("\tall_x = [{:.2e}, {:.2e}]".format(np.array(all_xrs[i]).min(), np.array(all_xrs[i]).max()))
+                            print("\tall_y = [{:.2e}, {:.2e}]".format(np.array(all_yrs[i]).min(), np.array(all_yrs[i]).max()))
                             print("\tDelta_x = {:.2f}, Delta_y = {:.2f}]".format(delta_x, delta_y))
                             print("\tFnu/mas^2 = {:.2e} mJy/mas^2".format(dfnu))
                         all_zz[i] = (all_fluxes_arr / all_fluxes_arr.max()) * dfnu

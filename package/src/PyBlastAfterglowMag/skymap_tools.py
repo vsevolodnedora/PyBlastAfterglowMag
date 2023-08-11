@@ -1670,7 +1670,7 @@ def plot_one_skymap_with_dists(task_to_plot, settings):
                 = pb1.GRB.get_skymap(time=time * cgs.day, freq=freq, verbose=False, remove_mu=True)
 
             int_x_j, int_y_j, int_zz_j = combine_images(all_x_jet, all_y_jet, all_fluxes_jet,
-                                                           hist_or_int="hist", shells=False, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+                                                           hist_or_int="hist", shells=True, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
             grid_y_j, _i_zz_y_j, i_zz_y_j, _ = get_skymap_lat_dist(all_x_jet, all_y_jet, all_fluxes_jet,
                                                                       collapse_axis="x", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
             grid_x_j, _i_zz_x_j, i_zz_x_j, _ = get_skymap_lat_dist(all_x_jet, all_y_jet, all_fluxes_jet,
@@ -1745,7 +1745,7 @@ def plot_one_skymap_with_dists(task_to_plot, settings):
             all_y_pj = all_y_jet + all_y
             all_fluxes_pj = all_fluxes_jet + all_fluxes
             int_x_pj, int_y_pj, int_zz_pj = \
-                combine_images(all_x_pj, all_y_pj, all_fluxes_pj, hist_or_int="hist", shells=False, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+                combine_images(all_x_pj, all_y_pj, all_fluxes_pj, hist_or_int="hist", shells=True, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
             # _, _, int_zz_wjet_nojet = pb.combine_images(all_x_pj, all_y_pj, all_fluxes_pj, hist_or_int="hist", shells=False, nx=225, ny=175)
             xc_m_pj, yc_m_pj = pb1.GRB.get_skymap_cm(all_x_pj, all_y_pj, all_fluxes_pj)
             grid_y_pj, _i_zz_y_pj, i_zz_y_pj, _ = get_skymap_lat_dist(all_x_pj, all_y_pj, all_fluxes_pj,

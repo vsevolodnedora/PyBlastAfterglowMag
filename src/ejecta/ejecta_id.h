@@ -171,7 +171,32 @@ public:
             }
         }
     }
+    static void _init_pw_grid_(Vector & theta_c_l, Vector & theta_c_h, Vector & theta_c, size_t nlayers,  double theta0, double theta_w){
+        Vector theta_pw ( nlayers + 1 );
+        for (size_t i = 0; i < nlayers + 1; i++){
+            double fac = (double) i / (double)nlayers;
+            theta_pw[i] = theta0 + 2.0 * std::asin( fac * std::sin((theta_w-theta0) / 2.0 ) );
+        }
 
+        Vector thetas_h0_pw (nlayers );
+        if (theta_c_l.size() != nlayers) theta_c_l.resize(nlayers,0.);
+        if (theta_c_h.size() != nlayers) theta_c_h.resize(nlayers,0.);
+        if (theta_c.size() != nlayers) theta_c.resize(nlayers,0.);
+        for (size_t i = 0; i < nlayers; ++i){
+            thetas_h0_pw[i] = theta_pw[i + 1];
+            /// for tau_along_los # TODO replace the above 'thetas_h0_pw' with these two and  make sure they are correct
+            theta_c_l[i] = theta_pw[i];//thetas_c_l[i] = i_theta_c_l ;
+            theta_c_h[i] = theta_pw[i+1];//thetas_c_h[i] = i_theta_c_h ;
+            theta_c[i] = theta_c_l[i] + 0.5 * (theta_c_h[i]-theta_c_l[i]);
+            if (theta_c_h[i] > CGS::pi/2.){
+                std::cerr <<AT<<" theta_c_h[i]="<<theta_c_h[i]<<" > CGS::pi/2.";
+                exit(1);
+            }
+        }
+
+        /// eval the number of phi cells in each 'theta' layer
+//        ncells = _evalTotalNcells(nlayers);
+    }
     static void _init_pw_grid(Vector & theta_c_l, Vector & theta_c_h, Vector & theta_c, size_t nlayers, double theta_w){
         Vector theta_pw ( nlayers + 1 );
         for (size_t i = 0; i < nlayers + 1; i++){

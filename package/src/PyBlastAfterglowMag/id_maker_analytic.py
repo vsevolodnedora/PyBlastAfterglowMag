@@ -302,6 +302,16 @@ class JetStruct:
             dfile.close()
         elif(type=="a"):
             dfile = h5py.File(outfpath, "w")
+
+            # dfile.create_dataset("r", data=np.column_stack((self.thetas_c_h, np.zeros_like(self.thetas_c_h))))
+            # dfile.create_dataset("theta", data=np.column_stack((self.thetas_c_h, np.zeros_like(self.thetas_c_h))))
+            # dfile.create_dataset("ctheta", data=np.column_stack((self.thetas_c, np.zeros_like(self.thetas_c_h))))
+            # dfile.create_dataset("mom", data=np.column_stack((self.dist_Mom0_a, np.zeros_like(self.thetas_c_h))))
+            # dfile.create_dataset("mass", data=np.column_stack((self.dist_M0_a, np.zeros_like(self.thetas_c_h))))
+            # dfile.create_dataset("ek", data=np.column_stack((self.dist_E0_a, np.zeros_like(self.thetas_c_h))))
+            # dfile.create_dataset("ye", data=np.column_stack((self.dist_Ye_a, np.zeros_like(self.thetas_c_h))))
+            # dfile.create_dataset("s", data=np.column_stack((self.dist_s_a, np.zeros_like(self.thetas_c_h))))
+
             dfile.create_dataset("r", data=np.zeros_like(self.thetas_c_h))
             dfile.create_dataset("theta", data=self.thetas_c_h)
             dfile.create_dataset("ctheta", data=self.thetas_c)

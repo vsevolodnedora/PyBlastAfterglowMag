@@ -826,7 +826,7 @@ public:
             double theta_l = p_cumShells[ilayer]->getBW(0)->getPars()->theta_c_l;
 
 //        EjectaID2::_init_a_grid(theta_c_l, theta_c_h, theta_c, nlayers_ * nsublayers, CGS::pi/2.);
-            EjectaID2::_init_a_grid_(theta_c_l, theta_c_h, theta_c, nsublayers, theta_l, im_max_theta);//id->theta_wing);
+            EjectaID2::_init_pw_grid_(theta_c_l, theta_c_h, theta_c, nsublayers, theta_l, im_max_theta);//id->theta_wing);
 
             double atol = tot_flux * rtol / (double)nlayers();
             double layer_flux = bw_rad->evalFluxDensA(obs_time,obs_freq, atol);
