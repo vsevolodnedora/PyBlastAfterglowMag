@@ -41,7 +41,7 @@ import os
 #     except ImportError:
 #         raise ImportError("Cannot import PyBlastAfterglowMag")
 
-from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
+from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt, combine_images_old
 from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
 from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
 from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma,
@@ -50,117 +50,7 @@ from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_
 from package.src.PyBlastAfterglowMag.skymap_tools import \
     (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps,
      combine_images,get_skymap_lat_dist,_plot_skymap_with_hists,get_skymap_fwhm)
-def task_kn_skymap_with_dist_one_time(method_eats="piece-wise",type="pw"):
 
-    workdir = os.getcwd()+'/'
-    prepare_grb_ej_id_1d({"Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.1,
-                          "nlayers_pw": 50, "nlayers_a": 1, "struct":"tophat"},type=type,outfpath="tophat_grb_id.h5")
-    modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main", newpars={},newopts={},
-                          parfile="parfile.par", newparfile="parfile.par", keep_old=False)
-    modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
-                           newpars={},
-                           newopts={"method_eats":method_eats},
-                           parfile="parfile.par", newparfile="parfile.par", keep_old=False)
-    pba = PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
-
-    # prepare_grb_ej_id_1d({"struct":"tophat",
-    #                       "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
-    #                       "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":350,"nlayers_a": 10}, type="a",
-    #                       outfpath=workdir+"gauss_grb_id.h5")
-
-    # pba = PyBlastAfterglow(workingdir=os.getcwd()+'/',readparfileforpaths=True,parfile="parfile.par")
-
-    pba.reload_parfile()
-
-    pba.run()
-
-
-
-    times = [1.,10.,40.,100.,200.]
-    workdir = os.getcwd() + '/'
-    sim = "BLh_M13641364_M0_LK_SR"
-    # # res_dir_kn = "/media/vsevolod/Data/postprocessed5/{}/outflow_1/geo//afterglow/tst_spec_maps/".format(sim)
-    # res_dir_kn = workdir#root + "BLh_M13641364_M0_LK_SR" + "/outflow_1/" + MASK + "/" + main_dir + res_dir
-    # res_dir_grb = workdir#root + "BLh_M13641364_M0_LK_SR" + "/outflow_1/" + MASK + "/" + main_dir + res_dir
-    # prefix_pl = "skymap_kn_example"#"ejecta_nlayers100_theta450_nism000031_p205_epse01_epsb001_epst1_dl00413"
-    # prefix_th = "skymap_kn_example"#"ejecta_nlayers100_theta450_nism000031_p205_epse01_epsb001_epst1_dl00413"
-    # jet_prefix = "skymap_grb_gauss"#"jet_G_nism000031_thetaobs450_epse007079_epsb000525_p216_epst00_nlayers100_dl00413_"
-    # # prefix_root = prefix_pl.replace("theta{}_", "")
-    task_to_plot = {
-        "workingdir" : workdir,
-        "parfile1":  "parfile.par",
-        "parfile2":  "parfile.par",
-        "time": times[3], "freq": 1e9, "title":"BLh $q=1.00$"
-    }
-
-    fname = workdir+ "precomputed_grb_skymap"#"int_"+sim + "_with_hists_time{}_".format(time) + prefix_th
-    settings = {
-        "gridspec": {
-            "width_ratios": (4, 2), "height_ratios": (2, 4),
-            "left": 0.14, "right": 0.95, "bottom": 0.1, "top": 0.96, "wspace": 0.05, "hspace": 0.05
-        },
-        # "figname": fname,
-        "paperpath": os.getcwd()+'/', "figfpath": fname, "save_pdf": True, "save_figs": True,
-        "show_figs": True,
-        "grid": False,
-        "figsize": (4.8, 4.8),
-        # "workingdir" : workdir,
-        "rerun":False, "precompute": True,
-        # "precompute_fpath": "/media/vsevolod/Data/postprocessed5/tmp/" + sim + "_single_time{}".format(time) + ".h5",
-        "precompute_fpath": fname + ".h5",#res_dir_kn+"int_skymaps_kn_" + prefix_root + ".h5",
-        # "precompute_fpath": OUTDIR + fname + ".h5",
-        "kn_skymap": {
-            # "hist_nx": 1024, "hist_ny": 512, "spec": False,
-            # "smooth": {},  # {"type": "gaussian", "sigma": 10},
-            # # "smooth": {"type": "gaussian", "sigma": 10},#"smooth": {"type": "uniform", "sigma": 5},
-            # "cm": {"color": 'yellow', "marker": "o"},
-            # "ysize": {"capsize": 2, "color": "yellow", "lw": 0.5},
-            # "xsize": {"capsize": 2, "color": "yellow", "lw": 0.5},
-            # # "pcolormesh": {"cmap": 'viridis', "norm": ("log", "0.2max", "1max"), "facecolor": 0.0, "alpha": 1.0},
-            # "pcolormesh": {"cmap": 'inferno', "set_under": None, "set_over": None, "set_rasterized": True,
-            #                "norm": ("log", "0.2max", "1max"), "facecolor": 0, "alpha": 1.0, "isnan": np.nan}
-            # {}
-        },
-        "grb_skymap": {
-            "hist_nx": 128, "hist_ny": 128, "spec": False,
-            "smooth": {},  # {"type": "gaussian", "sigma": 10},
-            "cm": {"color": 'cyan', "marker": "+"},
-            "ysize": {"capsize": 2, "color": "cyan", "lw": 0.5},
-            "xsize": {"capsize": 2, "color": "cyan", "lw": 0.5},
-            "pcolormesh": {"cmap": 'inferno', "set_under": None, "set_over": None, "set_rasterized": True,
-                           "norm": ("log", "0.01max", "1max"), "facecolor": 0, "alpha": 1.0, "isnan": np.nan}
-        },
-        "kn_grb_skymap": {
-            # "hist_nx": 1024, "hist_ny": 512, "spec": False,
-            # "smooth": {},  # {"type": "gaussian", "sigma": 10},  # "smooth": {"type": "uniform", "sigma": 5},
-            # "cm": {"color": 'lime', "marker": "o"},
-            # "ysize": {"capsize": 2, "color": "lime", "lw": 0.5},
-            # "xsize": {"capsize": 2, "color": "lime", "lw": 0.5},
-            # # "pcolormesh": {"cmap": 'viridis', "norm": ("log", "0.2max", "1max"), "facecolor": 0.0, "alpha": 1.0},
-            # "pcolormesh": {"cmap": 'inferno', "set_under": None, "set_over": None, "set_rasterized": True,
-            #                "norm": ("log", "0.01max", "1max"), "facecolor": 0, "alpha": 1.0, "isnan": np.nan}
-        },
-        "kn_w_skymap": {
-            # "hist_nx": 125, "hist_ny": 75,
-            # "cm": {"color": 'red', "marker": "x"},
-            # "ysize": {"capsize": 2, "color": "orange", "lw": 0.5},
-            # "xsize": {"capsize": 2, "color": "orange", "lw": 0.5},
-            # "pcolormesh":{"cmap":'viridis', "norm":("log","0.2max","1max"), "facecolor":0.0, "alpha":1.0}
-        },
-        "kn_skymap_ratio": {
-            # "pcolormesh": {"cmap": 'viridis', "norm": ("twoslope", 0, 1, 4), "facecolor": 0.0, "alpha": 1.0}  # {}
-        },
-        "xlim": (-0.5, 5.0), "ylim": (-2.5, 2.5),
-        "title": {"title": "time_fluxratio"},  # "time_fluxratio"
-        "cbar_title": r'$I_{\nu}^{\rm w}/I_{\nu}^{\rm w/o}$',
-        "xlabel": "x [mas]", "ylabel": "z [mas]",
-        "histx_backgound_color": "black",
-        "histy_backgound_color": "black",
-        "plot_grids": True,
-        "histx_lim":(1e-2, 1e1),
-        "histy_lim":(1e-2, 1e1)
-    }
-    plot_one_skymap_with_dists(task_to_plot=task_to_plot, settings=settings)
 
 
 
@@ -174,13 +64,13 @@ def compare_skymaps(resolutions=((80,100,120),
     times = np.array([1.,10.,40.,100.,200.,400.,800.,1600.])
     time_ = 1600
     freq = 1e9
-    tmp={"hist_nx": 41, "hist_ny": 41, "spec": False,
+    tmp={"hist_nx": 81, "hist_ny": 81, "spec": False,
          "smooth": {},  # {"type": "gaussian", "sigma": 10},
          "cm": {"color": 'cyan', "marker": "+"},
          "ysize": {"capsize": 2, "color": "cyan", "lw": 0.5},
          "xsize": {"capsize": 2, "color": "cyan", "lw": 0.5},
          "pcolormesh": {"cmap": 'inferno', "set_under": None, "set_over": None, "set_rasterized": True,
-                        "norm": ("log", "0.001max", "1max"), "facecolor": 0, "alpha": 1.0, "isnan": 0}
+                        "norm": ("linear", "0.01max", "1max"), "facecolor": 0, "alpha": 1.0, "isnan": 0}
          }
     settings={
         "xlim": (-0.5, 5.0), "ylim": (-2.5, 2.5),
@@ -220,10 +110,14 @@ def compare_skymaps(resolutions=((80,100,120),
             pba_pw = PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
             pba_pw.run(loglevel='info')
 
+            # all_x_jet, all_y_jet, all_fluxes_jet \
+            #     = pba_pw.GRB.get_skymap_old(time=time_ * cgs.day, freq=freq, verbose=False, remove_mu=False,renormalize=True, remove_zeros=True)
             all_x_jet, all_y_jet, all_fluxes_jet \
-                = pba_pw.GRB.get_skymap(time=time_ * cgs.day, freq=freq, verbose=False, remove_mu=False,renormalize=True)
-            int_x_j, int_y_j, int_zz_j = combine_images(all_x_jet, all_y_jet, all_fluxes_jet,
-                                                        hist_or_int="hist", shells=False, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+                = pba_pw.GRB.get_skymap_old(time=time_ * cgs.day, freq=freq, verbose=False, remove_mu=False,renormalize=True)
+            # int_x_j, int_y_j, int_zz_j = combine_images(all_x_jet, all_y_jet, all_fluxes_jet,
+            #                                             pre_int=True, k=5, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=1.1)
+            int_x_j, int_y_j, int_zz_j = combine_images_old(all_x_jet, all_y_jet, all_fluxes_jet, shells=True, verbose=True,
+                                                           hist_or_int="hist", nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
             grid_y_j, _i_zz_y_j, i_zz_y_j, _ = get_skymap_lat_dist(all_x_jet, all_y_jet, all_fluxes_jet,
                                                                    collapse_axis="x", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
             grid_x_j, _i_zz_x_j, i_zz_x_j, _ = get_skymap_lat_dist(all_x_jet, all_y_jet, all_fluxes_jet,
@@ -260,9 +154,9 @@ def compare_skymaps(resolutions=((80,100,120),
             pba_a.run(loglevel='info')
 
             all_x_jet, all_y_jet, all_fluxes_jet \
-                = pba_a.GRB.get_skymap(time=time_ * cgs.day, freq=freq, verbose=False, remove_mu=True, renormalize=False, normtype='pw')
-            int_x_j, int_y_j, int_zz_j = combine_images(all_x_jet, all_y_jet, all_fluxes_jet,
-                                                                   hist_or_int="int", shells=False, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+                = pba_a.GRB.get_skymap(time=time_ * cgs.day, freq=freq, verbose=False, remove_mu=True, renormalize=False, normtype='pw', remove_zeros=True)
+            int_x_j, int_y_j, int_zz_j = combine_images(all_x_jet, all_y_jet, all_fluxes_jet, verbose=True,
+                                                        pre_int=True, k=2, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
             grid_y_j, _i_zz_y_j, i_zz_y_j, _ = get_skymap_lat_dist(all_x_jet, all_y_jet, all_fluxes_jet,
                                                                               collapse_axis="x", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
             grid_x_j, _i_zz_x_j, i_zz_x_j, _ = get_skymap_lat_dist(all_x_jet, all_y_jet, all_fluxes_jet,
@@ -477,10 +371,12 @@ def compare_skymaps_3d(resolutions=((20,40,80,100,120),
                                  # (21,41,81,101,121),
                                  (21,81,121,161,201),
                                  # (121,241,381,401,521),
-                                 ('red','orange','yellow', 'cyan', 'lime'))):
+                                 ('red','orange','yellow', 'cyan', 'lime')),
+                                log=True):
 
     theta_w = 0.2# np.pi/2.
-    times = [1.,10.,40.,100.,200.]
+    times = np.array([1.,10.,40.,100.,200.,400.,800.,1600.])
+    time = 1600
     freq = 1e9
 
     nres_pw = len(resolutions[0]) if hasattr(resolutions[0],'__len__') else 0
@@ -508,28 +404,29 @@ def compare_skymaps_3d(resolutions=((20,40,80,100,120),
         pba_pw.run(loglevel='info')
 
         all_x_jet_pw, all_y_jet_pw, all_fluxes_jet_pw \
-            = pba_pw.GRB.get_skymap(time=times[3] * cgs.day, freq=freq, verbose=False, remove_mu=False,renormalize=True)
+            = pba_pw.GRB.get_skymap_old(time=time * cgs.day, freq=freq, verbose=False, remove_mu=False,renormalize=True)
 
         ax_a = fig.add_subplot(1, 2, 1, projection='3d')
 
         for (x_jet_pw, y_jet_pw, fluxes_jet_pw) in zip(all_x_jet_pw, all_y_jet_pw, all_fluxes_jet_pw):
             # fluxes_jet_pw+=1
-            fluxes_jet_pw[fluxes_jet_pw<1e-4] = 0.
+            # fluxes_jet_pw[fluxes_jet_pw<1e-4] = 0.
             cmap = cm.get_cmap('inferno')
-            my_norm = Normalize(fluxes_jet_pw.max() * 1e-1, fluxes_jet_pw.max())
-            # ax = fig.add_subplot(projection='3d')
-            # ax.scatter(xrs_i.flatten(), yrs_i.flatten(), ((theta_i-theta0_i)*180/np.pi).flatten(),  c=cmap(my_norm(int_i.flatten())))
-            # ax.scatter(xrs_i.flatten(), yrs_i.flatten(), np.log10(rs_i).flatten(), c=cmap(my_norm(int_i.flatten())))
-            # ax.scatter(xrs_i.flatten(), yrs_i.flatten(),mu_i.flatten(),  c=cmap(my_norm(int_i.flatten())))
-            # ax.scatter(xrs_i.flatten(), yrs_i.flatten(),cthetas_i.flatten(),  c=cmap(my_norm(int_i.flatten())))
-            fluxes_jet_ = fluxes_jet_pw; #np.log10(fluxes_jet_pw)
-            ax_a.scatter(x_jet_pw.flatten(), y_jet_pw.flatten(), fluxes_jet_.flatten(),  c=cmap(my_norm(fluxes_jet_pw.flatten())))
+            if log:
+                my_norm = LogNorm(fluxes_jet_pw.max() * 1e-2, fluxes_jet_pw.max())
+                c = cmap(my_norm(fluxes_jet_pw.flatten()))
+                fluxes_jet_pw = np.log10(fluxes_jet_pw)
+            else:
+                my_norm = Normalize(fluxes_jet_pw.max() * 1e-2, fluxes_jet_pw.max())
+                c = cmap(my_norm(fluxes_jet_pw.flatten()))
+                fluxes_jet_pw = fluxes_jet_pw
+            ax_a.scatter(x_jet_pw.flatten(), y_jet_pw.flatten(), fluxes_jet_pw.flatten(),  c=c)
             # ax.scatter(xrs_i.flatten(), yrs_i.flatten(),cphis_i.flatten(),  c=cmap(my_norm(int_i.flatten())))
             ax_a.set_xlabel('X Label')
             ax_a.set_ylabel('Y Label')
             ax_a.set_zlabel('I Label')
             # ax_a.set_zlim(np.log10(fluxes_jet_pw.flatten()).max()*1e-2,np.log10(fluxes_jet_pw.flatten()).max())
-        ax_a.set_title(f"Tot.Flux={pba_pw.GRB.get_skymap_totfluxes(freq=freq,time=times[3] * cgs.day)}")
+        ax_a.set_title(f"Tot.Flux={pba_pw.GRB.get_skymap_totfluxes(freq=freq,time=time * cgs.day)}")
         # ---------------------- #
 
         prepare_grb_ej_id_1d({"Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": theta_w, "theta_w": theta_w,
@@ -545,28 +442,36 @@ def compare_skymaps_3d(resolutions=((20,40,80,100,120),
         pba_a.run(loglevel='info')
 
         all_x_jet_a, all_y_jet_a, all_fluxes_jet_a \
-            = pba_a.GRB.get_skymap(time=times[3] * cgs.day, freq=freq, verbose=False, remove_mu=True, renormalize=False, normtype='pw')
+            = pba_a.GRB.get_skymap(time=time * cgs.day, freq=freq, verbose=False, remove_mu=True, renormalize=False, normtype='pw', remove_zeros=True)
 
         ax_b = fig.add_subplot(1, 2, 2, projection='3d')
 
+        my_norm_a = None
         for (x_jet_a, y_jet_a, fluxes_jet_a) in zip(all_x_jet_a, all_y_jet_a, all_fluxes_jet_a):
             # fluxes_jet_a += 1
-            fluxes_jet_a[fluxes_jet_a<1e-4] = 0.
+            # fluxes_jet_a[fluxes_jet_a<1e-4] = 0.
             cmap = cm.get_cmap('inferno')
-            my_norm = Normalize(fluxes_jet_a.max() * 1e-1, fluxes_jet_a.max())
+            if log:
+                if (my_norm_a is None): my_norm_a = LogNorm(fluxes_jet_a.max() * 1e-2, fluxes_jet_a.max())
+                c = cmap(my_norm_a(fluxes_jet_a.flatten()))
+                fluxes_jet_a = np.log10(fluxes_jet_a)
+            else:
+                if (my_norm_a is None): my_norm_a = Normalize(fluxes_jet_a.max() * 1e-2, fluxes_jet_a.max())
+                c = cmap(my_norm_a(fluxes_jet_a.flatten()))
+                fluxes_jet_a = fluxes_jet_a
             # ax = fig.add_subplot(projection='3d')
             # ax.scatter(xrs_i.flatten(), yrs_i.flatten(), ((theta_i-theta0_i)*180/np.pi).flatten(),  c=cmap(my_norm(int_i.flatten())))
             # ax.scatter(xrs_i.flatten(), yrs_i.flatten(), np.log10(rs_i).flatten(), c=cmap(my_norm(int_i.flatten())))
             # ax.scatter(xrs_i.flatten(), yrs_i.flatten(),mu_i.flatten(),  c=cmap(my_norm(int_i.flatten())))
             # ax.scatter(xrs_i.flatten(), yrs_i.flatten(),cthetas_i.flatten(),  c=cmap(my_norm(int_i.flatten())))
-            fluxes_jet_=fluxes_jet_a;#np.log10(fluxes_jet_a)
-            ax_b.scatter(x_jet_a.flatten(), y_jet_a.flatten(),fluxes_jet_.flatten(),  c=cmap(my_norm(fluxes_jet_a.flatten())))
+
+            ax_b.scatter(x_jet_a.flatten(), y_jet_a.flatten(), fluxes_jet_a.flatten(),  c=c)
             # ax.scatter(xrs_i.flatten(), yrs_i.flatten(),cphis_i.flatten(),  c=cmap(my_norm(int_i.flatten())))
             ax_b.set_xlabel('X Label')
             ax_b.set_ylabel('Y Label')
             ax_b.set_zlabel('I Label')
             # ax_b.set_zlim(np.log10(fluxes_jet_a.flatten()).max()*1e-2,np.log10(fluxes_jet_a.flatten()).max())
-        ax_b.set_title(f"Tot.Flux={pba_a.GRB.get_skymap_totfluxes(freq=freq,time=times[3] * cgs.day)}")
+        ax_b.set_title(f"Tot.Flux={pba_a.GRB.get_skymap_totfluxes(freq=freq,time=time * cgs.day)}")
 
 
     print(f"Piecewise: I[{fluxes_jet_pw.min(),fluxes_jet_pw.max()}]")
@@ -576,10 +481,11 @@ def compare_skymaps_3d(resolutions=((20,40,80,100,120),
     plt.show()
 def compare_skymaps_3d_theta_im_max(theta_maxs=((0.2, 0.4, .9, 1.2,  1.57),
                                                  (121,321,521,621,721),
-                                                 ('red','orange','yellow', 'cyan', 'lime')), extend=2, nx = 31, ny = 31):
+                                                 ('red','orange','yellow', 'cyan', 'lime')), extend=2, nx = 41, ny = 31):
 
     theta_w = 0.2# np.pi/2.
-    times = [1.,10.,40.,100.,200.]
+    times = np.array([1.,10.,40.,100.,200.,400.,800.,1600.])
+    time_ = 1600
     freq = 1e9
 
     # nres_pw = len(resolutions[0]) if hasattr(resolutions[0],'__len__') else 0
@@ -608,49 +514,64 @@ def compare_skymaps_3d_theta_im_max(theta_maxs=((0.2, 0.4, .9, 1.2,  1.57),
         pba_a = PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
         pba_a.run(loglevel='info')
 
-        all_x_jet_a, all_y_jet_a, all_fluxes_jet_a \
-            = pba_a.GRB.get_skymap(time=times[3] * cgs.day, freq=freq, verbose=False, remove_mu=False, renormalize=False, normtype='a')
+        # x_jet_a, y_jet_a, fluxes_jet_a \
+        #     = pba_a.GRB.get_skymap_old(time=time_ * cgs.day, freq=freq, verbose=True, remove_mu=False,
+        #                                renormalize=False, normtype='a')
+        x_jet_a, y_jet_a, fluxes_jet_a \
+            = pba_a.GRB.get_skymap(time=time_ * cgs.day, freq=freq, verbose=True, remove_mu=False,
+                                   renormalize=False, normtype='a', remove_zeros=True)
+
+        xc_m_j, yc_m_j = pba_a.GRB.get_skymap_cm(x_jet_a, y_jet_a, fluxes_jet_a)
+        print(f"xc={xc_m_j} yc={yc_m_j}")
 
         # ax_b = fig.add_subplot(len(theta_maxs[0]), 2, i*2+1, projection='3d')
         ax_b = fig.add_subplot(len(theta_maxs[0]), 2, i*2+1)
 
-        for (x_jet_a, y_jet_a, fluxes_jet_a) in zip(all_x_jet_a, all_y_jet_a, all_fluxes_jet_a):
-            # fluxes_jet_a += 1
-            # fluxes_jet_a[fluxes_jet_a<1e-4] = 0.
-            cmap = cm.get_cmap('inferno')
-            # my_norm = Normalize(fluxes_jet_a.max() * 1e-1, fluxes_jet_a.max())
-            if my_norm is None: my_norm = Normalize(fluxes_jet_a.max() * 1e-1, fluxes_jet_a.max())
-            # ax = fig.add_subplot(projection='3d')
-            # ax.scatter(xrs_i.flatten(), yrs_i.flatten(), ((theta_i-theta0_i)*180/np.pi).flatten(),  c=cmap(my_norm(int_i.flatten())))
-            # ax.scatter(xrs_i.flatten(), yrs_i.flatten(), np.log10(rs_i).flatten(), c=cmap(my_norm(int_i.flatten())))
-            # ax.scatter(xrs_i.flatten(), yrs_i.flatten(),mu_i.flatten(),  c=cmap(my_norm(int_i.flatten())))
-            # ax.scatter(xrs_i.flatten(), yrs_i.flatten(),cthetas_i.flatten(),  c=cmap(my_norm(int_i.flatten())))
-            fluxes_jet_=fluxes_jet_a;#np.log10(fluxes_jet_a)
-            c = ax_b.scatter(x_jet_a.flatten(), y_jet_a.flatten(), c=cmap(my_norm(fluxes_jet_a.flatten())))
-            # cbar = plt.colorbar(ScalarMappable(cmap=c.get_cmap(), norm=c.norm), ax=ax_b)
+        # for (x_jet_a, y_jet_a, fluxes_jet_a) in zip(all_x_jet_a, all_y_jet_a, all_fluxes_jet_a):
+        # fluxes_jet_a += 1
+        # fluxes_jet_a[fluxes_jet_a<1e-4] = 0.
+        cmap = cm.get_cmap('viridis')
+        # my_norm = Normalize(fluxes_jet_a.max() * 1e-1, fluxes_jet_a.max())
+        if my_norm is None: my_norm = Normalize(fluxes_jet_a[0].max() * 1e-1, fluxes_jet_a[0].max())
+        # ax = fig.add_subplot(projection='3d')
+        # ax.scatter(xrs_i.flatten(), yrs_i.flatten(), ((theta_i-theta0_i)*180/np.pi).flatten(),  c=cmap(my_norm(int_i.flatten())))
+        # ax.scatter(xrs_i.flatten(), yrs_i.flatten(), np.log10(rs_i).flatten(), c=cmap(my_norm(int_i.flatten())))
+        # ax.scatter(xrs_i.flatten(), yrs_i.flatten(),mu_i.flatten(),  c=cmap(my_norm(int_i.flatten())))
+        # ax.scatter(xrs_i.flatten(), yrs_i.flatten(),cthetas_i.flatten(),  c=cmap(my_norm(int_i.flatten())))
+        # fluxes_jet_=fluxes_jet_a;#np.log10(fluxes_jet_a)
+        c = ax_b.scatter(x_jet_a[0].flatten(), y_jet_a[0].flatten(), c=cmap(my_norm(fluxes_jet_a[0].flatten())))
+        c = ax_b.scatter(x_jet_a[1].flatten(), y_jet_a[1].flatten(), c=cmap(my_norm(fluxes_jet_a[1].flatten())))
+        # cbar = plt.colorbar(ScalarMappable(cmap=c.get_cmap(), norm=c.norm), ax=ax_b)
 
-            int_x_j, int_y_j, int_zz_j = combine_images([x_jet_a], [y_jet_a], [fluxes_jet_a],
-                                                        hist_or_int="hist", shells=True, nx=nx, ny=ny, extend=2)
-            # grid_X, grid_Y = np.meshgrid(int_x_j, int_y_j, indexing='ij')
-            max = 5.5
-            if my_norm2 is None: my_norm2 = LogNorm(int_zz_j.max() * 1e-1, int_zz_j.max())
-            # ax_x = fig.add_subplot(len(theta_maxs[0]), 2, (i+1)*2, projection='3d')
-            ax_x = fig.add_subplot(len(theta_maxs[0]), 2, (i+1)*2)
-            if int_x_j.ndim == 1:
-                int_x_j, int_y_j = np.meshgrid(int_x_j, int_y_j, indexing='ij')
+        int_x_j, int_y_j, int_zz_j = combine_images(x_jet_a, y_jet_a, fluxes_jet_a,
+                                                    pre_int=True, k=3, nx=nx, ny=ny, extend=2)
+        #
+        # int_x_j, int_y_j, int_zz_j = combine_images_old(x_jet_a, y_jet_a, fluxes_jet_a,
+        #                                                 shells=True, hist_or_int='hist', nx=nx, ny=ny, extend=2)
+        grid_X, grid_Y = np.meshgrid(int_x_j, int_y_j, indexing='ij')
+        max = 5.5
+        if my_norm2 is None: my_norm2 = LogNorm(int_zz_j.max() * 1e-1, int_zz_j.max())
+        # ax_x = fig.add_subplot(len(theta_maxs[0]), 2, (i+1)*2, projection='3d')
+        ax_x = fig.add_subplot(len(theta_maxs[0]), 2, (i+1)*2)
+        if int_x_j.ndim == 1:
+            int_x_j, int_y_j = np.meshgrid(int_x_j, int_y_j, indexing='ij')
 
-            c = ax_x.scatter(int_x_j.flatten(), int_y_j.flatten(), c=cmap(my_norm2(int_zz_j.flatten())), marker='s')
+        c = ax_x.scatter(int_x_j.flatten(), int_y_j.flatten(), c=cmap(my_norm2(int_zz_j.flatten())), marker='s')
             # ax_x.pcolormesh(grid_X, grid_Y, i_zz,  cmap=cmap,norm=my_norm)
             # cbar = plt.colorbar(ScalarMappable(cmap=c.get_cmap(), norm=c.norm), ax=ax_x)
 
-        ax_b.set_title(f"Tot.Flux={pba_a.GRB.get_skymap_totfluxes(freq=freq,time=times[3] * cgs.day)}")
-        res[f"thmax={theta_maxs[0][i]}"] = f"xmin={x_jet_a.min():.2e} xmax={x_jet_a.min():.2e} " \
-                                           f"| ymin={y_jet_a.min():.2e} ymax={y_jet_a.min():.2e} " \
-                                            f"| Imin={fluxes_jet_a.min():.2e} Imax={fluxes_jet_a.max():.2e}" \
+        # xc_m_j, yc_m_j = pba_a.GRB.get_skymap_cm(x_jet_a, y_jet_a, fluxes_jet_a)
+        ax_b.plot([xc_m_j], [yc_m_j], color="lime", marker='o', ms=10)
+        ax_b.axhline(y=0, color='gray')
+
+        ax_b.set_title(f"Tot.Flux={pba_a.GRB.get_skymap_totfluxes(freq=freq,time=time_ * cgs.day)}")
+        res[f"thmax={theta_maxs[0][i]}"] = f"xmin={x_jet_a[0].min():.2e} xmax={x_jet_a[0].min():.2e} " \
+                                           f"| ymin={y_jet_a[0].min():.2e} ymax={y_jet_a[0].min():.2e} " \
+                                            f"| Imin={fluxes_jet_a[0].min():.2e} Imax={fluxes_jet_a[0].max():.2e}" \
                                             f"| IHISTmin={int_zz_j.min():.2e} IHISTmax={int_zz_j.max():.2e}" \
 
     # print(f"Piecewise: I[{fluxes_jet_pw.min(),fluxes_jet_pw.max()}]")
-    print(f"Adaptive: I[{fluxes_jet_a.min(),fluxes_jet_a.max()}]")
+    print(f"Adaptive: I[{fluxes_jet_a[0].min(),fluxes_jet_a[0].max()}]")
 
     for key, val in res.items():
         print(f"{key} {val}")
@@ -659,7 +580,8 @@ def compare_skymaps_3d_theta_im_max(theta_maxs=((0.2, 0.4, .9, 1.2,  1.57),
     plt.show()
 
 def compare_skymap_evolution(resolutions=((21,81,121,161,201),
-                                          ('red','orange','yellow', 'cyan', 'lime'))):
+                                          ('red','orange','yellow', 'cyan', 'lime')),
+                                          method_spread="AFGPY"):
     times = np.array([1.,10.,40.,100.,200.,400.,800.,1600.])
     nlayer_pw = 80
     theta_w = 0.2
@@ -680,7 +602,7 @@ def compare_skymap_evolution(resolutions=((21,81,121,161,201),
                            parfile="parfile.par", newparfile="parfile.par", keep_old=False)
     modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
                            newpars={},
-                           newopts={"fname_ejecta_id":"tophat_grb_id_pw.h5","method_eats":"piece-wise", "method_spread":"AA"},
+                           newopts={"fname_ejecta_id":"tophat_grb_id_pw.h5","method_eats":"piece-wise", "method_spread":method_spread},
                            parfile="parfile.par", newparfile="parfile.par", keep_old=False)
     pba_pw = PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
     pba_pw.run(loglevel='info')
@@ -690,7 +612,7 @@ def compare_skymap_evolution(resolutions=((21,81,121,161,201),
         # Plot peice-wise
 
         all_x_jet, all_y_jet, all_fluxes_jet \
-            = pba_pw.GRB.get_skymap(time=t * cgs.day, freq=freq, verbose=False, remove_mu=False,renormalize=True)
+            = pba_pw.GRB.get_skymap(time=t * cgs.day, freq=freq, verbose=False, remove_mu=False, renormalize=True)
         # int_x_j, int_y_j, int_zz_j = combine_images(all_x_jet, all_y_jet, all_fluxes_jet,
         #                                             hist_or_int="hist", shells=False, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
 
@@ -719,7 +641,7 @@ def compare_skymap_evolution(resolutions=((21,81,121,161,201),
                                parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
                                newpars={"nsublayers": nsublayers},
-                               newopts={"fname_ejecta_id":"tophat_grb_id_a.h5","method_eats":"adaptive","method_spread":"AFGPY"},
+                               newopts={"fname_ejecta_id":"tophat_grb_id_a.h5","method_eats":"adaptive", "method_spread":method_spread},
                                parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         pba_a = PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
         pba_a.run(loglevel='info')
@@ -727,9 +649,9 @@ def compare_skymap_evolution(resolutions=((21,81,121,161,201),
         for it, t in enumerate(times):
 
             all_x_jet, all_y_jet, all_fluxes_jet \
-                = pba_a.GRB.get_skymap(time=t * cgs.day, freq=freq, verbose=False, remove_mu=True, renormalize=True, normtype='a')
-            int_x_j, int_y_j, int_zz_j = combine_images(all_x_jet, all_y_jet, all_fluxes_jet,
-                                                        hist_or_int="hist", shells=False, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+                = pba_a.GRB.get_skymap(time=t * cgs.day, freq=freq, verbose=False, remove_mu=False, renormalize=False, normtype='a')
+            # int_x_j, int_y_j, int_zz_j = combine_images(all_x_jet, all_y_jet, all_fluxes_jet,
+            #                                             pre_int="hist", shells=False, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
 
             xc_m_j, yc_m_j = pba_a.GRB.get_skymap_cm(all_x_jet, all_y_jet, all_fluxes_jet)
 
@@ -778,7 +700,7 @@ def main():
     #                              # (21,41,81,101,121),
     #                              # (81,),
     #                              # (220,),
-    #                              (121,241,381,401),
+    #                              (101,141,181,221),
     #                              # (121,),
     #                              ('red','orange','yellow', 'cyan', 'lime')))
     # compare_skymaps_3d(resolutions=((80,),
@@ -791,17 +713,17 @@ def main():
     #                              (121,),
     #                              # (121,241,381,401,521),
     #                              ('orange')))
-    compare_skymaps_theta_im_max(nlayer_a = 21, theta_maxs=((0.2, 0.4, .9, 1.2,  1.57),
-                                 ('red','orange','yellow', 'cyan', 'lime')))
+    # compare_skymaps_theta_im_max(nlayer_a = 21, theta_maxs=((0.2, 0.4, .9, 1.2,  1.57),
+    #                              ('red','orange','yellow', 'cyan', 'lime')))
 
-    # compare_skymaps_3d(resolutions=((80,),
-    #                              (721,),
+    # compare_skymaps_3d(resolutions=((21,),
+    #                              (121,),
     #                              # (21,81,121,161,201),
     #                              # (121,241,381,401,521),
     #                              ('red','orange','yellow', 'cyan', 'lime')))
-    # compare_skymaps_3d_theta_im_max(theta_maxs=((0, 1.57,),
-    #                                             (21, 201,),
-    #                                             ('red','orange')))
+    # compare_skymaps_3d_theta_im_max(theta_maxs=((1.57,),
+    #                                             (81,),
+    #                                             ('red', 'blue', 'orange')))
 
 
     compare_skymap_evolution()

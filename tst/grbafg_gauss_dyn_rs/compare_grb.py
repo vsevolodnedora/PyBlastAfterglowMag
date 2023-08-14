@@ -112,7 +112,7 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
     theta_h = np.pi/2.
     one_min_cos = 2. * np.sin(0.5 * theta_h) * np.sin(0.5 * theta_h)
     ang_size_layer = 2.0 * np.pi * one_min_cos / (4.0 * np.pi)
-    prepare_grb_ej_id_1d({"Eiso_c":1.e53, "Gamma0c": 1000., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.3,
+    prepare_grb_ej_id_1d({"Eiso_c":1.e53, "Gamma0c": 1000., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.45,
                           "nlayers_pw": 50, "nlayers_a": 10, "struct":"gaussian"},
                            type="a",outfpath="tophat_grb_id.h5")
 
@@ -151,7 +151,7 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
     # print(dfile.keys())
     # print(dfile["layer=0"]["M2"])
 
-    fid, axes = plt.subplots(ncols=1, nrows=len(v_n_ys), figsize=(4.6,4.2),sharex="all")
+    fid, axes = plt.subplots(ncols=1, nrows=len(v_n_ys), figsize=(4.2+3,3.6+3),sharex="all")
     # norm = Normalize(vmin=0, vmax=dfile.attrs["nlayers"])
     cmap = cm.viridis
     mynorm = Normalize(vmin=0,vmax=len(ishells)*len(ilayers))#norm(len(ishells)*len(ilayers))
@@ -161,8 +161,8 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
         i = 0
         if(run_fs_only):
             for il, layer in enumerate(layers):
-                x_arr = pba_fs.GRB.get_dyn_arr(v_n=v_n_x,ishell=ishells[0],ilayer=il)#  np.array(dfile[layer][v_n_x])
-                y_arr = pba_fs.GRB.get_dyn_arr(v_n=v_n,ishell=ishells[0],ilayer=il)#np.array(dfile[layer][v_n])
+                x_arr = pba_fs.GRB.get_dyn_arr(v_n=v_n_x,ishell=ishells[0],ilayer=ilayers[il])#  np.array(dfile[layer][v_n_x])
+                y_arr = pba_fs.GRB.get_dyn_arr(v_n=v_n,ishell=ishells[0],ilayer=ilayers[il])#np.array(dfile[layer][v_n])
                 y_arr = y_arr[x_arr > 0]
                 x_arr = x_arr[x_arr > 0]
                 # if (v_n == "R"):
@@ -175,8 +175,8 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
         # --------------------------------
         i = 0
         for il, layer in enumerate(layers):
-            x_arr = pba_fsrs.GRB.get_dyn_arr(v_n=v_n_x,ishell=ishells[0],ilayer=il)#  np.array(dfile[layer][v_n_x])
-            y_arr = pba_fsrs.GRB.get_dyn_arr(v_n=v_n,ishell=ishells[0],ilayer=il)#np.array(dfile[layer][v_n])
+            x_arr = pba_fsrs.GRB.get_dyn_arr(v_n=v_n_x,ishell=ishells[0],ilayer=ilayers[il])#  np.array(dfile[layer][v_n_x])
+            y_arr = pba_fsrs.GRB.get_dyn_arr(v_n=v_n,ishell=ishells[0],ilayer=ilayers[il])#np.array(dfile[layer][v_n])
             y_arr = y_arr[x_arr > 0]
             x_arr = x_arr[x_arr > 0]
             # if (v_n == "R"):
@@ -188,9 +188,9 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
             i=i+1
 
             # --- plot ref data
-            x_arr = ref.get(il, v_n_x)
+            x_arr = ref.get(ilayers[il], v_n_x)
             if (v_n_x == "tburst"): x_arr /=cgs.day;
-            ax.plot(x_arr, ref.get(il, v_n), ls=':', color='red', lw=2.)
+            ax.plot(x_arr, ref.get(ilayers[il], v_n), ls=':', color='red', lw=2., zorder=-1)
 
         # ax.set_xlabel(v_n_x)
 
@@ -204,6 +204,7 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
         ax.set_yscale("log")
         # ax.set_xlim(5e-1,4e3)
     if (v_n_x == "tburst"): ax.set_xlabel(v_n_x + " [day]",fontsize=12)
+
     if legend: plt.legend()
     plt.tight_layout()
     plt.savefig(workdir+figname, dpi=256)
@@ -325,9 +326,13 @@ if __name__ == '__main__':
     # plot_ejecta_layers(ishells=(0,), ilayers=(0,),
     #                    v_n_x = "R", v_n_ys = ("Eint2", "mom", "M3", "Eint3","deltaR4", "rho4"), colors_by="layers",legend=False,
     #                    figname="dyn_layers_fs.png")
+    # plot_ejecta_layers(ishells=(0,), ilayers=(0,2,4,6,9),
+    #                    v_n_x = "tburst", v_n_ys = ("mom", "M2", "M3", "Eint2", "Eint3","Gamma43","rho4"), colors_by="layers",legend=False,
+    #                    # v_n_x = "tburst", v_n_ys = ("mom", "M3", "Eint3"), colors_by="layers",legend=False,
+    #                    figname="dyn_layers_fs.png")
     plot_ejecta_layers(ishells=(0,), ilayers=(0,2,4,6,9),
-                       v_n_x = "tburst", v_n_ys = ("mom", "M2", "M3", "Eint2", "Eint3","Gamma43","rho4"), colors_by="layers",legend=False,
+                       v_n_x = "tburst", v_n_ys = ("mom", "M3", "Eint3","rho4"), colors_by="layers",legend=False,
                        # v_n_x = "tburst", v_n_ys = ("mom", "M3", "Eint3"), colors_by="layers",legend=False,
-                       figname="dyn_layers_fs.png")
+                       figname="dyn_layers_fs.png", run_fs_only=True)
     # tst_against_afgpy()
     exit(0)
