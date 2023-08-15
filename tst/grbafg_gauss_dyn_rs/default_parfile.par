@@ -50,8 +50,9 @@ integrator = DOP853E
 n_store_substeps = 10
 
 tprompt = 1.e3
-a = 0.0
+a = 1.0
 fraction_of_Gamma0_when_spread = 0.1
+im_max_theta = 1.57
 
 eps_e = 0.1
 eps_b = 0.01
@@ -73,7 +74,8 @@ save_dyn_every_it = 10
 rtol_adapt = 1e-5
 fnu_min_frac = 1e-5
 
-rs_Gamma0_frac_no_exceed = .98
+rs_Gamma0_frac_no_exceed = .92
+min_Gamma0_for_rs = 0.
 
 * Settings
 
@@ -82,6 +84,7 @@ save_dynamics = yes
 load_dynamics = no
 do_ele = no
 do_spec = no
+save_spec = no
 do_lc = no
 do_skymap = no
 

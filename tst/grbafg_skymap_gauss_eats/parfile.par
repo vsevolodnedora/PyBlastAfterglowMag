@@ -65,7 +65,7 @@ save_dyn_every_it = 1
 rtol_adapt = 1e-5
 fnu_min_frac = 1e-4
 
-nsublayers = 5
+nsublayers = 1
 im_max_theta = 1.57
 
 * Settings

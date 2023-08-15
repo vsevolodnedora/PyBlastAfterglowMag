@@ -398,10 +398,6 @@ public:
         p_pars->adiabLoss =
                 getBoolOpt("use_adiabLoss", opts, AT,p_log,true, false);
 
-        p_pars->do_rs = getBoolOpt("do_rs", opts, AT,p_log, false, true);
-
-        p_pars->adiabLoss_rs =
-                getBoolOpt("use_adiabLoss_rs", opts, AT,p_log,true, false);
 
         /// set sedov-taylor profile (for jet to be seen by ejecta as it moves behind)
         if (p_pars->use_st_dens_profile) {
@@ -728,7 +724,24 @@ public:
         }
         p_pars->method_single_bw_delta = method_single_bw_delta;
 
+        /// -------------------------------------
 
+        p_pars->do_rs = getBoolOpt("do_rs", opts, AT,p_log, false, true);
+
+        p_pars->adiabLoss_rs =
+                getBoolOpt("use_adiabLoss_rs", opts, AT,p_log,true, false);
+
+        if (p_pars->do_rs) {
+            p_pars->min_Gamma0_for_rs =
+                    getDoublePar("min_Gamma0_for_rs", pars, AT, p_log, 0., true);
+        }
+        else
+            p_pars->min_Gamma0_for_rs = 0;
+        if (p_pars->Gamma0 < p_pars->min_Gamma0_for_rs) {
+            p_pars->do_rs = false;
+            p_pars->shutOff = true;
+            p_pars->m_rhs = RHS_TYPES::iGRG_FS;
+        }
 
         /// ---------------------------------------
 //        int p_pars->opacitymode=0; //0=iron, 1=Y_e~0.3-0.5, 2=Y_e~0.1-0.2, 3=CO

@@ -16,7 +16,7 @@ tb0 = 3335.64
 tb1 = 7.03823e+17
 ntb = 1000
 iout = 1
-rtol = 1e-8
+rtol = 1.e-6
 nmax = 1000
 
 A0 = -1
@@ -52,6 +52,9 @@ n_store_substeps = 10
 tprompt = 1.e3
 a = 0.0
 fraction_of_Gamma0_when_spread = 0.1
+im_max_theta = 1.57
+min_Gamma0_for_rs = 0
+rs_Gamma0_frac_no_exceed = .92
 
 eps_e = 0.1
 eps_b = 0.01
@@ -80,6 +83,7 @@ save_dynamics = yes
 load_dynamics = no
 do_ele = yes
 do_spec = yes
+save_spec = yes
 do_lc = no
 do_skymap = no
 spec_var_out = -

@@ -35,6 +35,12 @@ except:
 
 curdir = os.getcwd() + '/' #"/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglow_dev/PyBlastAfterglow/src/PyBlastAfterglow/tests/dyn/"
 
+pars = {"Eiso_c":1.e53, "Gamma0c": 1000., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.4,
+        "nlayers_pw": 0, "nlayers_a": 0, "struct":"gaussian"}
+
+# pars =  {"struct":"gaussian",
+#  "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
+#  "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":150,"nlayers_a": 10}
 
 def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
                        v_n_x = "R", v_n_ys = ("rho", "mom"), colors_by="layers",legend=False,
@@ -262,10 +268,8 @@ def plot_ejecta_layers_spec(freq=1e18,ishells=(0,), ilayers=(0,25,49),colors_by=
     plt.show()
 
 def plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,20,40,80,120),legend=False,
-                                   figname="dyn_layers_fsrs.png", run_fs_only=True,type="pw",method_eats="piece-wise"):
+                                   figname="dyn_layers_fsrs.png", run_fs_only=True,type="pw",method_eats="piece-wise",method_spread="AFGPY"):
     workdir = os.getcwd()+"/"
-
-
 
     fid, ax = plt.subplots(ncols=1, nrows=1, figsize=(4.6,4.2),sharex="all")
     cmap_fs = cm.Blues_r
@@ -274,18 +278,20 @@ def plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,20,40,80,120),legend=Fa
 
     for theta in [0., 0.7, 1.5]:
         for i, i_nlayers in enumerate(nlayers):
-            prepare_grb_ej_id_1d({"Eiso_c":1.e53, "Gamma0c": 1000., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.5,
-                                  "nlayers_pw": i_nlayers, "nlayers_a": i_nlayers, "struct":"gaussian"},
-                                  type=type,outfpath="gauss_grb_id.h5")
+            pars["nlayers_a"] = i_nlayers
+            pars["nlayers_pw"] = i_nlayers
+            prepare_grb_ej_id_1d(pars, type=type,outfpath="gauss_grb_id.h5")
             modify_parfile_par_opt(workingdir=workdir, part="main", newpars={"theta_obs":theta}, newopts={},
                                    parfile="default_parfile.par", newparfile="default_parfile.par",keep_old=False)
             ### run fs-only model
             if(run_fs_only):
                 modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
                                        newopts={"rhs_type":"grb_fs", "outfpath":"grb_fs.h5", "do_rs":"no",
-                                                "fname_ejecta_id":"gauss_grb_id.h5", "method_spread":"AFGPY",
+                                                "fname_ejecta_id":"gauss_grb_id.h5", "method_spread":method_spread,
                                                 "fname_dyn":"dyn_bw_fs.h5","fname_light_curve":"lc_grb_fs.h5",
-                                                "fname_light_curve_layers":"lc_grb_fs_layers.h5", "method_eats": method_eats},
+                                                "fname_light_curve_layers":"lc_grb_fs_layers.h5", "method_eats": method_eats,
+                                                # "method_comp_mode": "observFlux", "do_spec":"no"
+                                                },
                                        parfile="default_parfile.par", newparfile="parfile.par",keep_old=True)
                 pba_fs = PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
                 pba_fs.run(loglevel="info")
@@ -294,9 +300,10 @@ def plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,20,40,80,120),legend=Fa
 
             modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
                                    newopts={"rhs_type":"grb_fsrs", "outfpath":"grb_fsrs.h5", "do_rs":"yes",
-                                            "fname_ejecta_id":"gauss_grb_id.h5", "method_spread":"AFGPY",
+                                            "fname_ejecta_id":"gauss_grb_id.h5", "method_spread":method_spread,
                                             "fname_dyn":"dyn_bw_fsrs.h5","fname_light_curve":"lc_grb_fsrs.h5",
-                                            "fname_light_curve_layers":"lc_grb_fsrs_layers.h5", "method_eats": method_eats},
+                                            "fname_light_curve_layers":"lc_grb_fsrs_layers.h5", "method_eats": method_eats
+                                            },
                                    parfile="default_parfile.par", newparfile="parfile.par",keep_old=True)
             pba_fsrs = PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
             pba_fsrs.run(loglevel="info")
@@ -309,7 +316,7 @@ def plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,20,40,80,120),legend=Fa
             ax.plot(pba_fsrs.GRB.get_lc_times(spec=False)/cgs.day,
                     pba_fsrs.GRB.get_lc(freq=freq,ishell=None,ilayer=None,spec=False), ls='--', color=color_fsrs, label='FSRS')
 
-    ax.set_ylabel("Emissivity", fontsize=12)
+    ax.set_ylabel("Flux Density [mJy]", fontsize=12)
     ax.set_xscale("log")
     ax.set_yscale("log")
     # axes[iv_n].legend()
@@ -318,7 +325,7 @@ def plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,20,40,80,120),legend=Fa
     ax.set_xscale("log")
     ax.set_yscale("log")
 
-    ax.set_xlabel("tburst" + " [day]",fontsize=12)
+    ax.set_xlabel("time" + " [day]",fontsize=12)
     if legend: plt.legend()
     plt.tight_layout()
     plt.savefig(workdir+figname, dpi=256)
@@ -326,7 +333,7 @@ def plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,20,40,80,120),legend=Fa
 
 if __name__ == '__main__':
 
-    plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,),type="a",method_eats="adaptive")#30,50,70
+    plot_tst_total_spec_resolution(freq=1e9, nlayers=(20,),type="a",method_eats="adaptive")#30,50,70
 
 
     # plot_ejecta_layers(ishells=(0,), ilayers=(0,),

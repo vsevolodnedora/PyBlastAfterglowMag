@@ -636,9 +636,9 @@ public:
             image(IMG::Q::ictheta, i) = ctheta_cell;
             image(IMG::Q::icphi, i) = phi_cell;
             image(IMG::Q::imu, i) = mu[i];
-            image(IMG::Q::itau_comp, i) = tau_comp;
-            image(IMG::Q::itau_bh, i) = tau_BH;
-            image(IMG::Q::itau_bf, i) = tau_bf;
+//            image(IMG::Q::itau_comp, i) = tau_comp;
+//            image(IMG::Q::itau_bh, i) = tau_BH;
+//            image(IMG::Q::itau_bf, i) = tau_bf;
         }
 
         /// eval total flux

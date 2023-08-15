@@ -36,6 +36,10 @@ except:
 curdir = os.getcwd() + '/' #"/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglow_dev/PyBlastAfterglow/src/PyBlastAfterglow/tests/dyn/"
 
 
+pars = {"Eiso_c":1.e53, "Gamma0c": 1000., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.4,
+        "nlayers_pw": 50, "nlayers_a": 0, "struct":"gaussian"}
+
+
 def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49), nlayers_a=20,
                        v_n_x = "R", v_n_ys = ("rho", "mom"), colors_by="layers",legend=False,
                        figname="dyn_layers_fsrs.png", run_fs_only=False):
@@ -48,9 +52,8 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49), nlayers_a=20,
     theta_h = np.pi/2.
     one_min_cos = 2. * np.sin(0.5 * theta_h) * np.sin(0.5 * theta_h)
     ang_size_layer = 2.0 * np.pi * one_min_cos / (4.0 * np.pi)
-    prepare_grb_ej_id_1d({"Eiso_c":1.e53, "Gamma0c": 1000., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.3,
-                          "nlayers_pw": 50, "nlayers_a": nlayers_a, "struct":"gaussian"},
-                           type="a",outfpath="gauss_grb_id.h5")
+    pars["nlayers_a"] = nlayers_a
+    prepare_grb_ej_id_1d(pars, type="a",outfpath="gauss_grb_id.h5")
 
     ### run fs-only model
     if(run_fs_only):
@@ -170,9 +173,9 @@ def plot_ejecta_layers_spec(freq=1e18,ishells=(0,), ilayers=(0,25,49),nlayers_a=
     theta_h = np.pi/2.
     one_min_cos = 2. * np.sin(0.5 * theta_h) * np.sin(0.5 * theta_h)
     ang_size_layer = 2.0 * np.pi * one_min_cos / (4.0 * np.pi)
-    prepare_grb_ej_id_1d({"Eiso_c":1.e53, "Gamma0c": 1000., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.3,
-                          "nlayers_pw": 100, "nlayers_a": nlayers_a, "struct":"gaussian"},
-                           type=type,outfpath="gauss_grb_id.h5")
+
+    pars["nlayers_a"] = nlayers_a
+    prepare_grb_ej_id_1d(pars, type=type,outfpath="gauss_grb_id.h5")
 
     ### run fs-only model
     if(run_fs_only):
@@ -296,9 +299,8 @@ def plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,20,40,80,120),legend=Fa
     cmap_fs = cm.Blues
     mynorm = Normalize(vmin=0,vmax=nlayers[-1])#norm(len(ishells)*len(ilayers))
     for i, i_nlayers in enumerate(nlayers):
-        prepare_grb_ej_id_1d({"Eiso_c":1.e53, "Gamma0c": 1000., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.3,
-                              "nlayers_pw": i_nlayers, "nlayers_a": i_nlayers, "struct":"gaussian"},
-                              type=type,outfpath="gauss_grb_id.h5")
+        pars["nlayers_a"] = i_nlayers
+        prepare_grb_ej_id_1d(pars, type=type,outfpath="gauss_grb_id.h5")
 
         ### run fs-only model
         if(include_fs_only):
@@ -357,7 +359,7 @@ if __name__ == '__main__':
     # plot_ejecta_layers(ishells=(0,), ilayers=(0,10,20,40,49), nlayers_a=50,
     #                    v_n_x = "tburst", v_n_ys = ("B", "B_rs", "gamma_min", "gamma_min_rs","gamma_c", "gamma_c_rs"), colors_by="layers",legend=False,run_fs_only=True,
     #                    figname="dyn_layers_fs.png")
-    # plot_ejecta_layers_spec(freq=1e9, ishells=(0,), ilayers=(0,10,20,30,40,49),nlayers_a=50,type="a",method_eats="adaptive")
+    plot_ejecta_layers_spec(freq=1e9, ishells=(0,), ilayers=(0,10,20,30,40,49),nlayers_a=50,type="a",method_eats="adaptive")
     #
     # plot_tst_total_spec_resolution(freq=1e9, nlayers=(40,80,120,160,200), type="pw",method_eats="piece-wise")
     plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,30,50,70),type="a",method_eats="adaptive", include_fs_only=True)

@@ -133,6 +133,9 @@ public:
     static size_t CellsInLayer(const size_t &i_layer){
         return 2 * i_layer + 1;
     }
+    static size_t CellsInLayer_(const size_t &i_layer){
+        return 2 * i_layer + 2;
+    }
 
 
     /// initial grid for [a] EATS method
@@ -224,6 +227,11 @@ public:
         cil.resize( nlayers );
         for (size_t i = 0; i < nlayers; i++)
             cil[i] = CellsInLayer(i);
+    }
+    static void _evalCellsInLayer_(size_t nlayers, std::vector<size_t> & cil){
+        cil.resize( nlayers );
+        for (size_t i = 0; i < nlayers; i++)
+            cil[i] = CellsInLayer_(i);
     }
 
     static size_t _evalTotalNcells(size_t nlayers){

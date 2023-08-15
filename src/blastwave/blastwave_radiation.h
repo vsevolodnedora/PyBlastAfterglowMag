@@ -269,7 +269,7 @@ public:
             }
 
             /// Reverse shock
-            if (p_pars->do_rs && (it > 0) && (m_data[BW::Q::iGamma43][it] > 0)){
+            if (p_pars->do_rs && (it > 0) && (m_data[BW::Q::iGamma43][it] > 0) && (m_data[BW::Q::iU_p3][it] > 0)){
                 auto & p_syna_rs = p_pars->p_syna_rs;
                 if (m_data[BW::Q::igm_rs][it] == 0){
                     (*p_log)(LOG_ERR,AT)<< " gm_rs = 0" << "\n";

@@ -304,6 +304,8 @@ inline namespace EQS{
 
     double get_U_p(const double &rhoprim, //const double &Gamma, // GammaSh
                    const double &M2, const double &Eint2){
+        if (Eint2 == 0)
+            return 0.;
 //        double rhoprim = 4. * rho * Gamma ;     // comoving density
         double V2 = M2 / rhoprim ;              // comoving volume
         double U_p = Eint2 / V2 ;               // comoving energy density (electrons)

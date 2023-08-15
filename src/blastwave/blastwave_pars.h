@@ -110,7 +110,7 @@ struct Pars{
     double entry_time = -1; // time when this BW entered the 'void' left by another
     double entry_r = -1; // same for radius
     // --
-    double prev_x=-1; int prev_idx_x=0; size_t n_substeps=10; // for Derivatives, logging
+    double prev_x=-1; size_t prev_idx_x=0; size_t n_substeps=10; // for Derivatives, logging
     // ---
     size_t ijl = 123456;
     size_t prev_ijl = 123456;
@@ -187,8 +187,9 @@ struct Pars{
     double epsilon_rad_rs = 0.;
     double rs_shutOff_criterion_rho = 0.;
     double prev_dGammadR=0;
+    double prev_dM3dR=0;
     double prev_dRdt = 0;
-
+    double min_Gamma0_for_rs = 0.;
 };
 
 /// Each BlastWave collects the following data

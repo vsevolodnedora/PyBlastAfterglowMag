@@ -16,7 +16,7 @@ tb0 = 3335.64
 tb1 = 7.03823e+17
 ntb = 1000
 iout = 1
-rtol = 1e-8
+rtol = 1.e-6
 nmax = 1000
 
 A0 = -1
@@ -52,6 +52,9 @@ n_store_substeps = 10
 tprompt = 1.e3
 a = 0.0
 fraction_of_Gamma0_when_spread = 0.1
+im_max_theta = 1.57
+min_Gamma0_for_rs = 0
+rs_Gamma0_frac_no_exceed = .92
 
 eps_e = 0.1
 eps_b = 0.01
@@ -80,12 +83,13 @@ save_dynamics = yes
 load_dynamics = no
 do_ele = yes
 do_spec = yes
+save_spec = yes
 do_lc = no
 do_skymap = no
-spec_var_out = em
+spec_var_out = em_rs
 
-do_rs = no
-rhs_type = grb_fs
+do_rs = yes
+rhs_type = grb_fsrs
 method_collision = none # none
 method_eats = adaptive # piece-wise
 allow_termination = no
@@ -93,16 +97,16 @@ allow_termination = no
 do_thermrad_loss = no
 
 use_1d_id = yes
-fname_dyn = dyn_bw_fs.h5
-fname_spectrum = spec_grb_layers.h5
-fname_spectrum_layers = spec_fs_layers.h5
+fname_dyn = dyn_bw_fsrs.h5
+fname_spectrum = lc_grb_tophad.h5
+fname_spectrum_layers = spec_fsrs_layers.h5
 fname_light_curve = lc_grb_tophad.h5
 fname_light_curve_layers = none
 fname_sky_map = skymap_grb_gauss.h5
 
 do_nucinj = no
 type = numeric
-fname_ejecta_id = tophat_grb_id.h5
+fname_ejecta_id = gauss_grb_id.h5
 load_r0 = no
 
 tprompt = 0.

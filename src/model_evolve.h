@@ -546,7 +546,7 @@ public:
         /// check if blast wave has fully expanded
         if (p_pars->p_grb->run_bws)
             isThereLateralExpansionTermiantion();
-        /// check if blast wave has fully expanded
+        /// check if RS needs to be shut down
         if (p_pars->p_grb->run_bws)
             isThereReverseShockTermiantion();
         // check if there are no nans/unphysical vals in solution
@@ -753,6 +753,7 @@ private:
             for(size_t ish=0; ish<ej_bws[il]->nBWs(); ish++) {
                 auto & bw = ej_bws[il]->getBW(ish);
                 if (bw->isToStopReverseShock(m_CurSol, ii)) {
+                    (*p_log)(LOG_INFO,AT)<<"[ish="<<ish<<" il="<<il<<"] "<<" Terminating RS at ix="<<p_pars->prev_ix<<"\n";
                     is_ok = false;
                 }
                 ii += SOL::neq;//ii += bw->getNeq();

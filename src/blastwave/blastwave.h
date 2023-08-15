@@ -431,6 +431,7 @@ public:
         if (p_pars->shutOff)
             return false;
 
+
 //        double iGamma = EQS::GamFromMom(sol[i + SOL::QS::imom]);
         double iGamma = sol[i + SOL::QS::iGamma];
         double rho4 = EQS::rho4(sol[i + SOL::QS::iR],
@@ -493,7 +494,7 @@ public:
             }
         }
         p_pars->prev_x = x;
-        p_pars->prev_idx_x = i;
+        p_pars->prev_idx_x = ix;
         return no_issues;
     }
     /// compute other quantities for BW and add them to the contaienr
@@ -635,6 +636,10 @@ public:
                     _m_data[BW::Q::iU_p3][it] = EQS::get_U_p(_m_data[BW::Q::irho3][it],
                                                             _m_data[BW::Q::iM3][it],
                                                             _m_data[BW::Q::iEint3][it]);
+                    if (_m_data[BW::Q::iU_p3][it] < 0 || !std::isfinite(_m_data[BW::Q::iU_p3][it])){
+                        std::cerr << AT << " error  \n";
+                        exit(1);
+                    }
                     break;
                 case iuseGamma:
                     _m_data[BW::Q::iU_p3][it]= EQS::get_U_p(_m_data[BW::Q::irho3][it],
@@ -919,9 +924,17 @@ public:
         double deltaR4= Y[i+ SOL::QS::ideltaR4];
         // ****************************************
         if (Gamma < 1.) {
-            (*p_log)(LOG_ERR, AT) << " Gamma < 1 \n";
-            Gamma = 1.+1.e-5;
+//            (*p_log)(LOG_ERR, AT) << " Gamma < 1 Gamma="<<Gamma<<" -> Gamma0="<<p_pars->Gamma0<<"\n";
+            if (p_pars->prev_idx_x == 0)
+                Gamma = p_pars->Gamma0;
+            else
+                Gamma = 1.+1.e-5;
 //            exit(1);
+        }
+        if (deltaR4 < 0){
+//            (*p_log)(LOG_ERR, AT) << " deltaR4 < 1 deltaR4="<<deltaR4<<" -> 0\n";
+            if (p_pars->prev_idx_x == 0)
+                deltaR4 = 0;
         }
 //        if(Gamma>p_pars->Gamma0){
 //            (*p_log)(LOG_ERR, AT) << " Gamma > Gamma0; Gamma="<<Gamma
@@ -929,7 +942,17 @@ public:
 //            exit(1);
 //        }
         if(Eint3 < 0){
+//            std::cerr << " p_pars->prev_dM3dR = "<<p_pars->prev_dM3dR<<" Eint3="<<" "<<Eint3<<" -> 0\n";
             Eint3 = 0.0;
+        }
+        if(M3 < 0){
+//            std::cerr << " p_pars->prev_dM3dR = "<<p_pars->prev_dM3dR<<" M3="<<" "<<p_pars->prev_idx_x<<" -> 0\n";
+            if (p_pars->prev_idx_x == 0) {
+                M3 = 0;
+                Eint3 = 0;
+                deltaR4 = 0;
+            }
+//            M3 = 0.0;
         }
 //        if(Eint2 < 0){
 //            Eint2 = 0.0;
@@ -1162,6 +1185,7 @@ public:
         out_Y[i + SOL::QS::iM3] = dRdt * dM3dR;
         out_Y[i + SOL::QS::ideltaR4] = dRdt * ddeltaR4dR;
 //        if (beta>1e-5)  p_pars->end_evolution = true;
+        p_pars->prev_dM3dR = dRdt * dM3dR;
         p_pars->prev_dGammadR = dRdt * dGammadR;
         p_pars->prev_dRdt = dRdt;
 
