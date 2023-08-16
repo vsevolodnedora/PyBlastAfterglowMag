@@ -268,7 +268,8 @@ def plot_ejecta_layers_spec(freq=1e18,ishells=(0,), ilayers=(0,25,49),colors_by=
     plt.show()
 
 def plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,20,40,80,120),legend=False,
-                                   figname="dyn_layers_fsrs.png", run_fs_only=True,type="pw",method_eats="piece-wise",method_spread="AFGPY"):
+                                   figname="dyn_layers_fsrs.png", run_fs_only=True,type="pw",
+                                   method_eats="piece-wise",method_spread="AFGPY"):
     workdir = os.getcwd()+"/"
 
     fid, ax = plt.subplots(ncols=1, nrows=1, figsize=(4.6,4.2),sharex="all")
@@ -276,7 +277,7 @@ def plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,20,40,80,120),legend=Fa
     cmap_fsrs = cm.Reds_r
     mynorm = Normalize(vmin=0,vmax=len(nlayers))#norm(len(ishells)*len(ilayers))
 
-    for theta in [0., 0.7, 1.5]:
+    for theta in [0.]:
         for i, i_nlayers in enumerate(nlayers):
             pars["nlayers_a"] = i_nlayers
             pars["nlayers_pw"] = i_nlayers
@@ -333,7 +334,7 @@ def plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,20,40,80,120),legend=Fa
 
 if __name__ == '__main__':
 
-    plot_tst_total_spec_resolution(freq=1e9, nlayers=(20,),type="a",method_eats="adaptive")#30,50,70
+    plot_tst_total_spec_resolution(freq=1e9, nlayers=(20,30,40,50,60),type="a",method_eats="adaptive")#30,50,70
 
 
     # plot_ejecta_layers(ishells=(0,), ilayers=(0,),

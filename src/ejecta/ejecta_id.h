@@ -134,7 +134,7 @@ public:
         return 2 * i_layer + 1;
     }
     static size_t CellsInLayer_(const size_t &i_layer){
-        return 2 * i_layer + 2;
+        return 2 * i_layer + 1;
     }
 
 
@@ -298,11 +298,12 @@ private:
         if (use_1d_id){
             /// expect 1 shell with varying properties
             nshells = 1;
-            for (auto & arr : m_data) arr.resize(m_names.size());
+            for (auto & arr : m_data)
+                arr.resize(m_names.size());
             for (size_t ish = 0; ish < nshells; ish++) {
                 for (size_t i_v_n = 0; i_v_n < m_v_ns.size(); i_v_n++) {
                     ldata.setVarName(m_v_ns[i_v_n]);
-                    m_data[i_v_n][ish] = std::move ( ldata.getDataVDouble() ); // Mode data
+                    m_data[i_v_n][ish] = std::move ( ldata.getDataVDouble() ); // load 1D vec
                 }
             }
             nlayers = m_data[0][0].size();
@@ -313,11 +314,12 @@ private:
             VecVector tmp = ldata.getData2Ddouble();
             nshells = tmp.size();
             nlayers = tmp[0].size();
-            for (auto & arr : m_data) arr.resize(nshells);
+            for (auto & arr : m_data)
+                arr.resize(nshells);
             for (size_t ish = 0; ish < nshells; ish++) {
                 for (size_t i_v_n = 0; i_v_n < m_v_ns.size(); i_v_n++) {
                     ldata.setVarName(m_v_ns[i_v_n]);
-                    m_data[i_v_n] = std::move( ldata.getData2Ddouble() ); //
+                    m_data[i_v_n] = std::move( ldata.getData2Ddouble() ); // load 2D vec [ishell, ilayer]
                 }
             }
         }
@@ -328,6 +330,18 @@ private:
             (*p_log)(LOG_ERR,AT)<<" theta_core is NOT given in new ID. Fix it by evaluating it FROM profile!\n";
             theta_wing = m_data[Q::itheta][ish][nlayers-1];
             theta_core = m_data[Q::itheta][ish][nlayers-1];
+            double mom_max = std::numeric_limits<double>::max();
+            double mom_min = 0.;
+            for (size_t il = 0; il < nlayers; il++){
+                double mom = m_data[Q::imom][ish][il];
+                /// find
+                if (mom_max < mom)
+                    mom_max = mom;
+                if (mom_min > mom)
+                    mom_min = mom;
+            }
+
+
             _init_a_grid(ish, nlayers, theta_wing);
             _init_pw_grid(ish, nlayers, theta_wing);
         }
