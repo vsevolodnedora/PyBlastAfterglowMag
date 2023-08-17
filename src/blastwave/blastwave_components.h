@@ -990,7 +990,7 @@ private:
 //        if ((theta < 0.5 * M_PI) )//&& 2. * EQS::Beta(Gamma) * Gamma * thetaC < 1.)
 //            dthetadr = 1 / ( R * pow( Gamma, 1. + m_aa) * pow(theta, m_aa));
         //* pow(std::tan(theta),-m_aa) * EQS::Beta(Gamma); // This did not seem to be working
-        return 1 / ( R * std::pow( Gamma, 1. + m_aa) * std::pow(theta, m_aa));
+        return 1. / ( R * std::pow( Gamma, 1. + m_aa) * std::pow(theta, m_aa));
     }
 
     /**
@@ -998,9 +998,41 @@ private:
      * There the eq. is given as dtheta/dt
      * we thus return dtheta/dr = dtheta/dt * (dR/dt)^-1, both of
      * which are taken from the 'afterglopy' code.
+     * Works only for 'adaptive" eats
      */
     [[nodiscard]] double dthetadr_afterglopy(const double Gamma, const double R, const double gammaAdi, const double theta) const{
-        // TODO this does not work at all...
+        if (m_thetaC < 0){
+            std::cerr << " thetaC is not set!" << "\n";
+            std::cerr << AT << "\n";
+            exit(1);
+        }
+        double dThdt = 0.;
+        double Q0 = 2.0;
+        double Q = sqrt(2.0)*3.0;
+        double th = theta;
+        double u = EQS::MomFromGam(Gamma);
+        double thC = m_thetaC;
+        double th0 = m_theta_b0;
+        double bes = 4*u*Gamma/(4*u*u+3);
+        if(th < 0.5 * CGS::pi && Q0 * u * thC < 1)
+        {
+            double bew = 0.5*sqrt((2*u*u+3)/(4*u*u+3))*bes/Gamma;
+            double fac = u*thC*Q < 1.0 ? 1.0 : Q*(1-Q0*u*thC) / (Q-Q0);
+            if (th0 < thC)
+                fac *= tan(0.5*th0)/tan(0.5*thC); //th0/thC;
+            dThdt = fac * bew * CGS::c / R;
+        }
+        if (dThdt < 0.) {
+            std::cerr << " dtheta/dr < 0\n ";
+            std::cerr << "\n ";
+            exit(1);
+        }
+        return dThdt * (1. / bes / CGS::c );
+    }
+
+
+    [[nodiscard]] double dthetadr_afterglopy_old(const double Gamma, const double R, const double gammaAdi, const double theta) const{
+
         if (m_thetaC < 0){
             std::cerr << " thetaC is not set!" << "\n";
             std::cerr << AT << "\n";
@@ -1016,8 +1048,8 @@ private:
 //        thC = thW;
         double th = theta;
         double th0 = m_theta_b0;
-        double bes = 4*u*g/(4*u*u+3); // shock velocity
-        bes = sqrt(gammaAdi * (gammaAdi - 1.0) * (Gamma - 1.0) / (1.0 + gammaAdi * (Gamma - 1.0)));
+        double bes2 = 4*u*g/(4*u*u+3); // shock velocity
+        double bes = std::sqrt(gammaAdi * (gammaAdi - 1.0) * (Gamma - 1.0) / (1.0 + gammaAdi * (Gamma - 1.0)));
         double dRshdt = bes * CGS::c;
 
         double dThdt = 0.;

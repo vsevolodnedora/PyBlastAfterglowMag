@@ -773,15 +773,18 @@ public:
         double dRshdt = EQS::Beta(GammaSh) * CGS::c;
 
         double dthetadr = 0.0;
-        if ( (theta < 2*p_pars->theta_max)
-             && (R > p_pars->Rd)
-             && (Gamma < std::max(2., p_pars->Gamma0*p_pars->fraction_of_Gamma0_when_spread))
-             && (!p_pars->end_spreading) ) { // &&(Gamma < p_pars->Gamma0*.95)&&
+        if (theta < p_pars->theta_max)
             dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
-//            if (dthetadr > 0.){
-//                int x = 1;
-//            }
-        }
+
+//        if ( (theta < p_pars->theta_max)
+//             && ((R > p_pars->Rd) && p_pars->spread_only_after_rd)
+//             && ((Gamma < std::max(2., p_pars->Gamma0*p_pars->fraction_of_Gamma0_when_spread)) || p_pars->fraction_of_Gamma0_when_spread >= 100.)
+//             && (!p_pars->end_spreading) ) { // &&(Gamma < p_pars->Gamma0*.95)&&
+//            dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
+////            if (dthetadr > 0.){
+////                int x = 1;
+////            }
+//        }
 
 
         double dM2dR = 0;
@@ -992,15 +995,17 @@ public:
         double dRshdt = EQS::Beta(GammaSh) * CGS::c;
 
         double dthetadr = 0.0;
-        if ( (theta < 2*p_pars->theta_max)
-             && (R > p_pars->Rd)
-             && (Gamma < std::max(2., p_pars->Gamma0*p_pars->fraction_of_Gamma0_when_spread))
-             && (!p_pars->end_spreading) ) { // &&(Gamma < p_pars->Gamma0*.95)&&
+        if (theta < p_pars->theta_max)
             dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
-//            if (dthetadr > 0.){
-//                int x = 1;
-//            }
-        }
+        //        if ( (theta < p_pars->theta_max)
+//             && ((R > p_pars->Rd) && p_pars->spread_only_after_rd)
+//             && ((Gamma < std::max(2., p_pars->Gamma0*p_pars->fraction_of_Gamma0_when_spread)) || p_pars->fraction_of_Gamma0_when_spread >= 100.)
+//             && (!p_pars->end_spreading) ) { // &&(Gamma < p_pars->Gamma0*.95)&&
+//            dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
+////            if (dthetadr > 0.){
+////                int x = 1;
+////            }
+//        }
 
 
         double dM2dR = 0;

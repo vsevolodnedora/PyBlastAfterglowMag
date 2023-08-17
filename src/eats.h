@@ -993,7 +993,7 @@ public:
             return ; //std::move(light_curve);
         }
 
-        double rtol = 1e-6;
+        double rtol = 1e-10;
 //        Image image; Image im_pj; Image im_cj;
 //#pragma omp parallel for shared(m_method_eats,image,im_pj,im_cj,light_curve,times,freqs) num_threads( 6 )
         for (size_t it = 0; it < times.size(); it++) {

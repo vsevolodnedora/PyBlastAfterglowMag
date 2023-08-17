@@ -398,6 +398,9 @@ public:
         p_pars->adiabLoss =
                 getBoolOpt("use_adiabLoss", opts, AT,p_log,true, false);
 
+        p_pars->spread_only_after_rd =
+                getBoolOpt("spread_only_after_rd", opts, AT,p_log,true, false);
+
 
         /// set sedov-taylor profile (for jet to be seen by ejecta as it moves behind)
         if (p_pars->use_st_dens_profile) {

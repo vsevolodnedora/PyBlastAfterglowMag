@@ -329,17 +329,17 @@ private:
         for (size_t ish = 0; ish < nshells; ish++){
             (*p_log)(LOG_ERR,AT)<<" theta_core is NOT given in new ID. Fix it by evaluating it FROM profile!\n";
             theta_wing = m_data[Q::itheta][ish][nlayers-1];
-            theta_core = m_data[Q::itheta][ish][nlayers-1];
+            theta_core = m_data[Q::itheta][ish][nlayers-1]/4.;
             double mom_max = std::numeric_limits<double>::max();
             double mom_min = 0.;
-            for (size_t il = 0; il < nlayers; il++){
-                double mom = m_data[Q::imom][ish][il];
-                /// find
-                if (mom_max < mom)
-                    mom_max = mom;
-                if (mom_min > mom)
-                    mom_min = mom;
-            }
+//            for (size_t il = 0; il < nlayers; il++){
+//                double mom = m_data[Q::imom][ish][il];
+//                /// find
+//                if (mom_max < mom)
+//                    mom_max = mom;
+//                if (mom_min > mom)
+//                    mom_min = mom;
+//            }
 
 
             _init_a_grid(ish, nlayers, theta_wing);

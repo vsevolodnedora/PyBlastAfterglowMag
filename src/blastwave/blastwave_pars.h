@@ -123,6 +123,7 @@ struct Pars{
     bool allow_termination = false;
     bool end_evolution = false;
     bool end_spreading = false;
+    bool spread_only_after_rd = false;
     double min_beta_terminate = 1.e-8;
     // ---
     double fraction_of_Gamma0_when_spread = -1.;
