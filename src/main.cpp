@@ -212,9 +212,11 @@ int main(int argc, char** argv) {
     /// ------------------------------------------------------
     if (argc<4){
 //        working_dir = "../tst/grbafg_gauss_dyn_rs/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/grbafg_gauss_dyn_spread/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_gauss_spec_rs/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-        working_dir = "../tst/grbafg_gauss_lc_rs/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-//        working_dir = "../tst/grbafg_gauss_offaxis/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../tst/gauss_fs_lc_old/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/grbafg_gauss_lc_rs/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/gauss_fs_lc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_skymap_tophat_eats/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_skymap_gauss_eats/"; parfilename = "parfile.par"; loglevel=LOG_INFO;

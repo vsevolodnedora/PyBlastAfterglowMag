@@ -37,7 +37,7 @@ curdir = os.getcwd() + '/' #"/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglow_dev
 
 
 pars = {"Eiso_c":1.e53, "Gamma0c": 1000., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.4,
-        "nlayers_pw": 50, "nlayers_a": 50, "struct":"gaussian"}
+        "nlayers_pw": 52, "nlayers_a": 52, "struct":"gaussian"}
 
 class RefData():
     def __init__(self,workdir:str,fname:str):
@@ -137,17 +137,20 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
     pba_fsrs = PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
     pba_fsrs.run(loglevel="info")
 
-    if (method_spread=="None"):
-        ref = RefData(workdir,"reference_dyn.h5")
-    elif (method_spread=="AA"):
-        ref = RefData(workdir,"reference_aa_dyn.h5")
-    elif (method_spread=="Adi"):
-        ref = RefData(workdir,"reference_adi_dyn.h5")
-    elif (method_spread=="AA"):
-        print("No spread reference data avialble!")
-        ref = RefData(workdir,"reference_dyn.h5")
-    else:
-        raise KeyError()
+    # if (method_spread=="None"):
+    #     ref = RefData(workdir,"reference_dyn.h5")
+    # elif (method_spread=="AA"):
+    #     ref = RefData(workdir,"reference_aa_dyn.h5")
+    # elif (method_spread=="Adi"):
+    #     ref = RefData(workdir,"reference_adi_dyn.h5")
+    # elif (method_spread=="AA"):
+    #     print("No spread reference data avialble!")
+    #     ref = RefData(workdir,"reference_dyn.h5")
+    # else:
+    #     raise KeyError()
+
+    ref = RefData(workdir,"reference_afgpy_dyn.h5")
+
     # print(pba_fs.GRB.get_dyn_arr(v_n="M3",ishell=0,ilayer=0))
 
     # plot
@@ -223,7 +226,7 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
 
 def plot_ejecta_layers_spread(ishells=(0,), ilayers=(0,25,49),
                               v_n_x = "R", v_n_ys = ("rho", "mom"), colors_by="layers", legend=False,
-                              methods_spread=None,
+                              methods_spread=None, plot_reference=False,
                               figname="dyn_layers_fsrs.png", run_fs_only=False, run_fsrs_only=False):
 
     # prepare ID
@@ -239,7 +242,7 @@ def plot_ejecta_layers_spread(ishells=(0,), ilayers=(0,25,49),
     ang_size_layer = 2.0 * np.pi * one_min_cos / (4.0 * np.pi)
     prepare_grb_ej_id_1d(pars, type="a",outfpath="tophat_grb_id.h5")
 
-
+    ref = RefData(workdir,"reference_afgpy_dyn.h5")
     fid, axes = plt.subplots(ncols=1, nrows=len(v_n_ys), figsize=(4.2+3,3.6+3),sharex="all")
 
     for method_spread, ls in zip(methods_spread["methods"], methods_spread["ls"]):
@@ -297,7 +300,7 @@ def plot_ejecta_layers_spread(ishells=(0,), ilayers=(0,25,49),
                     # y_arr = y_arr/y_arr.max()
                     color=cmap_fs(mynorm(int(i)))#color=cmap(norm(int(layer.split("shell=")[-1].split("layer=")[0])))
                     if (v_n_x == "tburst"): x_arr /=cgs.day;
-                    if (v_n == "ctheta" and il == 0): label = method_spread
+                    if ((v_n == "ctheta" or v_n=="theta") and il == 0): label = method_spread
                     else: label = None
                     ax.plot(x_arr, y_arr, ls=ls, color=color, label=label, lw=1)
                     i=i+1
@@ -313,12 +316,17 @@ def plot_ejecta_layers_spread(ishells=(0,), ilayers=(0,25,49),
                     # y_arr = y_arr/y_arr.max()
                     color=cmap_fsrs(mynorm(int(i)))#color=cmap(norm(int(layer.split("shell=")[-1].split("layer=")[0])))
                     if (v_n_x == "tburst"): x_arr /=cgs.day;
-                    if (v_n == "ctheta" and il == 0 and not run_fs_only): label = method_spread
+                    if ((v_n == "ctheta" or v_n=="theta") and il == 0 and not run_fs_only): label = method_spread
                     else: label = None
                     ax.plot(x_arr, y_arr, ls=ls, color=color, lw=1.2, label=label)
                     i=i+1
 
-
+            if (plot_reference):
+                for il, layer in enumerate(layers):
+                    # --- plot ref data
+                    x_arr = ref.get(ilayers[il], v_n_x)
+                    if (v_n_x == "tburst"): x_arr /=cgs.day;
+                    ax.plot(x_arr, ref.get(ilayers[il], v_n), ls=':', color='green', lw=2., zorder=-1)
 
             # ax.set_xlabel(v_n_x)
             # ax.set_facecolor("gray")
@@ -462,10 +470,11 @@ if __name__ == '__main__':
     #                    # v_n_x = "tburst", v_n_ys = ("mom", "M3", "Eint3"), colors_by="layers",legend=False,
     #                    figname="dyn_layers_fs.png", run_fs_only=True)
     plot_ejecta_layers_spread(ishells=(0,), ilayers=(0,10,20,30,40,49),
-                       v_n_x = "tburst", v_n_ys = ("mom", "ctheta"), colors_by="layers",legend=True,
-                       methods_spread={"methods":["AA","Adi","AFGPY"],"ls":["-","--",":"]},
+                       v_n_x = "tburst", v_n_ys = ("mom", "theta"), colors_by="layers",legend=True,
+                       methods_spread={"methods":["AFGPY"],#["AA","Adi","AFGPY"],
+                                       "ls":["-"]}, # ["-","--",":"]
                        # v_n_x = "tburst", v_n_ys = ("mom", "M3", "Eint3"), colors_by="layers",legend=False,
-                       figname="dyn_layers_fs_spread.png", run_fs_only=False, run_fsrs_only=True)
+                       figname="dyn_layers_fs_spread.png", run_fs_only=True, run_fsrs_only=False, plot_reference=True)
 
 
     # tst_against_afgpy()

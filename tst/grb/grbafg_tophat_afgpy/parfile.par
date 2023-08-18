@@ -12,21 +12,21 @@
 
 * Parameters
 
-tb0 = 3335.64
-tb1 = 7.03823e+17
-ntb = 5000
+tb0 = 1.e3
+tb1 = 1.e12
+ntb = 1000
 iout = 1
-rtol = 1e-6
+rtol = 1e-8
 nmax = 1000
 
 A0 = -1
 s = -1
 r_ej = -1
 r_ism = -1
-n_ism = 1e-2
+n_ism = 1.e-3
 d_l = 3.09e26
 z = 0.028
-theta_obs = 0.0
+theta_obs = 0
 
 * Settings
 
@@ -49,24 +49,16 @@ integrator = DOP853E
 
 n_store_substeps = 10
 
-tprompt = 1.e3
-a = 1.0
-fraction_of_Gamma0_when_spread = 0.1
 im_max_theta = 1.57
-rs_Gamma0_frac_no_exceed = .92
-min_Gamma0_for_rs = 0.
+tprompt = 1e3
+a = 0.0
+fraction_of_Gamma0_when_spread = 0.1
 
 eps_e = 0.1
 eps_b = 0.01
 eps_t = 0.
 p = 2.2
 ksi_n = 1.
-
-eps_e_rs = 0.1
-eps_b_rs = 0.01
-eps_t_rs = 0.
-p_rs = 2.2
-ksi_n_rs = 1.
 
 freq1 = 1.e5
 freq2 = 1.e22
@@ -79,10 +71,10 @@ fnu_min_frac = 1e-5
 * Settings
 
 run_bws = yes
-save_dynamics = yes
+save_dynamics = no
 load_dynamics = no
 do_ele = yes
-do_spec = yes
+do_spec = no
 save_spec = no
 do_lc = yes
 do_skymap = no
@@ -90,22 +82,21 @@ do_skymap = no
 do_rs = no
 rhs_type = grb_fs
 method_collision = none # none
-method_eats = adaptive # adaptive # piece-wise
+method_eats = piece-wise # piece-wise
 allow_termination = no
+use_rs = no
 
 do_thermrad_loss = no
 
 use_1d_id = yes
 fname_dyn = dyn_grb_tophad.h5
-fname_spectrum = spec_grb_layers.h5
-fname_spectrum_layers = spec_grb.h5
-fname_light_curve = lc_grb_tophad.h5
+fname_light_curve = tophat_0_pw.h5
 fname_light_curve_layers = none
 fname_sky_map = skymap_grb_gauss.h5
 
 do_nucinj = no
 type = numeric
-fname_ejecta_id = tophat_grb_id.h5
+fname_ejecta_id = tophat_grb_id_pw.h5
 load_r0 = no
 
 tprompt = 0.
@@ -123,17 +114,14 @@ method_Rsh = useGammaSh
 method_dmdr = usingdthdr
 method_shock_vel = sameAsBW
 use_dens_prof_behind_jet_for_ejecta = no
-method_synchrotron = WSPN99
+method_synchrotron = Joh06
 method_lf_min = useU_e
 method_ne = usenprime
 method_tau = smooth
 use_ssa = yes
 emissivity = em
 absorption = abs
-method_comp_mode = comovSpec #  observFlux   # "comovSpec"
+method_comp_mode = observFlux   # "comovSpec"
 method_quad = CADRE
-
-method_synchrotron_rs = WSPN99
-use_ssa_rs = no
 
 # --------------------------- END ---------------------------

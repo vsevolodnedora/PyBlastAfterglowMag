@@ -27,7 +27,7 @@ enum METHOD_NE{ iusenprime, iuseNe };
 enum METHOD_SINGLE_BW_DELTA {iconst, ifrac_last, ilr, ibm, ist, ibm_st };
 enum METHOD_THICK_FOR_RHO { iFromRadius };
 
-
+enum METHOD_LIMIT_SPREAD { iNone, iGamma0Frac, iGammaVal, iRd };
 
 struct Pars{
 
@@ -123,10 +123,11 @@ struct Pars{
     bool allow_termination = false;
     bool end_evolution = false;
     bool end_spreading = false;
-    bool spread_only_after_rd = false;
+    METHOD_LIMIT_SPREAD method_limit_spread{};
+    double fraction_of_Gamma0_when_spread_start = 0;
+    double value_of_Gamma_when_spread_start = 0.;
     double min_beta_terminate = 1.e-8;
     // ---
-    double fraction_of_Gamma0_when_spread = -1.;
 
     /// main switch
     bool use_dens_prof_behind_jet_for_ejecta = false;

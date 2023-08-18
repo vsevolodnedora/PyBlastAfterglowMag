@@ -42,6 +42,45 @@ pars = {"Eiso_c":1.e53, "Gamma0c": 1000., "M0c": -1.,"theta_c": 0.1, "theta_w": 
 #  "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
 #  "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":150,"nlayers_a": 10}
 
+class RefData():
+    def __init__(self,workdir:str,fname:str):
+        self.workdir = workdir
+        self.keys = ["tburst",
+                     "tcomov",
+                     "Gamma",
+                     "Eint2",
+                     "Eint3",
+                     "theta",
+                     "Erad2",
+                     "Erad3",
+                     "Esh2",
+                     "Esh3",
+                     "Ead2",
+                     "Ead3",
+                     "M2",
+                     "M3",
+                     "deltaR4"]
+        self.keys = [
+            "R", "rho", "dlnrhodr", "Gamma", "Eint2", "U_e", "theta", "ctheta", "Erad2", "Esh2", "Ead2", "M2",
+            "tcomov", "tburst", "tt", "delta", "W",
+            "Gamma43", "Eint3", "U_e3", "Erad3", "Esh3", "Ead3", "M3", "rho4", "deltaR4", "W3"
+        ]
+        self.refdata = None
+        self.fname = fname
+    def idx(self, key : str) -> int:
+        return self.keys.index(key)
+    def load(self) -> None:
+        # self.refdata = np.loadtxt(self.workdir+"reference_fsrs.txt")
+        self.refdata = h5py.File(self.workdir+self.fname,'r')
+    def get(self,freq:float,theta_obs:float) -> [np.ndarray, np.ndarray]:
+        if (self.refdata is None): self.load()
+        group = self.refdata["{:.2f}deg {:.2e}Hz".format(freq, theta_obs)]
+        times = np.array(group["time"])
+        fluxdens = np.array(group["fluxdens"])
+        return (times, fluxdens)
+    def close(self) -> None:
+        self.refdata.close()
+
 def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
                        v_n_x = "R", v_n_ys = ("rho", "mom"), colors_by="layers",legend=False,
                        figname="dyn_layers_fsrs.png", run_fs_only=False):
@@ -268,8 +307,8 @@ def plot_ejecta_layers_spec(freq=1e18,ishells=(0,), ilayers=(0,25,49),colors_by=
     plt.show()
 
 def plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,20,40,80,120),legend=False,
-                                   figname="dyn_layers_fsrs.png", run_fs_only=True,type="pw",
-                                   method_eats="piece-wise",method_spread="AFGPY"):
+                                   figname="dyn_layers_fsrs.png", run_fs_only=True,run_fsrs_only=False,type="pw",plot_ref=True,
+                                   method_eats="piece-wise"):
     workdir = os.getcwd()+"/"
 
     fid, ax = plt.subplots(ncols=1, nrows=1, figsize=(4.6,4.2),sharex="all")
@@ -277,45 +316,61 @@ def plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,20,40,80,120),legend=Fa
     cmap_fsrs = cm.Reds_r
     mynorm = Normalize(vmin=0,vmax=len(nlayers))#norm(len(ishells)*len(ilayers))
 
-    for theta in [0.]:
-        for i, i_nlayers in enumerate(nlayers):
-            pars["nlayers_a"] = i_nlayers
-            pars["nlayers_pw"] = i_nlayers
-            prepare_grb_ej_id_1d(pars, type=type,outfpath="gauss_grb_id.h5")
-            modify_parfile_par_opt(workingdir=workdir, part="main", newpars={"theta_obs":theta}, newopts={},
-                                   parfile="default_parfile.par", newparfile="default_parfile.par",keep_old=False)
-            ### run fs-only model
-            if(run_fs_only):
-                modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
-                                       newopts={"rhs_type":"grb_fs", "outfpath":"grb_fs.h5", "do_rs":"no",
-                                                "fname_ejecta_id":"gauss_grb_id.h5", "method_spread":method_spread,
-                                                "fname_dyn":"dyn_bw_fs.h5","fname_light_curve":"lc_grb_fs.h5",
-                                                "fname_light_curve_layers":"lc_grb_fs_layers.h5", "method_eats": method_eats,
-                                                # "method_comp_mode": "observFlux", "do_spec":"no"
-                                                },
-                                       parfile="default_parfile.par", newparfile="parfile.par",keep_old=True)
-                pba_fs = PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
-                pba_fs.run(loglevel="info")
+    ref = RefData(workdir=workdir,fname="reference_lc_spread.h5")
 
-            # run fsrs model
+    methods_spread={"methods":["AA","Adi","AFGPY"],"ls":["-","--",":"]}
+    for (method_spread, ls) in zip(methods_spread["methods"],methods_spread["ls"]):
+        for (theta, lw) in zip([0, 0.9, 1.5], [2, 1,.2]):
+            for i, i_nlayers in enumerate(nlayers):
+                pars["nlayers_a"] = i_nlayers
+                pars["nlayers_pw"] = i_nlayers
+                prepare_grb_ej_id_1d(pars, type=type,outfpath="gauss_grb_id.h5")
+                modify_parfile_par_opt(workingdir=workdir, part="main", newpars={"theta_obs":theta}, newopts={},
+                                       parfile="default_parfile.par", newparfile="default_parfile.par",keep_old=False)
+                ### run fs-only model
+                if(run_fs_only):
+                    modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
+                                           newopts={"rhs_type":"grb_fs", "outfpath":"grb_fs.h5", "do_rs":"no",
+                                                    "fname_ejecta_id":"gauss_grb_id.h5", "method_spread":method_spread,
+                                                    "fname_dyn":"dyn_bw_fs.h5","fname_light_curve":"lc_grb_fs.h5",
+                                                    "fname_light_curve_layers":"lc_grb_fs_layers.h5", "method_eats": method_eats,
+                                                    # "method_comp_mode": "observFlux", "do_spec":"no"
+                                                    },
+                                           parfile="default_parfile.par", newparfile="parfile.par",keep_old=True)
+                    pba_fs = PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
+                    pba_fs.run(loglevel="info")
 
-            modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
-                                   newopts={"rhs_type":"grb_fsrs", "outfpath":"grb_fsrs.h5", "do_rs":"yes",
-                                            "fname_ejecta_id":"gauss_grb_id.h5", "method_spread":method_spread,
-                                            "fname_dyn":"dyn_bw_fsrs.h5","fname_light_curve":"lc_grb_fsrs.h5",
-                                            "fname_light_curve_layers":"lc_grb_fsrs_layers.h5", "method_eats": method_eats
-                                            },
-                                   parfile="default_parfile.par", newparfile="parfile.par",keep_old=True)
-            pba_fsrs = PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
-            pba_fsrs.run(loglevel="info")
+                # run fsrs model
+                if (run_fsrs_only):
+                    modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
+                                           newopts={"rhs_type":"grb_fsrs", "outfpath":"grb_fsrs.h5", "do_rs":"yes",
+                                                    "fname_ejecta_id":"gauss_grb_id.h5", "method_spread":method_spread,
+                                                    "fname_dyn":"dyn_bw_fsrs.h5","fname_light_curve":"lc_grb_fsrs.h5",
+                                                    "fname_light_curve_layers":"lc_grb_fsrs_layers.h5", "method_eats": method_eats
+                                                    },
+                                           parfile="default_parfile.par", newparfile="parfile.par",keep_old=True)
+                    pba_fsrs = PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
+                    pba_fsrs.run(loglevel="info")
 
-            color_fs=cmap_fs(mynorm(int(i)))
-            color_fsrs=cmap_fsrs(mynorm(int(i)))
-            if(run_fs_only):
-                ax.plot(pba_fs.GRB.get_lc_times(spec=False)/cgs.day,
-                        pba_fs.GRB.get_lc(freq=freq,ishell=None,ilayer=None,spec=False), ls='-', color=color_fs, label='FS')
-            ax.plot(pba_fsrs.GRB.get_lc_times(spec=False)/cgs.day,
-                    pba_fsrs.GRB.get_lc(freq=freq,ishell=None,ilayer=None,spec=False), ls='--', color=color_fsrs, label='FSRS')
+                color_fs=cmap_fs(mynorm(int(i)))
+                color_fsrs=cmap_fsrs(mynorm(int(i)))
+
+                if(run_fs_only):
+                    ax.plot(pba_fs.GRB.get_lc_times(spec=False)/cgs.day,
+                            # pba_fs.GRB.get_lc(freq=freq,ishell=None,ilayer=None,spec=False),
+                    pba_fs.GRB.get_lc_totalflux(freq=freq,time=None,spec=False),
+                    ls=ls, color=color_fs, lw=lw, label='FS')
+
+                if (run_fsrs_only):
+                    ax.plot(pba_fsrs.GRB.get_lc_times(spec=False)/cgs.day,
+                            # pba_fsrs.GRB.get_lc(freq=freq,ishell=None,ilayer=None,spec=False),
+                            pba_fsrs.GRB.get_lc_totalflux(freq=freq,spec=False),
+                            ls=ls, color=color_fsrs, lw=lw, label='FSRS')
+
+                if (plot_ref):
+                    times, fluxes = ref.get(freq=freq, theta_obs=theta)
+                    ax.plot(times/cgs.day, fluxes, color='gray', lw=0.8, ls=':')
+
 
     ax.set_ylabel("Flux Density [mJy]", fontsize=12)
     ax.set_xscale("log")
@@ -334,7 +389,7 @@ def plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,20,40,80,120),legend=Fa
 
 if __name__ == '__main__':
 
-    plot_tst_total_spec_resolution(freq=1e9, nlayers=(20,30,40,50,60),type="a",method_eats="adaptive")#30,50,70
+    plot_tst_total_spec_resolution(freq=1e9, nlayers=(20,),type="a",method_eats="adaptive")#30,50,70
 
 
     # plot_ejecta_layers(ishells=(0,), ilayers=(0,),

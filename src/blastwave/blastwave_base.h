@@ -111,8 +111,6 @@ public:
                 (double)getDoublePar("Gamma_when_st_starts",pars,AT,p_log,2.,false);
         p_pars->fraction_of_Gamma0_when_bm_for_bm =
                 (double)getDoublePar("fraction_of_Gamma0_when_bm_for_bm",pars, AT,p_log,1.98,false);
-        p_pars->fraction_of_Gamma0_when_spread =
-                (double)getDoublePar("fraction_of_Gamma0_when_spread",pars, AT,p_log,.75,false);
         p_pars->rs_Gamma0_frac_no_exceed =
                 (double)getDoublePar("rs_Gamma0_frac_no_exceed",pars, AT,p_log,.98,false);
 
@@ -364,6 +362,46 @@ public:
         }
         p_pars->method_thick_for_rho = m_method_thick_for_rho;
 
+        /// limit the spreading
+        opt = "method_limit_spread";
+        METHOD_LIMIT_SPREAD method_limit_spread;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            method_limit_spread = METHOD_LIMIT_SPREAD::iNone;
+        }
+        else{
+            if(opts.at(opt) == "None") {
+                method_limit_spread = METHOD_LIMIT_SPREAD::iNone;
+            }
+            else if(opts.at(opt) == "Gamma0Frac") {
+                p_pars->fraction_of_Gamma0_when_spread_start =
+                        (double)getDoublePar("Gamma0_frac_when_start_spread",pars, AT,p_log,.75, true);
+                method_limit_spread = METHOD_LIMIT_SPREAD::iGamma0Frac;
+            }
+            else if(opts.at(opt) == "GammaVal") {
+                p_pars->value_of_Gamma_when_spread_start =
+                        (double)getDoublePar("Gamma_when_start_spread",pars, AT,p_log,.75, true);
+                method_limit_spread = METHOD_LIMIT_SPREAD::iGammaVal;
+            }
+            else if(opts.at(opt) == "Rd") {
+                method_limit_spread = METHOD_LIMIT_SPREAD::iRd;
+            }
+            else{
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                                      <<" given: " << opts.at(opt)
+                                      << " is not recognized "
+                                      << " Possible options: "
+                                      << " None "
+                                      << " Rd "
+                                      << " GammaVal "
+                                      << " Gamma0Frac "
+                                      << " Exiting...\n";
+//                std::cerr << AT << "\n";
+                exit(1);
+            }
+        }
+        p_pars->method_limit_spread = method_limit_spread;
+
         /// EATS method guverns the BW discretization (piece-wise versus adaptive)
         p_pars->m_method_eats = id->method_eats;
         p_pars->nlayers = id->nlayers;
@@ -398,8 +436,6 @@ public:
         p_pars->adiabLoss =
                 getBoolOpt("use_adiabLoss", opts, AT,p_log,true, false);
 
-        p_pars->spread_only_after_rd =
-                getBoolOpt("spread_only_after_rd", opts, AT,p_log,true, false);
 
 
         /// set sedov-taylor profile (for jet to be seen by ejecta as it moves behind)

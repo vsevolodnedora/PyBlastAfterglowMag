@@ -14,7 +14,7 @@
 
 tb0 = 3335.64
 tb1 = 7.03823e+17 # 318568. # 7.03823e+17
-ntb = 1000
+ntb = 3000
 iout = 1
 rtol = 1.e-6
 nmax = 1000
@@ -51,7 +51,7 @@ n_store_substeps = 10
 
 tprompt = 1.e3
 a = 1.0
-fraction_of_Gamma0_when_spread = 0.1
+fraction_of_Gamma0_when_spread = 999.
 im_max_theta = 1.57
 
 eps_e = 0.1
@@ -111,6 +111,7 @@ tprompt = 0.
 epsilon_rad_rs = 0.
 rs_shutOff_criterion_rho = 1e-50 # criterion when to shut down the reverse shock
 
+spread_only_after_rd = no
 method_spread = None
 method_dgdr = our
 method_eos = Nava13
