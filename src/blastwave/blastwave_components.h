@@ -1014,7 +1014,7 @@ private:
         double thC = m_thetaC;
         double th0 = m_theta_b0;
         double bes = 4*u*Gamma/(4*u*u+3);
-        if(th < 0.5 * CGS::pi && Q0 * u * thC < 1)
+        if((th < 0.5 * CGS::pi) && (Q0 * u * thC < 1))
         {
             double bew = 0.5*sqrt((2*u*u+3)/(4*u*u+3))*bes/Gamma;
             double fac = u*thC*Q < 1.0 ? 1.0 : Q*(1-Q0*u*thC) / (Q-Q0);

@@ -780,11 +780,11 @@ public:
                     dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
                     break;
                 case iGamma0Frac:
-                    if (Gamma < p_pars->fraction_of_Gamma0_when_spread_start*p_pars->Gamma0)
+                    if (Gamma*beta < p_pars->fraction_of_mom0_when_spread_start*p_pars->mom0)
                         dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
                     break;
                 case iGammaVal:
-                    if (Gamma < p_pars->value_of_Gamma_when_spread_start)
+                    if (Gamma*beta < p_pars->value_of_mom_when_spread_start)
                         dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
                     break;
                 case iRd:
@@ -1010,11 +1010,11 @@ public:
                     dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
                     break;
                 case iGamma0Frac:
-                    if (Gamma < p_pars->fraction_of_Gamma0_when_spread_start*p_pars->Gamma0)
+                    if (Gamma*beta < p_pars->fraction_of_mom0_when_spread_start*p_pars->mom0)
                         dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
                     break;
                 case iGammaVal:
-                    if (Gamma < p_pars->value_of_Gamma_when_spread_start)
+                    if (Gamma*beta < p_pars->value_of_mom_when_spread_start)
                         dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
                     break;
                 case iRd:

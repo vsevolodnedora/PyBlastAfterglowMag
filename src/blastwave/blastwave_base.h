@@ -374,13 +374,13 @@ public:
                 method_limit_spread = METHOD_LIMIT_SPREAD::iNone;
             }
             else if(opts.at(opt) == "Gamma0Frac") {
-                p_pars->fraction_of_Gamma0_when_spread_start =
-                        (double)getDoublePar("Gamma0_frac_when_start_spread",pars, AT,p_log,.75, true);
+                p_pars->fraction_of_mom0_when_spread_start =
+                        (double)getDoublePar("mom0_frac_when_start_spread",pars, AT,p_log,.75, true);
                 method_limit_spread = METHOD_LIMIT_SPREAD::iGamma0Frac;
             }
             else if(opts.at(opt) == "GammaVal") {
-                p_pars->value_of_Gamma_when_spread_start =
-                        (double)getDoublePar("Gamma_when_start_spread",pars, AT,p_log,.75, true);
+                p_pars->value_of_mom_when_spread_start =
+                        (double)getDoublePar("mom_when_start_spread",pars, AT,p_log,.75, true);
                 method_limit_spread = METHOD_LIMIT_SPREAD::iGammaVal;
             }
             else if(opts.at(opt) == "Rd") {

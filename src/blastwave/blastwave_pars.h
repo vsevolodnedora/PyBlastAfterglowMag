@@ -124,8 +124,8 @@ struct Pars{
     bool end_evolution = false;
     bool end_spreading = false;
     METHOD_LIMIT_SPREAD method_limit_spread{};
-    double fraction_of_Gamma0_when_spread_start = 0;
-    double value_of_Gamma_when_spread_start = 0.;
+    double fraction_of_mom0_when_spread_start = 0;
+    double value_of_mom_when_spread_start = 0.;
     double min_beta_terminate = 1.e-8;
     // ---
 
