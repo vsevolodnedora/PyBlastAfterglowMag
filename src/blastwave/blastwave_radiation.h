@@ -69,7 +69,7 @@ public:
         p_pars->theta_max = getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false);
 
         p_eats_fs->setEatsPars(
-                pars,opts,id->nlayers,id->get(ish,il,EjectaID2::Q::ictheta),
+                pars,opts,id->nlayers, id->ncells,id->get(ish,il,EjectaID2::Q::ictheta),
                 id->get(ish,il,EjectaID2::Q::itheta_c_l),
                 id->get(ish,il,EjectaID2::Q::itheta_c_h),
                 id->theta_wing,

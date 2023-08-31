@@ -13,11 +13,11 @@
 
 namespace IMG{
     //    std::vector<std::string> m_names{"theta", "phi", "r", "theta_j", "theta0", "mu", "xrs", "yrs", "gamma", "fluxes", "intensity", "gm", "gc", "B", "tburst", "tt"};
-    std::vector<std::string> m_names{"mu", "xrs", "yrs", "intensity", "r", "ctheta", "cphi",
+    std::vector<std::string> m_names{"ctheta", "cphi", "mu", "xrs", "yrs", "intensity", "r"
 //                                     "tau_compton", "tau_bh", "tau_bf"
     };
 //    enum Q { itheta, iphi, ir, itheta_j, itheta0, imu, ixr, iyr, igam, iflux, iintens, igm, igc, iB, itburst, itt };
-    enum Q {imu, ixr, iyr, iintens, ir, ictheta, icphi,
+    enum Q {ictheta, icphi, imu, ixr, iyr, iintens, ir
 //            itau_comp, itau_bh, itau_bf
     };
 }
@@ -136,6 +136,30 @@ struct Image {
         return std::move( tmp );
     }
 
+    void copy_from_another(Image & image){
+        if ((m_data.empty()) || (m_size == 0)){
+            (*p_log)(LOG_ERR, AT) << " no data in the image. Exiting...";
+            std::cerr << AT << "\n";
+            exit(1);
+        }
+        if(m_data.size() != m_n_vn){
+            (*p_log)(LOG_ERR, AT) << " something is wrong with the image. Exiting...";
+            std::cerr << AT << "\n";
+            exit(1);
+        }
+        if (image.m_size != m_size){
+            (*p_log)(LOG_ERR, AT) << " image size mismatch";
+            std::cerr << AT << "\n";
+            exit(1);
+        }
+        for(size_t i = 0; i < m_n_vn; i++){
+            for (size_t j = 0; j < m_size; j++){
+                m_data[i][j] = image.m_data[i][j];
+            }
+        }
+        m_f_tot = image.m_f_tot;
+    }
+
     double m_f_tot{}; // total flux density in the image (in mJy) aka
     // J * (1.0 + z) / (2.0 * d_l * d_l) * CGS::cgs2mJy
     size_t m_size = 0;
@@ -188,6 +212,15 @@ struct Images{
         }
         return * m_images[i];
     }
+
+    void copy_from_another(Image & image, size_t i){
+        if (i>m_n-1){
+            std::cerr << AT << " index is out of boundary\n";
+            exit(1);
+        }
+        m_images[i]->copy_from_another(image);
+    }
+
 };
 
 void combineImages(Image & image, size_t ncells, size_t nlayers, Images & images){
@@ -228,7 +261,7 @@ void combineImages(Image & image, size_t ncells, size_t nlayers, Images & images
     }
 }
 
-void combineImagesA(Image & image, size_t ncells, size_t nlayers, Images & images){
+void combineImagesA(Image & image, size_t ncells, size_t nlayers, Images & images, bool remove_duplicates){
     if (images.size() != nlayers){
         std::cerr << " nlayeyers="<<nlayers<<" != n_images="<<images.size()<<"\n";
         std::cerr << AT << "\n";
@@ -265,9 +298,27 @@ void combineImagesA(Image & image, size_t ncells, size_t nlayers, Images & image
                 (image)(ivn, ncells + ii + icj) = tmp(ivn, tmp.m_size_active + icj);
         }
         ii += tmp.m_size_active;
-
         image.m_f_tot += tmp.m_f_tot;
     }
+    if (false){
+        std::cout << " removing duplicates from skymap...\n";
+        size_t i_removed = 0;
+        for (size_t i = 0; i < 2*ncells; i++){
+            if (image(IMG::Q::iintens,i) == 0)
+                continue;
+//            double xi = image(IMG::Q::ixr,i);
+//            double yi = image(IMG::Q::iyr,i);
+//            double z = image(IMG::Q::iintens,i);
+            for (size_t j = i+1; j < 2*ncells; j++){
+                if ( (std::abs(image(IMG::Q::ixr,j) - image(IMG::Q::ixr,i)) < 1e-6)
+                    && (std::abs(image(IMG::Q::iyr,j) - image(IMG::Q::iyr,i)) < 1e-6)
+//                       && ( std::abs(image(IMG::Q::iintens,j) - image(IMG::Q::iintens,i)) < 1e-6)
+                        )
+                    image(IMG::Q::iintens,j) = 0.;
+            }
+        }
+    }
+
 }
 
 
@@ -275,7 +326,8 @@ static inline double cosToSin(const double &cos_theta){
     return sqrt((1.0 - cos_theta) * (1.0 + cos_theta) );
 }
 static inline double arccos(const double &cos_theta){
-    return 2.0 * asin( sqrt(0.5 * (1.0 - cos_theta)) );
+//    return 2.0 * asin( sqrt(0.5 * (1.0 - cos_theta)) );
+    return 2.0 * std::asin( std::sqrt(0.5 * (1.0 - cos_theta)) );
 }
 static inline double obsAngle(const double &theta, const double &phi, const double &alpha_obs){
 //    sin(alpha_obs) * sin(thetas) * sin(phis) + cos(alpha_obs) * cos(thetas)

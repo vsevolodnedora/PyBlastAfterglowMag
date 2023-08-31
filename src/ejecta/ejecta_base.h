@@ -574,7 +574,45 @@ public:
 
 //        return std::move( images );
     }
+    void computeEjectaSkyMapPW_new(std::vector<VecVector> & out, Vector & fluxes, double obs_time, double obs_freq ){
+        /// out is [i_vn][ish][itheta_iphi]
+        size_t nshells_ = nshells();
+        size_t nlayers_ = nlayers();
+        size_t ncells_ =  (int)ncells();
+        if (out.empty()){
+            (*p_log)(LOG_ERR,AT) << " isEmpty image passed. Exiting...\n";
+            exit(1);
+        }
+        if (out[0].size() != nshells_){
+            (*p_log)(LOG_ERR,AT) << " number of images does not equal to the number of shells. Exiting...\n";
+            exit(1);
+        }
+        /// Allocate memory for ctheta and cphi grids ('2' is for principle and counter jet)
+        for (size_t ivn = 0; ivn < IMG::m_names.size(); ivn++)
+            for (size_t ish = 0; ish < nshells_; ish++)
+                out[ivn][ish].resize(2 * ncells_, 0. );
 
+
+        size_t n_jet_empty_images = 0;
+        for (size_t ishell = 0; ishell < nshells_; ishell++){
+            std::vector<size_t> n_empty_images_layer;
+            size_t offset = 0; // offset the data from this layer in the container
+            for (size_t ilayer = 0; ilayer < nlayers_; ilayer++){
+                /// Evaluate a given image
+                size_t cil = EjectaID2::CellsInLayer(ilayer);
+                auto & bw_rad = p_cumShells[ilayer]->getBW(ishell)->getFsEATS();
+                (*p_log)(LOG_INFO,AT)
+                        << " EJECTA SkyMap obs_time="<<obs_time<<" obs_freq="<<obs_freq
+                        << " vel_shell="<<ishell<<"/"<<nshells()-1
+                        << " theta_layer="<<ilayer<<"/"<<nlayers()
+                        << " phi_cells="<<cil<<"\n";
+                double flux = bw_rad->evalImagePW_new(out, obs_time, obs_freq, offset);
+                fluxes[ishell] += flux;
+                offset += cil;
+            }
+        }
+    }
+#if 0
     /// Compute Skymap for adaptive EATS
     void computeEjectaSkyMapA_old(Images & images, double obs_time, double obs_freq, size_t nsublayers ){
 
@@ -789,7 +827,7 @@ public:
 
 //        return std::move( images );
     }
-
+#endif
     /// Compute Skymap for adaptive EATS
     void computeEjectaSkyMapA(Images & images, double obs_time, double obs_freq, size_t nsublayers ){
         size_t nlayers_ = nlayers();
@@ -807,7 +845,7 @@ public:
         Images tmpImagesSet (nsublayers, IMG::m_names.size());
         size_t ii = 0;
         double tot_flux = 0.;
-        std::vector<size_t> cils(nlayers_ * nsublayers, 100);
+        std::vector<size_t> cils(nlayers_ * nsublayers, 21);
         EjectaID2::_evalCellsInLayer_(nlayers_ * nsublayers, cils);
 
 //        size_t ncells = EjectaID2::_evalTotalNcells(nlayers_ * nsublayers);
@@ -839,23 +877,28 @@ public:
                     << " Fnu="<<layer_flux<<" mJy \n";
             for(size_t iilayer = 0; iilayer < nsublayers; iilayer++){
                 double ctheta = theta_c_l[iilayer];// + 0.5 * (theta_c_h[iilayer] - theta_c_l[iilayer]);
-                size_t nphi = cils[ii];
-                for (size_t j = 0; j < nphi; j++){
-                    double cphis = (double)j * 2.0 * CGS::pi / (double)nphi;
+                size_t cil = cils[ii];
+                for (size_t j = 0; j < cil; j++){
+                    double cphis = (double)j * 2.0 * CGS::pi / (double)cil;
                     tmp_pj.gerArr(IMG::Q::icphi)[j] = cphis;
                     tmp_cj.gerArr(IMG::Q::icphi)[j] = cphis;
                     tmp_pj.gerArr(IMG::Q::ictheta)[j] = ctheta;
                     tmp_cj.gerArr(IMG::Q::ictheta)[j] = ctheta;
+
+//                    tmp_pj.gerArr(IMG::Q::ir)[j] = -1;
+//                    tmp_cj.gerArr(IMG::Q::ir)[j] = -1;
+//                    tmp_pj.gerArr(IMG::Q::iintens)[j] = -1;
+//                    tmp_cj.gerArr(IMG::Q::iintens)[j] = -1;
                 }
                 if (tmp_pj.m_size==0||tmp_cj.m_size==0){
                     (*p_log)(LOG_ERR,AT)<<"error\n";
                     exit(1);
                 }
-                tmpImagesSet.getReferenceToTheImage(iilayer).m_size_active = nphi;
+                tmpImagesSet.getReferenceToTheImage(iilayer).m_size_active = cil;
                 bw_rad->evalImageA(tmpImagesSet.getReferenceToTheImage(iilayer), tmp_pj, tmp_cj,
-                                   theta_c_l[iilayer], theta_c_h[iilayer], nphi,
+                                   theta_c_l[iilayer], theta_c_h[iilayer], cil,
                                    obs_time, obs_freq, atol);
-                tmpImagesSet.getReferenceToTheImage(iilayer).m_f_tot = layer_flux / (double)(nsublayers);
+//                tmpImagesSet.getReferenceToTheImage(iilayer).m_f_tot = layer_flux / (double)(nsublayers);
                 ii++;
             }
             images.getReferenceToTheImage(ilayer).m_f_tot = 0.;
@@ -878,7 +921,17 @@ public:
 //            }
 
             imageForEntireShell.resize(2 * ncells, 0. );
-            combineImagesA(imageForEntireShell, ncells, nsublayers, tmpImagesSet) ;
+            combineImagesA(imageForEntireShell, ncells, nsublayers, tmpImagesSet, true) ;
+//            if (nsublayers == 1)
+//                imageForEntireShell.copy_from_another(tmpImagesSet.getReferenceToTheImage(0));
+//            else
+//                combineImages(imageForEntireShell, ncells, nsublayers, tmpImagesSet);
+
+//            auto repeated_coords = findDuplicateCoordinates(imageForEntireShell.gerArr(IMG::Q::ixr),imageForEntireShell.gerArr(IMG::Q::iyr));
+//            if (repeated_coords.size() > 0){
+//                std::cerr << AT << "\n";
+//                exit(1);
+//            }
 
 //            if (std::accumulate(imageForEntireShell.gerArr(IMG::Q::iintens).begin(),
 //                                imageForEntireShell.gerArr(IMG::Q::iintens).end(),0.)==0.){
@@ -887,8 +940,48 @@ public:
 //            }
             if (imageForEntireShell.m_f_tot == 0){
                 (*p_log)(LOG_WARN,AT) << "image summed flux = 0\n";
-                exit(1);
+//                exit(1);
             }
+        }
+    }
+    /// Compute Skymap for adaptive EATS
+    void computeEjectaSkyMapA_new(std::vector<VecVector> & out, Vector & fluxes, double obs_time, double obs_freq,
+                                  size_t ntheta, size_t nphi ){
+
+        /// out is [i_vn][ish][itheta_iphi]
+
+        size_t nlayers_ = nlayers();
+        // ------------------------
+        if (out.empty()){
+            (*p_log)(LOG_ERR,AT) << " isEmpty image passed. Exiting...\n";
+            exit(1);
+        }
+
+        double rtol = 1.e-6;
+//        size_t nphi = 200;
+//        size_t ntheta = 400;
+
+        /// Allocate memory for ctheta and cphi grids ('2' is for principle and counter jet)
+        for (size_t ivn = 0; ivn < IMG::m_names.size(); ivn++) {
+            for (size_t ish = 0; ish < nlayers_; ish++) {
+                out[ivn][ish].resize(2 * nphi * ntheta);
+            }
+        }
+
+        double tot_flux = 0.;
+        for (size_t ilayer = 0; ilayer < nlayers_; ++ilayer){
+            auto & bw_rad = p_cumShells[ilayer]->getBW(0)->getFsEATS();
+            double theta_l = p_cumShells[ilayer]->getBW(0)->getPars()->theta_c_l;
+            double atol = tot_flux * rtol / (double)nlayers_;
+            double layer_flux = bw_rad->evalFluxDensA(obs_time,obs_freq, atol);
+            tot_flux += layer_flux;
+            fluxes[ilayer] = layer_flux;
+            (*p_log)(LOG_INFO,AT)
+                    << " EJECTA SkyMap obs_time="<<obs_time<<" obs_freq="<<obs_freq
+                    << " theta_layer="<<ilayer<<"/"<<nlayers()
+                    << " theta_l="<<theta_l
+                    << " Fnu="<<layer_flux<<" mJy \n";
+            bw_rad->evalImageA_new(out, obs_time, obs_freq, ilayer, ntheta, nphi);
         }
     }
 
@@ -906,6 +999,10 @@ public:
                 arrr.resize( obs_times.size(), 0. );
             }
         }
+
+
+
+
 //        double flux_pj, flux_cj; size_t ii = 0;
 //        Image image;
         double rtol = ej_rtol;
@@ -935,8 +1032,23 @@ public:
         }
         return std::move( light_curves );
     }
-
-
+    void evalEjectaLightCurves_new(VecVector & out, Vector & obs_times, Vector & obs_freqs) {
+        /// out // [ish*il][it*inu]
+        (*p_log)(LOG_INFO, AT) << " starting ejecta light curve calculation\n";
+        size_t ii = 0;
+        for (size_t ishell = 0; ishell < nshells(); ishell++) {
+            for (size_t ilayer = 0; ilayer < nlayers(); ilayer++) {
+                (*p_log)(LOG_INFO, AT)
+                        << " EJECTA LC ntimes=" << obs_times.size()
+                        << " vel_shell=" << ishell << "/" << nshells() - 1
+                        << " theta_layer=" << ilayer << "/" << nlayers()
+                        << "\n";
+                auto &model = getShells()[ilayer];//ejectaModels[ishell][ilayer];
+                model->getBW(ishell)->getFsEATS()->evalLC_new(out[ii], id->method_eats, obs_times, obs_freqs);
+                ii++;
+            }
+        }
+    }
 };
 
 

@@ -93,8 +93,14 @@ class EATS{
 
             m_mu.resize(m_tburst.size());
 //        p_eats->nr = p_pars->nr; // removing EATS_pars for simplicity
-            for (size_t i = 0; i < m_i_end_r; i++)
-                m_mu[i] = ( m_tburst[i] - t_obs / (1.0 + z) ) / m_r[i] * CGS::c;
+            for (size_t i = 0; i < m_i_end_r; i++) {
+                m_mu[i] = (m_tburst[i] - t_obs / (1.0 + z)) / m_r[i] * CGS::c;
+//                if (m_mu[i] == 0.){
+//                    printf("error");
+//                    exit(1);
+//                }
+            }
+//            std::cout <<AT << ' '<< m_mu[0]<< ", "<<m_mu[1]<<" ... "<<m_mu[N-2]<<", "<<m_mu[N-1]<<"\n";
 
             if(m_mu[m_i_end_r - 1] < 1. ){
 //                std::cout << " tburst = " << m_tburst << "\n";
@@ -148,7 +154,7 @@ class EATS{
                 exit(1);
             }
         }
-        void setEatsPars(StrDbMap & pars, StrStrMap & opts, size_t n_layers, double ctheta_0,
+        void setEatsPars(StrDbMap & pars, StrStrMap & opts, size_t n_layers, size_t ncells_, double ctheta_0,
                          double theta_c_l_, double theta_c_h_, double theta_w_, double theta_max_){
             nlayers=n_layers;
             ctheta0=ctheta_0;
@@ -156,6 +162,7 @@ class EATS{
             theta_c_h=theta_c_h_;
             theta_w=theta_w_;
             theta_max=theta_max_;
+            ncells=ncells_;
 
             // set parameters
             nmax_phi = (int)getDoublePar("nmax_phi", pars, AT, p_log,1000, false);//pars.at("nmax_phi");
@@ -207,7 +214,7 @@ class EATS{
         }
 
         /// -------------------------------------------------------------------------------
-        size_t ishell = 0, ilayer = 0;  size_t nlayers = 0; size_t & m_i_end_r;
+        size_t ishell = 0, ilayer = 0;  size_t nlayers = 0; size_t & m_i_end_r; size_t ncells;
         double theta_c_l = -1.;
         double theta_c_h = -1.;
         double theta_w = -1.;
@@ -301,9 +308,9 @@ public:
         delete p_pars;
     }
     /// ----------------------------------------------------------------------------------------------
-    void setEatsPars(StrDbMap & pars, StrStrMap & opts, size_t nlayers, double ctheta0,
+    void setEatsPars(StrDbMap & pars, StrStrMap & opts, size_t nlayers, size_t ncells, double ctheta0,
                      double theta_c_l, double theta_c_h, double theta_w, double theta_max){
-        p_pars->setEatsPars(pars,opts,nlayers,ctheta0,
+        p_pars->setEatsPars(pars,opts,nlayers,ncells,ctheta0,
                             theta_c_l,theta_c_h,theta_w,theta_max);
     }
     void setFluxFunc(void (* fluxFunc)( double & flux_dens, double & tau_comp, double & tau_BH, double & tau_bf,
@@ -326,16 +333,16 @@ public:
                  0., M_PI, obsAngle);
         check_pars();
         double Fcoeff = CGS::cgs2mJy / (4.0 * M_PI * p_pars->d_l * p_pars->d_l); // result will be in mJy
-        p_pars->atol_theta = atol;// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
-        p_pars->atol_phi = atol;//  / (2.0 * Fcoeff);
-        fluxdens += 2. * Fcoeff * integrate_theta_phi(p_pars); // 2. because Integ_0^pi (not 2pi)
+        p_pars->atol_theta = atol/(2*Fcoeff*M_PI);// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
+        p_pars->atol_phi = atol/(2*Fcoeff*M_PI);//  / (2.0 * Fcoeff);
+        fluxdens += integrate_theta_phi(p_pars); // 2. because Integ_0^pi (not 2pi)
         if (p_pars->counter_jet){
             parsPars(t_obs, nu_obs, p_pars->theta_c_l, p_pars->theta_c_h,
                      0., M_PI, obsAngleCJ);
             check_pars();
             p_pars->atol_theta = atol;// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
             p_pars->atol_phi = atol;//  / (2.0 * Fcoeff);
-            fluxdens += 2. * Fcoeff * integrate_theta_phi(p_pars);
+            fluxdens += integrate_theta_phi(p_pars);
         }
         return fluxdens;
     }
@@ -353,6 +360,16 @@ public:
         }
         image.m_f_tot = (im_pj.m_f_tot + im_cj.m_f_tot);
 //        std::cout<<image.m_f_tot<<"\n";
+    }
+    /// evaluate intensity/flux density distribution using piece-wise summation
+    double evalImagePW_new(std::vector<VecVector> & out, double obs_time, double obs_freq, size_t offset){
+        double flux_pj=0., flux_cj=0.;
+        flux_pj = evalImageFromPW_new(out, obs_time, obs_freq, offset,
+                                      obsAngle, imageXXs, imageYYs);
+        if (p_pars->counter_jet) // p_eats->counter_jet
+            flux_cj = evalImageFromPW_new(out, obs_time, obs_freq, p_pars->ncells + offset,
+                                          obsAngleCJ, imageXXsCJ, imageYYsCJ);
+        return flux_pj + flux_cj;
     }
 
     /// evaluate intensity/flux density distribution using adaptive summation
@@ -378,6 +395,13 @@ public:
         }
         image.m_f_tot = im_pj.m_f_tot + im_cj.m_f_tot;//evalFluxDensA(obs_time, obs_freq, atol);
 //        image.m_f_tot = evalFluxDensA(obs_time, obs_freq, atol);
+    }
+    /// evaluate intensity/flux density distribution using adaptive summation
+    void evalImageA_new(std::vector<VecVector> & out, double obs_time, double obs_freq, size_t il, size_t nth, size_t nphi){
+        /// evaluateShycnhrotronSpectrum image for primary jet and counter jet
+        evalImageFromA_new(out, obs_time, obs_freq, il, nth, nphi, 0, obsAngle, imageXXs, imageYYs);
+        if (p_pars->counter_jet) // p_eats->counter_jet
+            evalImageFromA_new(out, obs_time, obs_freq, il, nth, nphi, nth*nphi, obsAngleCJ, imageXXsCJ, imageYYsCJ);
     }
 
     /// ----------------------------------------------------------------------------------------------
@@ -645,6 +669,128 @@ public:
         double flux = std::accumulate(fluxes.begin(), fluxes.end(), decltype(fluxes)::value_type(0));
         image.m_f_tot = flux * CGS::cgs2mJy; /// flux in mJy
     }
+    double evalImageFromPW_new(std::vector<VecVector> & out, double obs_time, double obs_freq, size_t offset,
+                         double (*obs_angle)( const double &, const double &, const double & ),
+                         double (*im_xxs)( const double &, const double &, const double & ),
+                         double (*im_yys)( const double &, const double &, const double & )){
+
+        /// out is [i_vn][ish][itheta_iphi]
+        bool save_im = true;
+        if (out.empty())
+            save_im = false;
+
+        if ((p_pars->m_r[0] == 0.) && (p_pars->m_gam[0] == 0.)){
+            (*p_log)(LOG_WARN,AT) << " [ishell=" << p_pars->ishell << " ilayer="<<p_pars->ilayer << "] "
+                                  << " R[0]=0. Seems not evolved -> returning isEmpty image." << "\n";
+            return 0;
+        }
+        if (p_pars->m_i_end_r == 0){
+            (*p_log)(LOG_ERR,AT) << "p_pars->m_i_end_r = 0\n";
+            exit(1);
+        }
+        if (p_pars->m_tt[0] == 0 and p_pars->m_tt[p_pars->m_i_end_r] == 0){
+            (*p_log)(LOG_ERR,AT) << "p_pars->m_tt = 0\n";
+            exit(1);
+        }
+
+        parsPars(obs_time, obs_freq, 0., 0., 0., 0., obs_angle);
+        check_pars();
+        size_t cil = EjectaID2::CellsInLayer(p_pars->ilayer);
+
+
+        /// allocate memory for quantities that help
+        Vector mu (p_pars->m_i_end_r, std::numeric_limits<double>::max());
+        std::vector<size_t> ia(p_pars->m_i_end_r, 0);
+        std::vector<size_t> ib(p_pars->m_i_end_r, 0);
+        Vector ta(p_pars->m_i_end_r, 0);
+        Vector tb(p_pars->m_i_end_r, 0);
+        Vector r(p_pars->m_i_end_r, 0);
+        Vector fluxes(p_pars->m_i_end_r, 0);
+        /// Find the region for EATS interpoaltion
+        for (size_t i = 0; i < cil; i++) {
+            double cphi = (double)i * 2.0 * M_PI / (double)cil;
+            double ctheta_cell = p_pars->ctheta0;
+            mu[i] = obs_angle(ctheta_cell, cphi, p_pars->theta_obs);
+            /// fill-in the time on EATS plane
+            for (size_t i_ = 0; i_ < p_pars->m_i_end_r; i_++) {
+                p_pars->ttobs[i_] = p_pars->m_tt[i_] + p_pars->m_r[i_] / CGS::c * (1.0 - mu[i]);
+            }
+            /// check if req. obs time is outside of the evolved times (throw error)
+            if (obs_time < p_pars->ttobs[0]) {
+                (*p_log)(LOG_ERR, AT) << " time grid starts too late "
+                                      << " t_grid[0]=" << p_pars->ttobs[0] << " while requested obs.time=" << obs_time << "\n"
+                                      << " extend the grid to earlier time or request tobs at later times\n"
+                                      << " Exiting...\n";
+                exit(1);
+            }
+            else if ((obs_time > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
+                (*p_log)(LOG_WARN, AT) << " time grid was shorten to i=" << p_pars->m_i_end_r
+                                       << " from nr=" << p_pars->m_i_end_r
+                                       << " and now ends at t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
+                                       << " while t_obs=" << obs_time << "\n";
+                mu[i] = std::numeric_limits<double>::max();
+                continue;
+            }
+            ///
+            int guess = i > 0 ? (int)ia[i-1] : (int)(p_pars->ttobs.size()/2);
+            ia[i] = findClosestIndex(obs_time, p_pars->ttobs, guess);
+            if (ia[i] >= p_pars->m_i_end_r - 1) {
+                mu[i] = std::numeric_limits<double>::max();
+                continue; // ??
+            }
+            ib[i] = ia[i] + 1;
+            ta[i] = p_pars->ttobs[ia[i]];
+            tb[i] = p_pars->ttobs[ib[i]];
+            /// interpolate the exact radial position of the blast that corresponds to the req. obs time
+            r[i] = interpSegLog(ia[i], ib[i], obs_time, p_pars->ttobs, p_pars->m_r);
+            //  double r = ( Interp1d(ttobs, m_data[BW::Q::iR] ) ).Interpolate(t_obs, mth );
+            if ((r[i] <= 0.0) || (!std::isfinite(r[i]))) {
+                (*p_log)(LOG_ERR, AT) << " R <= 0. Extend R grid (increasing R0, R1). "
+                                      << " Current R grid us ["
+                                      << p_pars->m_r[0] << ", "
+                                      << p_pars->m_r[p_pars->m_i_end_r - 1] << "] "
+                                      << "and tobs arr ["
+                                      << p_pars->ttobs[0] << ", " << p_pars->ttobs[p_pars->m_i_end_r - 1]
+                                      << "] while the requried obs_time=" << p_pars->t_obs
+                                      << "\n";
+                mu[i] = std::numeric_limits<double>::max();
+                break;
+            }
+        }
+
+        auto * _params = p_pars->m_params;
+        double phi_cell=0., ctheta_cell=0., flux_dens=0., ctheta=0.;
+        double tau_comp=-1., tau_bf=-1., tau_BH=-1.;
+        double tot_flux = 0.;
+        /// Perform EATS integration
+        for (size_t i = 0; i < cil; i++) {
+            if (mu[i] == std::numeric_limits<double>::max())
+                continue;
+
+            phi_cell = (double) i * 2.0 * M_PI / (double) cil;
+            ctheta_cell = p_pars->ctheta0;
+
+            p_pars->fluxFunc(flux_dens, tau_comp, tau_BH, tau_bf, r[i], ctheta, ctheta_cell, phi_cell,
+                             ia[i], ib[i], ta[i], tb[i], mu[i], obs_time, obs_freq, _params);
+
+            if (!std::isfinite(flux_dens) || flux_dens < 0){
+                (*p_log)(LOG_ERR,AT) << " flux_dens="<<flux_dens<<"\n";
+                exit(1);
+            }
+            /// save data in container
+            if (save_im) {
+                out[IMG::Q::iintens][p_pars->ishell][offset + i] = flux_dens / (r[i] * r[i] * std::abs(mu[i])) * CGS::cgs2mJy;
+                out[IMG::Q::ixr][p_pars->ishell][offset + i] = r[i] * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
+                out[IMG::Q::iyr][p_pars->ishell][offset + i] = r[i] * im_yys(ctheta, phi_cell, p_pars->theta_obs);
+                out[IMG::Q::ir][p_pars->ishell][offset + i] = r[i];
+                out[IMG::Q::ictheta][p_pars->ishell][offset + i] = ctheta_cell;
+                out[IMG::Q::icphi][p_pars->ishell][offset + i] = phi_cell;
+                out[IMG::Q::imu][p_pars->ishell][offset + i] = mu[i];
+            }
+            tot_flux += flux_dens;
+        }
+        return (tot_flux * CGS::cgs2mJy);
+    }
 #if 1
 
     void evalImageFromA(Image & image, double t_obs, double nu_obs, double atol,
@@ -677,7 +823,9 @@ public:
             // if jet is spreading, compute the upper boundary of the jet
             double th_b = find_jet_edge(cphi, p_pars->theta_obs, //p_pars->cos_theta_obs, p_pars->sin_theta_obs,
                                         p_pars->theta_c_h, p_pars->m_mu, p_pars->m_theta,//m_data[BW::Q::itheta],
-                                        (int)p_pars->m_mu.size(), p_pars->obsangle);
+                                        (int)p_pars->m_i_end_r, p_pars->obsangle);
+            if (th_b >= CGS::pi/2.)
+                continue;
             double th_a = ( p_pars->theta_c_l / p_pars->theta_c_h ) * th_b; // ???
             if (ctheta < th_a || ctheta > th_b)
                 continue;
@@ -691,21 +839,105 @@ public:
 ////                double dphi = image.gerArr(IMG::Q::icphi)[ii]-image.gerArr(IMG::Q::icphi)[ii-1];
 //                intensity*=dtheta;
 //            }
+            if ((r == 0)||(r!=r)){
+                (*p_log)(LOG_ERR,AT) << " r=0"<<"\n";
+                exit(1);
+            }
 
             summed_intensity += intensity;
 
             double x = r * im_xxs(ctheta, cphi, p_pars->theta_obs);
             double y = r * im_yys(ctheta, cphi, p_pars->theta_obs);
 
-            image(IMG::Q::iintens,ii) = intensity * Fcoeff / ( r * r * std::abs(mu));//* phi_edges.size();
+            image(IMG::Q::iintens,ii) = intensity * Fcoeff / ( r * r * std::abs(mu) );//* phi_edges.size();
             image(IMG::Q::ir,ii) = r;
             image(IMG::Q::imu,ii) = mu;
             image(IMG::Q::ixr,ii) = x;//-1 * sin(obs_theta) * ( sin(_cthetas[ii]) * sin(_cphis[ii])) + cos(obs_theta)*cos(_cthetas[ii]);
             image(IMG::Q::iyr,ii) = y;//
+            image(IMG::Q::ictheta,ii) = ctheta;//
+            image(IMG::Q::icphi,ii) = cphi;//
         }
 
         summed_intensity *= Fcoeff;
         image.m_f_tot = summed_intensity;
+    }
+    void evalImageFromA_new(std::vector<VecVector> & out, double obs_time, double obs_freq, size_t il, size_t nth, size_t nphi, size_t ii_ofset,
+                        double (*obs_angle)( const double &, const double &, const double & ),
+                        double (*im_xxs)( const double &, const double &, const double & ),
+                        double (*im_yys)( const double &, const double &, const double & )) {
+        /// settings for intensity search
+        double phi0 = 0.;
+        double phi1 = 2. * M_PI;
+        double theta0 = p_pars->theta_c_l;
+        double theta1 = M_PI / 2.;
+
+        if (out.size()==0){
+            (*p_log)(LOG_ERR,AT) << " image is empty\n";
+            exit(1);
+        }
+        if (il<0){
+            (*p_log)(LOG_ERR,AT) << " il < 0\n";
+            exit(1);
+        }
+        parsPars(obs_time, obs_freq, p_pars->theta_c_l, p_pars->theta_c_h,
+                 0., 2. * M_PI, obs_angle);
+        check_pars();
+
+        size_t ii = 0;
+        double summed_intensity = 0;
+        double Fcoeff = cgs2mJy / (4. * M_PI * p_pars->d_l * p_pars->d_l);
+
+        for (size_t iphi = 0; iphi < nphi; iphi++){
+            double th_b_min = std::numeric_limits<double>::max();
+            double th_b_max = std::numeric_limits<double>::min();
+            double cphi = phi0 + (double)iphi * (phi1 - phi0) / (double)nphi;
+            /// check what the extend of theta
+            // if jet is spreading, compute the upper boundary of the jet
+            double th_b = find_jet_edge(cphi, p_pars->theta_obs, //p_pars->cos_theta_obs, p_pars->sin_theta_obs,
+                                        p_pars->theta_c_h, p_pars->m_mu, p_pars->m_theta,//m_data[BW::Q::itheta],
+                                        (int)p_pars->m_i_end_r, p_pars->obsangle);
+//            /// check the theta extend for this phi
+//            if (th_b > th_b_max)
+//                th_b_max = th_b;
+//            if (th_b < th_b_min)
+//                th_b_min = th_b;
+//            /// TODO check if we need to check this
+//            if (th_b_min < theta0)
+//                th_b_min = theta0;
+//
+//            if ((th_b_min <= th_b_max) || (th_b_max == 0.)){
+//                (*p_log)(LOG_ERR,AT)<<" no theta area to consider\n";
+//                exit(1);
+//            }
+
+            double th_a = ( p_pars->theta_c_l / p_pars->theta_c_h ) * th_b; // ???
+//            std::cout << AT<< " iphi="<<iphi<<" phi="<<cphi<<" th_a="<<th_a<<" th_b="<<th_b<<"\n";
+
+            for (size_t ith = 0; ith < nth; ith++){
+                double cth = th_a + (double)ith * (th_b - th_a) / (double)nth;
+                // compute intensity
+                double r = 0., mu = 0., gam = 0., ctheta_bw = 0.;
+                double intensity = integrand(cos(cth ), cphi,
+                                             r, mu, gam, ctheta_bw, p_pars);
+                if ((r == 0)||(r!=r)){
+                    (*p_log)(LOG_ERR,AT) << " r=0"<<"\n";
+                    exit(1);
+                }
+                summed_intensity += intensity;
+                double x = r * im_xxs(cth, cphi, p_pars->theta_obs);
+                double y = r * im_yys(cth, cphi, p_pars->theta_obs);
+                // ---
+                out[IMG::Q::ictheta][il][ii_ofset+ii] = cth;
+                out[IMG::Q::icphi][il][ii_ofset+ii] = cphi;
+                out[IMG::Q::iintens][il][ii_ofset+ii] = intensity;
+                out[IMG::Q::ir][il][ii_ofset+ii] = r;
+                out[IMG::Q::ixr][il][ii_ofset+ii] = x;
+                out[IMG::Q::iyr][il][ii_ofset+ii] = y;
+                out[IMG::Q::imu][il][ii_ofset+ii] = mu;
+                ii ++;
+            }
+        }
+        summed_intensity *= Fcoeff;
     }
 #endif
 
@@ -1014,6 +1246,19 @@ public:
 
 //        return std::move(light_curve);
     }
+    void evalLC_new(Vector & out, EjectaID2::STUCT_TYPE m_method_eats, Vector & times, Vector & freqs ){
+        double rtol = 1e-10;
+        std::vector<VecVector> empty{};
+        for (size_t it = 0; it < times.size(); it++) {
+            if (m_method_eats == EjectaID2::STUCT_TYPE::ipiecewise)
+                out[it] = evalImagePW_new(empty,times[it],freqs[it],0);
+
+            else{
+                double atol = out[it] * rtol / (double)p_pars->nlayers;
+                out[it] += evalFluxDensA(times[it], freqs[it], atol);
+            }
+        }
+    }
 private:
 
     /// check if during the quadrature integration there was an error
@@ -1053,6 +1298,7 @@ private:
         // in the mu_array -- find the index of the current 'mu'
         size_t ia = findIndex(mu, a_mu, N);
         // [ia,ib] contains the boundary of the shell, based on mu
+//        std::cout <<AT << ' '<< a_mu[0]<< ", "<<a_mu[1]<<" ... "<<a_mu[N-2]<<", "<<a_mu[N-1]<<"\n";
 
         // *if the jet has not yet spread* = if theta[ia] from dynamic evolution < th_con_hi
         if(a_thj[ia] <= th_con_hi && th_con_hi <= a_thj[ia + 1])
@@ -1135,6 +1381,7 @@ private:
         double flux_dens = 0; //r = 0, ctheta=0.;
         p_pars->fluxFuncA(flux_dens, r, ctheta, a_theta, i_phi,
                           ia, ib, mu, t_e, p_pars->t_obs, p_pars->nu_obs, p_pars->m_params);
+//        std::cout<<"fluxdens="<<flux_dens<<"\n";
         /// ----------------------------------------
         gam = interpSegLog(ia, ib, t_e, tburst, p_pars->m_gam);
 
@@ -1353,7 +1600,6 @@ private:
         p_pars->o_flux = flux_dens;
         p_pars->o_theta_j = ctheta;
         return flux_dens;
-
     }
     static double costheta_integrand( double aomct, void* params ){
         auto * p_eats = (struct Pars *) params; // removing EATS_pars for simplicity
@@ -1381,7 +1627,7 @@ private:
         if (p_eats->spread_method == 1){
             th_1 = find_jet_edge(a_phi, p_eats->theta_obs,// p_eats->cos_theta_obs, p_eats->sin_theta_obs,
                                  theta_1, p_eats->m_mu, p_eats->m_theta,//m_data[BW::Q::itheta],
-                                 p_eats->m_mu.size(),
+                                 p_eats->m_i_end_r,
                                  p_eats->obsangle);
             double frac = theta_0 / theta_1;
             th_0 = frac * th_1;
@@ -1482,7 +1728,7 @@ private:
 //            std::cerr << AT << "\n";
             return 0.;
         }
-
+//        printf("   a_phi: %.6lf (%.6le)\n", a_phi, result);
         return result;
 
     }
@@ -1506,75 +1752,76 @@ private:
         }
         double phi_0 = p_eats->current_phi_low;//0.0;
         double phi_1 = p_eats->current_phi_hi;//M_PI;
+        double Fcoeff = CGS::cgs2mJy / (4*M_PI * p_eats->d_l* p_eats->d_l);
 
         double result;
         double phi_a;
         switch (p_eats->method_quad) {
 
             case INT_TRAP_FIXED:
-                result = trap(&phi_integrand, phi_0, phi_1,
+                result = 2 * Fcoeff * trap(&phi_integrand, phi_0, phi_1,
                               p_eats->nmax_phi, p_eats, check_error);
                 break;
             case INT_TRAP_ADAPT:
-                result = trap_adapt(&phi_integrand, phi_0, phi_1,
+                result = 2 * Fcoeff * trap_adapt(&phi_integrand, phi_0, phi_1,
                                     p_eats->nmax_phi, atol,
                                     p_eats->rtol_phi, p_eats, nullptr, nullptr,
                                     nullptr, 0, check_error, nullptr, nullptr);
                 break;
             case INT_SIMP_FIXED:
-                result = simp(&phi_integrand, phi_0, phi_1,
+                result = 2 * Fcoeff * simp(&phi_integrand, phi_0, phi_1,
                               p_eats->nmax_phi, p_eats, check_error);
                 break;
             case INT_SIMP_ADAPT:
-                result = simp_adapt(&phi_integrand, phi_0, phi_1,
+                result = 2 * Fcoeff * simp_adapt(&phi_integrand, phi_0, phi_1,
                                     p_eats->nmax_phi, atol,
                                     p_eats->rtol_phi, p_eats, nullptr, nullptr,
                                     nullptr, 0, check_error, nullptr, nullptr);
                 break;
             case INT_ROMB_ADAPT:
                 phi_a = phi_0 + 0.5*(phi_1-phi_0);
-                result = romb(&phi_integrand, phi_0, phi_a,
+                result = 2 * Fcoeff * romb(&phi_integrand, phi_0, phi_a,
                               p_eats->nmax_phi, atol,
                               p_eats->rtol_phi, p_eats, nullptr, nullptr, 0,
                               check_error, nullptr, nullptr);
-                result += romb(&phi_integrand, phi_a, phi_1,
+                result += 2 * Fcoeff * romb(&phi_integrand, phi_a, phi_1,
                                p_eats->nmax_phi,
                                (atol + p_eats->rtol_phi * result),
                                p_eats->rtol_phi, p_eats, nullptr, nullptr, 0,
                                check_error, nullptr, nullptr);
                 break;
             case INT_TRAP_NL:
-                result = trapNL_adapt(&phi_integrand, phi_0, phi_1,
+                result = 2 * Fcoeff * trapNL_adapt(&phi_integrand, phi_0, phi_1,
                                       p_eats->nmax_phi, atol,
                                       p_eats->rtol_phi, p_eats, nullptr, nullptr,
                                       nullptr, 0, check_error, nullptr, nullptr);
                 break;
             case INT_HYBRID:
-                result = hybrid_adapt(&phi_integrand, phi_0, phi_1,
+                result = 2 * Fcoeff * hybrid_adapt(&phi_integrand, phi_0, phi_1,
                                       p_eats->nmax_phi, atol,
                                       p_eats->rtol_phi, p_eats, nullptr, nullptr,
                                       0, check_error, nullptr, nullptr);
                 break;
             case INT_CADRE:
-                result = cadre_adapt(&phi_integrand, phi_0, phi_1,
+                result = 2 * Fcoeff * cadre_adapt(&phi_integrand, phi_0, phi_1,
                                      p_eats->nmax_phi, atol,
                                      p_eats->rtol_phi, p_eats, nullptr, nullptr,
                                      0, check_error, nullptr, nullptr);
                 break;
             case INT_GK49_ADAPT:
-                result = gk49_adapt(&phi_integrand, phi_0, phi_1,
+                result = 2 * Fcoeff * gk49_adapt(&phi_integrand, phi_0, phi_1,
                                     p_eats->nmax_phi, atol,
                                     p_eats->rtol_phi, p_eats, nullptr, nullptr,
                                     0, check_error);
                 break;
             case INT_GK715_ADAPT:
-                result = gk715_adapt(&phi_integrand, phi_0, phi_1,
+                result = 2 * Fcoeff * gk715_adapt(&phi_integrand, phi_0, phi_1,
                                      p_eats->nmax_phi, atol,
                                      p_eats->rtol_phi, p_eats, nullptr, nullptr,
                                      0, check_error);
                 break;
             case INT_GK1021_ADAPT:
-                result = gk1021_adapt(&phi_integrand, phi_0, phi_1,
+                result = 2 * Fcoeff * gk1021_adapt(&phi_integrand, phi_0, phi_1,
                                       p_eats->nmax_phi, atol,
                                       p_eats->rtol_phi, p_eats, nullptr, nullptr,
                                       0, check_error);

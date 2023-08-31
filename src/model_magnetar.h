@@ -1096,7 +1096,7 @@ public:
         auto & p_bw = p_ej->getShells()[p_pars->ilayer]->getBWs()[p_pars->ishell];
 
         p_eats->setEatsPars(
-                pars, opts, p_bw->getPars()->nlayers, p_bw->getPars()->ctheta0,
+                pars, opts, p_bw->getPars()->nlayers, (size_t)p_bw->getPars()->ncells, p_bw->getPars()->ctheta0,
                 p_bw->getPars()->theta_c_l, p_bw->getPars()->theta_c_h, p_bw->getPars()->theta_w, p_bw->getPars()->theta_max);
         i_end_r = m_data[PWN::Q::itburst].size(); // update for eats
 //        int i = 1;

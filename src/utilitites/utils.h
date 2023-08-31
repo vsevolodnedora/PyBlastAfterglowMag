@@ -551,7 +551,7 @@ public:
     }
 
     template<typename vecarr>
-    void Data(vecarr data,
+    void Data(vecarr & data,
               std::vector<std::string> &names,
               const std::string& fpath,
               const bool show_output = true){
@@ -584,7 +584,7 @@ public:
  * @param set_names
  * @param fpath
  */
-    void VectorOfTablesH5(std::vector<std::vector<std::vector<double>>> data,
+    void VectorOfTablesH5(std::vector<std::vector<std::vector<double>>> & data,
                           std::vector<std::string> set_names,
                           std::string fpath){
 
@@ -627,7 +627,7 @@ public:
 
 
 
-    void VectorOfVectorsH5(VecVector data,
+    void VectorOfVectorsH5(VecVector & data,
                            std::vector<std::string> set_names,
                            std::string fpath,
                            std::unordered_map<std::string, double> attrs={}){
@@ -699,7 +699,7 @@ public:
         file.close();
     }
 
-    void VecVectorOfVectorsAsGroupsH5(std::vector<std::vector<std::vector<double>>> data,
+    void VecVectorOfVectorsAsGroupsH5(std::vector<std::vector<std::vector<double>>>  & data,
                                       std::vector<std::string> group_names,
                                       std::vector<std::string> arr_names,
                                       std::string fpath,
@@ -767,10 +767,10 @@ public:
 
     void VecVectorOfVectorsAsGroupsAndVectorOfVectorsH5(
             std::string fpath,
-            std::vector<std::vector<std::vector<double>>> group_data,
+            std::vector<std::vector<std::vector<double>>> & group_data,
             std::vector<std::string> group_names,
             std::vector<std::string> vector_names_in_each_group,
-            std::vector<std::vector<double>> data,
+            std::vector<std::vector<double>> & data,
             std::vector<std::string> vector_names,
             std::unordered_map<std::string, double> attrs = {}
     ){
@@ -869,10 +869,10 @@ public:
 
     void VectorOfTablesAsGroupsAndVectorOfVectorsH5(
             std::string fpath,
-            std::vector<std::vector<std::vector<std::vector<double>>>> group_data,
+            std::vector<std::vector<std::vector<std::vector<double>>>> & group_data,
             std::vector<std::string> group_names_tables,
             std::vector<std::string> table_names_in_each_group,
-            std::vector<std::vector<double>> data = {},
+            std::vector<std::vector<double>> & data,
             std::vector<std::string> vector_names = {},
             std::unordered_map<std::string, double> attrs = {}
     ){
@@ -1251,6 +1251,37 @@ Vector makeVecFromString(const std::string line, std::unique_ptr<logger> & p_log
     }
 //    std::cout << res << "\n";
     return std::move( res );
+}
+
+std::vector<int> findDuplicateCoordinates(const std::vector<double>& x_coords, const std::vector<double>& y_coords) {
+    if (x_coords.size() != y_coords.size()) {
+        throw std::runtime_error("Mismatched vector sizes.");
+    }
+
+    // Pair up the coordinates with their original indices.
+    std::vector<std::pair<std::pair<double, double>, int>> coordsWithIndices;
+    for (size_t i = 0; i < x_coords.size(); ++i) {
+        coordsWithIndices.push_back({{x_coords[i], y_coords[i]}, static_cast<int>(i)});
+    }
+
+    // Sort by the coordinates.
+    std::sort(coordsWithIndices.begin(), coordsWithIndices.end());
+
+    // Find duplicates
+    std::vector<int> duplicateIndices;
+    for (size_t i = 1; i < coordsWithIndices.size(); ++i) {
+        if (coordsWithIndices[i].first == coordsWithIndices[i - 1].first) {
+            duplicateIndices.push_back(coordsWithIndices[i].second);
+            if (i == coordsWithIndices.size() - 1 || coordsWithIndices[i].first != coordsWithIndices[i + 1].first) {
+                duplicateIndices.push_back(coordsWithIndices[i - 1].second);
+            }
+        }
+    }
+
+    // Sort indices to return them in the original order.
+    std::sort(duplicateIndices.begin(), duplicateIndices.end());
+
+    return duplicateIndices;
 }
 
 /// https://www.geeksforgeeks.org/LinearRegression-analysis-and-the-best-fitting-line-using-c/

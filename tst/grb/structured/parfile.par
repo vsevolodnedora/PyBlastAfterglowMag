@@ -12,34 +12,34 @@
 
 * Parameters
 
-tb0 = 1.e3
+tb0 = 3335.64
 tb1 = 1.e11
-ntb = 10000
-iout = 10
-rtol = 1e-12
+ntb = 1000
+iout = 1
+rtol = 1e-6
 nmax = 1000
 
 A0 = -1
 s = -1
 r_ej = -1
 r_ism = -1
-n_ism = 0.00031
-d_l = 1.27e+26
-z = 0.0099
-theta_obs = 0.3752
+n_ism = 0.01
+d_l = 3.09e+26
+z = 0.028
+theta_obs = 0.0
 
 * Settings
 
 do_average_solution = no
 
 lc_freqs = array 3.e9
-lc_times = array logspace 1.e4 1.e10 150
+lc_times = array logspace 1.e4 1.e10 250
 lc_use_freq_to_time = no      # one-to-one for freq and times
 
 skymap_freqs = array 9.9e8 1.e9 1.1e9 3.e9 4.5e9
 skymap_times = array logspace 8.e5 2e9 50
 
-integrator = DOP853
+integrator = DOP853E
 
 # --------------------------- END ---------------------------
 #
@@ -52,13 +52,21 @@ im_max_theta = 0
 
 tprompt = 1.e3
 a = 1.0
-fraction_of_Gamma0_when_spread = 0.1
+mom0_frac_when_start_spread = 0.95 # 0.1
+rs_Gamma0_frac_no_exceed = .92
+min_Gamma0_for_rs = 0
 
-eps_e = 0.0708
-eps_b = 0.0052
+eps_e = 0.1
+eps_b = 0.01
 eps_t = 0.
-p = 2.16
+p = 2.2
 ksi_n = 1.
+
+eps_e_rs = 0.2
+eps_b_rs = 0.02
+eps_t_rs = 0.
+p_rs = 2.4
+ksi_n_rs = 1.
 
 freq1 = 1.e5
 freq2 = 1.e22
@@ -71,7 +79,7 @@ fnu_min_frac = 1e-4
 * Settings
 
 run_bws = yes
-save_dynamics = no
+save_dynamics = yes
 load_dynamics = no
 save_spec = no
 do_ele = yes
@@ -79,8 +87,8 @@ do_spec = no
 do_lc = yes
 do_skymap = no
 
-do_rs = no
-rhs_type = grb_fs
+do_rs = yes
+rhs_type = grb_fsrs
 method_collision = none # none
 method_eats = adaptive # piece-wise
 
@@ -99,6 +107,7 @@ fname_ejecta_id = gauss_grb_id.h5
 load_r0 = no
 
 method_spread = AFGPY
+method_limit_spread = Gamma0Frac # Gamma0Frac`
 method_dgdr = our
 method_eos = Nava13
 method_GammaSh = useJKwithGammaRel  # default -- "useGamma"
@@ -118,5 +127,8 @@ emissivity = em
 absorption = abs
 method_comp_mode = comovSpec # observFlux   # "comovSpec"
 method_quad = CADRE
+
+method_synchrotron_rs = Joh06
+use_ssa_rs = no
 
 # --------------------------- END ---------------------------
