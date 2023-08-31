@@ -2104,17 +2104,23 @@ public:
 //                    getStrOpt("fname_spec", pwn_opts, AT, p_log, "", true));
 
 
-            if (do_lc)
-                computePWNlightcurve(
-                        workingdir,
-                        getStrOpt("fname_light_curve", pwn_opts, AT, p_log, "", true),
-                        getStrOpt("fname_light_curve_layers", pwn_opts, AT, p_log, "", true),
-                        lc_times, lc_freqs, main_pars, pwn_pars, lc_freq_to_time);
+            if (do_lc) {
+                (*p_log)(LOG_ERR, AT) << " not implemneted. Use methods for ejecta. Do not replicate the code.\n";
+                exit(1);
+            }
+//                computePWNlightcurve(
+//                        workingdir,
+//                        getStrOpt("fname_light_curve", pwn_opts, AT, p_log, "", true),
+//                        getStrOpt("fname_light_curve_layers", pwn_opts, AT, p_log, "", true),
+//                        lc_times, lc_freqs, main_pars, pwn_pars, lc_freq_to_time);
 
-            if (do_skymap)
-                computeSaveSkyImages(
-                        workingdir, getStrOpt("fname_sky_map", pwn_opts, AT, p_log, "", true),
-                        skymap_times, skymap_freqs, main_pars, pwn_pars);
+            if (do_skymap) {
+                (*p_log)(LOG_ERR, AT) << " not implemneted. Use methods for ejecta. Do not replicate the code.\n";
+                exit(1);
+            }
+//                computeSaveSkyImages(
+//                        workingdir, getStrOpt("fname_sky_map", pwn_opts, AT, p_log, "", true),
+//                        skymap_times, skymap_freqs, main_pars, pwn_pars);
 //                    (*p_log)(LOG_INFO, AT) << "jet analytic synch. sky map finished [" << timer.checkPoint() << " s]" << "\n";
         }
     }
@@ -2214,6 +2220,8 @@ private:
         group_names.emplace_back("total_fluxes");
         p_out->VectorOfVectorsH5(total_fluxes_shell_layer, group_names, workingdir+fname,  attrs);
     }
+
+#if 0
     void computePWNlightcurve(std::string workingdir,std::string fname, std::string fname_shells_layers,
                               Vector lc_times, Vector lc_freqs, StrDbMap & main_pars, StrDbMap & ej_pars,
                               bool lc_freq_to_time){
@@ -2380,6 +2388,7 @@ private:
                                                           other_data,other_names,attrs);
 
     }
+#endif
 private:
 
     void evalPWNComovSpectrum(Vector & times, Vector & freqs, Vector & gams) {
@@ -2409,7 +2418,7 @@ private:
         }
 //        return std::move( spec );
     }
-
+#if 0
     std::vector<VecVector> evalPWNLightCurves( Vector & obs_times, Vector & obs_freqs ){
         std::vector<VecVector> light_curves(nshells()); // [ishell][i_layer][i_time]
         for (auto & arr : light_curves){
@@ -2441,7 +2450,8 @@ private:
                         << " vel_shell=" << ishell << "/" <<nshells()-1
                         << " theta_layer=" << ilayer << "/" << nlayers()
                         << " phi_cells=" << EjectaID2::CellsInLayer(ilayer) << "\n";
-                model->getEATS()->evalLC(
+                std::vector<VecVector> out;
+                model->getEATS()->evalLC_new(
                         p_ej->getId()->method_eats,
                         image_i, im_pj, im_cj, light_curves[ishell][ilayer], obs_times, obs_freqs);
                 ii ++;
@@ -2449,7 +2459,13 @@ private:
         }
         return std::move( light_curves );
     }
-
+#endif
+    std::vector<VecVector> evalPWNLightCurves( VecVector & out, Vector & obs_times, Vector & obs_freqs ){
+        (*p_log)(LOG_ERR,AT) << " Not implemented. Use methods designed for ejecta here, just pass the function for flux calcualtion into it\n";
+        exit(1);
+        return {{}};
+    }
+#if 0
     void computeSkyMapPieceWise( Images & images, double obs_time, double obs_freq ){
 
         size_t nshells_ = nshells();
@@ -2528,7 +2544,13 @@ private:
 
 //        return std::move( images );
     }
+#endif
+    void computeSkyMapPieceWise( std::vector<VecVector> & out, double obs_time, double obs_freq ){
 
+        (*p_log)(LOG_ERR,AT) << " Not implemented. Use methods designed for ejecta here, just pass the function for flux calcualtion into it\n";
+        exit(1);
+
+    }
 };
 
 #endif //SRC_MODEL_MAGNETAR_H
