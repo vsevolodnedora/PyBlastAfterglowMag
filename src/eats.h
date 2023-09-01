@@ -349,22 +349,24 @@ public:
     }
 
     /// evaluate intensity/flux density distribution using piece-wise summation
-    double evalImagePW_new(std::vector<VecVector> & out, double obs_time, double obs_freq, size_t offset){
+    double evalSkyMapPW(std::vector<VecVector> & out, double obs_time, double obs_freq, size_t offset){
         double flux_pj=0., flux_cj=0.;
-        flux_pj = evalImageFromPW_new(out, obs_time, obs_freq, offset,
-                                      obsAngle, imageXXs, imageYYs);
+        flux_pj = evalSkyMapPW(out, obs_time, obs_freq, offset,
+                               obsAngle, imageXXs, imageYYs);
         if (p_pars->counter_jet) // p_eats->counter_jet
-            flux_cj = evalImageFromPW_new(out, obs_time, obs_freq, p_pars->ncells + offset,
-                                          obsAngleCJ, imageXXsCJ, imageYYsCJ);
+            flux_cj = evalSkyMapPW(out, obs_time, obs_freq, p_pars->ncells + offset,
+                                   obsAngleCJ, imageXXsCJ, imageYYsCJ);
         return flux_pj + flux_cj;
     }
 
     /// evaluate intensity/flux density distribution using adaptive summation
-    void evalImageA_new(std::vector<VecVector> & out, double obs_time, double obs_freq, size_t il, size_t nth, size_t nphi){
+    double evalSkyMapA(std::vector<VecVector> & out, double obs_time, double obs_freq, size_t il, size_t nth, size_t nphi){
         /// evaluateShycnhrotronSpectrum image for primary jet and counter jet
-        evalImageFromA_new(out, obs_time, obs_freq, il, nth, nphi, 0, obsAngle, imageXXs, imageYYs);
+        double int_pj=0., int_cj=0.;
+        int_pj = evalSkyMapA(out, obs_time, obs_freq, il, nth, nphi, 0, obsAngle, imageXXs, imageYYs);
         if (p_pars->counter_jet) // p_eats->counter_jet
-            evalImageFromA_new(out, obs_time, obs_freq, il, nth, nphi, nth*nphi, obsAngleCJ, imageXXsCJ, imageYYsCJ);
+            int_cj = evalSkyMapA(out, obs_time, obs_freq, il, nth, nphi, nth * nphi, obsAngleCJ, imageXXsCJ, imageYYsCJ);
+        return int_pj+int_cj;
     }
 
     bool evalEATSindexes(size_t & ia, size_t & ib,
@@ -427,10 +429,10 @@ public:
 //        return r;
     }
 
-    double evalImageFromPW_new(std::vector<VecVector> & out, double obs_time, double obs_freq, size_t offset,
-                         double (*obs_angle)( const double &, const double &, const double & ),
-                         double (*im_xxs)( const double &, const double &, const double & ),
-                         double (*im_yys)( const double &, const double &, const double & )){
+    double evalSkyMapPW(std::vector<VecVector> & out, double obs_time, double obs_freq, size_t offset,
+                        double (*obs_angle)( const double &, const double &, const double & ),
+                        double (*im_xxs)( const double &, const double &, const double & ),
+                        double (*im_yys)( const double &, const double &, const double & )){
 
         /// out is [i_vn][ish][itheta_iphi]
         bool save_im = true;
@@ -550,10 +552,10 @@ public:
         return (tot_flux * CGS::cgs2mJy);
     }
 
-    void evalImageFromA_new(std::vector<VecVector> & out, double obs_time, double obs_freq, size_t il, size_t nth, size_t nphi, size_t ii_ofset,
-                        double (*obs_angle)( const double &, const double &, const double & ),
-                        double (*im_xxs)( const double &, const double &, const double & ),
-                        double (*im_yys)( const double &, const double &, const double & )) {
+    double evalSkyMapA(std::vector<VecVector> & out, double obs_time, double obs_freq, size_t il, size_t nth, size_t nphi, size_t ii_ofset,
+                     double (*obs_angle)( const double &, const double &, const double & ),
+                     double (*im_xxs)( const double &, const double &, const double & ),
+                     double (*im_yys)( const double &, const double &, const double & )) {
         /// settings for intensity search
         double phi0 = 0.;
         double phi1 = 2. * M_PI;
@@ -601,6 +603,7 @@ public:
 
             double th_a = ( p_pars->theta_c_l / p_pars->theta_c_h ) * th_b; // ???
 //            std::cout << AT<< " iphi="<<iphi<<" phi="<<cphi<<" th_a="<<th_a<<" th_b="<<th_b<<"\n";
+//            if (p_pars->theta_c_l < )
 
             for (size_t ith = 0; ith < nth; ith++){
                 double cth = th_a + (double)ith * (th_b - th_a) / (double)nth;
@@ -618,7 +621,7 @@ public:
                 // ---
                 out[IMG::Q::ictheta][il][ii_ofset+ii] = cth;
                 out[IMG::Q::icphi][il][ii_ofset+ii] = cphi;
-                out[IMG::Q::iintens][il][ii_ofset+ii] = intensity;
+                out[IMG::Q::iintens][il][ii_ofset+ii] = intensity;// / (r * r * std::abs(mu));//* CGS::cgs2mJy;
                 out[IMG::Q::ir][il][ii_ofset+ii] = r;
                 out[IMG::Q::ixr][il][ii_ofset+ii] = x;
                 out[IMG::Q::iyr][il][ii_ofset+ii] = y;
@@ -627,15 +630,16 @@ public:
             }
         }
         summed_intensity *= Fcoeff;
+        return summed_intensity;
     }
 
     /// eval light curve using Adapitve or Piece-Wise EATS method
-    void evalLC_new(Vector & out, EjectaID2::STUCT_TYPE m_method_eats, Vector & times, Vector & freqs ){
+    void evalLightCurve(Vector & out, EjectaID2::STUCT_TYPE m_method_eats, Vector & times, Vector & freqs ){
         double rtol = 1e-10;
         std::vector<VecVector> empty{};
         for (size_t it = 0; it < times.size(); it++) {
             if (m_method_eats == EjectaID2::STUCT_TYPE::ipiecewise)
-                out[it] = evalImagePW_new(empty,times[it],freqs[it],0);
+                out[it] = evalSkyMapPW(empty, times[it], freqs[it], 0);
 
             else{
                 double atol = out[it] * rtol / (double)p_pars->nlayers;

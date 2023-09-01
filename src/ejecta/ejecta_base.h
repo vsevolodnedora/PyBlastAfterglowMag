@@ -514,7 +514,7 @@ public:
                         << " vel_shell="<<ishell<<"/"<<nshells()-1
                         << " theta_layer="<<ilayer<<"/"<<nlayers()
                         << " phi_cells="<<cil<<"\n";
-                double flux = bw_rad->evalImagePW_new(out, obs_time, obs_freq, offset);
+                double flux = bw_rad->evalSkyMapPW(out, obs_time, obs_freq, offset);
                 fluxes[ishell] += flux;
                 offset += cil;
             }
@@ -558,7 +558,8 @@ public:
                     << " theta_layer="<<ilayer<<"/"<<nlayers()
                     << " theta_l="<<theta_l
                     << " Fnu="<<layer_flux<<" mJy \n";
-            bw_rad->evalImageA_new(out, obs_time, obs_freq, ilayer, ntheta, nphi);
+            double intensity = bw_rad->evalSkyMapA(out, obs_time, obs_freq, ilayer, ntheta, nphi);
+
         }
     }
 
@@ -575,7 +576,7 @@ public:
                         << " theta_layer=" << ilayer << "/" << nlayers()
                         << "\n";
                 auto &model = getShells()[ilayer];//ejectaModels[ishell][ilayer];
-                model->getBW(ishell)->getFsEATS()->evalLC_new(out[ii], id->method_eats, obs_times, obs_freqs);
+                model->getBW(ishell)->getFsEATS()->evalLightCurve(out[ii], id->method_eats, obs_times, obs_freqs);
                 ii++;
             }
         }
