@@ -546,6 +546,7 @@ public:
         }
 
         double tot_flux = 0.;
+        double th_l_prev = 0.;
         for (size_t ilayer = 0; ilayer < nlayers_; ++ilayer){
             auto & bw_rad = p_cumShells[ilayer]->getBW(0)->getFsEATS();
             double theta_l = p_cumShells[ilayer]->getBW(0)->getPars()->theta_c_l;
@@ -558,8 +559,19 @@ public:
                     << " theta_layer="<<ilayer<<"/"<<nlayers()
                     << " theta_l="<<theta_l
                     << " Fnu="<<layer_flux<<" mJy \n";
-            double intensity = bw_rad->evalSkyMapA(out, obs_time, obs_freq, ilayer, ntheta, nphi);
-
+            if (ilayer > 0)
+                th_l_prev = p_cumShells[ilayer-1]->getBW(0)->getPars()->theta_c_l;
+            double intensity = bw_rad->evalSkyMapA(out, obs_time, obs_freq, th_l_prev, ilayer, ntheta, nphi);
+            /// normalization of the layer
+            double max_int = -1.;
+        }
+        /// Normalization
+        for (size_t ilayer = 0; ilayer < nlayers_; ++ilayer) {
+//            for (size_t i = 0; i < out[IMG::Q::iintens][ilayer].size(); i++)
+//                if (out[IMG::Q::iintens][ilayer][i] > max_int)
+//                    max_int = out[IMG::Q::iintens][ilayer][i];
+            for (size_t i = 0; i < out[IMG::Q::iintens][ilayer].size(); i++)
+                out[IMG::Q::iintens][ilayer][i] *= fluxes[ilayer] / tot_flux;
         }
     }
 
