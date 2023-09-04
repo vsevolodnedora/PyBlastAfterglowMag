@@ -22,6 +22,9 @@ import os
 import sys
 import argparse
 from matplotlib.colors import LogNorm, Normalize
+from mpl_toolkits.axisartist.grid_finder import MaxNLocator
+from matplotlib.colors import BoundaryNorm
+from matplotlib.ticker import MaxNLocator
 
 from .id_maker_tools import (reinterpolate_hist, reinterpolate_hist2, compute_ek_corr)
 from .utils import (cgs, get_Gamma, get_Beta, find_nearest_index, MomFromGam, GamFromMom, BetFromMom)
@@ -64,13 +67,26 @@ def get_ej_data_for_text(files : list[str],
         sort_by = lambda k: int(re.findall(r'\d+', k)[0]) if k.__contains__("data") else -1
         keys = sorted(dfile.keys(), key=sort_by)
         tkeys = [key for key in keys if key.__contains__("data")]
-        times = np.array(
-            [np.array(dfile[key]["time"], dtype=np.float64)[0] for key in keys if key.__contains__("data")]
-        )
+        times = []
+        failed_to_get_time = []
+        for key in keys:
+            if key.__contains__("data"):
+                try:
+                    times.append(np.array(dfile[key]["time"], dtype=np.float64)[0])
+                except KeyError:
+                    failed_to_get_time.append(key)
+                    print(f"Count not extract time from key={key} dfile[key]={dfile[key]}")
+        print(f"Failed to extract time for {len(failed_to_get_time)}/{len(keys)}")
+        # times = np.array(
+        #     [np.array(dfile[key]["time"], dtype=np.float64)[0] for key in keys if key.__contains__("data")]
+        # )
         # print("All times    = {}".format(times))
-        unique_times = set(np.around(times, 0))
-        idxs = [find_nearest_index(times, u_time) for u_time in unique_times]
-        print("Selected times: {}".format(times[idxs]))
+        unique_times = list(set(np.around(times, 0)))
+        if len(unique_times) == 1:
+            idxs = [0]
+        else:
+            idxs = [find_nearest_index(times, u_time) for u_time in unique_times]
+        # print("Selected times: {}".format(times[idxs]))
         for idx in idxs:
 
             # extract arrays from h5 file (note that data may be in float32 not float64)
@@ -162,6 +178,38 @@ def get_ej_data_for_text(files : list[str],
                                                                    new_vinf_len=new_vinf_len,
                                                                    mass_conserving=False)
 
+                eps_ej = None
+                if verbose: print(dfile[tkeys[idx]].keys())
+                if ("internal_energy_ejecta" in list(dfile[tkeys[idx]].keys())):
+                    if verbose: print("Found 'internal_energy_ejecta'")
+                    eps_ej_ = np.array(dfile[tkeys[idx]]["internal_energy_ejecta"], dtype=np.float64)
+                    # temp_ej_ *= 11604525006.17 # MeV -> Kelvin
+                    v_inf_, thetas_, eps_ej = reinterpolate_hist2(v_inf, thetas, eps_ej_[:, :],
+                                                                   new_theta_len=new_theta_len,
+                                                                   new_vinf_len=new_vinf_len,
+                                                                   mass_conserving=False)
+
+                press_ej = None
+                if verbose: print(dfile[tkeys[idx]].keys())
+                if ("pressure_ejecta" in list(dfile[tkeys[idx]].keys())):
+                    if verbose: print("Found 'pressure_ejecta'")
+                    press_ej_ = np.array(dfile[tkeys[idx]]["pressure_ejecta"], dtype=np.float64)
+                    # press_ej *= 11604525006.17 # MeV -> Kelvin
+                    v_inf_, thetas_, press_ej = reinterpolate_hist2(v_inf, thetas, press_ej_[:, :],
+                                                                   new_theta_len=new_theta_len,
+                                                                   new_vinf_len=new_vinf_len,
+                                                                   mass_conserving=False)
+                entr_ej = None
+                if verbose: print(dfile[tkeys[idx]].keys())
+                if ("entropy_ejecta" in list(dfile[tkeys[idx]].keys())):
+                    if verbose: print("Found 'entropy_ejecta'")
+                    entr_ej_ = np.array(dfile[tkeys[idx]]["entropy_ejecta"], dtype=np.float64)
+                    # press_ej *= 11604525006.17 # MeV -> Kelvin
+                    v_inf_, thetas_, entr_ej = reinterpolate_hist2(v_inf, thetas, entr_ej_[:, :],
+                                                                    new_theta_len=new_theta_len,
+                                                                    new_vinf_len=new_vinf_len,
+                                                                    mass_conserving=False)
+
                 ye_ej = None
                 if ("Ye_ejecta" in list(dfile[tkeys[idx]].keys())):
                     if verbose: print("Found 'Ye_ejecta'")
@@ -201,6 +249,9 @@ def get_ej_data_for_text(files : list[str],
                 _temps = []
                 _yes = []
                 _rhos = []
+                _press = []
+                _eps = []
+                _entr = []
                 for iv in range(len(v_inf)):
                     if ((np.sum(masses[:, iv]) > 0.) & (v_inf[iv] > 0.) & (v_inf[iv] < 1.)):
                         _betas.append(v_inf[iv])
@@ -208,12 +259,21 @@ def get_ej_data_for_text(files : list[str],
                         if(not temp_ej is None): _temps.append(temp_ej[:, iv])
                         if(not ye_ej is None):_yes.append(ye_ej[:, iv])
                         if(not rho_ej is None):_rhos.append(rho_ej[:, iv])
+                        if(not press_ej is None):_press.append(press_ej[:, iv])
+                        if(not eps_ej is None):_eps.append(eps_ej[:, iv])
+                        if(not entr_ej is None):_entr.append(entr_ej[:, iv])
+
                 _betas = np.array(_betas)
                 _masses = np.reshape(np.array(_masses), newshape=(len(_betas), len(thetas)))
+                # ----------------------
                 if(not temp_ej is None):
                     _temps = np.reshape(np.array(_temps), newshape=(len(_betas), len(thetas)))
                 else:
                     _temps = np.zeros_like(_masses)
+                if(not press_ej is None):
+                    _press = np.reshape(np.array(_press), newshape=(len(_betas), len(thetas)))
+                else:
+                    _press = np.zeros_like(_masses)
                 if(not ye_ej is None):
                     _yes = np.reshape(np.array(_yes), newshape=(len(_betas), len(thetas)))
                 else:
@@ -222,12 +282,20 @@ def get_ej_data_for_text(files : list[str],
                     _rhos = np.reshape(np.array(_rhos), newshape=(len(_betas), len(thetas)))
                 else:
                     _rhos = np.zeros_like(_masses)
+                if(not eps_ej is None):
+                    _eps = np.reshape(np.array(_eps), newshape=(len(_betas), len(thetas)))
+                else:
+                    _eps = np.zeros_like(_masses)
+                if(not entr_ej is None):
+                    _entr = np.reshape(np.array(_entr), newshape=(len(_betas), len(thetas)))
+                else:
+                    _entr = np.zeros_like(_masses)
                 # EjectaEk.compute_ek_corr(_betas, _masses)
                 # print(_betas)
                 # print(thetas)
                 # print(_masses)
-                pars["thetas"], pars["betas"], pars["masses"], pars["temp"], pars["ye"], pars["rho"] = \
-                    thetas, _betas, _masses.T, _temps.T, _yes.T, _rhos.T
+                pars["thetas"], pars["betas"], pars["masses"], pars["temp"], pars["ye"], pars["rho"], pars["press"], pars["eps"], pars["entr"] = \
+                    thetas, _betas, _masses.T, _temps.T, _yes.T, _rhos.T, _press.T, _eps.T, _entr.T
 
                 # if do_dist_plots:
                 #     plot_init_profile(pars["thetas"], pars["betas"], pars["masses"].T,
@@ -308,8 +376,13 @@ def prepare_kn_ej_id_2d(files : list[str],
         temp_corr = pars["temp"].T
         ye_corr = pars["ye"].T
         rho_corr = pars["rho"].T
+        entr_corr = pars["entr"].T
+        eps_corr = pars["eps"].T
+        press_corr = pars["press"].T
 
         if (r0type == "fromrho"):
+            if (t0 < 0):
+                raise ValueError(f" Not set t0={t0} must be > 0 in seconds for: r_base = t0 * cgs.c * vinf_corr2[0]")
             r = np.zeros_like(mass_corr)
             for ith in range(len(theta_corr2)):
                 r_base = t0 * cgs.c * vinf_corr2[0]
@@ -329,7 +402,7 @@ def prepare_kn_ej_id_2d(files : list[str],
             t = t0
             for ith in range(len(theta_corr2)):
                 for ir in range(len(vinf_corr2)):
-                    r[ir,ith] = BetFromMom(vinf_corr2[ir])*cgs.c * t # TODO THis is theta independent!
+                    r[ir,ith] = BetFromMom(vinf_corr2[ir]) * cgs.c * t # TODO THis is theta independent!
         else:
             raise KeyError(f"r0type={r0type} is not recognized")
 
@@ -411,9 +484,11 @@ def prepare_kn_ej_id_2d(files : list[str],
         dfile.create_dataset("ek",data=ek_corr2)
         dfile.create_dataset("mass",data=mass_corr)
         dfile.create_dataset("ye",data=ye_corr)
-        dfile.create_dataset("s",data=np.zeros_like(mass_corr))
         dfile.create_dataset("rho",data=rho_corr)
         dfile.create_dataset("temp",data=temp_corr)
+        dfile.create_dataset("press",data=press_corr)
+        dfile.create_dataset("eps",data=eps_corr)
+        dfile.create_dataset("entr",data=entr_corr)
 
         dfile.close()
         if verbose: print("file saved: {}".format(outfpath))
@@ -427,8 +502,324 @@ def load_init_data(fpath):
     ek_corr2 = np.array(dfile["ek"],dtype=np.float64)
     mass_corr2 = np.array(dfile["mass"],dtype=np.float64)
     ye_corr2 = np.array(dfile["ye"],dtype=np.float64)
-    s_corr2 = np.array(dfile["s"],dtype=np.float64)
     rho_corr2 = np.array(dfile["rho"],dtype=np.float64)
     temp_corr2 = np.array(dfile["temp"],dtype=np.float64)
+    press_corr2 = np.array(dfile["press"],dtype=np.float64)
+    eps_corr2 = np.array(dfile["eps"],dtype=np.float64)
+    entr_corr2 = np.array(dfile["entr"],dtype=np.float64)
     dfile.close()
-    return (r_corr2, mom_corr2, theta_corr2, ctheta_corr2, ek_corr2, mass_corr2, ye_corr2, s_corr2, rho_corr2, temp_corr2)
+    return (r_corr2, mom_corr2, theta_corr2, ctheta_corr2, ek_corr2, mass_corr2, ye_corr2, rho_corr2, temp_corr2, press_corr2, eps_corr2, entr_corr2)
+
+def plot_init_profile(ctheta, betas, eks,
+                      xmin=0,xmax=90,ymin=1e-2,ymax=6,vmin=1e-12,vmax=1e-6,
+                      norm_mode="log", cmap = plt.get_cmap('RdYlBu_r'),
+                      xscale="linear",yscale="linear",
+                      subplot_mode="sum",
+                      title=None, figpath=None):
+    fontsize=12
+    gammas = get_Gamma(betas)
+    moms = gammas * betas
+    ctheta = ctheta * 180 / cgs.pi
+
+    fig = plt.figure(figsize=(4.5 + 1, 3.6 + 3))
+    # fig.suptitle(r"BLh* $(1.259+1.482)M_{\odot}$")
+
+    ax0 = fig.add_axes([0.16, 0.12, 0.81 - 0.15, 0.59 - 0.12])
+    ax1 = fig.add_axes([0.16, 0.61, 0.81 - 0.15, 0.91 - 0.61])
+    cax = fig.add_axes([0.83, 0.12, 0.86 - 0.83, 0.59 - 0.12])
+
+    #                   x1    y1    delta x       delta y
+    # ax1 = fig.add_axes([0.16, 0.45, 0.81 - 0.15, 0.59 - 0.12])
+    # ax0 = fig.add_axes([0.16, 0.12, 0.81 - 0.15, 0.91 - 0.61])
+    # cax = fig.add_axes([0.83, 0.12, 0.86 - 0.83, 0.91 - 0.61])
+
+    # top panel
+    # for t in tasks:
+    #     hist_vinf, hist_mass = t["data"].load_vinf_hist()
+    #     hist_mom = hist_vinf * get_Gamma(hist_vinf)
+    #     hist_eks = np.cumsum(np.array(0.5 * (hist_vinf * cgs.c) ** 2 * hist_mass * cgs.solar_m)[::-1])[::-1]
+
+    ax1.plot(ctheta, np.sum(eks,axis=0), color='black', ls='-', drawstyle='steps')
+
+    if (not title is None): ax1.set_title(title)
+
+    ###  mooley
+    # mool_mom = np.linspace(0.5 * get_Gamma(0.5), 0.8 * get_Gamma(0.8), 20)
+    # mool_ek = 5e50 * (mool_mom / 0.4) ** -5
+    # _l, = ax1.plot(mool_mom, mool_ek, color="gray", ls="-")
+    # ax1.text(0.30, 0.90, "Mooley+17", color='black', transform=ax1.transAxes, fontsize=12)
+
+    # tasks = [1, 1, 1]
+    # ax1.plot([-1., -1., ], [-1., -1., ], color="gray", ls="-", label=r"$q=1.00$")
+    # ax1.plot([-1., -1., ], [-1., -1., ], color="gray", ls="--", label=r"$q=1.43$")
+    # ax1.plot([-1., -1., ], [-1., -1., ], color="gray", ls=":", label=r"$q=1.82$")
+    # han, lab = ax1.get_legend_handles_labels()
+    # ax1.add_artist(ax1.legend(han[:-1 * len(tasks)], lab[:-1 * len(tasks)],
+    #                          **{"fancybox": False, "loc": 'lower left',
+    #                            # "bbox_to_anchor":(1.0, 0.0),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+    #                            "shadow": "False", "ncol": 1, "fontsize": 11,
+    #                            "framealpha": 0., "borderaxespad": 0., "frameon": False}))
+    #
+    # ax1.add_artist(ax1.legend(han[:-1 * len(tasks)], lab[:-1 * len(tasks)],
+    #                           **{"fancybox": False, "loc": 'upper right',
+    #                              "bbox_to_anchor":(1.0, 0.0),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+    # "shadow": "False", "ncol": 1, "fontsize": 11,
+    # "framealpha": 0., "borderaxespad": 0., "frameon": False}))
+    #
+    # ax1.add_artist(ax1.legend(han[len(han) - len(tasks):], lab[len(lab) - len(tasks):],
+    #                           **{"fancybox": False, "loc": 'center right',
+    #                              "bbox_to_anchor":(1.0, 0.0),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+    # "shadow": "False", "ncol": 1, "fontsize": 11,
+    # "framealpha": 0., "borderaxespad": 0., "frameon": False}))
+    #
+    # fit *= np.sum(mdens) / np.sum(fit)
+    # fit_x, fit_y = _fit(mom, ekdens)
+    # ax1.plot(fit_x, fit_y, 'k--', label=r'$\sin^2(\theta)$')
+    # ax1.legend(**{"fancybox": False, "loc": 'upper right',
+    #                # "bbox_to_anchor":(1.0, 0.0),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+    #                "shadow": "False", "ncol": 1, "fontsize": 11,
+    #                "framealpha": 0., "borderaxespad": 0., "frameon": False})
+
+    if norm_mode=="log":
+        ax1.set_yscale("log")
+    else:
+        ax1.set_yscale("linear")
+    # ax1.set_ylim(ymin, ymax)
+    # ax1.yaxis.tick_right()
+    # ax1.yaxis.tick_left()
+    ax1.set_ylabel(r"$M_{\rm ej}$ [M$_{\odot}$]", fontsize=fontsize)
+    ax1.get_yaxis().set_label_coords(-0.15, 0.5)
+
+    ax1.set_xlim(xmin, xmax)
+    ax1.xaxis.set_ticklabels([])
+
+    ax1.tick_params(axis='both', which='both', labelleft=True,
+                    labelright=False, tick1On=True, tick2On=True,
+                    labelsize=12,
+                    direction='in',
+                    bottom=True, top=True, left=True, right=True)
+    ax1.minorticks_on()
+
+    ax11 = ax1.twinx()
+    mask = betas*get_Gamma(betas)>1
+    if len(betas[mask])>0:
+        axx = np.sum(betas[mask, np.newaxis] * eks[mask, :],axis=0)
+        ayy = np.sum(eks[mask, :],axis=0)
+        # ax11.plot(ctheta, axx/ayy, color="gray", ls="-")
+        if (subplot_mode=="sum"): _yarr = np.sum(ctheta*eks[mask, :],axis=0)
+        elif (subplot_mode=="ave"): _yarr = axx/ayy
+        else:raise KeyError("subplot_mode is not recognized")
+        ax11.plot(ctheta, np.sum(eks[mask, :],axis=0), color="gray", ls="-")
+    if norm_mode=="log":
+        ax11.set_yscale("log")
+    else:
+        ax11.set_yscale("linear")
+    ax11.set_ylabel(r"$M_{\rm ej}(\Gamma\beta>1)$ [M$_{\odot}$]", fontsize=fontsize, color="gray")
+    ax11.minorticks_on()
+    ax11.tick_params(axis='both', which='both', labelleft=False,
+                     labelright=True, tick1On=False, tick2On=True,
+                     labelsize=12,
+                     direction='in',
+                     bottom=True, top=True, left=True, right=True)
+
+
+    # bottom panel
+    # mask = vinf > 0.6
+    # eks2 = np.zeros_like(eks)
+    # for i in range(len(vinf)):
+    #     if vinf[i] > 0.6:
+    #         eks2[:, i] = eks[:, i]
+
+    # import h5py
+    # dset = h5py.File("/home/vsevolod/Desktop/Hajela/BLh_q100.h5", 'w')
+    # dset.create_dataset(name="beta", data=vinf)
+    # dset.create_dataset(name="theta", data=theta * 180 / np.pi)
+    # dset.create_dataset(name="Ek(>Gamma_beta)", data=eks)
+    # dset.close()
+
+    if (norm_mode=="log"):
+        norm = LogNorm(eks[(eks > 0) & (np.isfinite(eks))].min(), eks[(eks > 0) & (np.isfinite(eks))].max())
+    elif (norm_mode=="linear"):
+        norm = Normalize(eks[(eks > 0) & (np.isfinite(eks))].min(), eks[(eks > 0) & (np.isfinite(eks))].max())
+    elif (norm_mode=="levels"):
+        levels = MaxNLocator(nbins=15).tick_values(eks.min(), eks.max())
+        norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
+    else:
+        raise KeyError(" norm_mode is not recognized ")
+
+
+    im = ax0.pcolor(ctheta, moms, eks, cmap=cmap, norm=norm, shading='auto')
+    # cbar = fig.colorbar(im, ax=ax, extend='both')
+    # cbar.ax.set_title(r"Mass [$M_{\odot}$]")
+
+    ax0.axhline(y=1, linestyle='--', color='gray')
+
+    ax0.set_ylim(ymin, ymax)
+    ax0.set_xlim(xmin, xmax)
+    ax0.set_xscale(xscale)
+    ax0.set_yscale(yscale)
+
+    ax0.set_ylabel(r"$\Gamma\beta$", fontsize=fontsize)
+    ax0.set_xlabel(r"Polar angle", fontsize=fontsize)
+    ax0.get_yaxis().set_label_coords(-0.15, 0.5)
+    # ax0.text(0.75, 0.88, lbl, color='white', transform=ax0.transAxes, fontsize=fontsize)
+    ax0.minorticks_on()
+    ax0.tick_params(axis='both', which='both', labelleft=True,
+                    labelright=False, tick1On=True, tick2On=True,
+                    labelsize=12,
+                    direction='in',
+                    bottom=True, top=True, left=True, right=True)
+
+    # ax0.text(0.05, 0.05, models.print_fancy_label(name), color='white', transform=ax0.transAxes)
+
+    # ekdens = np.sum(eks, axis=0)
+    # ax1.step(0.5 * (theta[1:] + theta[:-1]), mdens, where='mid', color='red')
+    # hist_vinf, hist_mass = o_data.load_vinf_hist()
+    # hist_mom = hist_vinf * get_Gamma(hist_vinf)
+    # hist_eks = 0.5 * (hist_vinf * cgs.c) ** 2 * hist_mass * cgs.solar_m
+    # ax1.step(mom, ekdens, where='mid', color='red')
+    # ax1.step(hist_mom, hist_eks, where='mid', color='black')
+
+    cbar = plt.colorbar(im, cax=cax, norm=norm)
+    cbar.set_label(r"$M_{\rm ej}$ [M$_{\odot}$]", fontsize=fontsize)
+    cbar.ax.minorticks_off()
+    # plt.savefig(PAPERPATH + "kinetic_energy_struct_models.pdf")
+    # plt.savefig(FIGPATH + "kinetic_energy_struct_models.png")
+    if not figpath is None: plt.savefig(figpath+".png", dpi=256)
+    if not figpath is None: plt.savefig(figpath+".pdf")
+    # plt.savefig(sys.argv[0].replace(".py", "_") + name.lower() + ".pdf")
+    plt.show()
+    plt.close()
+
+
+
+
+
+
+
+    #
+    #
+    #
+    #
+    # # eks = np.log10(eks)
+    # fig, ax = plt.subplots(figsize=(4.6, 2.8), ncols=1, nrows=2, sharex="all")
+    #
+    # # fig.add_axes([0.6, .1, .35, .3])
+    #
+    # ax = ax[1]
+    #
+    # # ax = plt.subplot(111, polar=True)
+    # levels = MaxNLocator(nbins=15).tick_values(eks.min(), eks.max())
+    # cmap = plt.get_cmap('RdYlBu_r')
+    # norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
+    # norm = LogNorm(eks[(eks>0)&(np.isfinite(eks))].min(), eks[(eks>0)&(np.isfinite(eks))].max())
+    #
+    # im = ax.pcolor(ctheta, moms, eks, cmap=cmap, norm=norm, shading='auto')
+    # cbar = fig.colorbar(im, ax=ax, extend='both')
+    # cbar.ax.set_title(r"Mass [$M_{\odot}$]")
+    #
+    # ax.set_xlabel(r"Polar angle, $\theta$ [deg]")
+    # ax.set_ylabel(r"$\Gamma\beta$")
+    # ax.set_yscale("log")
+    # ax.set_ylim(1e-1, 4)
+    # if (not title is None):
+    #     ax.set_title(title)
+    #
+    # ax.tick_params(axis='both', which='both', labelleft=True,
+    #                labelright=False, tick1On=True, tick2On=True,
+    #                labelsize=12,
+    #                direction='in',
+    #                bottom=True, top=True, left=True, right=True)
+    # ax.minorticks_on()
+    #
+    # # ax.set_yscale("log")
+    #
+    # # cbar.set_title("x")
+    # # ax.set_title('pcolormesh with levels')
+    # # print(ax.get_rmin(), ax.get_rmax())
+    # # ax.set_rmax(10)
+    # # ax.set_rmin(20)
+    # # print(ax.get_rmin(), ax.get_rmax())
+    #
+    # # max_theta = 90
+    # # ax.set_thetamax(max_theta)
+    # # ax.set_rlim(10,20)
+    #
+    # # ax.set_rlim(Rs.min(), Rs.max())
+    # # ax.set_rscale("log")
+    # # ax.set_rscale('log')
+    # #
+    # # ticklabels = ax.get_yticklabels()
+    # # labels = range(80, 0, -10)
+    # # for i in range(0, len(labels)):
+    # #     ticklabels[i] = str(labels[i])
+    # # ax.set_yticklabels(ticklabels)
+    # plt.tight_layout()
+    # if (save_figs): plt.savefig(FIGPATH + figname + ".png", dpi=256)
+    # # if (save_figs): plt.savefig(PAPERPATH + figname + ".pdf")
+    # plt.show()
+
+def plot2(vals : dict, figpath = None):
+    fig, axes = plt.subplots(ncols=1, nrows=2, figsize=(4.6,2+2.8), sharex="all")
+    ax = axes[0]
+
+    ax.plot(np.array(vals["texts"]), np.array(vals["v_ave"])*get_Gamma(vals["v_ave"]), 'x', color='blue')
+    ax.minorticks_on()
+    ax.tick_params(axis='both', which='both', labelleft=True,
+                   labelright=False, tick1On=True, tick2On=False,
+                   labelsize=12,
+                   direction='in',
+                   bottom=True, top=True, left=True, right=True)
+    ax.set_ylabel(r"Mass-averaged $\langle \Gamma\beta \rangle$", color="blue")
+    # ax.set_xlabel(r"$t_{\rm ext}$ [ms]")
+
+    ax1 = ax.twinx()
+    ax1.plot(np.array(vals["texts"]), np.array(vals["v_fast_ave"])*get_Gamma(vals["v_fast_ave"]), 'o', color="red")
+    ax1.minorticks_on()
+    ax1.tick_params(axis='both', which='both', labelleft=False,
+                    labelright=True, tick1On=False, tick2On=True,
+                    labelsize=12,
+                    direction='in',
+                    bottom=True, top=True, left=True, right=True)
+    ax1.set_xlabel(r"$t_{\rm ext}$ [ms]")
+    ax1.set_ylabel(r"Mass-averaged $\langle \Gamma\beta(\Gamma\beta>1) \rangle$",color="red")
+    ax1.set_xlim(vals["texts"][0], vals["texts"][-1])
+    # plt.tight_layout()
+    # plt.savefig(FIGPATH+figppath+"average_velocity_evolution"+"png",dpi=256)
+    # plt.show()
+
+    # -------------------------------------------------------------------
+    # fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(4.6, 2.8))
+    ax = axes[1]
+    ax.plot(np.array(vals["texts"]), np.array(vals["theta_rms"]), 'x', color='blue', label="Total ejecta")
+    ax.minorticks_on()
+    ax.tick_params(axis='both', which='both', labelleft=True,
+                   labelright=False, tick1On=True, tick2On=False,
+                   labelsize=12,
+                   direction='in',
+                   bottom=True, top=True, left=True, right=True)
+    ax.set_ylabel(r"RMS half-openning angle $\langle \theta_{\rm RMS} \rangle$", color="red")
+
+    ax.plot(np.array(vals["texts"]), np.array(vals["fast_theta_rms"]), 'd', color="blue", label=r"Fast tail, $\Gamma\beta>1$")
+    ax.set_xlabel(r"$t_{\rm ext}$ [ms]")
+    ax.legend(**{"fancybox": False, "loc": 'lower right',
+                 # "bbox_to_anchor":(1.0, 0.0),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                 "shadow": "False", "ncol": 1, "fontsize": 12 - 2, "columnspacing": 0.4,
+                 "framealpha": 0., "borderaxespad": 0., "frameon": False})
+    ax1 = ax.twinx()
+    ax1.plot(np.array(vals["texts"]), np.array(vals["fast_masses"]), 'x', color="red")
+    ax1.minorticks_on()
+    ax1.tick_params(axis='both', which='both', labelleft=False,
+                    labelright=True, tick1On=False, tick2On=True,
+                    labelsize=12,
+                    direction='in',
+                    bottom=True, top=True, left=True, right=True)
+    ax1.set_ylabel(r"$\langle M_{\rm ej}(\Gamma\beta>1)$", color="red")
+    # ax1.set_yscale("log")
+    ax.set_xlabel(r"$t_{\rm ext}$ [ms]")
+    ax.set_ylabel(r"$\theta_{\rm RMS} = \sqrt{ \Sigma(m_i\theta_i)/\Sigma(m_i) }$", color="blue")
+    ax.set_xlim(vals["texts"][0], vals["texts"][-1])
+    plt.tight_layout()
+    if not figpath is None: plt.savefig(figpath + ".png", dpi=256)
+    if not figpath is None: plt.savefig(figpath + ".pdf")
+    plt.show()

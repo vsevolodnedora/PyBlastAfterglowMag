@@ -363,10 +363,12 @@ public:
     double evalSkyMapA(std::vector<VecVector> & out, double obs_time, double obs_freq, double th_l_prev, size_t il, size_t nth, size_t nphi){
         /// evaluateShycnhrotronSpectrum image for primary jet and counter jet
         double int_pj=0., int_cj=0.;
-        int_pj = evalSkyMapA(out, obs_time, obs_freq, th_l_prev, il, nth, nphi, 0, obsAngle, imageXXs, imageYYs);
+        int_pj = evalSkyMapA(out, obs_time, obs_freq, th_l_prev, il, nth, nphi,
+                             0, obsAngle, imageXXs, imageYYs);
         if (p_pars->counter_jet) // p_eats->counter_jet
-            int_cj = evalSkyMapA(out, obs_time, obs_freq, th_l_prev, il, nth, nphi, nth * nphi, obsAngleCJ, imageXXsCJ, imageYYsCJ);
-        return int_pj+int_cj;
+            int_cj = evalSkyMapA(out, obs_time, obs_freq, th_l_prev, il, nth, nphi,
+                                 nth * nphi, obsAngleCJ, imageXXsCJ, imageYYsCJ);
+        return (int_pj+int_cj);
     }
 
     bool evalEATSindexes(size_t & ia, size_t & ib,
@@ -580,10 +582,13 @@ public:
         double summed_intensity = 0;
         double Fcoeff = cgs2mJy / (4. * M_PI * p_pars->d_l * p_pars->d_l);
 
+        double xmin=std::numeric_limits<double>::max(), xmax=std::numeric_limits<double>::min();
+        double ymin=std::numeric_limits<double>::max(), ymax=std::numeric_limits<double>::min();
         for (size_t iphi = 0; iphi < nphi; iphi++){
             double th_b_min = std::numeric_limits<double>::max();
             double th_b_max = std::numeric_limits<double>::min();
-            double cphi = phi0 + (double)iphi * (phi1 - phi0) / (double)nphi;
+            double dphi = (phi1 - phi0) / (double)nphi;
+            double cphi = phi0 + (double)iphi * dphi;
             /// check what the extend of theta
             // if jet is spreading, compute the upper boundary of the jet
             double th_b = find_jet_edge(cphi, p_pars->theta_obs, //p_pars->cos_theta_obs, p_pars->sin_theta_obs,
@@ -608,7 +613,8 @@ public:
 //            if (p_pars->theta_c_l < )
             th_a = std::max(theta_l_prev, th_a);
             for (size_t ith = 0; ith < nth; ith++){
-                double cth = th_a + (double)ith * (th_b - th_a) / (double)nth;
+                double dtheta = (th_b - th_a) / (double)nth;
+                double cth = th_a + (double)ith * dtheta;
                 // compute intensity
                 double r = 0., mu = 0., gam = 0., ctheta_bw = 0.;
                 double intensity = integrand(cos(cth ), cphi,
@@ -617,21 +623,36 @@ public:
                     (*p_log)(LOG_ERR,AT) << " r=0"<<"\n";
                     exit(1);
                 }
-                summed_intensity += intensity;
                 double x = r * im_xxs(cth, cphi, p_pars->theta_obs);
                 double y = r * im_yys(cth, cphi, p_pars->theta_obs);
                 // ---
                 out[IMG::Q::ictheta][il][ii_ofset+ii] = cth;
                 out[IMG::Q::icphi][il][ii_ofset+ii] = cphi;
-                out[IMG::Q::iintens][il][ii_ofset+ii] = intensity ;// / (r * r * std::abs(mu));//* CGS::cgs2mJy;
+                out[IMG::Q::iintens][il][ii_ofset+ii] = intensity * Fcoeff;// * dtheta * dphi;// / (r * r * std::abs(mu));//* CGS::cgs2mJy;
                 out[IMG::Q::ir][il][ii_ofset+ii] = r;
                 out[IMG::Q::ixr][il][ii_ofset+ii] = x;
                 out[IMG::Q::iyr][il][ii_ofset+ii] = y;
                 out[IMG::Q::imu][il][ii_ofset+ii] = mu;
+                summed_intensity += out[IMG::Q::iintens][il][ii_ofset+ii];
+                if (x < xmin) xmin = x;
+                if (x > xmax) xmax = x;
+                if (y < ymin) ymin = y;
+                if (y > ymax) ymax = y;
                 ii ++;
             }
         }
-//        summed_intensity;
+        if (xmax == xmin){
+            (*p_log)(LOG_ERR,AT)<<" xmin=xmax="<<xmin<<"\n";
+            exit(1);
+        }
+        if (ymax == ymin){
+            (*p_log)(LOG_ERR,AT)<<" ymin=ymax="<<ymin<<"\n";
+            exit(1);
+        }
+        double delta_x = xmax - xmin;
+        double delta_y = ymax - ymin;
+        for (size_t i = 0; i < nth * nphi; i++)
+            out[IMG::Q::iintens][il][ii_ofset+ii] /= (delta_x * delta_y);
         return summed_intensity;
     }
 

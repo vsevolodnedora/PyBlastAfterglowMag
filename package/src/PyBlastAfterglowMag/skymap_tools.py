@@ -27,7 +27,7 @@ rcParams['font.size'] = 8
 
 from .utils import cgs, make_hash, latex_float, find_nearest_index
 from .interface import PyBlastAfterglow, tmp_for_file2, combine_images, get_skymap_lat_dist, get_skymap_fwhm, \
-    smooth_interpolated_skymap_with_gaussian_kernel
+    smooth_interpolated_skymap_with_gaussian_kernel, combine_images_old
 
 def precompute_skymaps(tasks_to_plot, settings):
     settings["precompute"] = True
@@ -1562,7 +1562,7 @@ def plot_one_skymap_with_dists(task_to_plot, settings):
         tmp = copy.deepcopy(settings["kn_skymap"])
         if settings["precompute"]:
             all_x, all_y, all_fluxes \
-                = pb1.KN.get_skymap(time=time * cgs.day, freq=freq, verbose=True, remove_mu=True, renormalize=True)
+                = pb1.KN.get_skymap_old(time=time * cgs.day, freq=freq, verbose=True, remove_mu=True, renormalize=True)
 
             # plt.delaxes(ax_main)
             # plt.delaxes(ax_histy)
@@ -1574,7 +1574,7 @@ def plot_one_skymap_with_dists(task_to_plot, settings):
             # plt.loglog(pb.get_ej_skymap_times()/cgs.day, fnus_tot, ls=":", color="red")
             # plt.show()
 
-            int_x, int_y, int_zz = combine_images(all_x, all_y, all_fluxes, hist_or_int="hist", shells=True, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+            int_x, int_y, int_zz = combine_images_old(all_x, all_y, all_fluxes, hist_or_int="hist", shells=True, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
             grid_y, _, i_zz_y, _ = get_skymap_lat_dist(all_x, all_y, all_fluxes, collapse_axis="x", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
             grid_x, _, i_zz_x, _ = get_skymap_lat_dist(all_x, all_y, all_fluxes, collapse_axis="y", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
             xc, yc = pb1.KN.get_skymap_cm(all_x, all_y, all_fluxes)
@@ -1669,7 +1669,7 @@ def plot_one_skymap_with_dists(task_to_plot, settings):
             all_x_jet, all_y_jet, all_fluxes_jet \
                 = pb1.GRB.get_skymap(time=time * cgs.day, freq=freq, verbose=False, remove_mu=True)
 
-            int_x_j, int_y_j, int_zz_j = combine_images(all_x_jet, all_y_jet, all_fluxes_jet,
+            int_x_j, int_y_j, int_zz_j = combine_images_old(all_x_jet, all_y_jet, all_fluxes_jet,
                                                            hist_or_int="hist", shells=True, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
             grid_y_j, _i_zz_y_j, i_zz_y_j, _ = get_skymap_lat_dist(all_x_jet, all_y_jet, all_fluxes_jet,
                                                                       collapse_axis="x", nx=tmp["hist_nx"], ny=tmp["hist_ny"])

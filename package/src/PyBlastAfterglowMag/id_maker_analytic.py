@@ -291,6 +291,8 @@ class JetStruct:
     def saveCurrentStructure(self, outfpath, type="pw"):
         if type == "pw":
             dfile = h5py.File(outfpath, "w")
+            dfile.attrs.create(name="theta_w",data=self.m_theta_w)
+            dfile.attrs.create(name="theta_c",data=self.m_theta_c)
             dfile.create_dataset("r", data=np.zeros_like(self.theta_pw[1:]))
             dfile.create_dataset("theta", data=self.theta_pw[1:])
             dfile.create_dataset("ctheta", data=self.cthetas0)
@@ -311,7 +313,8 @@ class JetStruct:
             # dfile.create_dataset("ek", data=np.column_stack((self.dist_E0_a, np.zeros_like(self.thetas_c_h))))
             # dfile.create_dataset("ye", data=np.column_stack((self.dist_Ye_a, np.zeros_like(self.thetas_c_h))))
             # dfile.create_dataset("s", data=np.column_stack((self.dist_s_a, np.zeros_like(self.thetas_c_h))))
-
+            dfile.attrs.create(name="theta_w",data=self.m_theta_w)
+            dfile.attrs.create(name="theta_c",data=self.m_theta_c)
             dfile.create_dataset("r", data=np.zeros_like(self.thetas_c_h))
             dfile.create_dataset("theta", data=self.thetas_c_h)
             dfile.create_dataset("ctheta", data=self.thetas_c)
