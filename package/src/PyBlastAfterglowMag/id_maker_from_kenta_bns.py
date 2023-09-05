@@ -759,6 +759,7 @@ def plot_init_profile(ctheta, betas, eks,
     # # if (save_figs): plt.savefig(PAPERPATH + figname + ".pdf")
     # plt.show()
 
+
 def plot2(vals : dict, figpath = None):
     fig, axes = plt.subplots(ncols=1, nrows=2, figsize=(4.6,2+2.8), sharex="all")
     ax = axes[0]

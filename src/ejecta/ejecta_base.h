@@ -555,23 +555,34 @@ public:
             double layer_flux = bw_rad->evalFluxDensA(obs_time,obs_freq, atol);
             tot_flux += layer_flux;
             fluxes[ilayer] = layer_flux;
+//            double Fcoeff = cgs2mJy / (4. * M_PI * p_cumShells[ilayer]->getBW(0)->getPars()->d_l * p_cumShells[ilayer]->getBW(0)->getPars()->d_l);
             (*p_log)(LOG_INFO,AT)
                     << " EJECTA SkyMap obs_time="<<obs_time<<" obs_freq="<<obs_freq
                     << " theta_layer="<<ilayer<<"/"<<nlayers()
                     << " theta_l="<<theta_l
                     << " Fnu="<<layer_flux<<" mJy \n";
+//            layer_flux *= Fcoeff;
             if (ilayer > 0)
                 th_l_prev = p_cumShells[ilayer-1]->getBW(0)->getPars()->theta_c_l;
             /// compute intensity map
             double sum_intensity = bw_rad->evalSkyMapA(out, obs_time, obs_freq, th_l_prev, ilayer, ntheta, nphi);
             /// normalization to get flux / mas^2
-            for (size_t i = 0; i < 2 * ntheta * nphi; i++){
+            for (size_t i = 0; i < 2 * (ntheta * nphi); i++){
                 if (max_int < out[IMG::Q::iintens][ilayer][i])
                     max_int = out[IMG::Q::iintens][ilayer][i];
             }
-            for (size_t i = 0; i < 2 * ntheta * nphi; i++){
-                out[IMG::Q::iintens][ilayer][i] = out[IMG::Q::iintens][ilayer][i] / max_int * layer_flux;
-            }
+//            for (size_t i = 0; i < 2 * (ntheta * nphi); i++){
+//                out[IMG::Q::iintens][ilayer][i] = out[IMG::Q::iintens][ilayer][i] / max_int * layer_flux;
+//            }
+
+//            double new_max = 0.;
+//            double new_sum = 0.;
+//            for (size_t i = 0; i < 2 * (ntheta * nphi); i++){
+//                new_sum += out[IMG::Q::iintens][ilayer][i];
+//                if (new_max < out[IMG::Q::iintens][ilayer][i])
+//                    new_max = out[IMG::Q::iintens][ilayer][i];
+//            }
+//            int x =1 ;
         }
 
 

@@ -628,7 +628,7 @@ public:
                 // ---
                 out[IMG::Q::ictheta][il][ii_ofset+ii] = cth;
                 out[IMG::Q::icphi][il][ii_ofset+ii] = cphi;
-                out[IMG::Q::iintens][il][ii_ofset+ii] = intensity * Fcoeff;// * dtheta * dphi;// / (r * r * std::abs(mu));//* CGS::cgs2mJy;
+                out[IMG::Q::iintens][il][ii_ofset+ii] = intensity * Fcoeff*  dtheta * dphi;// / (r * r * std::abs(mu));//* CGS::cgs2mJy;
                 out[IMG::Q::ir][il][ii_ofset+ii] = r;
                 out[IMG::Q::ixr][il][ii_ofset+ii] = x;
                 out[IMG::Q::iyr][il][ii_ofset+ii] = y;

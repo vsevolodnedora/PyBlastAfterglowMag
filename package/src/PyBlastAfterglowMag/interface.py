@@ -2558,7 +2558,8 @@ class Ejecta(Base):
                 # diff_x = np.append(np.diff(all_xrs[i]),0)
                 # diff_y = np.append(np.diff(all_yrs[i]),0)
                 all_fluxes_arr = np.array(all_zz[i])# * np.abs(diff_x) * np.abs(diff_y)
-                dfnu = fnu# / (delta_x * delta_y)
+                # dfnu = fnu / (delta_x * delta_y)
+                dfnu = fnu;# / ((cgs.rad2mas / d_l) * (cgs.rad2mas / d_l))
                 if verbose:
                     print("SHELL {}".format(i_ish))
                     print("\tfnu = {:.2e} ".format(fnu))

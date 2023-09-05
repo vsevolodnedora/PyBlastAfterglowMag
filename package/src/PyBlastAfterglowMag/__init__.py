@@ -1,5 +1,5 @@
 from .id_maker_from_thc_ourflow import prepare_kn_ej_id_2d
-from .id_maker_from_kenta_bns import prepare_kn_ej_id_2d, plot_init_profile, plot2
+from .id_maker_from_kenta_bns import (prepare_kn_ej_id_2d, plot_init_profile)
 from .id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
 from .interface import (PyBlastAfterglow, read_parfile, modify_parfile,
                         modify_parfile_par_opt, distribute_and_run, get_str_val, set_parlists_for_pars)
