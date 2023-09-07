@@ -360,15 +360,41 @@ public:
     }
 
     /// evaluate intensity/flux density distribution using adaptive summation
-    double evalSkyMapA(std::vector<VecVector> & out, double obs_time, double obs_freq, double th_l_prev, size_t il, size_t nth, size_t nphi){
+    double evalSkyMapA_old(std::vector<VecVector> & out, double obs_time, double obs_freq, double th_l_prev, size_t il, size_t nth, size_t nphi){
         /// evaluateShycnhrotronSpectrum image for primary jet and counter jet
         double int_pj=0., int_cj=0.;
-        int_pj = evalSkyMapA(out, obs_time, obs_freq, th_l_prev, il, nth, nphi,
+        int_pj = evalSkyMapA_old(out, obs_time, obs_freq, th_l_prev, il, nth, nphi,
                              0, obsAngle, imageXXs, imageYYs);
         if (p_pars->counter_jet) // p_eats->counter_jet
-            int_cj = evalSkyMapA(out, obs_time, obs_freq, th_l_prev, il, nth, nphi,
+            int_cj = evalSkyMapA_old(out, obs_time, obs_freq, th_l_prev, il, nth, nphi,
                                  nth * nphi, obsAngleCJ, imageXXsCJ, imageYYsCJ);
         return (int_pj+int_cj);
+    }
+    /// evaluate intensity/flux density distribution using adaptive summation
+    double evalSkyMapA(std::vector<VecVector> & out, double obs_time, double obs_freq, size_t il, size_t offset, size_t cil, size_t ncells){
+        /// evaluateShycnhrotronSpectrum image for primary jet and counter jet
+        double int_pj=0., int_cj=0.;
+        int_pj = evalSkyMapA(out, obs_time, obs_freq, il, offset, cil, obsAngle, imageXXs, imageYYs);
+        if (p_pars->counter_jet) // p_eats->counter_jet
+            int_cj = evalSkyMapA(out, obs_time, obs_freq, il, offset + ncells, cil, obsAngleCJ, imageXXsCJ, imageYYsCJ);
+        return (int_pj+int_cj);
+    }
+
+    /// evaluate jet extend for further grid allocation
+    void findJetEdgeA(double & th_b_min, double & th_b_max, double obs_time, double obs_freq, double th_l_prev){
+        double th_b_min_pj=0., th_b_max_pj=0.;
+        double th_b_min_cj=0., th_b_max_cj=0.;
+        findJetEdge(th_b_min_pj,th_b_max_pj, obs_time, obs_freq, th_l_prev, obsAngle);
+        if (p_pars->counter_jet) // p_eats->counter_jet
+            findJetEdge(th_b_min_cj,th_b_max_cj, obs_time, obs_freq, th_l_prev, obsAngleCJ);
+        th_b_min = std::min(th_b_min_pj,th_b_min_cj);
+        th_b_max = std::max(th_b_max_pj,th_b_max_cj);
+        if (th_b_min < th_l_prev)
+            th_b_min = th_l_prev;
+        if (th_b_max > CGS::pi/2.){
+            (*p_log)(LOG_ERR,AT) << " th_b_max > CGS::pi/2.\n";
+            exit(1);
+        }
     }
 
     bool evalEATSindexes(size_t & ia, size_t & ib,
@@ -554,9 +580,8 @@ public:
         return (tot_flux * CGS::cgs2mJy);
     }
 
-    double evalSkyMapA(std::vector<VecVector> & out, double obs_time, double obs_freq,
-                       double theta_l_prev,
-                       size_t il, size_t nth, size_t nphi, size_t ii_ofset,
+    double evalSkyMapA_old(std::vector<VecVector> & out, double obs_time, double obs_freq, double theta_l_prev,
+                          size_t il, size_t nth, size_t nphi, size_t ii_ofset,
                      double (*obs_angle)( const double &, const double &, const double & ),
                      double (*im_xxs)( const double &, const double &, const double & ),
                      double (*im_yys)( const double &, const double &, const double & )) {
@@ -581,7 +606,6 @@ public:
         size_t ii = 0;
         double summed_intensity = 0;
         double Fcoeff = cgs2mJy / (4. * M_PI * p_pars->d_l * p_pars->d_l);
-
         double xmin=std::numeric_limits<double>::max(), xmax=std::numeric_limits<double>::min();
         double ymin=std::numeric_limits<double>::max(), ymax=std::numeric_limits<double>::min();
         for (size_t iphi = 0; iphi < nphi; iphi++){
@@ -595,22 +619,8 @@ public:
                                         p_pars->theta_c_h, p_pars->m_mu, p_pars->m_theta,//m_data[BW::Q::itheta],
                                         (int)p_pars->m_i_end_r, p_pars->obsangle);
 //            /// check the theta extend for this phi
-//            if (th_b > th_b_max)
-//                th_b_max = th_b;
-//            if (th_b < th_b_min)
-//                th_b_min = th_b;
-//            /// TODO check if we need to check this
-//            if (th_b_min < theta0)
-//                th_b_min = theta0;
-//
-//            if ((th_b_min <= th_b_max) || (th_b_max == 0.)){
-//                (*p_log)(LOG_ERR,AT)<<" no theta area to consider\n";
-//                exit(1);
-//            }
-
             double th_a = ( p_pars->theta_c_l / p_pars->theta_c_h ) * th_b; // ???
 //            std::cout << AT<< " iphi="<<iphi<<" phi="<<cphi<<" th_a="<<th_a<<" th_b="<<th_b<<"\n";
-//            if (p_pars->theta_c_l < )
             th_a = std::max(theta_l_prev, th_a);
             for (size_t ith = 0; ith < nth; ith++){
                 double dtheta = (th_b - th_a) / (double)nth;
@@ -656,6 +666,263 @@ public:
         return summed_intensity;
     }
 
+    double evalSkyMapA(std::vector<VecVector> & out, double obs_time, double obs_freq,
+                       size_t il, size_t offset, size_t cil,
+                       double (*obs_angle)( const double &, const double &, const double & ),
+                       double (*im_xxs)( const double &, const double &, const double & ),
+                       double (*im_yys)( const double &, const double &, const double & )) {
+
+        if (out.size() == 0) {
+            (*p_log)(LOG_ERR, AT) << " image is empty\n";
+            exit(1);
+        }
+        if (il < 0) {
+            (*p_log)(LOG_ERR, AT) << " il < 0\n";
+            exit(1);
+        }
+        parsPars(obs_time, obs_freq, p_pars->theta_c_l, p_pars->theta_c_h,
+                 0., 2. * M_PI, obs_angle);
+        check_pars();
+
+        double summed_intensity = 0;
+        double Fcoeff = cgs2mJy / (4. * M_PI * p_pars->d_l * p_pars->d_l);
+        double xmin = std::numeric_limits<double>::max(), xmax = std::numeric_limits<double>::min();
+        double ymin = std::numeric_limits<double>::max(), ymax = std::numeric_limits<double>::min();
+
+//        size_t cill = out[IMG::Q::ictheta][il].size() / 2;
+        size_t _i = 0;
+        double th_b = 0; double th_a = 0;
+        for (size_t iphi = 0; iphi < cil; iphi++) {
+            double cth = out[IMG::Q::ictheta][il][offset + iphi];
+            double cphi = out[IMG::Q::icphi][il][offset + iphi];
+
+            // if jet is spreading, compute the upper boundary of the jet
+            th_b = find_jet_edge(cphi, p_pars->theta_obs, //p_pars->cos_theta_obs, p_pars->sin_theta_obs,
+                                        p_pars->theta_c_h, p_pars->m_mu, p_pars->m_theta,//m_data[BW::Q::itheta],
+                                        (int) p_pars->m_i_end_r, p_pars->obsangle);
+            th_a = (p_pars->theta_c_l / p_pars->theta_c_h) * th_b; // ???
+            if (cth < th_a || cth > th_b)
+                continue;
+            _i += 1;
+
+            // compute intensity
+            double r = 0., mu = 0., gam = 0., ctheta_bw = 0.;
+            double intensity = integrand(std::cos(cth), cphi, r, mu, gam, ctheta_bw, p_pars);
+
+            double x = r * im_xxs(cth, cphi, p_pars->theta_obs);
+            double y = r * im_yys(cth, cphi, p_pars->theta_obs);
+
+            out[IMG::Q::iintens][il][offset + iphi] = intensity * Fcoeff;// / (r * r * std::abs(mu));//* CGS::cgs2mJy;
+            out[IMG::Q::ir][il][offset + iphi] = r;
+            out[IMG::Q::ixr][il][offset + iphi] = x;
+            out[IMG::Q::iyr][il][offset + iphi] = y;
+            out[IMG::Q::imu][il][offset + iphi] = mu;
+            summed_intensity += out[IMG::Q::iintens][il][offset + iphi];
+
+        }
+        if (_i == 0){
+            (*p_log)(LOG_ERR,AT) << " error, no intensity collected from il="<<il
+            <<" ctheta1="<<out[IMG::Q::ictheta][il][offset + cil - 1]
+            <<" th_b_last="<<th_b
+            <<"\n";
+        }
+        return summed_intensity;
+    }
+
+    void findJetEdge(double & th_b_min, double & th_b_max, double obs_time, double obs_freq, double theta_l_prev,
+                     double (*obs_angle)( const double &, const double &, const double & )){
+        parsPars(obs_time, obs_freq, p_pars->theta_c_l, p_pars->theta_c_h, 0., 2. * M_PI, obs_angle);
+        check_pars();
+
+        size_t nphi_ = 100;
+
+        double phi0 = 0.;
+        double phi1 = 2. * M_PI;
+
+        for (size_t iphi = 0; iphi < nphi_; iphi++) {
+            double dphi = (phi1 - phi0) / (double) nphi_;
+            double cphi = phi0 + (double) iphi * dphi;
+            /// if jet is spreading, compute the upper boundary of the jet
+            double th_b = find_jet_edge(cphi, p_pars->theta_obs, //p_pars->cos_theta_obs, p_pars->sin_theta_obs,
+                                        p_pars->theta_c_h, p_pars->m_mu, p_pars->m_theta,//m_data[BW::Q::itheta],
+                                        (int) p_pars->m_i_end_r, p_pars->obsangle);
+            if (th_b > th_b_max) th_b_max = th_b;
+            double th_a = ( p_pars->theta_c_l / p_pars->theta_c_h ) * th_b;
+            if (th_b < th_b_min) th_b_min = th_b;
+        }
+    }
+#if 0
+    double evalSkyMapA_new(std::vector<VecVector> & out, double obs_time, double obs_freq,
+                       double theta_l_prev,
+                       size_t il, size_t nth, size_t nphi, size_t ii_ofset,
+                       double (*obs_angle)( const double &, const double &, const double & ),
+                       double (*im_xxs)( const double &, const double &, const double & ),
+                       double (*im_yys)( const double &, const double &, const double & )) {
+        /// checks
+        if (out.size()==0){
+            (*p_log)(LOG_ERR,AT) << " image is empty\n";
+            exit(1);
+        }
+        if (il<0){
+            (*p_log)(LOG_ERR,AT) << " il < 0\n";
+            exit(1);
+        }
+        /// save parameters for calling intensity function
+        parsPars(obs_time, obs_freq, p_pars->theta_c_l, p_pars->theta_c_h, 0., 2. * M_PI, obs_angle);
+        check_pars();
+
+        size_t ncells_max = nth * nphi;
+        double phi0 = 0.;
+        double phi1 = 2. * M_PI;
+
+        /// find maximum theta extend of the jet for all phis
+        double th_b_max = 0;
+        double th_b_min = std::numeric_limits<double>::max();
+        size_t nphi_ = 100;
+        for (size_t iphi = 0; iphi < nphi_; iphi++) {
+            double dphi = (phi1 - phi0) / (double) nphi_;
+            double cphi = phi0 + (double) iphi * dphi;
+            /// if jet is spreading, compute the upper boundary of the jet
+            double th_b = find_jet_edge(cphi, p_pars->theta_obs, //p_pars->cos_theta_obs, p_pars->sin_theta_obs,
+                                        p_pars->theta_c_h, p_pars->m_mu, p_pars->m_theta,//m_data[BW::Q::itheta],
+                                        (int) p_pars->m_i_end_r, p_pars->obsangle);
+            if (th_b > th_b_max)
+                th_b_max = th_b;
+
+            double th_a = ( p_pars->theta_c_l / p_pars->theta_c_h ) * th_b; // ???
+
+            if (th_b < th_b_min)
+                th_b_min = th_b;
+
+        }
+
+        /// generate grid from 0 to th_b_max with cells
+        double theta0 = 0;
+        Vector theta_pw ( nth + 1 );
+        for (size_t i = 0; i < nth + 1; i++){
+            double fac = (double) i / (double)nth;
+            theta_pw[i] = theta0 + 2.0 * std::asin( fac * std::sin((th_b_max-theta0) / 2.0 ) );
+            size_t ncells = EjectaID2::CellsInLayer_(i);
+            if (theta_pw[i] < th_b_min){
+                /// skip this layer
+            }
+            else{
+                ncells_accum += ncells;
+                if (ncells_accum > ncells_max){
+                    break;
+                }
+            }
+        }
+
+        bool searching = true;
+        size_t l0 = 0;
+        size_t nl = 1e5;
+        size_t ncells_accum = 0;
+        while (searching){
+            int l0_cur = -1;
+            int nl_cur = -1;
+            /// loop over the grid
+            for (size_t i = 0; i < nl + 1; i++){
+                double fac = (double) i / (double)nl;
+                double theta_i = theta0 + 2.0 * std::asin( fac * std::sin((th_b_max-theta0) / 2.0 ) );
+                if (theta_i < th_b_min)
+                    continue;
+                /// save the beginning of the loop
+                if (l0_cur == -1) l0_cur = i;
+
+                size_t ncells_i = EjectaID2::CellsInLayer_(i);
+                ncells_accum += ncells_i;
+                if (ncells_accum > ncells_max){
+                    /// save the end of the loop
+                    if (nl_cur == -1) nl_cur = nl - 1;
+                    break;
+                }
+            }
+
+        }
+
+
+
+        /// settings for intensity search
+        double phi0 = 0.;
+        double phi1 = 2. * M_PI;
+        double theta1 = M_PI / 2.;
+
+        if (out.size()==0){
+            (*p_log)(LOG_ERR,AT) << " image is empty\n";
+            exit(1);
+        }
+        if (il<0){
+            (*p_log)(LOG_ERR,AT) << " il < 0\n";
+            exit(1);
+        }
+        parsPars(obs_time, obs_freq, p_pars->theta_c_l, p_pars->theta_c_h,
+                 0., 2. * M_PI, obs_angle);
+        check_pars();
+
+        size_t ii = 0;
+        double summed_intensity = 0;
+        double Fcoeff = cgs2mJy / (4. * M_PI * p_pars->d_l * p_pars->d_l);
+        double xmin=std::numeric_limits<double>::max(), xmax=std::numeric_limits<double>::min();
+        double ymin=std::numeric_limits<double>::max(), ymax=std::numeric_limits<double>::min();
+        for (size_t iphi = 0; iphi < nphi; iphi++){
+            double th_b_min = std::numeric_limits<double>::max();
+            double th_b_max = std::numeric_limits<double>::min();
+            double dphi = (phi1 - phi0) / (double)nphi;
+            double cphi = phi0 + (double)iphi * dphi;
+            /// check what the extend of theta
+            // if jet is spreading, compute the upper boundary of the jet
+            double th_b = find_jet_edge(cphi, p_pars->theta_obs, //p_pars->cos_theta_obs, p_pars->sin_theta_obs,
+                                        p_pars->theta_c_h, p_pars->m_mu, p_pars->m_theta,//m_data[BW::Q::itheta],
+                                        (int)p_pars->m_i_end_r, p_pars->obsangle);
+//            /// check the theta extend for this phi
+            double th_a = ( p_pars->theta_c_l / p_pars->theta_c_h ) * th_b; // ???
+//            std::cout << AT<< " iphi="<<iphi<<" phi="<<cphi<<" th_a="<<th_a<<" th_b="<<th_b<<"\n";
+            th_a = std::max(theta_l_prev, th_a);
+            for (size_t ith = 0; ith < nth; ith++){
+                double dtheta = (th_b - th_a) / (double)nth;
+                double cth = th_a + (double)ith * dtheta;
+                // compute intensity
+                double r = 0., mu = 0., gam = 0., ctheta_bw = 0.;
+                double intensity = integrand(cos(cth ), cphi,
+                                             r, mu, gam, ctheta_bw, p_pars);
+                if ((r == 0)||(r!=r)){
+                    (*p_log)(LOG_ERR,AT) << " r=0"<<"\n";
+                    exit(1);
+                }
+                double x = r * im_xxs(cth, cphi, p_pars->theta_obs);
+                double y = r * im_yys(cth, cphi, p_pars->theta_obs);
+                // ---
+                out[IMG::Q::ictheta][il][ii_ofset+ii] = cth;
+                out[IMG::Q::icphi][il][ii_ofset+ii] = cphi;
+                out[IMG::Q::iintens][il][ii_ofset+ii] = intensity * Fcoeff*  dtheta * dphi;// / (r * r * std::abs(mu));//* CGS::cgs2mJy;
+                out[IMG::Q::ir][il][ii_ofset+ii] = r;
+                out[IMG::Q::ixr][il][ii_ofset+ii] = x;
+                out[IMG::Q::iyr][il][ii_ofset+ii] = y;
+                out[IMG::Q::imu][il][ii_ofset+ii] = mu;
+                summed_intensity += out[IMG::Q::iintens][il][ii_ofset+ii];
+                if (x < xmin) xmin = x;
+                if (x > xmax) xmax = x;
+                if (y < ymin) ymin = y;
+                if (y > ymax) ymax = y;
+                ii ++;
+            }
+        }
+        if (xmax == xmin){
+            (*p_log)(LOG_ERR,AT)<<" xmin=xmax="<<xmin<<"\n";
+            exit(1);
+        }
+        if (ymax == ymin){
+            (*p_log)(LOG_ERR,AT)<<" ymin=ymax="<<ymin<<"\n";
+            exit(1);
+        }
+        double delta_x = xmax - xmin;
+        double delta_y = ymax - ymin;
+        for (size_t i = 0; i < nth * nphi; i++)
+            out[IMG::Q::iintens][il][ii_ofset+ii] /= (delta_x * delta_y);
+        return summed_intensity;
+    }
+#endif
     /// eval light curve using Adapitve or Piece-Wise EATS method
     void evalLightCurve(Vector & out, EjectaID2::STUCT_TYPE m_method_eats, Vector & times, Vector & freqs ){
         double rtol = 1e-10;

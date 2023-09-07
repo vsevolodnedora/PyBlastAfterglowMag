@@ -522,8 +522,7 @@ public:
     }
 
     /// Compute Skymap for adaptive EATS
-    void computeEjectaSkyMapA_new(std::vector<VecVector> & out, Vector & fluxes, double obs_time, double obs_freq,
-                                  size_t ntheta, size_t nphi ){
+    void computeEjectaSkyMapA_new(std::vector<VecVector> & out, Vector & fluxes, double obs_time, double obs_freq, size_t nsublayers, size_t nphi ){
 
         /// out is [i_vn][ish][itheta_iphi]
 
@@ -535,75 +534,129 @@ public:
         }
 
         double rtol = 1.e-6;
-//        size_t nphi = 200;
-//        size_t ntheta = 400;
 
         /// Allocate memory for ctheta and cphi grids ('2' is for principle and counter jet)
+        size_t ncells = 0;
+        for (size_t ill = 0; ill < nsublayers; ++ill){
+            ncells += EjectaID2::CellsInLayer_(ill);
+        }
+        (*p_log)(LOG_INFO,AT)
+                << " With nlayers=" << nlayers_ << " nsublayers=" << nsublayers << " ncells=" << ncells << "\n";
+
         for (size_t ivn = 0; ivn < IMG::m_names.size(); ivn++) {
             for (size_t ish = 0; ish < nlayers_; ish++) {
-                out[ivn][ish].resize(2 * nphi * ntheta);
+                out[ivn][ish].resize(2 * ncells);
             }
         }
 
-        double tot_flux = 0.;
+
+        /// locate the extend of the jet at a given time (for further grid creation)
         double th_l_prev = 0.;
-        double max_int = 0.;
+        double th_jet_min = 0., th_jet_max = 0.;
+        Vector th_b_layers (nlayers_);
         for (size_t ilayer = 0; ilayer < nlayers_; ++ilayer){
-            auto & bw_rad = p_cumShells[ilayer]->getBW(0)->getFsEATS();
             double theta_l = p_cumShells[ilayer]->getBW(0)->getPars()->theta_c_l;
-            double atol = tot_flux * rtol / (double)nlayers_;
-            double layer_flux = bw_rad->evalFluxDensA(obs_time,obs_freq, atol);
-            tot_flux += layer_flux;
-            fluxes[ilayer] = layer_flux;
-//            double Fcoeff = cgs2mJy / (4. * M_PI * p_cumShells[ilayer]->getBW(0)->getPars()->d_l * p_cumShells[ilayer]->getBW(0)->getPars()->d_l);
-            (*p_log)(LOG_INFO,AT)
-                    << " EJECTA SkyMap obs_time="<<obs_time<<" obs_freq="<<obs_freq
-                    << " theta_layer="<<ilayer<<"/"<<nlayers()
-                    << " theta_l="<<theta_l
-                    << " Fnu="<<layer_flux<<" mJy \n";
-//            layer_flux *= Fcoeff;
             if (ilayer > 0)
                 th_l_prev = p_cumShells[ilayer-1]->getBW(0)->getPars()->theta_c_l;
-            /// compute intensity map
-            double sum_intensity = bw_rad->evalSkyMapA(out, obs_time, obs_freq, th_l_prev, ilayer, ntheta, nphi);
-            /// normalization to get flux / mas^2
-            for (size_t i = 0; i < 2 * (ntheta * nphi); i++){
+            auto & bw_rad = p_cumShells[ilayer]->getBW(0)->getFsEATS();
+            double th_b_min, th_b_max;
+            bw_rad->findJetEdgeA(th_b_min, th_b_max, obs_time, obs_freq, th_l_prev);
+            th_b_layers[ilayer] = th_b_max;
+            if (th_b_max > th_jet_max)
+                th_jet_max = th_b_max;
+        }
+        (*p_log)(LOG_INFO,AT)
+                << " Jet Edge Found theta="<<th_jet_max<<" at obs_time="<<obs_time<<" obs_freq="<<obs_freq << "\n";
+
+
+        /// compute flux density for each layer ( for normalization )
+        double tot_flux = 0.;
+        for (size_t ilayer = 0; ilayer < nlayers_; ++ilayer) {
+            auto &bw_rad = p_cumShells[ilayer]->getBW(0)->getFsEATS();
+//            double theta_l = p_cumShells[ilayer]->getBW(0)->getPars()->theta_c_l;
+            double atol = tot_flux * rtol / (double) nlayers_;
+            double layer_flux = bw_rad->evalFluxDensA(obs_time, obs_freq, atol);
+            tot_flux += layer_flux;
+            fluxes[ilayer] = layer_flux;
+        }
+        /// make an interpolator for sublayers (for a given ctheta -> get flux)
+//        auto interp = Interp1d(id->getVec(0,EjectaID2::Q::itheta_c_l), fluxes);
+
+
+
+//        Vector theta_pw (nlayers_total + 1 );
+//        for (size_t i = 0; i < nlayers_total + 1; i++){
+//            double fac = (double) i / (double)nlayers_total;
+//            theta_pw[i] = 2.0 * std::asin( fac * std::sin(th_jet_max / 2.0 ) );
+//        }
+//        Vector cthetas (nlayers_total );
+//        for (size_t i = 0; i < nlayers_total; i++)
+//            cthetas[i] = theta_pw[i] + (theta_pw[i+1] - theta_pw[i]) * 0.5;
+
+        Vector theta_pw (nsublayers + 1 );
+        for (size_t i = 0; i < nsublayers + 1; i++){
+            double fac = (double) i / (double)nsublayers;
+            theta_pw[i] = 2.0 * std::asin( fac * std::sin(th_jet_max / 2.0 ) );
+        }
+        Vector cthetas (nsublayers );
+        for (size_t i = 0; i < nsublayers; i++)
+            cthetas[i] = theta_pw[i] + (theta_pw[i+1] - theta_pw[i]) * 0.5;
+
+
+        for (size_t ilayer = 0; ilayer < nlayers_; ++ilayer){
+
+            auto & bw_rad = p_cumShells[ilayer]->getBW(0)->getFsEATS();
+
+            size_t iii = 0;
+            double max_int = 0.; double layer_summed_intensity = 0;
+            /// loop for all thetas from 0 to overall theta_edge # TODO see if you can just do it until current theta_edge
+            for (size_t ith = 0; ith < nsublayers; ith++){
+                size_t cil = EjectaID2::CellsInLayer_(ith);
+
+                /// fill the angular grid for intensity evaluations
+                for (size_t iphi = 0;  iphi < cil; iphi++){
+                    double cphi = (double)iphi * 2.0 * CGS::pi / (double)cil;
+                    /// principle jet
+                    out[IMG::Q::icphi][ilayer][iii+iphi] = cphi;
+                    out[IMG::Q::ictheta][ilayer][iii+iphi] = cthetas[ith];
+                    /// counter jet
+                    out[IMG::Q::icphi][ilayer][ncells+iii+iphi] = cphi;
+                    out[IMG::Q::ictheta][ilayer][ncells+iii+iphi] = cthetas[ith];
+                }
+
+                /// evaluate intensity
+                layer_summed_intensity += bw_rad->evalSkyMapA(out, obs_time, obs_freq, ilayer, iii, cil, ncells);
+                iii = iii + cil;
+            }
+//            if (layer_summed_intensity == 0){
+////                (*p_log)(LOG_ERR,AT) << " layer_summed_intensity="<<layer_summed_intensity
+////                                     << " layer="<<ilayer<<" (sublayers="<<nsublayers<<") th_b_layers[ilayer]="<< th_b_layers[ilayer]
+////                                     << " cthetas[0] = "<<cthetas[ii-1-nsublayers]
+////                                     << " cthetas[-1] = "<< cthetas[ii-1] << "\n";
+//                exit(1);
+//            }
+
+            /// find maximum intensity
+            double total_int = 0.;
+            for (size_t i = 0; i < 2 * ncells; i++){
+                total_int += out[IMG::Q::iintens][ilayer][i];
                 if (max_int < out[IMG::Q::iintens][ilayer][i])
                     max_int = out[IMG::Q::iintens][ilayer][i];
             }
-//            for (size_t i = 0; i < 2 * (ntheta * nphi); i++){
-//                out[IMG::Q::iintens][ilayer][i] = out[IMG::Q::iintens][ilayer][i] / max_int * layer_flux;
+
+//            if (total_int <= 0 || !std::isfinite(total_int)){
+////                (*p_log)(LOG_ERR,AT) << " total intensity is"<<total_int
+////                    <<" layer="<<ilayer<<" (sublayers="<<nsublayers<<") th_b_layers[ilayer]="<< th_b_layers[ilayer]
+////                    <<" cthetas[0] = "<<cthetas[ii-1-nsublayers] << "cthetas[-1] = "<< cthetas[ii-1] << "\n";
+//                exit(1);
 //            }
 
-//            double new_max = 0.;
-//            double new_sum = 0.;
-//            for (size_t i = 0; i < 2 * (ntheta * nphi); i++){
-//                new_sum += out[IMG::Q::iintens][ilayer][i];
-//                if (new_max < out[IMG::Q::iintens][ilayer][i])
-//                    new_max = out[IMG::Q::iintens][ilayer][i];
-//            }
-//            int x =1 ;
+            ///  normalize for maximum intensity
+//            double flux_at_theta = interp.Interpolate(cthetas[ith], Interp1d::METHODS::iLagrangeLinear);
+            for (size_t i = 0; i < 2 * ncells; i++) {
+                out[IMG::Q::iintens][ilayer][i] = out[IMG::Q::iintens][ilayer][i] / max_int * fluxes[ilayer];
+            }
         }
-
-
-        /// Normalization
-//        size_t offset = 0;
-//        for (size_t ilayer = 0; ilayer < nlayers_; ++ilayer) {
-//            for (size_t i = 0; i < out[IMG::Q::iintens][ilayer].size(); i++) {
-//                out[IMG::Q::iintens][ilayer][i] /= max_int;
-//                auto x = 1;
-////                offset = ntheta * ntheta;
-////                out[IMG::Q::iintens][ilayer][offset+i] /= max_int;
-//
-//            }
-//        }
-//            for (size_t i = 0; i < out[IMG::Q::iintens][ilayer].size(); i++)
-//                if (out[IMG::Q::iintens][ilayer][i] > max_int)
-//                    max_int = out[IMG::Q::iintens][ilayer][i];
-//            for (size_t i = 0; i < out[IMG::Q::iintens][ilayer].size(); i++)
-//                out[IMG::Q::iintens][ilayer][i] *= fluxes[ilayer] / tot_flux;
-//        }
-
     }
 
     /// Compute lightcurve for piece-wise EATS

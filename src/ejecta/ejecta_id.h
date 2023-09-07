@@ -62,9 +62,8 @@ public:
         _load_id_file(path_to_table,use_1d_id, load_r0, t0);
         theta_max = CGS::pi/2.; // for dynamics
     }
-    double get(size_t ish, size_t il, Q iv){
-        return m_data[iv][ish][il];
-    }
+    double get(size_t ish, size_t il, Q iv){ return m_data[iv][ish][il]; }
+    Vector & getVec(size_t ish, Q iv){ return m_data[iv][ish]; }
     inline static double ctheta(double theta, size_t ilayer, size_t nlayers_pw){
         // cthetas = 0.5*(2.*arcsin(facs[0]*sin(self.joAngles[:,layer-1]/2.)) + 2.*arcsin(facs[1]*sin(self.joAngles[:,layer-1]/2.)))
 //        if (theta > p_pars->theta_max ){
@@ -261,8 +260,7 @@ private:
 
     /// initial grid for [a] EATS method
     void _init_a_grid(size_t ish, size_t nlayers, double theta_w) {
-        _init_a_grid(m_data[Q::itheta_c_l][ish], m_data[Q::itheta_c_h][ish], m_data[Q::itheta_c][ish],
-                     nlayers, theta_w);
+        _init_a_grid(m_data[Q::itheta_c_l][ish], m_data[Q::itheta_c_h][ish], m_data[Q::itheta_c][ish], nlayers, theta_w);
     }
 
     void _init_pw_grid(size_t ish, size_t nlayers, double theta_w){
