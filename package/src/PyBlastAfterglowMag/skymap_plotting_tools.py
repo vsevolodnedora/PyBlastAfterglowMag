@@ -26,8 +26,404 @@ rcParams['font.size'] = 8
 
 
 from .utils import cgs, make_hash, latex_float, find_nearest_index
-from .interface import PyBlastAfterglow, tmp_for_file2, combine_images, get_skymap_lat_dist, get_skymap_fwhm, \
+from .interface import PyBlastAfterglow
+from .skymap_tools import combine_images, get_skymap_lat_dist, get_skymap_fwhm, \
     smooth_interpolated_skymap_with_gaussian_kernel, combine_images_old
+
+def tmp_for_file2(time, freq, grp, settings, plot_dict, **kwargs):
+
+    '''
+    RETURN :: (xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz)
+    '''
+
+    if(len(settings["kn_grb_skymap"].keys()) > 0):
+        if (len(settings["kn_skymap"].keys()) == 0):
+            raise KeyError("For 'kn_grb_skymap' kn_skymap has to be set")
+        if (len(settings["grb_skymap"].keys()) == 0):
+            raise KeyError("For 'kn_grb_skymap' grb_skymap has to be set")
+
+    xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz = 0., 0., 0., 0., 0., 0., None, None, None
+
+    if not "precompute" in settings.keys():
+        print("setting 'precompute' to False")
+        settings["precompute"] = False
+
+    ''' ---- size/cm of the ejecta ---- '''
+    pb = PyBlastAfterglow()
+    pb.res_dir_kn = plot_dict["res_dir_kn"]
+    pb.ejecta_prefix = plot_dict["ejecta_prefix1"]
+    pb.res_dir_grb = plot_dict["res_dir_grb"]
+    pb.jet_prefix = plot_dict["jet_prefix"]
+
+    pb_w = PyBlastAfterglow()
+    pb_w.res_dir_kn = plot_dict["res_dir_kn"]
+    pb_w.ejecta_prefix = plot_dict["ejecta_prefix2"]
+    pb_w.res_dir_grb = plot_dict["res_dir_grb"]
+    pb_w.jet_prefix = plot_dict["jet_prefix"]
+
+    if type(time) is str:
+        if time == "tp1":
+            t_lc_max = pb.get_ej_lc_times()[find_nearest_index(pb.get_ej_lc_totalflux(freq), pb.get_ej_lc_totalflux(freq).max())]
+            t_sm_where_lc_max = pb.get_ej_skymap_times()[find_nearest_index(pb.get_ej_skymap_times(), t_lc_max)]
+            # idx =find_nearest_index(pb.get_ej_skymap_totfluxes(freq), pb.get_ej_lc_totalflux(freq).max())
+            # time = pb.get_ej_skymap_times()[find_nearest_index(pb.get_ej_skymap_totfluxes(freq), pb.get_ej_lc_totalflux(freq).max() )]
+            # time_lc = pb.get_ej_lc_times()[find_nearest_index(pb.get_ej_lc_totalflux(freq),pb.get_ej_lc_totalflux(freq).max())]
+            print("Selected nearest time {} [d] while the light curve peak time is {} [d]".format(t_sm_where_lc_max/cgs.day,t_lc_max/cgs.day))
+        elif time == "tp2":
+            t_lc_max = pb_w.get_ej_lc_times()[ find_nearest_index(pb_w.get_ej_lc_totalflux(freq), pb_w.get_ej_lc_totalflux(freq).max())]
+            t_sm_where_lc_max = pb_w.get_ej_skymap_times()[find_nearest_index(pb_w.get_ej_skymap_times(), t_lc_max)]
+            # time = pb.get_ej_skymap_times()[ find_nearest_index(pb.get_ej_skymap_totfluxes(freq), pb.get_ej_lc_totalflux(freq).max())]
+            # time_lc = pb.get_ej_lc_times()[ find_nearest_index(pb.get_ej_lc_totalflux(freq), pb.get_ej_lc_totalflux(freq).max())]
+            print("Selected nearest time {} [d] while the light curve peak time is {} [d]".format(t_sm_where_lc_max/cgs.day,t_lc_max/cgs.day))
+        elif time == "tpgrb":
+            t_lc_max = pb.get_jet_lc_times()[find_nearest_index(pb.get_jet_lc_totalflux(freq), pb.get_jet_lc_totalflux(freq).max())]
+            t_sm_where_lc_max = pb.get_jet_skymap_times()[find_nearest_index(pb.get_jet_skymap_times(), t_lc_max)]
+            # time = pb.get_ej_skymap_times()[ find_nearest_index(pb.get_ej_skymap_totfluxes(freq), pb.get_jet_lc_totalflux(freq).max())]
+            # time_lc = pb.get_ej_lc_times()[ find_nearest_index(pb.get_ej_lc_totalflux(freq), pb.get_jet_lc_totalflux(freq).max())]
+            print("Selected nearest time {} [d] while the light curve peak time is {} [d]".format(t_sm_where_lc_max/cgs.day,t_lc_max/cgs.day))
+        else:
+            raise KeyError("time can be a number, 'tp1', 'tp2' or 'tpj'. Given:{}".format(time))
+
+        time = t_sm_where_lc_max / cgs.day
+
+    if (len(settings["kn_skymap"].keys()) > 0) or (len(settings["kn_grb_skymap"].keys()) > 0):
+        tmp = copy.deepcopy(settings["kn_skymap"])
+        key = "kn nx={} ny={}".format(tmp["hist_nx"], tmp["hist_ny"])
+        if settings["precompute"]:
+            all_x, all_y, all_fluxes \
+                = pb.get_ej_skymap(time=time * cgs.day, freq=freq, verbose=False, remove_mu=True)
+
+            if tmp["spec"]:
+                int_x, int_y, int_zz = pb.get_combined_ej_spectral_map(time=time, freq=freq,
+                                                                       nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+            else:
+                int_x, int_y, int_zz = pb.combine_images(all_x, all_y, all_fluxes, hist_or_int="hist",
+                                                         shells=True, nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+
+            grid_y, _, i_zz_y, _ = pb.get_skymap_lat_dist(all_x, all_y, all_fluxes, collapse_axis="x",
+                                                          nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            grid_x, _, i_zz_x, _ = pb.get_skymap_lat_dist(all_x, all_y, all_fluxes, collapse_axis="y",
+                                                          nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            xc, yc = pb.get_ej_skymap_cm(all_x, all_y, all_fluxes)
+            #
+            if key in grp.keys():
+                raise KeyError("key: {} already exists: {}".format(key, grp.keys()))
+            grp_kn = grp.create_group(key)
+            grp_kn.create_dataset("int_x", data=int_x)
+            grp_kn.create_dataset("int_y", data=int_y)
+            grp_kn.create_dataset("int_zz", data=int_zz)
+            grp_kn.create_dataset("grid_y", data=grid_y)
+            grp_kn.create_dataset("i_zz_y", data=i_zz_y)
+            grp_kn.create_dataset("grid_x", data=grid_x)
+            grp_kn.create_dataset("i_zz_x", data=i_zz_x)
+            grp_kn.attrs.create("xc", data=xc)
+            grp_kn.attrs.create("yc", data=yc)
+        else:
+            if not key in grp.keys():
+                raise KeyError("key={} is not in the list for a group: {}".format(key, grp.keys()))
+            grp_kn = grp[key]
+            int_x = np.array(np.array(grp_kn["int_x"]))
+            int_y = np.array(np.array(grp_kn["int_y"]))
+            int_zz = np.array(np.array(grp_kn["int_zz"]))  # plotting
+            grid_y = np.array(np.array(grp_kn["grid_y"]))
+            i_zz_y = np.array(np.array(grp_kn["i_zz_y"]))
+            grid_x = np.array(np.array(grp_kn["grid_x"]))
+            i_zz_x = np.array(np.array(grp_kn["i_zz_x"]))
+            xc = float(grp_kn.attrs["xc"])
+            yc = float(grp_kn.attrs["yc"])
+        i_zz_x /= i_zz_x.max()
+        i_zz_y /= i_zz_y.max()
+        if (int_zz.max() == int_zz.min()):
+            raise ValueError("i_zz_x.max() == i_zz_x.min() = {} \n plot_dic=\n{}".format(int_zz.max(), plot_dict))
+        y1, y2 = pb.get_skymap_fwhm(grid_y, i_zz_y, yc)
+        x1, x2 = pb.get_skymap_fwhm(grid_x, i_zz_x, xc)
+        if (not (x2 > x1)) and (x2!=0) and (x1!=0) :
+            raise ValueError("kn_skymap failed computing width x2={} <= x1={} Should be other way around"
+                             .format(x2, x1))
+        # if len(tmp["cm"].keys()) > 0: ax.plot(xc, yc, **tmp["cm"])  # color='red', marker="o")
+        # if len(tmp["ysize"].keys()) > 0: ax.errorbar([xc, xc], [y1, y2], xerr=[int_x.max() / 10, int_x.max() / 10],
+        #                                              **tmp["ysize"])
+        # if len(tmp["xsize"].keys()) > 0: ax.errorbar([x1, x2], [yc, yc], yerr=[int_y.max() / 10, int_y.max() / 10],
+        #                                              **tmp["xsize"])
+        # # --------------------
+        # if len(tmp["pcolormesh"].keys()) > 0:
+        #     # levels = np.geomspace(int_ration[~np.isnan(int_ration)].min(), int_ration[~np.isnan(int_ration)].max(), 50)
+        #     int_zz = int_zz.T
+        #     int_zz[~np.isfinite(int_zz)] = 0.
+        #     if (len(tmp["smooth"].keys()) > 0):
+        #         int_zz = pb.smooth_interpolated_skymap_with_gaussian_kernel(i_zz=int_zz, type=tmp["smooth"]["type"])
+        #     im = plot_pcolomesh(ax=ax, task_dict=tmp["pcolormesh"], int_x=int_x, int_y=int_y, int_zz=int_zz)
+
+        # return (xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz)
+        if (len(kwargs.keys())>0) and ("kn_skymap" in kwargs.keys()):
+            return (xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz)
+
+    ''' ---- size/cm of the grb ---- '''
+    if  ("grb_skymap" in settings.keys()) and (len(settings["grb_skymap"].keys()) > 0) or (len(settings["kn_grb_skymap"].keys()) > 0):
+        tmp = copy.deepcopy(settings["grb_skymap"])
+        key = "grb nx={} ny={}".format(tmp["hist_nx"], tmp["hist_ny"])
+        if settings["precompute"]:
+            all_x_jet, all_y_jet, all_fluxes_jet \
+                = pb.get_jet_skymap(time=time * cgs.day, freq=freq, verbose=False, remove_mu=True)
+            if tmp["spec"]:
+                int_x_j, int_y_j, int_zz_j = pb.get_combined_jet_spectral_map(time=time, freq=freq,
+                                                                              nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+            else:
+                int_x_j, int_y_j, int_zz_j = pb.combine_images([all_x_jet], [all_y_jet], [all_fluxes_jet],
+                                                               hist_or_int="hist", shells=False,
+                                                               nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+            grid_y_j, _, i_zz_y_j, _ = pb.get_skymap_lat_dist([all_x_jet], [all_y_jet], [all_fluxes_jet],
+                                                              collapse_axis="x", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            grid_x_j, _, i_zz_x_j, _ = pb.get_skymap_lat_dist([all_x_jet], [all_y_jet], [all_fluxes_jet],
+                                                              collapse_axis="y", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            xc_m_j, yc_m_j = pb.get_ej_skymap_cm([all_x_jet], [all_y_jet], [all_fluxes_jet])
+            #
+            if key in grp.keys():
+                raise KeyError("key: {} already exists: {}".format(key, grp.keys()))
+            grp_j = grp.create_group(key)
+            grp_j.create_dataset("int_x", data=int_x_j)
+            grp_j.create_dataset("int_y", data=int_y_j)
+            grp_j.create_dataset("int_zz", data=int_zz_j)
+            grp_j.create_dataset("grid_y", data=grid_y_j)
+            grp_j.create_dataset("i_zz_y", data=i_zz_y_j)
+            grp_j.create_dataset("grid_x", data=grid_x_j)
+            grp_j.create_dataset("i_zz_x", data=i_zz_x_j)
+            grp_j.attrs.create("xc", data=xc_m_j)
+            grp_j.attrs.create("yc", data=yc_m_j)
+        else:
+            grp_j = grp[key]
+            int_x_j = np.array(np.array(grp_j["int_x"]))
+            int_y_j = np.array(np.array(grp_j["int_y"]))
+            int_zz_j = np.array(np.array(grp_j["int_zz"]))  # plotting
+            grid_y_j = np.array(np.array(grp_j["grid_y"]))
+            i_zz_y_j = np.array(np.array(grp_j["i_zz_y"]))
+            grid_x_j = np.array(np.array(grp_j["grid_x"]))
+            i_zz_x_j = np.array(np.array(grp_j["i_zz_x"]))
+            xc_m_j = float(grp_j.attrs["xc"])
+            yc_m_j = float(grp_j.attrs["yc"])
+        if (int_zz_j.max() == int_zz_j.min()):
+            raise ValueError("i_zz_x.max() == i_zz_x.min() = {} \n plot_dic=\n{}".format(int_zz_j.max(), plot_dict))
+        x1_j, x2_j = pb.get_skymap_fwhm(grid_x_j, i_zz_x_j, xc_m_j)
+        y1_j, y2_j = pb.get_skymap_fwhm(grid_y_j, i_zz_y_j, yc_m_j)
+        if (not (x2_j > x1_j)) and (x2_j != 0) and (x1_j != 0):
+            raise ValueError("kn_skymap failed computing width x2={} <= x1={} Should be other way around"
+                             .format(x2_j, x1_j))
+        # if len(tmp["cm"].keys()) > 0: ax.plot(xc_m_j, yc_m_j, **tmp["cm"])  # color='red', marker="o")
+        # if len(tmp["ysize"].keys()) > 0: ax.errorbar([xc_m_j, xc_m_j], [y1_j, y2_j],
+        #                                              xerr=[int_x_j.max() / 10, int_x_j.max() / 10], **tmp["ysize"])
+        # if len(tmp["xsize"].keys()) > 0: ax.errorbar([x1_j, x2_j], [yc_m_j, yc_m_j],
+        #                                              yerr=[int_y_j.max() / 10, int_y_j.max() / 10], **tmp["xsize"])
+        # # --------------------
+        # if len(tmp["pcolormesh"].keys()) > 0:
+        #     int_zz_j = int_zz_j.T
+        #     int_zz_j[~np.isfinite(int_zz_j)] = 0.
+        #     im = plot_pcolomesh(ax=ax, task_dict=tmp["pcolormesh"], int_x=int_x_j, int_y=int_y_j, int_zz=int_zz_j)
+        xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz = \
+            xc_m_j, yc_m_j, x1_j, x2_j, y1_j, y2_j, int_x_j, int_y_j, int_zz_j
+        # return (xc_m_j, yc_m_j, x1_j, x2_j, y1_j, y2_j, int_x_j, int_y_j, int_zz_j)
+        if (len(kwargs.keys())>0) and ("grb_skymap" in kwargs.keys()):
+            return (xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz)
+
+    ''' --- size/cm of the kn with grb (using previous two) ---'''
+    if ("kn_grb_skymap" in settings.keys()) and len(settings["kn_grb_skymap"].keys()) > 0:
+        assert (len(settings["grb_skymap"].keys()) > 0)
+        assert (len(settings["kn_skymap"].keys()) > 0)
+        tmp = copy.deepcopy(settings["kn_grb_skymap"])
+        key = "kn_and_grb nx={} ny={}".format(tmp["hist_nx"], tmp["hist_ny"])
+        if settings["precompute"]:
+            all_x_pj = [all_x_jet] + all_x
+            all_y_pj = [all_y_jet] + all_y
+            all_fluxes_pj = [all_fluxes_jet] + all_fluxes
+            if tmp["spec"]:
+                int_x_pj, int_y_pj, int_zz_pj = pb.get_combined_kn_grb_spectral_map(time=time, freq=freq,
+                                                                                    nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+            else:
+                int_x_pj, int_y_pj, int_zz_pj = \
+                    pb.combine_images(all_x_pj, all_y_pj, all_fluxes_pj, hist_or_int="hist", shells=False,
+                                      nx=tmp["hist_nx"], ny=tmp["hist_ny"], extend=2)
+            # _, _, int_zz_wjet_nojet = pb.combine_images(all_x_pj, all_y_pj, all_fluxes_pj, hist_or_int="hist",
+            # shells=False, nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            xc_m_pj, yc_m_pj = pb.get_jet_skymap_cm(all_x_pj, all_y_pj, all_fluxes_pj)
+            grid_y_pj, _, i_zz_y_pj, _ = pb.get_skymap_lat_dist(all_x_pj, all_y_pj, all_fluxes_pj,
+                                                                collapse_axis="x", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            grid_x_pj, _, i_zz_x_pj, _ = pb.get_skymap_lat_dist(all_x_pj, all_y_pj, all_fluxes_pj,
+                                                                collapse_axis="y", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            if key in grp.keys():
+                raise KeyError("key: {} already exists: {}".format(key, grp.keys()))
+            grp_kn_plus_grb = grp.create_group(key)
+            # grp_kn_plus_grb = grp.create_group("kn_and_grb nx={} ny={}".format(tmp["hist_nx"], tmp["hist_ny"]))
+            grp_kn_plus_grb.create_dataset("int_x", data=int_x_pj)
+            grp_kn_plus_grb.create_dataset("int_y", data=int_y_pj)
+            grp_kn_plus_grb.create_dataset("int_zz", data=int_zz_pj)
+            grp_kn_plus_grb.create_dataset("grid_y", data=grid_y_pj)
+            grp_kn_plus_grb.create_dataset("i_zz_y", data=i_zz_y_pj)
+            grp_kn_plus_grb.create_dataset("grid_x", data=grid_x_pj)
+            grp_kn_plus_grb.create_dataset("i_zz_x", data=i_zz_x_pj)
+            grp_kn_plus_grb.attrs.create("xc", data=xc_m_pj)
+            grp_kn_plus_grb.attrs.create("yc", data=yc_m_pj)
+        else:
+            grp_kn_plus_grb = grp[key]
+            int_x_pj = np.array(np.array(grp_kn_plus_grb["int_x"]))
+            int_y_pj = np.array(np.array(grp_kn_plus_grb["int_y"]))
+            int_zz_pj = np.array(np.array(grp_kn_plus_grb["int_zz"]))  # plotting
+            grid_y_pj = np.array(np.array(grp_kn_plus_grb["grid_y"]))
+            i_zz_y_pj = np.array(np.array(grp_kn_plus_grb["i_zz_y"]))
+            grid_x_pj = np.array(np.array(grp_kn_plus_grb["grid_x"]))
+            i_zz_x_pj = np.array(np.array(grp_kn_plus_grb["i_zz_x"]))
+            xc_m_pj = float(grp_kn_plus_grb.attrs["xc"])
+            yc_m_pj = float(grp_kn_plus_grb.attrs["yc"])
+        if (int_zz_pj.max() == int_zz_pj.min()):
+            raise ValueError("i_zz_x.max() == i_zz_x.min() = {} \n plot_dic=\n{}".format(int_zz_pj.max(), plot_dict))
+        x1_pj, x2_pj = pb.get_skymap_fwhm(grid_x_pj, i_zz_x_pj, xc_m_pj)
+        y1_pj, y2_pj = pb.get_skymap_fwhm(grid_y_pj, i_zz_y_pj, yc_m_pj)
+        if (not (x2_pj > x1_pj)) and (x2_pj != 0) and (x1_pj != 0):
+            raise ValueError("kn_grb_skymap failed computing width x2={} <= x1={} Should be other way around"
+                             .format(x2_pj, x1_pj))
+        # if len(tmp["cm"].keys()) > 0: ax.plot(xc_m_pj, yc_m_pj, **tmp["cm"])
+        # if len(tmp["ysize"].keys()) > 0: ax.errorbar([xc_m_pj, xc_m_pj], [y1_pj, y2_pj],
+        #                                              xerr=[int_x_pj.max() / 10, int_x_pj.max() / 10], **tmp["ysize"])
+        # if len(tmp["xsize"].keys()) > 0: ax.errorbar([x1_pj, x2_pj], [yc_m_pj, yc_m_pj],
+        #                                              yerr=[int_y_pj.max() / 10, int_y_pj.max() / 10], **tmp["xsize"])
+        # # --------------------
+        # if len(tmp["pcolormesh"].keys()) > 0:
+        #     # levels = np.geomspace(int_ration[~np.isnan(int_ration)].min(), int_ration[~np.isnan(int_ration)].max(), 50)
+        #     int_zz_pj = int_zz_pj.T
+        #     int_zz_pj[~np.isfinite(int_zz_pj)] = 0.
+        #     im = plot_pcolomesh(ax=ax, task_dict=tmp["pcolormesh"], int_x=int_x_pj, int_y=int_y_pj, int_zz=int_zz_pj)
+
+        xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz = \
+            xc_m_pj, yc_m_pj, x1_pj, x2_pj, y1_pj, y2_pj, int_x_pj, int_y_pj, int_zz_pj
+
+        if (len(kwargs.keys())>0) and ("kn_grb_skymap" in kwargs.keys()):
+            return (xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz)
+        # return (xc_m_pj, yc_m_pj, x1_pj, x2_pj, y1_pj, y2_pj, int_x_pj, int_y_pj, int_zz_pj)
+
+    ''' ---- size/cm of the ejecta with interaction ---- '''
+    if ("kn_w_skymap" in settings.keys()) and len(settings["kn_w_skymap"].keys()) > 0:
+        tmp = copy.deepcopy(settings["kn_w_skymap"])
+        key = "kn_w nx={} ny={}".format(tmp["hist_nx"], tmp["hist_ny"])
+        if settings["precompute"]:
+            all_x_w, all_y_w, all_fluxes_w \
+                = pb_w.get_ej_skymap(time=time * cgs.day, freq=freq, verbose=False, remove_mu=True)
+            int_x_w, int_y_w, int_zz_w = pb_w.combine_images(all_x_w, all_y_w, all_fluxes_w, hist_or_int="hist",
+                                                             shells=True, nx=tmp["hist_nx"], ny=tmp["hist_ny"],
+                                                             extend=2)
+            grid_y_w, _, i_zz_y_w, _ = pb_w.get_skymap_lat_dist(all_x_w, all_y_w, all_fluxes_w, collapse_axis="x",
+                                                                nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            grid_x_w, _, i_zz_x_w, _ = pb_w.get_skymap_lat_dist(all_x_w, all_y_w, all_fluxes_w, collapse_axis="y",
+                                                                nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            xc_w, yc_w = pb_w.get_ej_skymap_cm(all_x_w, all_y_w, all_fluxes_w)
+            #
+            if key in grp.keys():
+                raise KeyError("key: {} already exists: {}".format(key, grp.keys()))
+            grp_kn_w = grp.create_group(key)
+            # grp_kn_w = grp.create_group("kn_w nx={} ny={}".format(tmp["hist_nx"], tmp["hist_ny"]))
+            grp_kn_w.create_dataset("int_x", data=int_x_w)
+            grp_kn_w.create_dataset("int_y", data=int_y_w)
+            grp_kn_w.create_dataset("int_zz", data=int_zz_w)
+            grp_kn_w.create_dataset("grid_y", data=grid_y_w)
+            grp_kn_w.create_dataset("i_zz_y", data=i_zz_y_w)
+            grp_kn_w.create_dataset("grid_x", data=grid_x_w)
+            grp_kn_w.create_dataset("i_zz_x", data=i_zz_x_w)
+            grp_kn_w.attrs.create("xc", data=xc_w)
+            grp_kn_w.attrs.create("yc", data=yc_w)
+        else:
+            grp_kn_w = grp[key]
+            int_x_w = np.array(np.array(grp_kn_w["int_x"]))
+            int_y_w = np.array(np.array(grp_kn_w["int_y"]))
+            int_zz_w = np.array(np.array(grp_kn_w["int_zz"]))  # plotting
+            grid_y_w = np.array(np.array(grp_kn_w["grid_y"]))
+            i_zz_y_w = np.array(np.array(grp_kn_w["i_zz_y"]))
+            grid_x_w = np.array(np.array(grp_kn_w["grid_x"]))
+            i_zz_x_w = np.array(np.array(grp_kn_w["i_zz_x"]))
+            xc_w = float(grp_kn_w.attrs["xc"])
+            yc_w = float(grp_kn_w.attrs["yc"])
+        if (int_zz_w.max() == int_zz_w.min()):
+            raise ValueError("i_zz_x.max() == i_zz_x.min() = {} \n plot_dic=\n{}".format(int_zz_w.max(), plot_dict))
+        i_zz_x_w /= i_zz_x_w.max()
+        i_zz_y_w /= i_zz_y_w.max()
+        y1_w, y2_w = pb_w.get_skymap_fwhm(grid_y_w, i_zz_y_w, yc_w)
+        x1_w, x2_w = pb_w.get_skymap_fwhm(grid_x_w, i_zz_x_w, xc_w)
+        if (not (x2_w > x1_w)) and (x2_w != 0) and (x1_w != 0):
+            raise ValueError("kn_w_skymap failed computing width x2={} <= x1={} Should be other way around"
+                             .format(x2_w, x1_w))
+        # if len(tmp["cm"].keys()) > 0: ax.plot(xc_w, yc_w, **tmp["cm"])
+        # if len(tmp["ysize"].keys()) > 0: ax.errorbar([xc_w, xc_w], [y1_w, y2_w],
+        #                                              xerr=[int_x_w.max() / 10, int_x_w.max() / 10], **tmp["ysize"])
+        # if len(tmp["xsize"].keys()) > 0: ax.errorbar([x1_w, x2_w], [yc_w, yc_w],
+        #                                              yerr=[int_y_w.max() / 10, int_y_w.max() / 10], **tmp["xsize"])
+        # # --------------------
+        # if len(tmp["pcolormesh"].keys()) > 0:
+        #     int_zz_w = int_zz_w.T
+        #     int_zz_w[~np.isfinite(int_zz_w)] = 0.
+        #     im = plot_pcolomesh(ax=ax, task_dict=tmp["pcolormesh"], int_x=int_x_w, int_y=int_y_w, int_zz=int_zz_w)
+
+        xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz = \
+            xc_w, yc_w, x1_w, x2_w, y1_w, y2_w, int_x_w, int_y_w, int_zz_w
+        # return (xc_w, yc_w, x1_w, x2_w, y1_w, y2_w, int_x_w, int_y_w, int_zz_w)
+        if (len(kwargs.keys())>0) and ("kn_w_skymap" in kwargs.keys()):
+            return (xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz)
+
+    ''' --- relation --- '''
+    if ("kn_skymap_ratio" in settings.keys()) and len(settings["kn_skymap_ratio"].keys()) > 0:
+        assert (len(settings["kn_skymap"].keys()) > 0)
+        assert (len(settings["kn_w_skymap"].keys()) > 0)
+        tmp = copy.deepcopy(settings["kn_skymap_ratio"])
+        key = "kn_ratio nx={} ny={}".format(tmp["hist_nx"], tmp["hist_ny"])
+        if settings["precompute"]:
+            int_x_w, int_y_w, int_zz, int_zz_w = \
+                pb.get_combained_ej_skymaps_adjusted_to_other(time=time, freq=freq, other_pb_instance=pb_w,
+                                                              nx=tmp["hist_nx"], ny=tmp["hist_ny"])
+            if key in grp.keys():
+                raise KeyError("key: {} already exists: {}".format(key, grp.keys()))
+            kn_adjusted = grp.create_group(key)
+            # kn_adjusted = grp.create_group("kn_adjusted nx={} ny={}".format(tmp["hist_nx"], tmp["hist_ny"]))
+            kn_adjusted.create_dataset("int_x", data=int_x_w)
+            kn_adjusted.create_dataset("int_y", data=int_y_w)
+            kn_adjusted.create_dataset("int_zz", data=int_zz)
+            kn_adjusted.create_dataset("int_zz_w", data=int_zz_w)
+        else:
+            kn_adjusted = grp[key]
+            int_x_w = np.array(np.array(kn_adjusted["int_x"]))
+            int_y_w = np.array(np.array(kn_adjusted["int_y"]))
+            int_zz = np.array(np.array(kn_adjusted["int_zz"]))
+            int_zz_w = np.array(np.array(kn_adjusted["int_zz_w"]))
+        if (int_zz_w.max() == int_zz_w.min()):
+            raise ValueError("i_zz_x.max() == i_zz_x.min() = {} \n plot_dic=\n{}".format(int_zz_w.max(), plot_dict))
+        int_ration = int_zz_w / int_zz
+        int_ration = int_ration.T
+        int_ration[~np.isfinite(int_ration)] = 1.
+
+        # norm = Normalize(int_ration[np.isfinite(int_ration)].min(), int_ration[np.isfinite(int_ration)].max())
+        # # levels = np.geomspace(int_ration[~np.isnan(int_ration)].min(), int_ration[~np.isnan(int_ration)].max(), 50)
+        # cmap = cm.get_cmap('viridis')
+        # int_ration = int_ration.T
+        # int_ration[~np.isfinite(int_ration)] = 0.
+        # im = ax.pcolormesh(int_x_w, int_y_w, int_ration, norm=norm, cmap=cmap, alpha=1.0)
+        # im.set_rasterized(True)
+        # ax.set_facecolor(cmap(0.0))
+
+        # vmin = tmp["pcolormesh"]["vmin"]
+        # vmax = tmp["pcolormesh"]["vmax"]
+        # vcenter = tmp["pcolormesh"]["vcenter"]
+        # levels = MaxNLocator(nbins=40).tick_values(int_ration.min(), int_ration.max())
+        # # levels = MaxNLocator(nbins=40).tick_values(-5, 1)
+        # cmap = plt.get_cmap(tmp["pcolormesh"]["cmap"])
+        # norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
+        # norm = colors.TwoSlopeNorm(vmin=vmin, vcenter=vcenter, vmax=vmax)
+        # # im = aux_ax2.contourf(theta, r, values, levels=np.logspace(np.log10(1e-4),np.log10(1e0),20), cmap=cmap, norm=norm)
+        # # im = aux_ax2.contourf(theta, r, values, levels=np.linspace(val.min(),val.max(),20), cmap=cmap, norm=norm)
+        # im = ax.pcolormesh(int_x_w, int_y_w, int_ration, cmap=cmap, norm=norm, alpha=1.0)
+        # im.set_rasterized(True)
+
+        # im = plot_pcolomesh(ax=ax, task_dict=tmp["pcolormesh"], int_x=int_x_w, int_y=int_y_w, int_zz=int_ration)
+        int_x, int_y, int_zz = \
+            int_x_w, int_y_w, int_ration
+        # return (None, None, None, None, None, None, int_x_w, int_y_w, int_ration)
+        if (len(kwargs.keys())>0) and ("kn_skymap_ratio" in kwargs.keys()):
+            return (xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz)
+
+    return (xc, yc, x1, x2, y1, y2, int_x, int_y, int_zz)
 
 def precompute_skymaps(tasks_to_plot, settings):
     settings["precompute"] = True
@@ -171,6 +567,58 @@ def plot_pcolomesh(ax, task_dict, int_x, int_y, int_zz, outfname=None):
     #     exit(1)
 
     return im
+
+def plot_skymap_with_hists(ax_main, ax_histx, ax_histy, pb, tmp,
+                           grid_x, grid_y,
+                           int_x, int_y,
+                           i_zz_x, i_zz_y, int_zz,
+                           xc, yc):
+    # assert x2 > x1
+    # ax.axvline(x=x1, color='gray', linestyle='dotted')
+    # ax.axvline(x=x2, color='gray', linestyle='dotted')
+    # ax.axvline(x=xcs_m, color='gray', linestyle='solid')
+    if ("cm" in tmp.keys()) and len(tmp["cm"].keys()) > 0:
+        if (not (ax_main is None)): ax_main.plot(xc, yc, **tmp["cm"])
+        if (not (ax_histx is None)): ax_histx.axvline(x=xc, color=tmp["cm"]["color"], linestyle='dashed')
+        if (not (ax_histy is None)): ax_histy.axhline(y=yc, color=tmp["cm"]["color"], linestyle='dashed')
+    if ("ysize" in tmp.keys()) and len(tmp["ysize"].keys()) > 0:
+        if (len(tmp["smooth"].keys()) > 0):
+            i_zz_y = smooth_interpolated_skymap_with_gaussian_kernel(i_zz=i_zz_y, type=tmp["smooth"]["type"],
+                                                                     sigma=tmp["smooth"]["sigma"])
+        y1, y2 = get_skymap_fwhm(grid_y, i_zz_y, yc)
+        if (not (ax_main is None)): ax_main.errorbar([xc, xc], [y1, y2], xerr=[int_x.max() / 10, int_x.max() / 10], **tmp["ysize"])
+        if (not (ax_histy is None)): ax_histy.plot(i_zz_y * 1e3, grid_y, lw=1., ls='-', drawstyle='steps', color=tmp["ysize"]["color"])
+        if (not (ax_histy is None)): ax_histy.axhline(y=y2, color=tmp["ysize"]["color"], linestyle='dotted')
+        if (not (ax_histy is None)): ax_histy.axhline(y=y1, color=tmp["ysize"]["color"], linestyle='dotted')
+    if ("xsize" in tmp.keys()) and len(tmp["xsize"].keys()) > 0:
+        if (len(tmp["smooth"].keys()) > 0):
+            i_zz_x = smooth_interpolated_skymap_with_gaussian_kernel(i_zz=i_zz_x, type=tmp["smooth"]["type"],
+                                                                     sigma=tmp["smooth"]["sigma"])
+        x1, x2 = get_skymap_fwhm(grid_x, i_zz_x, xc)
+        if (not (ax_main is None)): ax_main.errorbar([x1, x2], [yc, yc], yerr=[int_y.max() / 10, int_y.max() / 10], **tmp["xsize"])
+        if (not (ax_histx is None)): ax_histx.plot(grid_x, i_zz_x * 1e3, lw=1., ls='-', drawstyle='steps',
+                                                   color=tmp["xsize"]["color"])  # , color='blue')
+        if (not (ax_histx is None)): ax_histx.axvline(x=x2, color=tmp["xsize"]["color"], linestyle='dotted')
+        if (not (ax_histx is None)): ax_histx.axvline(x=x1, color=tmp["xsize"]["color"], linestyle='dotted')
+    # --------------------
+    # if len(tmp["pcolormesh"].keys()) > 0:
+    #     # levels = np.geomspace(int_ration[~np.isnan(int_ration)].min(), int_ration[~np.isnan(int_ration)].max(), 50)
+    #     int_zz = int_zz.T
+    #     int_zz[~np.isfinite(int_zz)] = 0.
+    #     if (len(tmp["smooth"].keys()) > 0):
+    #         int_zz = pb.smooth_interpolated_skymap_with_gaussian_kernel(i_zz=int_zz, type=tmp["smooth"]["type"], sigma=tmp["smooth"]["sigma"])
+    #     plot_pcolomesh(ax=ax_main, task_dict=tmp["pcolormesh"], int_x=int_x, int_y=int_y, int_zz=int_zz)
+    if ("pcolormesh" in tmp.keys()) and "pcolormesh" in tmp.keys():
+        # levels = np.geomspace(int_ration[~np.isnan(int_ration)].min(), int_ration[~np.isnan(int_ration)].max(), 50)
+        int_zz = int_zz.T
+        int_zz[~np.isfinite(int_zz)] = float(tmp["pcolormesh"]["isnan"])
+        if (len(tmp["smooth"].keys()) > 0):
+            int_zz = smooth_interpolated_skymap_with_gaussian_kernel(i_zz=int_zz, type=tmp["smooth"]["type"])
+        im = plot_pcolomesh(ax=ax_main, task_dict=tmp["pcolormesh"], int_x=int_x, int_y=int_y, int_zz=int_zz, outfname=None)
+        if tmp["pcolormesh"]["set_rasterized"]: ax_main.set_rasterized(im)
+        return im
+
+
 
 def read_precompute_file_get_gals(settings,plot_dict,hashes=None):
     try:
@@ -670,6 +1118,7 @@ def plot_skymaps(tasks_to_plot, settings):
 
             freq = plot_dict["freq"]
             time = plot_dict["time"]
+            workingdir = plot_dict["workingdir"]
 
             hash, s = make_hash(plot_dict, time, freq)            # hash = "ix={} iy={}".format(ix, iy)
             if not hash in hashes: hashes.append(hash)
@@ -696,7 +1145,7 @@ def plot_skymaps(tasks_to_plot, settings):
                     tmp_for_file2(time=time, freq=freq, grp=grp, plot_dict=plot_dict, settings=settings)
 
             ''' ---- plot size/cm of the ejecta ---- '''
-            pb = BPA_METHODS()
+            pb = PyBlastAfterglow()
             pb.res_dir_kn = plot_dict["res_dir_kn"]
             pb.ejecta_prefix = plot_dict["ejecta_prefix1"]
             pb.res_dir_grb = plot_dict["res_dir_grb"]
@@ -1423,55 +1872,7 @@ def plot_skymap_properties_evolution(tasks_to_plot, settings):
     if settings["show_figs"]: plt.show()
 
 
-def _plot_skymap_with_hists(ax_main, ax_histx, ax_histy, pb, tmp,
-                            grid_x, grid_y,
-                            int_x, int_y,
-                            i_zz_x, i_zz_y, int_zz,
-                            xc, yc):
-    # assert x2 > x1
-    # ax.axvline(x=x1, color='gray', linestyle='dotted')
-    # ax.axvline(x=x2, color='gray', linestyle='dotted')
-    # ax.axvline(x=xcs_m, color='gray', linestyle='solid')
-    if ("cm" in tmp.keys()) and len(tmp["cm"].keys()) > 0:
-        if (not (ax_main is None)): ax_main.plot(xc, yc, **tmp["cm"])
-        if (not (ax_histx is None)): ax_histx.axvline(x=xc, color=tmp["cm"]["color"], linestyle='dashed')
-        if (not (ax_histy is None)): ax_histy.axhline(y=yc, color=tmp["cm"]["color"], linestyle='dashed')
-    if ("ysize" in tmp.keys()) and len(tmp["ysize"].keys()) > 0:
-        if (len(tmp["smooth"].keys()) > 0):
-            i_zz_y = smooth_interpolated_skymap_with_gaussian_kernel(i_zz=i_zz_y, type=tmp["smooth"]["type"],
-                                                                        sigma=tmp["smooth"]["sigma"])
-        y1, y2 = get_skymap_fwhm(grid_y, i_zz_y, yc)
-        if (not (ax_main is None)): ax_main.errorbar([xc, xc], [y1, y2], xerr=[int_x.max() / 10, int_x.max() / 10], **tmp["ysize"])
-        if (not (ax_histy is None)): ax_histy.plot(i_zz_y * 1e3, grid_y, lw=1., ls='-', drawstyle='steps', color=tmp["ysize"]["color"])
-        if (not (ax_histy is None)): ax_histy.axhline(y=y2, color=tmp["ysize"]["color"], linestyle='dotted')
-        if (not (ax_histy is None)): ax_histy.axhline(y=y1, color=tmp["ysize"]["color"], linestyle='dotted')
-    if ("xsize" in tmp.keys()) and len(tmp["xsize"].keys()) > 0:
-        if (len(tmp["smooth"].keys()) > 0):
-            i_zz_x = smooth_interpolated_skymap_with_gaussian_kernel(i_zz=i_zz_x, type=tmp["smooth"]["type"],
-                                                                        sigma=tmp["smooth"]["sigma"])
-        x1, x2 = get_skymap_fwhm(grid_x, i_zz_x, xc)
-        if (not (ax_main is None)): ax_main.errorbar([x1, x2], [yc, yc], yerr=[int_y.max() / 10, int_y.max() / 10], **tmp["xsize"])
-        if (not (ax_histx is None)): ax_histx.plot(grid_x, i_zz_x * 1e3, lw=1., ls='-', drawstyle='steps',
-                      color=tmp["xsize"]["color"])  # , color='blue')
-        if (not (ax_histx is None)): ax_histx.axvline(x=x2, color=tmp["xsize"]["color"], linestyle='dotted')
-        if (not (ax_histx is None)): ax_histx.axvline(x=x1, color=tmp["xsize"]["color"], linestyle='dotted')
-    # --------------------
-    # if len(tmp["pcolormesh"].keys()) > 0:
-    #     # levels = np.geomspace(int_ration[~np.isnan(int_ration)].min(), int_ration[~np.isnan(int_ration)].max(), 50)
-    #     int_zz = int_zz.T
-    #     int_zz[~np.isfinite(int_zz)] = 0.
-    #     if (len(tmp["smooth"].keys()) > 0):
-    #         int_zz = pb.smooth_interpolated_skymap_with_gaussian_kernel(i_zz=int_zz, type=tmp["smooth"]["type"], sigma=tmp["smooth"]["sigma"])
-    #     plot_pcolomesh(ax=ax_main, task_dict=tmp["pcolormesh"], int_x=int_x, int_y=int_y, int_zz=int_zz)
-    if ("pcolormesh" in tmp.keys()) and "pcolormesh" in tmp.keys():
-        # levels = np.geomspace(int_ration[~np.isnan(int_ration)].min(), int_ration[~np.isnan(int_ration)].max(), 50)
-        int_zz = int_zz.T
-        int_zz[~np.isfinite(int_zz)] = float(tmp["pcolormesh"]["isnan"])
-        if (len(tmp["smooth"].keys()) > 0):
-            int_zz = smooth_interpolated_skymap_with_gaussian_kernel(i_zz=int_zz, type=tmp["smooth"]["type"])
-        im = plot_pcolomesh(ax=ax_main, task_dict=tmp["pcolormesh"], int_x=int_x, int_y=int_y, int_zz=int_zz, outfname=None)
-        if tmp["pcolormesh"]["set_rasterized"]: ax_main.set_rasterized(im)
-        return im
+
 def plot_one_skymap_with_dists(task_to_plot, settings):
 
     plot_dict = task_to_plot
@@ -1562,7 +1963,7 @@ def plot_one_skymap_with_dists(task_to_plot, settings):
         tmp = copy.deepcopy(settings["kn_skymap"])
         if settings["precompute"]:
             all_x, all_y, all_fluxes \
-                = pb1.KN.get_skymap_old(time=time * cgs.day, freq=freq, verbose=True, remove_mu=True, renormalize=True)
+                = pb1.KN.get_skymap_old(time=time * cgs.day, freq=freq, verbose=True, remove_mu=False, renormalize=False)
 
             # plt.delaxes(ax_main)
             # plt.delaxes(ax_histy)
@@ -1616,9 +2017,9 @@ def plot_one_skymap_with_dists(task_to_plot, settings):
        ))
         # i_zz_x /= i_zz_x.max()
         # i_zz_y /= i_zz_y.max()
-        im = _plot_skymap_with_hists(ax_main, ax_histx, ax_histy, pb1, tmp,
-                                     grid_x, grid_y, int_x, int_y,
-                                     i_zz_x, i_zz_y, int_zz, xc, yc)
+        im = plot_skymap_with_hists(ax_main, ax_histx, ax_histy, pb1, tmp,
+                                    grid_x, grid_y, int_x, int_y,
+                                    i_zz_x, i_zz_y, int_zz, xc, yc)
 
         # y1, y2 = pb.get_skymap_fwhm(grid_y, i_zz_y, yc)
         # x1, x2 = pb.get_skymap_fwhm(grid_x, i_zz_x, xc)
@@ -1712,8 +2113,8 @@ def plot_one_skymap_with_dists(task_to_plot, settings):
             pb1.GRB.get_skymap_totfluxes(freq=freq, time=time*cgs.day),
             xc_m_j
         ))
-        im = _plot_skymap_with_hists(ax_main, ax_histx, ax_histy, pb1, tmp,
-                                     grid_x_j, grid_y_j, int_x_j, int_y_j, i_zz_x_j, i_zz_y_j, int_zz_j, xc_m_j, yc_m_j)
+        im = plot_skymap_with_hists(ax_main, ax_histx, ax_histy, pb1, tmp,
+                                    grid_x_j, grid_y_j, int_x_j, int_y_j, i_zz_x_j, i_zz_y_j, int_zz_j, xc_m_j, yc_m_j)
 
         # x1_j, x2_j = pb.get_skymap_fwhm(grid_x_j, i_zz_x_j, xc_m_j)
         # y1_j, y2_j = pb.get_skymap_fwhm(grid_y_j, i_zz_y_j, yc_m_j)
@@ -1783,8 +2184,8 @@ def plot_one_skymap_with_dists(task_to_plot, settings):
             xc_m_pj = float(grp_kn_plus_grb.attrs["xc"])
             yc_m_pj = float(grp_kn_plus_grb.attrs["yc"])
 
-        im = _plot_skymap_with_hists(ax_main, ax_histx, ax_histy, pb1, tmp,
-                                     grid_x_pj, grid_y_pj, int_x_pj, int_y_pj, i_zz_x_pj, i_zz_y_pj, int_zz_pj, xc_m_pj, yc_m_pj)
+        im = plot_skymap_with_hists(ax_main, ax_histx, ax_histy, pb1, tmp,
+                                    grid_x_pj, grid_y_pj, int_x_pj, int_y_pj, i_zz_x_pj, i_zz_y_pj, int_zz_pj, xc_m_pj, yc_m_pj)
 
         # x1_pj, x2_pj = pb.get_skymap_fwhm(grid_x_pj, i_zz_x_pj, xc_m_pj)
         # y1_pj, y2_pj = pb.get_skymap_fwhm(grid_y_pj, i_zz_y_pj, yc_m_pj)
@@ -2218,3 +2619,4 @@ def plot_one_skymap_with_dists(task_to_plot, settings):
         print(r"Saving:\n{}".format(figname + ".pdf"))
         plt.savefig(figname + ".pdf")
     if settings["show_figs"]: plt.show()
+

@@ -61,6 +61,9 @@ def GamFromMom(mom):
 def BetFromMom(mom):
     return mom / GamFromMom(mom)
 
+
+
+
 def latex_float(f, format="{0:.2g}"):
     float_str = format.format(f)
     if "e" in float_str:

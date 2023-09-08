@@ -7,19 +7,11 @@ import os
 import sys
 import argparse
 
+
+from .utils import *
+
 ''' UNUSED NOT IMPLEMENTED NOT SUPPORTED '''
 
-def get_Beta(Gamma):
-    return (1. / Gamma) * np.sqrt((Gamma - 1.) * (Gamma + 1.))
-
-def MomFromGam(gam):
-    return np.sqrt(gam*gam - 1.)
-
-def GamFromMom(mom):
-    return np.sqrt(1.0+mom*mom)
-
-def BetFromMom(mom):
-    return mom / GamFromMom(mom)
 
 def gauss_eneregy_dist(E_iso_c, theta, theta_c):
     # E_iso_c * np.exp(-0.5 * ( thetas_c[i] * thetas_c[i] / theta_c / theta_c ) )

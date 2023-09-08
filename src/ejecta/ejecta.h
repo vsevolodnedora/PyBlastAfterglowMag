@@ -161,7 +161,7 @@ public:
     }
 
     /// OUTPUT skymap
-    void computeSaveEjectaSkyImagesAnalytic_new(std::string workingdir, std::string fname, Vector times, Vector freqs,
+    void computeSaveEjectaSkyImagesAnalytic_old(std::string workingdir, std::string fname, Vector times, Vector freqs,
                                             StrDbMap & main_pars, StrDbMap & ej_pars){
         if ((!run_bws)&&(!load_dyn))
             return;
@@ -230,7 +230,6 @@ public:
                                              (size_t) getDoublePar("ntheta", ej_pars, AT, p_log, 100, true),
                                              (size_t) getDoublePar("nphi", ej_pars, AT, p_log, 200, true));
                 }
-
                 for (size_t ish = 0; ish < nshells_; ish++) {
                     total_flux_shell[ish][it] = fluxes_shells[ish];
                     tota_flux[it] += fluxes_shells[ish];
@@ -272,6 +271,134 @@ public:
                                                           other_data,other_names,attrs);
 
     }
+    void computeSaveEjectaSkyImagesAnalytic_new(std::string workingdir, std::string fname, Vector times, Vector freqs,
+                                                StrDbMap & main_pars, StrDbMap & ej_pars){
+        if ((!run_bws)&&(!load_dyn))
+            return;
+
+        (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta sky image with analytic synchrotron...\n";
+
+        if (!is_ejecta_anal_synch_computed){
+            std::cerr  << "ejecta analytic electrons were not evolved. Cannot evaluateShycnhrotronSpectrum images (analytic) exiting...\n";
+            std::cerr << AT << " \n";
+            exit(1);
+        }
+        if (!is_ejecta_obs_pars_set){
+            std::cerr<< "ejecta observer parameters are not set. Cannot evaluateShycnhrotronSpectrum image (analytic) exiting...\n";
+            std::cerr << AT << " \n";
+            exit(1);
+        }
+
+        size_t nshells_ = nshells();
+        size_t nlayers_ = nlayers();
+
+        /// for adaptive method: each BW is its own radial shell there, so we split
+        if (id->method_eats==EjectaID2::iadaptive) {
+            nshells_ = nlayers();
+            nlayers_ = 1;
+        }
+
+        /// output container
+        std::vector< // times & freqs
+                std::vector< // v_ns
+                        std::vector< // shells
+                                std::vector<double>>>> // data
+        out {};
+
+        /// allocate the memory the container
+        size_t ii = 0;
+        out.resize(times.size() * freqs.size());
+        for (size_t ifreq = 0; ifreq < freqs.size(); ++ifreq){
+            for (size_t it = 0; it < times.size(); ++it){
+                out[ii].resize(IMG::m_names.size());
+                for (size_t i_vn = 0; i_vn < IMG::m_names.size(); ++i_vn) {
+                    out[ii][i_vn].resize(nshells_);
+                }
+                ii++;
+            }
+        }
+
+        VecVector other_data{
+            times,
+            freqs
+        };
+        std::vector<std::string> other_names { "times", "freqs" };
+
+        ii = 0;
+        for (size_t ifreq = 0; ifreq < freqs.size(); ifreq++){
+            /// allocate space for the fluxes associated with skymaps
+            Vector tota_flux(times.size(), 0.0);
+            Vector xc(times.size(), 0.0);
+            Vector yc(times.size(), 0.0);
+
+
+            VecVector total_flux_shell( nshells_ );
+            for (auto & total_flux_shel : total_flux_shell)
+                total_flux_shel.resize( times.size(), 0.0 );
+
+            /// compute skymaps
+            for (size_t it = 0; it < times.size(); ++it){
+                auto & out_i = out[ii];
+                Vector fluxes_shells( nshells_ );
+                if (id->method_eats==EjectaID2::STUCT_TYPE::ipiecewise) {
+                    computeEjectaSkyMapPW_new(out_i, fluxes_shells, times[it], freqs[ifreq]);
+                }
+                else if (id->method_eats==EjectaID2::STUCT_TYPE::iadaptive) {
+                    computeEjectaSkyMapA_new(out_i, fluxes_shells, times[it], freqs[ifreq],
+                                             (size_t) getDoublePar("ntheta", ej_pars, AT, p_log, 100, true),
+                                             (size_t) getDoublePar("nphi", ej_pars, AT, p_log, 200, true));
+                }
+                for (size_t ish = 0; ish < nshells_; ish++) {
+                    total_flux_shell[ish][it] = fluxes_shells[ish];
+                    tota_flux[it] += fluxes_shells[ish];
+                }
+
+                /// compute flux centroid position
+                xc[it] = weightedAverage(out_i[IMG::Q::ixr], out_i[IMG::Q::iintens]);
+                yc[it] = weightedAverage(out_i[IMG::Q::iyr], out_i[IMG::Q::iintens]);
+
+                ii++;
+            }
+            other_data.emplace_back( tota_flux );
+            other_names.emplace_back( "totalflux at freq="+ string_format("%.4e", freqs[ifreq]) );
+
+            other_data.emplace_back( xc );
+            other_names.emplace_back( "xc at freq="+ string_format("%.4e", freqs[ifreq]) );
+
+            other_data.emplace_back( yc );
+            other_names.emplace_back( "yc at freq="+ string_format("%.4e", freqs[ifreq]) );
+
+            for (size_t ish = 0; ish < nshells_; ish++){
+                other_data.emplace_back( total_flux_shell[ish] );
+                other_names.emplace_back( "totalflux at freq="+ string_format("%.4e", freqs[ifreq]) + " shell=" + string_format("%d", ish));
+            }
+        }
+
+        std::vector<std::string> group_names{};
+        for (size_t ifreq = 0; ifreq < freqs.size(); ifreq++){
+            for (size_t it = 0; it < times.size(); it++){
+                group_names.emplace_back("time=" +  string_format("%.4e",times[it])  //std::to_string(times[it])
+                                         + " freq=" + string_format("%.4e",freqs[ifreq])); //std::to_string(freqs[ifreq]));
+            }
+        }
+
+        auto in_group_names = IMG::m_names;//dummy.m_names;
+
+        /// add attributes from model parameters
+        std::unordered_map<std::string,double> attrs{
+                {"nshells", nshells_},
+                {"nlayers", nlayers_}
+        };
+
+        for (auto& [key, value]: main_pars) { attrs[key] = value; }
+        for (auto& [key, value]: ej_pars) { attrs[key] = value; }
+
+        p_out->VectorOfTablesAsGroupsAndVectorOfVectorsH5(workingdir+fname,out,group_names,
+                                                          in_group_names,
+                                                          other_data,other_names,attrs);
+
+    }
+
 
     /// OUTPUT spectrum
     void computeSaveEjectaSpectrum(std::string workingdir,std::string fname, std::string fname_shells_layers,

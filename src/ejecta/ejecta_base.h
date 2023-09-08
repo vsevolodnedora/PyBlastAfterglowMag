@@ -20,6 +20,11 @@
 //#include "../blastwave/blastwave_collision.h"
 #include "ejecta_cumshell.h"
 
+struct ImageExtend{
+    double xmin = std::numeric_limits<double>::max(), ymin = std::numeric_limits<double>::max();
+    double xmax = std::numeric_limits<double>::min(), ymax = std::numeric_limits<double>::min();
+};
+
 /// Radially/Angular structured Blastwave collection
 class EjectaBase{
     std::unique_ptr<logger> p_log = nullptr;
@@ -482,7 +487,7 @@ public:
     }
 
     /// Compute Skymap for piece-wise EATS
-    void computeEjectaSkyMapPW_new(std::vector<VecVector> & out, Vector & fluxes, double obs_time, double obs_freq ){
+    ImageExtend computeEjectaSkyMapPW_new(std::vector<VecVector> & out, Vector & fluxes, double obs_time, double obs_freq ){
         /// out is [i_vn][ish][itheta_iphi]
         size_t nshells_ = nshells();
         size_t nlayers_ = nlayers();
@@ -501,6 +506,7 @@ public:
                 out[ivn][ish].resize(2 * ncells_, 0. );
 
 
+        ImageExtend im{};
         size_t n_jet_empty_images = 0;
         for (size_t ishell = 0; ishell < nshells_; ishell++){
             std::vector<size_t> n_empty_images_layer;
@@ -518,11 +524,39 @@ public:
                 fluxes[ishell] += flux;
                 offset += cil;
             }
+
+            /// find the image extend for this shell
+            double xmin = std::numeric_limits<double>::max(), xmax = std::numeric_limits<double>::min();
+            double ymin = std::numeric_limits<double>::max(), ymax = std::numeric_limits<double>::min();
+            double imin = std::numeric_limits<double>::max(), imax = std::numeric_limits<double>::min();
+            for (size_t i = 0; i < 2 * ncells_; i++){
+                if (out[IMG::Q::ixr][ishell][i] < xmin) xmin = out[IMG::Q::ixr][ishell][i];
+                if (out[IMG::Q::ixr][ishell][i] > xmax) xmax = out[IMG::Q::ixr][ishell][i];
+                if (out[IMG::Q::iyr][ishell][i] < ymin) ymin = out[IMG::Q::iyr][ishell][i];
+                if (out[IMG::Q::iyr][ishell][i] > ymax) ymax = out[IMG::Q::iyr][ishell][i];
+                if (out[IMG::Q::iintens][ishell][i] < imin) imin = out[IMG::Q::iintens][ishell][i];
+                if (out[IMG::Q::iintens][ishell][i] > imax) imax = out[IMG::Q::iintens][ishell][i];
+            }
+
+            /// normalize image to be mJy/mas^2
+            double delta_x = xmax - xmin;
+            double delta_y = ymax - ymin;
+            double dfnu = fluxes[ishell] / (delta_x * delta_y);
+            for (size_t i = 0; i < 2 * ncells_; i++){
+                out[IMG::Q::iintens][ishell][i] *= (dfnu / imax);
+            }
+
+            /// update image boundaries for overall image
+            if (xmin < im.xmin) im.xmin = xmin;
+            if (ymin < im.ymin) im.ymin = ymin;
+            if (xmax > im.xmax) im.xmax = xmax;
+            if (ymax > im.ymax) im.ymax = ymax;
         }
+        return im;
     }
 
     /// Compute Skymap for adaptive EATS
-    void computeEjectaSkyMapA_new(std::vector<VecVector> & out, Vector & fluxes, double obs_time, double obs_freq, size_t nsublayers, size_t nphi ){
+    ImageExtend computeEjectaSkyMapA_new(std::vector<VecVector> & out, Vector & fluxes, double obs_time, double obs_freq, size_t nsublayers, size_t nphi ){
 
         /// out is [i_vn][ish][itheta_iphi]
 
@@ -543,9 +577,14 @@ public:
         (*p_log)(LOG_INFO,AT)
                 << " With nlayers=" << nlayers_ << " nsublayers=" << nsublayers << " ncells=" << ncells << "\n";
 
+        /// resize or empty the contaner for temporary solution
         for (size_t ivn = 0; ivn < IMG::m_names.size(); ivn++) {
             for (size_t ish = 0; ish < nlayers_; ish++) {
-                out[ivn][ish].resize(2 * ncells);
+//                if (out[ivn][ish].size() != 2 * ncells)
+                out[ivn][ish].resize(2 * ncells, 0.);
+//                else{
+//                    std::fill(out[ivn][ish].begin(), out[ivn][ish].end(), 0.0);
+//                }
             }
         }
 
@@ -582,17 +621,6 @@ public:
         /// make an interpolator for sublayers (for a given ctheta -> get flux)
 //        auto interp = Interp1d(id->getVec(0,EjectaID2::Q::itheta_c_l), fluxes);
 
-
-
-//        Vector theta_pw (nlayers_total + 1 );
-//        for (size_t i = 0; i < nlayers_total + 1; i++){
-//            double fac = (double) i / (double)nlayers_total;
-//            theta_pw[i] = 2.0 * std::asin( fac * std::sin(th_jet_max / 2.0 ) );
-//        }
-//        Vector cthetas (nlayers_total );
-//        for (size_t i = 0; i < nlayers_total; i++)
-//            cthetas[i] = theta_pw[i] + (theta_pw[i+1] - theta_pw[i]) * 0.5;
-
         Vector theta_pw (nsublayers + 1 );
         for (size_t i = 0; i < nsublayers + 1; i++){
             double fac = (double) i / (double)nsublayers;
@@ -602,14 +630,18 @@ public:
         for (size_t i = 0; i < nsublayers; i++)
             cthetas[i] = theta_pw[i] + (theta_pw[i+1] - theta_pw[i]) * 0.5;
 
+        ImageExtend im{};
 
         for (size_t ilayer = 0; ilayer < nlayers_; ++ilayer){
 
             auto & bw_rad = p_cumShells[ilayer]->getBW(0)->getFsEATS();
 
             size_t iii = 0;
-            double max_int = 0.; double layer_summed_intensity = 0;
+            double layer_summed_intensity = 0;
             /// loop for all thetas from 0 to overall theta_edge # TODO see if you can just do it until current theta_edge
+
+
+
             for (size_t ith = 0; ith < nsublayers; ith++){
                 size_t cil = EjectaID2::CellsInLayer_(ith);
 
@@ -628,35 +660,46 @@ public:
                 layer_summed_intensity += bw_rad->evalSkyMapA(out, obs_time, obs_freq, ilayer, iii, cil, ncells);
                 iii = iii + cil;
             }
-//            if (layer_summed_intensity == 0){
-////                (*p_log)(LOG_ERR,AT) << " layer_summed_intensity="<<layer_summed_intensity
-////                                     << " layer="<<ilayer<<" (sublayers="<<nsublayers<<") th_b_layers[ilayer]="<< th_b_layers[ilayer]
-////                                     << " cthetas[0] = "<<cthetas[ii-1-nsublayers]
-////                                     << " cthetas[-1] = "<< cthetas[ii-1] << "\n";
-//                exit(1);
-//            }
 
-            /// find maximum intensity
+            /// normalize the skymap
             double total_int = 0.;
+            double xmin = std::numeric_limits<double>::max(), xmax = std::numeric_limits<double>::min();
+            double ymin = std::numeric_limits<double>::max(), ymax = std::numeric_limits<double>::min();
+            double max_int = std::numeric_limits<double>::min();
             for (size_t i = 0; i < 2 * ncells; i++){
+                if (out[IMG::Q::ixr][ilayer][i] < xmin) xmin = out[IMG::Q::ixr][ilayer][i];
+                if (out[IMG::Q::ixr][ilayer][i] > xmax) xmax = out[IMG::Q::ixr][ilayer][i];
+                if (out[IMG::Q::iyr][ilayer][i] < ymin) ymin = out[IMG::Q::iyr][ilayer][i];
+                if (out[IMG::Q::iyr][ilayer][i] > ymax) ymax = out[IMG::Q::iyr][ilayer][i];
+
                 total_int += out[IMG::Q::iintens][ilayer][i];
                 if (max_int < out[IMG::Q::iintens][ilayer][i])
                     max_int = out[IMG::Q::iintens][ilayer][i];
             }
 
-//            if (total_int <= 0 || !std::isfinite(total_int)){
-////                (*p_log)(LOG_ERR,AT) << " total intensity is"<<total_int
-////                    <<" layer="<<ilayer<<" (sublayers="<<nsublayers<<") th_b_layers[ilayer]="<< th_b_layers[ilayer]
-////                    <<" cthetas[0] = "<<cthetas[ii-1-nsublayers] << "cthetas[-1] = "<< cthetas[ii-1] << "\n";
-//                exit(1);
-//            }
-
-            ///  normalize for maximum intensity
-//            double flux_at_theta = interp.Interpolate(cthetas[ith], Interp1d::METHODS::iLagrangeLinear);
-            for (size_t i = 0; i < 2 * ncells; i++) {
-                out[IMG::Q::iintens][ilayer][i] = out[IMG::Q::iintens][ilayer][i] / max_int * fluxes[ilayer];
+            if (xmax == xmin){
+                (*p_log)(LOG_ERR,AT)<<" xmin=xmax="<<xmin<<"\n";
+                exit(1);
             }
+            if (ymax == ymin){
+                (*p_log)(LOG_ERR,AT)<<" ymin=ymax="<<ymin<<"\n";
+                exit(1);
+            }
+            double delta_x = xmax - xmin;
+            double delta_y = ymax - ymin;
+
+            double d_l = p_cumShells[ilayer]->getBW(0)->getPars()->d_l;
+            for (size_t i = 0; i < 2 * ncells; i++) {
+                out[IMG::Q::iintens][ilayer][i] = out[IMG::Q::iintens][ilayer][i] / max_int * fluxes[ilayer] / delta_x / delta_y;// / (delta_x * CGS::rad2mas * delta_y * CGS::rad2mas) * d_l * d_l;
+            }
+
+            /// update image boundaries for overall image
+//            if (xmin < im.xmin) im.xmin = xmin;
+//            if (ymin < im.ymin) im.ymin = ymin;
+//            if (xmax > im.xmax) im.xmax = xmax;
+//            if (ymax > im.ymax) im.ymax = ymax;
         }
+        return im;
     }
 
     /// Compute lightcurve for piece-wise EATS

@@ -49,6 +49,7 @@ inline namespace CGS{
     const double &M_PRO = 1.0/6.02e23; /* atomic mass in unit of [g] */
     const double &MeC2 = 8.1871398e-7; // in unit of [erg]
     const double &GAMMA13 = 2.67893; /* Gamma(1/3) */
+    const double &rad2mas = 206264806.247; // radians to milli-arcseconds
 };
 
 namespace TOOLS{
@@ -520,6 +521,109 @@ static void print_x_as_numpy(T & x_arr, int ever_i, std::string name="x_arr", st
     std::cout << "]) \n";
 }
 
+/// compute weighted average
+double weightedAverage(VecVector & xs, VecVector & intensity){
+    double _num = 0;
+    double _denum = 0;
+    for (size_t i = 0; i < xs.size(); i++){
+        for (size_t j = 0; j < xs[0].size(); j++){
+            _num += xs[i][j] * intensity[i][j];
+            _denum += intensity[i][j];
+        }
+    }
+    return _num / _denum;
+}
+
+struct Bin {
+    double x_center;
+    double y_center;
+    double value_sum;
+    int count;
+};
+
+std::vector<std::vector<Bin>> create2DHistogram(
+        const std::vector<double>& x,
+        const std::vector<double>& y,
+        const std::vector<double>& f,
+        double x_min, double x_max, int x_bins,
+        double y_min, double y_max, int y_bins
+) {
+    // Initialize the 2D histogram bins
+    std::vector<std::vector<Bin>> histogram(x_bins, std::vector<Bin>(y_bins));
+
+    // Setup bin properties
+    double x_bin_width = (x_max - x_min) / x_bins;
+    double y_bin_width = (y_max - y_min) / y_bins;
+
+    for (int i = 0; i < x_bins; ++i) {
+        for (int j = 0; j < y_bins; ++j) {
+            histogram[i][j].x_center = x_min + (i + 0.5) * x_bin_width;
+            histogram[i][j].y_center = y_min + (j + 0.5) * y_bin_width;
+            histogram[i][j].value_sum = 0.0;
+            histogram[i][j].count = 0;
+        }
+    }
+
+    // Fill the 2D histogram
+    for (size_t i = 0; i < x.size(); ++i) {
+        int x_bin = (x[i] - x_min) / x_bin_width;
+        int y_bin = (y[i] - y_min) / y_bin_width;
+
+        if (x_bin >= 0 && x_bin < x_bins && y_bin >= 0 && y_bin < y_bins) {
+            histogram[x_bin][y_bin].value_sum += f[i];
+            histogram[x_bin][y_bin].count++;
+        }
+    }
+
+    // Now you can either leave the bins as sums, or convert them to averages by dividing with count
+    // depending on your requirements.
+    for (int i = 0; i < x_bins; ++i) {
+        for (int j = 0; j < y_bins; ++j) {
+            if (histogram[i][j].count != 0) {
+                histogram[i][j].value_sum /= histogram[i][j].count;
+            }
+        }
+    }
+
+    return histogram;
+}
+
+std::vector<std::vector<double>> create2DHistogram2(
+        const std::vector<double>& x,
+        const std::vector<double>& y,
+        const std::vector<double>& f,
+        double x_min, double x_max, int x_bins,
+        double y_min, double y_max, int y_bins
+) {
+    // Initialize the 2D histogram
+    std::vector<std::vector<double>> histogram(x_bins, std::vector<double>(y_bins, 0.0));
+    std::vector<std::vector<int>> counts(x_bins, std::vector<int>(y_bins, 0));
+
+    double x_bin_width = (x_max - x_min) / x_bins;
+    double y_bin_width = (y_max - y_min) / y_bins;
+
+    // Fill the 2D histogram
+    for (size_t i = 0; i < x.size(); ++i) {
+        int x_bin = (x[i] - x_min) / x_bin_width;
+        int y_bin = (y[i] - y_min) / y_bin_width;
+
+        if ((x_bin >= 0) && (x_bin < x_bins) && (y_bin >= 0) && (y_bin < y_bins)) {
+            histogram[x_bin][y_bin] += f[i];
+            counts[x_bin][y_bin]++;
+        }
+    }
+
+    // Convert sums to averages
+    for (int i = 0; i < x_bins; ++i) {
+        for (int j = 0; j < y_bins; ++j) {
+            if (counts[i][j] != 0) {
+                histogram[i][j] /= counts[i][j];
+            }
+        }
+    }
+
+    return histogram;
+}
 
 struct Output{
 private:

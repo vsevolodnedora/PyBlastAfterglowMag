@@ -204,6 +204,7 @@ class EATS{
 
             /// set synchrotron parameters
 //            p_syna->setPars(pars, opts);
+            skymap_remove_mu = getBoolOpt("skymap_remove_mu", opts, AT, p_log,true, true);
 
         }
         void updateObsPars(StrDbMap & pars){
@@ -220,6 +221,7 @@ class EATS{
         double theta_w = -1.;
         double theta_max=-1.;
         bool use_t_e = false;
+        bool skymap_remove_mu = false;
         double z{}, d_l{}, nu_obs{}, t_obs{}, theta_obs{};
         double (* obsangle)(const double &, const double &, const double &) = nullptr;
         double (* im_xxs)( const double &, const double &, const double & ) = nullptr;
@@ -567,13 +569,21 @@ public:
             }
             /// save data in container
             if (save_im) {
-                out[IMG::Q::iintens][p_pars->ishell][offset + i] = flux_dens / (r[i] * r[i] * std::abs(mu[i])) * CGS::cgs2mJy;
+                out[IMG::Q::iintens][p_pars->ishell][offset + i] = flux_dens / (r[i] * r[i]) * CGS::cgs2mJy;
                 out[IMG::Q::ixr][p_pars->ishell][offset + i] = r[i] * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
                 out[IMG::Q::iyr][p_pars->ishell][offset + i] = r[i] * im_yys(ctheta, phi_cell, p_pars->theta_obs);
                 out[IMG::Q::ir][p_pars->ishell][offset + i] = r[i];
                 out[IMG::Q::ictheta][p_pars->ishell][offset + i] = ctheta_cell;
                 out[IMG::Q::icphi][p_pars->ishell][offset + i] = phi_cell;
                 out[IMG::Q::imu][p_pars->ishell][offset + i] = mu[i];
+
+                if (!p_pars->skymap_remove_mu)
+                    out[IMG::Q::iintens][p_pars->ishell][offset + i] /= std::abs(mu[i]);
+
+                /// convert to mas
+                out[IMG::Q::ixr][p_pars->ishell][offset + i] *= (CGS::rad2mas / p_pars->d_l);
+                out[IMG::Q::iyr][p_pars->ishell][offset + i] *= (CGS::rad2mas / p_pars->d_l);
+                out[IMG::Q::iintens][p_pars->ishell][offset + i] *= (p_pars->d_l * p_pars->d_l / CGS::rad2mas / CGS::rad2mas);
             }
             tot_flux += flux_dens;
         }
@@ -638,7 +648,7 @@ public:
                 // ---
                 out[IMG::Q::ictheta][il][ii_ofset+ii] = cth;
                 out[IMG::Q::icphi][il][ii_ofset+ii] = cphi;
-                out[IMG::Q::iintens][il][ii_ofset+ii] = intensity * Fcoeff*  dtheta * dphi;// / (r * r * std::abs(mu));//* CGS::cgs2mJy;
+                out[IMG::Q::iintens][il][ii_ofset+ii] = intensity * Fcoeff *  dtheta * dphi;// / (r * r * std::abs(mu));//* CGS::cgs2mJy;
                 out[IMG::Q::ir][il][ii_ofset+ii] = r;
                 out[IMG::Q::ixr][il][ii_ofset+ii] = x;
                 out[IMG::Q::iyr][il][ii_ofset+ii] = y;
@@ -686,8 +696,6 @@ public:
 
         double summed_intensity = 0;
         double Fcoeff = cgs2mJy / (4. * M_PI * p_pars->d_l * p_pars->d_l);
-        double xmin = std::numeric_limits<double>::max(), xmax = std::numeric_limits<double>::min();
-        double ymin = std::numeric_limits<double>::max(), ymax = std::numeric_limits<double>::min();
 
 //        size_t cill = out[IMG::Q::ictheta][il].size() / 2;
         size_t _i = 0;
@@ -712,20 +720,28 @@ public:
             double x = r * im_xxs(cth, cphi, p_pars->theta_obs);
             double y = r * im_yys(cth, cphi, p_pars->theta_obs);
 
-            out[IMG::Q::iintens][il][offset + iphi] = intensity * Fcoeff;// / (r * r * std::abs(mu));//* CGS::cgs2mJy;
+            out[IMG::Q::iintens][il][offset + iphi] = intensity;// * Fcoeff / (r * r * std::abs(mu));//* CGS::cgs2mJy;
             out[IMG::Q::ir][il][offset + iphi] = r;
             out[IMG::Q::ixr][il][offset + iphi] = x;
             out[IMG::Q::iyr][il][offset + iphi] = y;
             out[IMG::Q::imu][il][offset + iphi] = mu;
             summed_intensity += out[IMG::Q::iintens][il][offset + iphi];
 
+//            if (!p_pars->skymap_remove_mu)
+//                out[IMG::Q::iintens][p_pars->ishell][offset + iphi] /= std::abs(mu);
+
+            /// convert to mas
+            out[IMG::Q::ixr][il][offset + iphi] *= (CGS::rad2mas / p_pars->d_l);
+            out[IMG::Q::iyr][il][offset + iphi] *= (CGS::rad2mas / p_pars->d_l);
+            out[IMG::Q::iintens][il][offset + iphi] *= (p_pars->d_l * p_pars->d_l / CGS::rad2mas / CGS::rad2mas);
         }
-        if (_i == 0){
-            (*p_log)(LOG_ERR,AT) << " error, no intensity collected from il="<<il
-            <<" ctheta1="<<out[IMG::Q::ictheta][il][offset + cil - 1]
-            <<" th_b_last="<<th_b
-            <<"\n";
-        }
+//        if (_i == 0){
+//            (*p_log)(LOG_ERR,AT) << " error, no intensity collected from il="<<il
+//            <<" ctheta1="<<out[IMG::Q::ictheta][il][offset + cil - 1]
+//            <<" th_b_last="<<th_b
+//            <<"\n";
+//        }
+
         return summed_intensity;
     }
 
