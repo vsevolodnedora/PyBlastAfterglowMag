@@ -351,7 +351,7 @@ public:
     }
 
     /// evaluate intensity/flux density distribution using piece-wise summation
-    double evalSkyMapPW(std::vector<VecVector> & out, double obs_time, double obs_freq, size_t offset){
+    double evalSkyMapPW(VecVector & out, double obs_time, double obs_freq, size_t offset){
         double flux_pj=0., flux_cj=0.;
         flux_pj = evalSkyMapPW(out, obs_time, obs_freq, offset,
                                obsAngle, imageXXs, imageYYs);
@@ -373,7 +373,7 @@ public:
         return (int_pj+int_cj);
     }
     /// evaluate intensity/flux density distribution using adaptive summation
-    double evalSkyMapA(std::vector<VecVector> & out, double obs_time, double obs_freq, size_t il, size_t offset, size_t cil, size_t ncells){
+    double evalSkyMapA(VecVector & out, double obs_time, double obs_freq, size_t il, size_t offset, size_t cil, size_t ncells){
         /// evaluateShycnhrotronSpectrum image for primary jet and counter jet
         double int_pj=0., int_cj=0.;
         int_pj = evalSkyMapA(out, obs_time, obs_freq, il, offset, cil, obsAngle, imageXXs, imageYYs);
@@ -459,7 +459,7 @@ public:
 //        return r;
     }
 
-    double evalSkyMapPW(std::vector<VecVector> & out, double obs_time, double obs_freq, size_t offset,
+    double evalSkyMapPW(VecVector & out, double obs_time, double obs_freq, size_t offset,
                         double (*obs_angle)( const double &, const double &, const double & ),
                         double (*im_xxs)( const double &, const double &, const double & ),
                         double (*im_yys)( const double &, const double &, const double & )){
@@ -569,21 +569,21 @@ public:
             }
             /// save data in container
             if (save_im) {
-                out[IMG::Q::iintens][p_pars->ishell][offset + i] = flux_dens / (r[i] * r[i]) * CGS::cgs2mJy;
-                out[IMG::Q::ixr][p_pars->ishell][offset + i] = r[i] * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
-                out[IMG::Q::iyr][p_pars->ishell][offset + i] = r[i] * im_yys(ctheta, phi_cell, p_pars->theta_obs);
-                out[IMG::Q::ir][p_pars->ishell][offset + i] = r[i];
-                out[IMG::Q::ictheta][p_pars->ishell][offset + i] = ctheta_cell;
-                out[IMG::Q::icphi][p_pars->ishell][offset + i] = phi_cell;
-                out[IMG::Q::imu][p_pars->ishell][offset + i] = mu[i];
+                out[IMG::Q::iintens][offset + i] = flux_dens / (r[i] * r[i]) * CGS::cgs2mJy;
+                out[IMG::Q::ixr][offset + i] = r[i] * im_xxs(ctheta, phi_cell, p_pars->theta_obs);
+                out[IMG::Q::iyr][offset + i] = r[i] * im_yys(ctheta, phi_cell, p_pars->theta_obs);
+                out[IMG::Q::ir][offset + i] = r[i];
+                out[IMG::Q::ictheta][offset + i] = ctheta_cell;
+                out[IMG::Q::icphi][offset + i] = phi_cell;
+                out[IMG::Q::imu][offset + i] = mu[i];
 
                 if (!p_pars->skymap_remove_mu)
-                    out[IMG::Q::iintens][p_pars->ishell][offset + i] /= std::abs(mu[i]);
+                    out[IMG::Q::iintens][offset + i] /= std::abs(mu[i]);
 
                 /// convert to mas
-                out[IMG::Q::ixr][p_pars->ishell][offset + i] *= (CGS::rad2mas / p_pars->d_l);
-                out[IMG::Q::iyr][p_pars->ishell][offset + i] *= (CGS::rad2mas / p_pars->d_l);
-                out[IMG::Q::iintens][p_pars->ishell][offset + i] *= (p_pars->d_l * p_pars->d_l / CGS::rad2mas / CGS::rad2mas);
+                out[IMG::Q::ixr][offset + i] *= (CGS::rad2mas / p_pars->d_l);
+                out[IMG::Q::iyr][offset + i] *= (CGS::rad2mas / p_pars->d_l);
+                out[IMG::Q::iintens][offset + i] *= (p_pars->d_l * p_pars->d_l / CGS::rad2mas / CGS::rad2mas);
             }
             tot_flux += flux_dens;
         }
@@ -676,7 +676,7 @@ public:
         return summed_intensity;
     }
 
-    double evalSkyMapA(std::vector<VecVector> & out, double obs_time, double obs_freq,
+    double evalSkyMapA(VecVector & out, double obs_time, double obs_freq,
                        size_t il, size_t offset, size_t cil,
                        double (*obs_angle)( const double &, const double &, const double & ),
                        double (*im_xxs)( const double &, const double &, const double & ),
@@ -701,8 +701,8 @@ public:
         size_t _i = 0;
         double th_b = 0; double th_a = 0;
         for (size_t iphi = 0; iphi < cil; iphi++) {
-            double cth = out[IMG::Q::ictheta][il][offset + iphi];
-            double cphi = out[IMG::Q::icphi][il][offset + iphi];
+            double cth = out[IMG::Q::ictheta][offset + iphi];
+            double cphi = out[IMG::Q::icphi][offset + iphi];
 
             // if jet is spreading, compute the upper boundary of the jet
             th_b = find_jet_edge(cphi, p_pars->theta_obs, //p_pars->cos_theta_obs, p_pars->sin_theta_obs,
@@ -720,20 +720,20 @@ public:
             double x = r * im_xxs(cth, cphi, p_pars->theta_obs);
             double y = r * im_yys(cth, cphi, p_pars->theta_obs);
 
-            out[IMG::Q::iintens][il][offset + iphi] = intensity;// * Fcoeff / (r * r * std::abs(mu));//* CGS::cgs2mJy;
-            out[IMG::Q::ir][il][offset + iphi] = r;
-            out[IMG::Q::ixr][il][offset + iphi] = x;
-            out[IMG::Q::iyr][il][offset + iphi] = y;
-            out[IMG::Q::imu][il][offset + iphi] = mu;
-            summed_intensity += out[IMG::Q::iintens][il][offset + iphi];
+            out[IMG::Q::iintens][offset + iphi] = intensity;// / (r * r * std::abs(mu));//* CGS::cgs2mJy;
+            out[IMG::Q::ir][offset + iphi] = r;
+            out[IMG::Q::ixr][offset + iphi] = x;
+            out[IMG::Q::iyr][offset + iphi] = y;
+            out[IMG::Q::imu][offset + iphi] = mu;
+            summed_intensity += out[IMG::Q::iintens][offset + iphi];
 
 //            if (!p_pars->skymap_remove_mu)
 //                out[IMG::Q::iintens][p_pars->ishell][offset + iphi] /= std::abs(mu);
 
             /// convert to mas
-            out[IMG::Q::ixr][il][offset + iphi] *= (CGS::rad2mas / p_pars->d_l);
-            out[IMG::Q::iyr][il][offset + iphi] *= (CGS::rad2mas / p_pars->d_l);
-            out[IMG::Q::iintens][il][offset + iphi] *= (p_pars->d_l * p_pars->d_l / CGS::rad2mas / CGS::rad2mas);
+            out[IMG::Q::ixr][offset + iphi] *= (CGS::rad2mas / p_pars->d_l);
+            out[IMG::Q::iyr][offset + iphi] *= (CGS::rad2mas / p_pars->d_l);
+            out[IMG::Q::iintens][offset + iphi] *= (p_pars->d_l * p_pars->d_l / CGS::rad2mas / CGS::rad2mas);
         }
 //        if (_i == 0){
 //            (*p_log)(LOG_ERR,AT) << " error, no intensity collected from il="<<il
@@ -942,7 +942,7 @@ public:
     /// eval light curve using Adapitve or Piece-Wise EATS method
     void evalLightCurve(Vector & out, EjectaID2::STUCT_TYPE m_method_eats, Vector & times, Vector & freqs ){
         double rtol = 1e-10;
-        std::vector<VecVector> empty{};
+        VecVector empty{};
         for (size_t it = 0; it < times.size(); it++) {
             if (m_method_eats == EjectaID2::STUCT_TYPE::ipiecewise)
                 out[it] = evalSkyMapPW(empty, times[it], freqs[it], 0);

@@ -1014,11 +1014,18 @@ public:
 //            arr[i][j] = new int[Z];
 //    }
 
+        /// /// output container
+        //        std::vector< // times & freqs
+        //                std::vector< // v_ns
+        //                        std::vector< // shells
+        //                                std::vector<double>>>> // data
+        //        out {};
+
         for (size_t id = 0; id < n_entries; ++id){
             H5::Group grp(file.createGroup(group_names_tables[id]));
             for (size_t iv = 0; iv < group_data[id].size(); iv++){
                 size_t nrow = group_data[id][iv].size();
-                size_t ncol = group_data[id][iv][0].size();
+                size_t ncol = group_data[id][iv][0].size(); /// ncoll is now different for each row
 
 //            auto** varray = new double*[nrow];
 //            for(int i = 0; i < nrow; ++i)

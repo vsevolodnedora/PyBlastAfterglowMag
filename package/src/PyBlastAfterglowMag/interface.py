@@ -662,7 +662,7 @@ class Ejecta(Base):
         return (int_x, int_y, int_zz)
 
 
-    def get_skymap_old(self, time=None, freq=None, ishell=None, verbose=False, remove_mu=False, renormalize=True, normtype="pw"):
+    def TOREMOVE_get_skymap_old(self, time=None, freq=None, ishell=None, verbose=False, remove_mu=False, renormalize=True, normtype="pw"):
 
         # nx = 200
         # ny = 100
@@ -1137,7 +1137,7 @@ class Ejecta(Base):
         else:
             raise NotImplementedError("Not implemented")
 
-    def get_skymap(self, time, freq, verbose=False, remove_mu=False, renormalize=True, normtype="pw", remove_zeros=True, return_sph_coords=False):
+    def TOREMOVE_get_skymap(self, time, freq, verbose=False, remove_zeros=True, return_sph_coords=False):
         times = self.get_skymap_times()
         freqs = self.get_skymap_freqs()
         dfile = self.get_skymap_obj()
@@ -1149,23 +1149,16 @@ class Ejecta(Base):
         if ((not freq is None) and (not freq in freqs)):
             raise ValueError("freq={} is not in the list for skypams={}".format(freq, freqs))
 
-
         ddfile = dfile["time={:.4e} freq={:.4e}".format(time, freq)]
         i_shells = []
 
         # loop over shells and get shells with sum(int)>0
         for ish in range(nshells):
-            xrs_i = np.array(ddfile["xrs"][ish])# * cgs.rad2mas / d_l  # m -> mas
-            yrs_i = np.array(ddfile["yrs"][ish])# * cgs.rad2mas / d_l  # m -> mas
-            rrs = np.array(ddfile["r"][ish])# * cgs.rad2mas / d_l  # m -> mas
-            int_i = np.array(ddfile["intensity"][ish])# * (d_l ** 2 / cgs.rad2mas ** 2)  # -> mJy / mas^2
-
-            sumi = np.sum(int_i)
+            sumi = np.sum(np.array(ddfile["intensity"][ish]))
             if (sumi == 0):
                 if verbose:
                     print(f"Skipping empty sum(intensity)=0 shell ish={ish}")
                 continue
-
             i_shells.append(ish)
 
         ncells = []
@@ -1183,9 +1176,6 @@ class Ejecta(Base):
             cphi_i = np.array(ddfile["cphi"][ish])
             r_i = np.array(ddfile["r"][ish])
 
-            if remove_mu:
-                int_i *= abs( mu_i ) # TODO I was produced as F / (R^2 abs(mu)), where abs(mu)->0 and I->inf. Problem!!!
-
             all_xrs.append(xrs_i)
             all_yrs.append(yrs_i)
             all_zz.append(int_i)
@@ -1198,61 +1188,6 @@ class Ejecta(Base):
             ncells.append( int(len(xrs_i) / 2) )
             if (len(xrs_i) % 2 > 0):
                 raise ValueError(f"len(xrs) is expected to be even (2*ncells). Got={len(xrs_i)}")
-        # Problem: changing nlayers changes the image/image, Fnu per pixel; Solution:
-        if (renormalize and normtype=="pw"):
-            print("Renormalizing ejecta skymap (shell by shell separately)")
-            fnus_tot = np.zeros_like(self.get_skymap_times())
-            for i, i_ish in enumerate(i_shells):
-                fnus = self.get_skymap_totfluxes(freq=freq, shell=i_ish)
-                fnu = fnus[find_nearest_index(self.get_skymap_times(), time)]
-                all_fluxes_arr = np.array(all_zz[i])
-                delta_x = np.array(all_xrs[i]).max() - np.array(all_xrs[i]).min()
-                delta_y = np.array(all_yrs[i]).max() - np.array(all_yrs[i]).min()
-                dfnu = fnu / (delta_x * delta_y)
-                if (~np.isfinite(dfnu)):
-                    for i, val in enumerate(np.array(all_yrs[i])):
-                        if (~np.isfinite(val)):
-                            print(f"i={i} val={val}")
-                    raise ValueError(f"dfnu={dfnu} ishell={i_ish}")
-                if verbose:
-                    print("SHELL {}".format(i_ish))
-                    print("\tfnu = {:.2e} ".format(fnu))
-                    print("\tdfnu = {:.2e} ".format(dfnu))
-                    print("\tall_fluxes_arr.max() = {:.2e} ".format(all_fluxes_arr.max()))
-                    print("\tall_x = [{:.2e}, {:.2e}]".format(np.array(all_xrs[i]).min(), np.array(all_xrs[i]).max()))
-                    print("\tall_y = [{:.2e}, {:.2e}]".format(np.array(all_yrs[i]).min(), np.array(all_yrs[i]).max()))
-                    print("\tDelta_x = {:.2f}, Delta_y = {:.2f}]".format(delta_x, delta_y))
-                    print("\tFnu/mas^2 = {:.2e} mJy/mas^2".format(dfnu))
-                all_zz[i] = (all_fluxes_arr / all_fluxes_arr.max()) * dfnu
-                fnus_tot = fnus_tot + fnus
-        elif (renormalize and normtype=="a"):
-            print("Renormalizing ejecta skymap (shell by shell separately)")
-            fnus_tot = np.zeros_like(self.get_skymap_times())
-            for i, i_ish in enumerate(i_shells):
-                fnus = self.get_skymap_totfluxes(freq=freq, shell=i_ish)
-                fnu = fnus[find_nearest_index(self.get_skymap_times(), time)]
-                all_fluxes_arr_old = np.array(all_zz[i])
-                delta_x = np.array(all_xrs[i]).max() - np.array(all_xrs[i]).min()
-                delta_y = np.array(all_yrs[i]).max() - np.array(all_yrs[i]).min()
-                # grad_x = np.gradient(all_xrs[i])
-                # diff_x = np.append(np.diff(all_xrs[i]),0)
-                # diff_y = np.append(np.diff(all_yrs[i]),0)
-                all_fluxes_arr = np.array(all_zz[i])# * np.abs(diff_x) * np.abs(diff_y)
-                # dfnu = fnu / (delta_x * delta_y)
-                dfnu = fnu;# / ((cgs.rad2mas / d_l) * (cgs.rad2mas / d_l))
-                if verbose:
-                    print("SHELL {}".format(i_ish))
-                    print("\tfnu = {:.2e} ".format(fnu))
-                    print("\tall_x = [{:.2e}, {:.2e}]".format(np.array(all_xrs).min(), np.array(all_xrs).max()))
-                    print("\tall_y = [{:.2e}, {:.2e}]".format(np.array(all_yrs).min(), np.array(all_yrs).max()))
-                    print("\tDelta_x = {:.2f}, Delta_y = {:.2f}]".format(delta_x, delta_y))
-                    print("\tFnu/mas^2 = {:.2e} mJy/mas^2".format(dfnu))
-                all_zz[i] = (all_fluxes_arr / all_fluxes_arr.max()) * dfnu
-                fnus_tot = fnus_tot + fnus
-        elif (renormalize):
-            raise KeyError(f"norm type {normtype} is not recognized")
-
-
 
         # collect result into lists, removing zeross if needed
         all_xrs_pjcj, all_yrs_pjcj, all_zz_pjcj, maxs = [], [], [], []
@@ -1268,7 +1203,8 @@ class Ejecta(Base):
             all_zz_pjcj.append(  _zz_pj[ _zz_pj > 0 ] if (remove_zeros) else _zz_pj )
 
             if (len(all_xrs_pjcj[-1]) == 0):
-                raise ValueError("empty")
+                raise ValueError(f"Empty shell {ish} ncells[ii]={ncells[ii]} "
+                                 f"len(all_xrs[ii][:ncells[ii]]={all_xrs[ii][:ncells[ii]]}); after 'remove_zeros' {len(all_zz_pjcj[-1])}")
 
             if (return_sph_coords):
                 _ctheta_pj  = all_theta[ii][:ncells[ii]]
@@ -1293,7 +1229,118 @@ class Ejecta(Base):
             all_zz_pjcj.append(  _zz_cj[ _zz_cj > 0 ] if (remove_zeros) else _zz_cj )
 
             if (len(all_xrs_pjcj[-1]) == 0):
-                raise ValueError("empty")
+                raise ValueError(f"Empty shell {ish} ncells[ii]={ncells[ii]} "
+                         f"len(all_xrs[ii][:ncells[ii]]={all_xrs[ii][:ncells[ii]]}); after 'remove_zeros' {len(all_zz_pjcj[-1])}")
+
+            if (return_sph_coords):
+                _ctheta_cj  = all_theta[ii][ncells[ii]:]
+                _cphi_cj    = all_phi[ii][ncells[ii]:]
+                _r_cj       = all_r[ii][ncells[ii]:]
+
+                all_ctheta_pjcj.append(_ctheta_cj[ _zz_cj > 0 ] if (remove_zeros) else _ctheta_cj )
+                all_cphi_pjcj.append(  _cphi_cj[   _zz_cj > 0 ] if (remove_zeros) else _cphi_cj )
+                all_r_pjcj.append(     _r_cj[      _zz_cj > 0 ] if (remove_zeros) else _r_cj )
+
+        print(f"Principle & counter only maxs = {maxs}")
+
+        if (return_sph_coords):
+            return (all_xrs_pjcj, all_yrs_pjcj, all_zz_pjcj, all_ctheta_pjcj, all_cphi_pjcj, all_r_pjcj)
+        else:
+            return (all_xrs_pjcj, all_yrs_pjcj, all_zz_pjcj)
+
+
+    def get_skymap(self, time : float, freq : float, verbose=False, remove_zeros=True, return_sph_coords=False):
+        times = self.get_skymap_times()
+        freqs = self.get_skymap_freqs()
+        dfile = self.get_skymap_obj()
+        nshells = int(dfile.attrs["nshells"])
+        if (time is None):
+            raise NotImplementedError("time=None or freq=None is not longer supported")
+
+        # ddfile = dfile["time={:.4e} freq={:.4e}".format(time, freq)]
+        i_shells = []
+
+        # loop over shells and get shells with sum(int)>0
+        for ish in range(nshells):
+            ddfile = dfile["shell={} time={:.4e} freq={:.4e}".format(ish, time, freq)]
+            sumi = np.sum(np.array(ddfile["intensity"]))
+            if (sumi == 0):
+                if verbose:
+                    print(f"Skipping empty sum(intensity)=0 shell ish={ish}")
+                continue
+            i_shells.append(ish)
+
+        ncells = []
+        all_xrs, all_yrs, all_zz = [], [], []
+        all_theta, all_phi, all_r = [], [], []
+        # loop over non-empy shells and collect data
+        for ii, ish in enumerate(i_shells):
+            ddfile = dfile["shell={} time={:.4e} freq={:.4e}".format(ish, time, freq)]
+            mu_i = np.array(ddfile["mu"])
+            # cartesian coordiantes on the projected plane
+            xrs_i = np.array(ddfile["xrs"])# * cgs.rad2mas / d_l  # m -> mas
+            yrs_i = np.array(ddfile["yrs"])# * cgs.rad2mas / d_l  # m -> mas
+            int_i = np.array(ddfile["intensity"])# * ( d_l ** 2 / cgs.rad2mas ** 2 )  # * dfile.attrs["d_L"] ** 2
+            # spherical coordinates
+            ctheta_i = np.array(ddfile["ctheta"])
+            cphi_i = np.array(ddfile["cphi"])
+            r_i = np.array(ddfile["r"])
+
+            all_xrs.append(xrs_i)
+            all_yrs.append(yrs_i)
+            all_zz.append(int_i)
+
+            if (return_sph_coords):
+                all_theta.append(ctheta_i)
+                all_phi.append(cphi_i)
+                all_r.append(r_i)
+
+            ncells.append( int(len(xrs_i) / 2) )
+            if (len(xrs_i) % 2 > 0):
+                raise ValueError(f"len(xrs) is expected to be even (2*ncells). Got={len(xrs_i)}")
+
+        # collect result into lists, removing zeross if needed
+        all_xrs_pjcj, all_yrs_pjcj, all_zz_pjcj, maxs = [], [], [], []
+        all_ctheta_pjcj, all_cphi_pjcj, all_r_pjcj = [], [], []
+        for ii, ish in enumerate(i_shells):
+            _xrs_pj = all_xrs[ii][:ncells[ii]]
+            _yrs_pj = all_yrs[ii][:ncells[ii]]
+            _zz_pj  = all_zz[ii][:ncells[ii]]
+            maxs.append(np.max(_zz_pj))
+
+            all_xrs_pjcj.append(_xrs_pj[ _zz_pj > 0 ] if (remove_zeros) else _xrs_pj )
+            all_yrs_pjcj.append(_yrs_pj[ _zz_pj > 0 ] if (remove_zeros) else _yrs_pj )
+            all_zz_pjcj.append(  _zz_pj[ _zz_pj > 0 ] if (remove_zeros) else _zz_pj )
+
+            if (len(all_xrs_pjcj[-1]) == 0):
+                raise ValueError(f"Empty shell {ish} ncells[ii]={ncells[ii]} "
+                                 f"len(all_xrs[ii][:ncells[ii]]={all_xrs[ii][:ncells[ii]]}); after 'remove_zeros' {len(all_zz_pjcj[-1])}")
+
+            if (return_sph_coords):
+                _ctheta_pj  = all_theta[ii][:ncells[ii]]
+                _cphi_pj    = all_phi[ii][:ncells[ii]]
+                _r_pj       = all_r[ii][:ncells[ii]]
+
+                all_ctheta_pjcj.append(_ctheta_pj[ _zz_pj > 0 ] if (remove_zeros) else _ctheta_pj )
+                all_cphi_pjcj.append(  _cphi_pj[   _zz_pj > 0 ] if (remove_zeros) else _cphi_pj )
+                all_r_pjcj.append(     _r_pj[      _zz_pj > 0 ] if (remove_zeros) else _r_pj )
+
+        print(f"Principle only maxs = {maxs}")
+
+        # process counter jet
+        for ii, ish in enumerate(i_shells):
+            _xrs_cj = all_xrs[ii][ncells[ii]:]
+            _yrs_cj = all_yrs[ii][ncells[ii]:]
+            _zz_cj  = all_zz[ii][ncells[ii]:]
+            maxs.append(np.max(_zz_cj))
+
+            all_xrs_pjcj.append(_xrs_cj[ _zz_cj > 0 ] if (remove_zeros) else _xrs_cj )
+            all_yrs_pjcj.append(_yrs_cj[ _zz_cj > 0 ] if (remove_zeros) else _yrs_cj )
+            all_zz_pjcj.append(  _zz_cj[ _zz_cj > 0 ] if (remove_zeros) else _zz_cj )
+
+            if (len(all_xrs_pjcj[-1]) == 0):
+                raise ValueError(f"Empty shell {ish} ncells[ii]={ncells[ii]} "
+                                 f"len(all_xrs[ii][:ncells[ii]]={all_xrs[ii][:ncells[ii]]}); after 'remove_zeros' {len(all_zz_pjcj[-1])}")
 
             if (return_sph_coords):
                 _ctheta_cj  = all_theta[ii][ncells[ii]:]
@@ -1406,8 +1453,6 @@ class PyBlastAfterglow:
     ''' -------- ejecta (shells and layers) -------- '''
 
     # ejecta dynamics
-
-
 
 
 ''' parallel runs '''

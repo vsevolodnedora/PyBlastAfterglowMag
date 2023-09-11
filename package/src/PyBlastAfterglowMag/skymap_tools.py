@@ -74,7 +74,7 @@ def image_slice(fluxes, xxs, yys, position, nn=50, axis='y', inter='linear', fac
 
 
 
-def combine_images_old(xs, ys, datas, verbose=False, hist_or_int="int", shells=False, nx=200, ny=100, extend=2,
+def TOREMOVE_combine_images_old(xs, ys, datas, verbose=False, hist_or_int="int", shells=False, nx=200, ny=100, extend=2,
                        retrun_edges=False, edges_x=None, edges_y=None):
 
     if shells:
@@ -359,7 +359,7 @@ def combine_images_old(xs, ys, datas, verbose=False, hist_or_int="int", shells=F
 
     return (xx_grid, yy_grid, zz, all_xrs, all_yrs, all_zz)
 
-def combine_images_old_new(xs, ys, datas, verbose=False, hist_or_int="int", shells=False, nx=200, ny=100, extend=2,
+def TOREMOVE_combine_images_old_new(xs, ys, datas, verbose=False, hist_or_int="int", shells=False, nx=200, ny=100, extend=2,
                            retrun_edges=False, edges_x=None, edges_y=None):
 
     if (not shells):
@@ -740,6 +740,8 @@ def combine_images(xs, ys, datas, verbose=False, pre_int=True, k=2, nx=200, ny=1
         return (xx_grid, yy_grid, zz, edges_x, edges_y)
     else:
         return (xx_grid, yy_grid, zz)
+
+
 
 
 # def get_ej_skymap(self, time=None, freq=None, ishell=None, verbose=False, remove_mu=False, int_or_hist="int"):

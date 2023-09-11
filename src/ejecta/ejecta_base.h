@@ -487,28 +487,25 @@ public:
     }
 
     /// Compute Skymap for piece-wise EATS
-    ImageExtend computeEjectaSkyMapPW_new(std::vector<VecVector> & out, Vector & fluxes, double obs_time, double obs_freq ){
+    ImageExtend computeEjectaSkyMapPW_new(std::vector<VecVector> & out_, size_t & itnush, Vector & fluxes, double obs_time, double obs_freq ){
         /// out is [i_vn][ish][itheta_iphi]
         size_t nshells_ = nshells();
         size_t nlayers_ = nlayers();
         size_t ncells_ =  (int)ncells();
-        if (out.empty()){
+        if (out_.empty()){
             (*p_log)(LOG_ERR,AT) << " isEmpty image passed. Exiting...\n";
             exit(1);
         }
-        if (out[0].size() != nshells_){
-            (*p_log)(LOG_ERR,AT) << " number of images does not equal to the number of shells. Exiting...\n";
-            exit(1);
-        }
-        /// Allocate memory for ctheta and cphi grids ('2' is for principle and counter jet)
-        for (size_t ivn = 0; ivn < IMG::m_names.size(); ivn++)
-            for (size_t ish = 0; ish < nshells_; ish++)
-                out[ivn][ish].resize(2 * ncells_, 0. );
-
 
         ImageExtend im{};
         size_t n_jet_empty_images = 0;
         for (size_t ishell = 0; ishell < nshells_; ishell++){
+            auto & out = out_[itnush];
+            itnush += 1;
+            /// Allocate memory for ctheta and cphi grids ('2' is for principle and counter jet)
+            for (size_t ivn = 0; ivn < IMG::m_names.size(); ivn++)
+                out[ivn].resize(2 * ncells_, 0.);
+            /// compute the skymap for each layer (stacking cells batch after batch along one axis)
             std::vector<size_t> n_empty_images_layer;
             size_t offset = 0; // offset the data from this layer in the container
             for (size_t ilayer = 0; ilayer < nlayers_; ilayer++){
@@ -530,12 +527,12 @@ public:
             double ymin = std::numeric_limits<double>::max(), ymax = std::numeric_limits<double>::min();
             double imin = std::numeric_limits<double>::max(), imax = std::numeric_limits<double>::min();
             for (size_t i = 0; i < 2 * ncells_; i++){
-                if (out[IMG::Q::ixr][ishell][i] < xmin) xmin = out[IMG::Q::ixr][ishell][i];
-                if (out[IMG::Q::ixr][ishell][i] > xmax) xmax = out[IMG::Q::ixr][ishell][i];
-                if (out[IMG::Q::iyr][ishell][i] < ymin) ymin = out[IMG::Q::iyr][ishell][i];
-                if (out[IMG::Q::iyr][ishell][i] > ymax) ymax = out[IMG::Q::iyr][ishell][i];
-                if (out[IMG::Q::iintens][ishell][i] < imin) imin = out[IMG::Q::iintens][ishell][i];
-                if (out[IMG::Q::iintens][ishell][i] > imax) imax = out[IMG::Q::iintens][ishell][i];
+                if (out[IMG::Q::ixr][i] < xmin) xmin = out[IMG::Q::ixr][i];
+                if (out[IMG::Q::ixr][i] > xmax) xmax = out[IMG::Q::ixr][i];
+                if (out[IMG::Q::iyr][i] < ymin) ymin = out[IMG::Q::iyr][i];
+                if (out[IMG::Q::iyr][i] > ymax) ymax = out[IMG::Q::iyr][i];
+                if (out[IMG::Q::iintens][i] < imin) imin = out[IMG::Q::iintens][i];
+                if (out[IMG::Q::iintens][i] > imax) imax = out[IMG::Q::iintens][i];
             }
 
             /// normalize image to be mJy/mas^2
@@ -543,7 +540,7 @@ public:
             double delta_y = ymax - ymin;
             double dfnu = fluxes[ishell] / (delta_x * delta_y);
             for (size_t i = 0; i < 2 * ncells_; i++){
-                out[IMG::Q::iintens][ishell][i] *= (dfnu / imax);
+                out[IMG::Q::iintens][i] *= (dfnu / imax);
             }
 
             /// update image boundaries for overall image
@@ -555,39 +552,200 @@ public:
         return im;
     }
 
+    bool _computeEjectaSkyMapA(std::vector<VecVector> & out_, size_t itnush, Vector & fluxes,
+                               double obs_time, double obs_freq,
+                               size_t & nsublayers, size_t & nrestarts,
+                               Vector & th_b_layers, double th_jet_max){
+
+        bool is_ok = true;
+
+        size_t min_sublayers = 3;
+        double frac_to_increase = 1.5;
+        size_t max_restarts = 10;
+
+        /// allocate memory for angular grid for this shell
+        Vector theta_pw(nsublayers + 1);
+        for (size_t i = 0; i < nsublayers + 1; i++) {
+            double fac = (double) i / (double) nsublayers;
+            theta_pw[i] = 2.0 * std::asin(fac * std::sin(th_jet_max / 2.0));
+        }
+        Vector cthetas(nsublayers, 0.);
+
+
+        size_t nlayers_ = nlayers();
+        for (size_t ilayer = 0; ilayer < nlayers_; ++ilayer) {
+            /// get data conter for this time/freq/shell
+            auto &out = out_[itnush];
+            /// rotate index to the next time/freq/shell
+            itnush += 1;
+
+            size_t ncells = 0;
+
+            /// find how many sublayers lie withing jet openning angle and how many phi-cells are there in total
+            std::vector<size_t> sublayers_l{};
+            auto &bw_rad = p_cumShells[ilayer]->getBW(0)->getFsEATS();
+            double theta_l = p_cumShells[ilayer]->getBW(0)->getPars()->theta_c_l;
+            size_t ncells_il = 0;
+            for (size_t ith = 0; ith < nsublayers; ith++) {
+                cthetas[ith] = theta_pw[ith] + (theta_pw[ith + 1] - theta_pw[ith]) * 0.5;
+                size_t cil = EjectaID2::CellsInLayer_(ith);
+                if ((cthetas[ith] >= theta_l) // check that BW lower angle is above the ctheta[il]
+                    &&
+                    (cthetas[ith] < th_b_layers[ilayer]) // check if BW maximum openning angle is below ctheta[il]
+                        ) {
+                    ncells += cil;
+                    sublayers_l.push_back(ith);
+                }
+            }
+            if (sublayers_l.size() < min_sublayers) {
+                auto nsublayers_new = size_t((double)nsublayers * frac_to_increase);
+                (*p_log)(LOG_WARN, AT) << "\t restarting skymap [il="<<ilayer<<"] "
+                                       <<" Reason: nsublayers="<<sublayers_l.size()<<" < "<<"min_sublayers="<<min_sublayers<<" [restarts="<<nrestarts<<"]"
+                                       <<" Increasing nsublayers="<<nsublayers<<"->"<<nsublayers_new<<"\n";
+                if (nrestarts>max_restarts){
+                    (*p_log)(LOG_ERR, AT)<<" maximum number of restarts exceeded for [il="<<ilayer<<"] "
+                                         << " nrestarts=" << nrestarts << " sublayers=" << nsublayers <<"\n";
+                    exit(1);
+                }
+                nsublayers = nsublayers_new;
+                nrestarts+=1;
+                return false;
+            }
+
+            /// resize the output according to the number of cell to compute
+            for (size_t ivn = 0; ivn < IMG::m_names.size(); ivn++) {
+//                if (out[ivn].size() < 2 * ncells)
+//                    out[ivn].clear();
+//                std::cout << out[ivn].size() << "\t" << ncells<< "\n";
+                out[ivn].resize(2 * ncells);
+            }
+
+            /// compute the intensty for these cells
+            size_t iii = 0;
+            double layer_summed_intensity = 0;
+            for (auto &ith: sublayers_l) {
+                size_t cil = EjectaID2::CellsInLayer_(ith);
+                /// fill the angular grid for intensity evaluations
+                for (size_t iphi = 0; iphi < cil; iphi++) {
+                    double cphi = (double) iphi * 2.0 * CGS::pi / (double) cil;
+                    /// principle jet
+                    out[IMG::Q::icphi][iii + iphi] = cphi;
+                    out[IMG::Q::ictheta][iii + iphi] = cthetas[ith];
+                    /// counter jet
+                    out[IMG::Q::icphi][ncells + iii + iphi] = cphi;
+                    out[IMG::Q::ictheta][ncells + iii + iphi] = cthetas[ith];
+                }
+                /// evaluate intensity
+                layer_summed_intensity += bw_rad->evalSkyMapA(out, obs_time, obs_freq, ilayer, iii, cil, ncells);
+                iii = iii + cil;
+
+            }
+            /// check if the principle jet an counter jets are resolved (intensity found)
+            double summed_int_pj = 0.;
+            double summed_int_cj = 0.;
+            for (size_t i = 0; i < ncells; i++) {
+                summed_int_pj += out[IMG::Q::iintens][i];
+                summed_int_cj += out[IMG::Q::iintens][ncells + i];
+            }
+            if ((summed_int_pj == 0) || (summed_int_cj == 0)) {
+//                    (*p_log)(LOG_ERR, AT)
+//                            << " sum(summed_int_pj)=" << summed_int_pj << " sum(summed_int_cj)=" << summed_int_cj
+//                            << "  for layer=" << ilayer << " / " << nlayers_ << " with nsublayers=" << nsublayers
+//                            << "  layer_flux=" << fluxes[ilayer]
+//                            << "  ID layer theta_c_l=" << id->get(0, ilayer, EjectaID2::Q::itheta_c_l)
+//                            << "  sublayer grid ctheta=[" << cthetas[0] << " " << cthetas[nsublayers - 1]
+//                            << "  jet edge th_b=" << th_b_layers[ilayer]
+//                            << "\n";
+                auto nsublayers_new = size_t((double)nsublayers * frac_to_increase);
+                (*p_log)(LOG_WARN, AT) << "\t restarting skymap [il="<<ilayer<<"]"
+                                       <<" Reason: summed_int_pj=0 or summed_int_cj=0 [restarts="<<nrestarts<<"]"
+                                       <<" Increasing nsublayers="<<nsublayers<<"->"<<nsublayers_new<<"\n";
+                if (nrestarts>max_restarts){
+                    (*p_log)(LOG_ERR, AT)<<" maximum number of restarts exceeded for [il="<<ilayer<<"] "
+                                         << " nrestarts=" << nrestarts << " sublayers=" << nsublayers <<"\n";
+                    exit(1);
+                }
+                nsublayers = nsublayers_new;
+                nrestarts+=1;
+                return false;
+//                    exit(1);
+            }
+
+            /// normalize the intensity (divide by the size of the cell)
+            double max_int = std::numeric_limits<double>::min();
+            double total_int = 0.;
+            /// find overall maximum (in principle and counter jet)
+            for (size_t i = 0; i < 2 * ncells; i++) {
+                total_int += out[IMG::Q::iintens][i];
+                if (max_int < out[IMG::Q::iintens][i])
+                    max_int = out[IMG::Q::iintens][i];
+
+            }
+            /// size of the principle jet
+            double xmin = std::numeric_limits<double>::max(), xmax = std::numeric_limits<double>::min();
+            double ymin = std::numeric_limits<double>::max(), ymax = std::numeric_limits<double>::min();
+            for (size_t i = 0; i < 2 * ncells; i++) {
+                if (out[IMG::Q::ixr][i] < xmin) xmin = out[IMG::Q::ixr][i];
+                if (out[IMG::Q::ixr][i] > xmax) xmax = out[IMG::Q::ixr][i];
+                if (out[IMG::Q::iyr][i] < ymin) ymin = out[IMG::Q::iyr][i];
+                if (out[IMG::Q::iyr][i] > ymax) ymax = out[IMG::Q::iyr][i];
+            }
+            if (xmax == xmin) {
+                auto nsublayers_new = size_t((double)nsublayers * frac_to_increase);
+                (*p_log)(LOG_WARN, AT) << "\t restarting skymap [il="<<ilayer<<"]"
+                                       <<" Reason: xmax=xmin [restarts="<<nrestarts<<"]"
+                                       <<" Increasing nsublayers="<<nsublayers<<"->"<<nsublayers_new<<"\n";
+                if (nrestarts>max_restarts){
+                    (*p_log)(LOG_ERR, AT)<<" maximum number of restarts exceeded for [il="<<ilayer<<"] "
+                                         << " nrestarts=" << nrestarts << " sublayers=" << nsublayers <<"\n";
+                    exit(1);
+                }
+                nsublayers = nsublayers_new;
+                nrestarts+=1;
+                return false;
+            }
+            if (ymax == ymin) {
+                auto nsublayers_new = size_t((double)nsublayers * frac_to_increase);
+                (*p_log)(LOG_WARN, AT) << "\t restarting skymap [il="<<ilayer<<"]"
+                                       <<" Reason: ymax=ymin [restarts="<<nrestarts<<"]"
+                                       <<" Increasing nsublayers="<<nsublayers<<"->"<<nsublayers_new<<"\n";
+                if (nrestarts>max_restarts){
+                    (*p_log)(LOG_ERR, AT)<<" maximum number of restarts exceeded for [il="<<ilayer<<"] "
+                                         << " nrestarts=" << nrestarts << " sublayers=" << nsublayers <<"\n";
+                    exit(1);
+                }
+                nsublayers = nsublayers_new;
+                nrestarts+=1;
+                return false;
+            }
+            double delta_x = xmax - xmin;
+            double delta_y = ymax - ymin;
+
+            /// normalize jet to its size
+            double d_l = p_cumShells[ilayer]->getBW(0)->getPars()->d_l;
+            for (size_t i = 0; i < 2 * ncells; i++) {
+                out[IMG::Q::iintens][i] = out[IMG::Q::iintens][i] / max_int * fluxes[ilayer] / delta_x / delta_y;
+            }
+        }
+        return true;
+    }
+
     /// Compute Skymap for adaptive EATS
-    ImageExtend computeEjectaSkyMapA_new(std::vector<VecVector> & out, Vector & fluxes, double obs_time, double obs_freq, size_t nsublayers, size_t nphi ){
+    ImageExtend computeEjectaSkyMapA_new(std::vector<VecVector> & out_, size_t & itnush, Vector & fluxes,
+                                         double obs_time, double obs_freq, size_t nsublayers_, size_t nphi ){
 
         /// out is [i_vn][ish][itheta_iphi]
 
         size_t nlayers_ = nlayers();
         // ------------------------
-        if (out.empty()){
+        if (out_.empty()){
             (*p_log)(LOG_ERR,AT) << " isEmpty image passed. Exiting...\n";
             exit(1);
         }
 
         double rtol = 1.e-6;
 
-        /// Allocate memory for ctheta and cphi grids ('2' is for principle and counter jet)
-        size_t ncells = 0;
-        for (size_t ill = 0; ill < nsublayers; ++ill){
-            ncells += EjectaID2::CellsInLayer_(ill);
-        }
-        (*p_log)(LOG_INFO,AT)
-                << " With nlayers=" << nlayers_ << " nsublayers=" << nsublayers << " ncells=" << ncells << "\n";
-
-        /// resize or empty the contaner for temporary solution
-        for (size_t ivn = 0; ivn < IMG::m_names.size(); ivn++) {
-            for (size_t ish = 0; ish < nlayers_; ish++) {
-//                if (out[ivn][ish].size() != 2 * ncells)
-                out[ivn][ish].resize(2 * ncells, 0.);
-//                else{
-//                    std::fill(out[ivn][ish].begin(), out[ivn][ish].end(), 0.0);
-//                }
-            }
-        }
-
+        (*p_log)(LOG_INFO,AT)  << " Computing skymap with N layers=" << nlayers_ << " and N sublayers=" << nsublayers_ << "\n";
 
         /// locate the extend of the jet at a given time (for further grid creation)
         double th_l_prev = 0.;
@@ -604,9 +762,7 @@ public:
             if (th_b_max > th_jet_max)
                 th_jet_max = th_b_max;
         }
-        (*p_log)(LOG_INFO,AT)
-                << " Jet Edge Found theta="<<th_jet_max<<" at obs_time="<<obs_time<<" obs_freq="<<obs_freq << "\n";
-
+        (*p_log)(LOG_INFO,AT)  << " Found outermost theta_edge="<<th_jet_max<<" at obs_time="<<obs_time<<" obs_freq="<<obs_freq << "\n";
 
         /// compute flux density for each layer ( for normalization )
         double tot_flux = 0.;
@@ -619,41 +775,232 @@ public:
             fluxes[ilayer] = layer_flux;
         }
         /// make an interpolator for sublayers (for a given ctheta -> get flux)
-//        auto interp = Interp1d(id->getVec(0,EjectaID2::Q::itheta_c_l), fluxes);
+        auto interp = Interp1d(id->getVec(0,EjectaID2::Q::itheta_c_l), fluxes);
 
-        Vector theta_pw (nsublayers + 1 );
-        for (size_t i = 0; i < nsublayers + 1; i++){
-            double fac = (double) i / (double)nsublayers;
-            theta_pw[i] = 2.0 * std::asin( fac * std::sin(th_jet_max / 2.0 ) );
-        }
-        Vector cthetas (nsublayers );
-        for (size_t i = 0; i < nsublayers; i++)
-            cthetas[i] = theta_pw[i] + (theta_pw[i+1] - theta_pw[i]) * 0.5;
-
+        /// find non-zero sublayers in each layer and corresponding cells
         ImageExtend im{};
+        std::vector<size_t> ncells_l{};
+        size_t max_restarts = 5;
+        double frac_to_increase = 1.5;
+        size_t min_sublayers = 3;
 
-        for (size_t ilayer = 0; ilayer < nlayers_; ++ilayer){
+        size_t nrestarts = 0;
 
-            auto & bw_rad = p_cumShells[ilayer]->getBW(0)->getFsEATS();
+        /// Depending on the jet layer opening angle (which depends on spreading) it is possible that
+        /// no jet layer will fall within the grid resolution for computing intensity. In order to avoid this
+        /// we iteratively increase the resolution until the layer is resolved.
+        /// this value can be different for different shells
+
+        bool is_ok = _computeEjectaSkyMapA(out_,itnush,fluxes,obs_time,obs_freq,nsublayers_,nrestarts,th_b_layers,th_jet_max);
+        while (!is_ok){
+            is_ok = _computeEjectaSkyMapA(out_,itnush,fluxes,obs_time,obs_freq,nsublayers_,nrestarts,th_b_layers,th_jet_max);
+        }
+        itnush+=nlayers_;
+
+#if 0
+        for (size_t ilayer = 0; ilayer < nlayers_; ++ilayer) {
+
+            /// get data conter for this time/freq/shell
+            auto &out = out_[itnush];
+            /// rotate index to the next time/freq/shell
+            itnush += 1;
+            /// Depending on the jet layer opening angle (which depends on spreading) it is possible that
+            /// no jet layer will fall within the grid resolution for computing intensity. In order to avoid this
+            /// we iteratively increase the resolution until the layer is resolved.
+            size_t nsublayers = nsublayers_; // initial guess for the sufficient resolution
+            size_t nrestarts = 0;
+            bool found = false;
+            while (!found) {
+
+                /// this value can be different for different shells
+                size_t ncells = 0;
+
+                /// allocate memory for angular grid for this shell
+                Vector theta_pw(nsublayers + 1);
+                for (size_t i = 0; i < nsublayers + 1; i++) {
+                    double fac = (double) i / (double) nsublayers;
+                    theta_pw[i] = 2.0 * std::asin(fac * std::sin(th_jet_max / 2.0));
+                }
+                Vector cthetas(nsublayers, 0.);
+
+                /// find how many sublayers lie withing jet openning angle and how many phi-cells are there in total
+                std::vector<size_t> sublayers_l{};
+                auto &bw_rad = p_cumShells[ilayer]->getBW(0)->getFsEATS();
+                double theta_l = p_cumShells[ilayer]->getBW(0)->getPars()->theta_c_l;
+                size_t ncells_il = 0;
+                for (size_t ith = 0; ith < nsublayers; ith++) {
+                    cthetas[ith] = theta_pw[ith] + (theta_pw[ith + 1] - theta_pw[ith]) * 0.5;
+                    size_t cil = EjectaID2::CellsInLayer_(ith);
+                    if ((cthetas[ith] >= theta_l) // check that BW lower angle is above the ctheta[il]
+                        &&
+                        (cthetas[ith] < th_b_layers[ilayer]) // check if BW maximum openning angle is below ctheta[il]
+                            ) {
+                        ncells += cil;
+                        sublayers_l.push_back(ith);
+                    }
+                }
+                if (sublayers_l.size() < min_sublayers) {
+                    auto nsublayers_new = size_t((double)nsublayers * frac_to_increase);
+                    (*p_log)(LOG_WARN, AT) << "\t restarting skymap [il="<<ilayer<<"] "
+                        <<" Reason: nsublayers="<<sublayers_l.size()<<" < "<<"min_sublayers="<<min_sublayers<<" [restarts="<<nrestarts<<"]"
+                        <<" Increasing nsublayers="<<nsublayers<<"->"<<nsublayers_new<<"\n";
+                    if (nrestarts>max_restarts){
+                        (*p_log)(LOG_ERR, AT)<<" maximum number of restarts exceeded for [il="<<ilayer<<"] "
+                            << " nrestarts=" << nrestarts << " sublayers=" << nsublayers <<"\n";
+                        exit(1);
+                    }
+                    nsublayers = nsublayers_new;
+                    nrestarts+=1;
+                    continue;
+                }
+
+                /// resize the output according to the number of cell to compute
+                for (size_t ivn = 0; ivn < IMG::m_names.size(); ivn++) {
+                    out[ivn].resize(2 * ncells, 0.);
+                }
+
+                /// compute the intensty for these cells
+                size_t iii = 0;
+                double layer_summed_intensity = 0;
+                for (auto &ith: sublayers_l) {
+                    size_t cil = EjectaID2::CellsInLayer_(ith);
+                    /// fill the angular grid for intensity evaluations
+                    for (size_t iphi = 0; iphi < cil; iphi++) {
+                        double cphi = (double) iphi * 2.0 * CGS::pi / (double) cil;
+                        /// principle jet
+                        out[IMG::Q::icphi][iii + iphi] = cphi;
+                        out[IMG::Q::ictheta][iii + iphi] = cthetas[ith];
+                        /// counter jet
+                        out[IMG::Q::icphi][ncells + iii + iphi] = cphi;
+                        out[IMG::Q::ictheta][ncells + iii + iphi] = cthetas[ith];
+                    }
+                    /// evaluate intensity
+                    layer_summed_intensity += bw_rad->evalSkyMapA(out, obs_time, obs_freq, ilayer, iii, cil, ncells);
+                    iii = iii + cil;
+
+                }
+                /// check if the principle jet an counter jets are resolved (intensity found)
+                double summed_int_pj = 0.;
+                double summed_int_cj = 0.;
+                for (size_t i = 0; i < ncells; i++) {
+                    summed_int_pj += out[IMG::Q::iintens][i];
+                    summed_int_cj += out[IMG::Q::iintens][ncells + i];
+                }
+                if ((summed_int_pj == 0) || (summed_int_cj == 0)) {
+//                    (*p_log)(LOG_ERR, AT)
+//                            << " sum(summed_int_pj)=" << summed_int_pj << " sum(summed_int_cj)=" << summed_int_cj
+//                            << "  for layer=" << ilayer << " / " << nlayers_ << " with nsublayers=" << nsublayers
+//                            << "  layer_flux=" << fluxes[ilayer]
+//                            << "  ID layer theta_c_l=" << id->get(0, ilayer, EjectaID2::Q::itheta_c_l)
+//                            << "  sublayer grid ctheta=[" << cthetas[0] << " " << cthetas[nsublayers - 1]
+//                            << "  jet edge th_b=" << th_b_layers[ilayer]
+//                            << "\n";
+                    auto nsublayers_new = size_t((double)nsublayers * frac_to_increase);
+                    (*p_log)(LOG_WARN, AT) << "\t restarting skymap [il="<<ilayer<<"]"
+                        <<" Reason: summed_int_pj=0 or summed_int_cj=0 [restarts="<<nrestarts<<"]"
+                        <<" Increasing nsublayers="<<nsublayers<<"->"<<nsublayers_new<<"\n";
+                    if (nrestarts>max_restarts){
+                        (*p_log)(LOG_ERR, AT)<<" maximum number of restarts exceeded for [il="<<ilayer<<"] "
+                                             << " nrestarts=" << nrestarts << " sublayers=" << nsublayers <<"\n";
+                        exit(1);
+                    }
+                    nsublayers = nsublayers_new;
+                    nrestarts+=1;
+                    continue;
+//                    exit(1);
+                }
+
+                /// normalize the intensity (divide by the size of the cell)
+                double max_int = std::numeric_limits<double>::min();
+                double total_int = 0.;
+                /// find overall maximum (in principle and counter jet)
+                for (size_t i = 0; i < 2 * ncells; i++) {
+                    total_int += out[IMG::Q::iintens][i];
+                    if (max_int < out[IMG::Q::iintens][i])
+                        max_int = out[IMG::Q::iintens][i];
+
+                }
+                /// size of the principle jet
+                double xmin = std::numeric_limits<double>::max(), xmax = std::numeric_limits<double>::min();
+                double ymin = std::numeric_limits<double>::max(), ymax = std::numeric_limits<double>::min();
+                for (size_t i = 0; i < 2 * ncells; i++) {
+                    if (out[IMG::Q::ixr][i] < xmin) xmin = out[IMG::Q::ixr][i];
+                    if (out[IMG::Q::ixr][i] > xmax) xmax = out[IMG::Q::ixr][i];
+                    if (out[IMG::Q::iyr][i] < ymin) ymin = out[IMG::Q::iyr][i];
+                    if (out[IMG::Q::iyr][i] > ymax) ymax = out[IMG::Q::iyr][i];
+                }
+                if (xmax == xmin) {
+                    auto nsublayers_new = size_t((double)nsublayers * frac_to_increase);
+                    (*p_log)(LOG_WARN, AT) << "\t restarting skymap [il="<<ilayer<<"]"
+                                           <<" Reason: xmax=xmin [restarts="<<nrestarts<<"]"
+                                           <<" Increasing nsublayers="<<nsublayers<<"->"<<nsublayers_new<<"\n";
+                    if (nrestarts>max_restarts){
+                        (*p_log)(LOG_ERR, AT)<<" maximum number of restarts exceeded for [il="<<ilayer<<"] "
+                                             << " nrestarts=" << nrestarts << " sublayers=" << nsublayers <<"\n";
+                        exit(1);
+                    }
+                    nsublayers = nsublayers_new;
+                    nrestarts+=1;
+                    continue;
+                }
+                if (ymax == ymin) {
+                    auto nsublayers_new = size_t((double)nsublayers * frac_to_increase);
+                    (*p_log)(LOG_WARN, AT) << "\t restarting skymap [il="<<ilayer<<"]"
+                                           <<" Reason: ymax=ymin [restarts="<<nrestarts<<"]"
+                                           <<" Increasing nsublayers="<<nsublayers<<"->"<<nsublayers_new<<"\n";
+                    if (nrestarts>max_restarts){
+                        (*p_log)(LOG_ERR, AT)<<" maximum number of restarts exceeded for [il="<<ilayer<<"] "
+                                             << " nrestarts=" << nrestarts << " sublayers=" << nsublayers <<"\n";
+                        exit(1);
+                    }
+                    nsublayers = nsublayers_new;
+                    nrestarts+=1;
+                    continue;
+                }
+                double delta_x = xmax - xmin;
+                double delta_y = ymax - ymin;
+
+                /// normalize jet to its size
+                double d_l = p_cumShells[ilayer]->getBW(0)->getPars()->d_l;
+                for (size_t i = 0; i < 2 * ncells; i++) {
+                    out[IMG::Q::iintens][i] = out[IMG::Q::iintens][i] / max_int * fluxes[ilayer] / delta_x / delta_y;
+                }
+                found = true;
+            }
+        }
+
+        /// resize or empty the contaner for temporary solution
+        for (size_t ivn = 0; ivn < IMG::m_names.size(); ivn++) {
+            for (size_t ish = 0; ish < nlayers_; ish++) {
+//                if (out[ivn][ish].size() != 2 * ncells)
+                out[ivn][ish].resize(2 * ncells, 0.);
+//                else{
+//                    std::fill(out[ivn][ish].begin(), out[ivn][ish].end(), 0.0);
+//                }
+            }
+        }
+
+        /// evaluate intensity distributions
+        for (size_t ilayer = 0; ilayer < nlayers_; ++ilayer) {
+
+            auto &bw_rad = p_cumShells[ilayer]->getBW(0)->getFsEATS();
 
             size_t iii = 0;
             double layer_summed_intensity = 0;
             /// loop for all thetas from 0 to overall theta_edge # TODO see if you can just do it until current theta_edge
 
-
-
-            for (size_t ith = 0; ith < nsublayers; ith++){
+            for (size_t ith = 0; ith < nsublayers; ith++) {
                 size_t cil = EjectaID2::CellsInLayer_(ith);
 
                 /// fill the angular grid for intensity evaluations
-                for (size_t iphi = 0;  iphi < cil; iphi++){
-                    double cphi = (double)iphi * 2.0 * CGS::pi / (double)cil;
+                for (size_t iphi = 0; iphi < cil; iphi++) {
+                    double cphi = (double) iphi * 2.0 * CGS::pi / (double) cil;
                     /// principle jet
-                    out[IMG::Q::icphi][ilayer][iii+iphi] = cphi;
-                    out[IMG::Q::ictheta][ilayer][iii+iphi] = cthetas[ith];
+                    out[IMG::Q::icphi][ilayer][iii + iphi] = cphi;
+                    out[IMG::Q::ictheta][ilayer][iii + iphi] = cthetas[ith];
                     /// counter jet
-                    out[IMG::Q::icphi][ilayer][ncells+iii+iphi] = cphi;
-                    out[IMG::Q::ictheta][ilayer][ncells+iii+iphi] = cthetas[ith];
+                    out[IMG::Q::icphi][ilayer][ncells + iii + iphi] = cphi;
+                    out[IMG::Q::ictheta][ilayer][ncells + iii + iphi] = cthetas[ith];
                 }
 
                 /// evaluate intensity
@@ -661,20 +1008,49 @@ public:
                 iii = iii + cil;
             }
 
-            /// normalize the skymap
+            double summed_int_pj = 0.;
+            double summed_int_cj = 0.;
+            for (size_t i = 0; i < ncells; i++) {
+                summed_int_pj+=out[IMG::Q::iintens][ilayer][i];
+                summed_int_cj+=out[IMG::Q::iintens][ilayer][ncells + i];
+            }
+            if ((summed_int_pj == 0) || (summed_int_cj == 0)){
+                (*p_log)(LOG_ERR,AT)
+                    <<" sum(summed_int_pj)="<<summed_int_pj<<" sum(summed_int_cj)="<<summed_int_cj
+                    <<"  for layer="<<ilayer<<" / "<<nlayers_ << " with nsublayers="<<nsublayers
+                    <<"  layer_flux="<<fluxes[ilayer]
+                    <<"  ID layer theta_c_l="<<id->get(0,ilayer,EjectaID2::Q::itheta_c_l)
+                    <<"  sublayer grid ctheta=["<<cthetas[0]<<" "<<cthetas[nsublayers-1]
+                    <<"  jet edge th_b="<<th_b_layers[ilayer]
+                <<"\n";
+                exit(1);
+            }
+
+        }
+
+
+        ImageExtend im{};
+        /// normalize the skymap
+        for (size_t ilayer = 0; ilayer < nlayers_; ++ilayer){
+
+            /// find overall maximum
+            double max_int = std::numeric_limits<double>::min();
             double total_int = 0.;
+            for (size_t i = 0; i < 2 * ncells; i++) {
+                total_int += out[IMG::Q::iintens][ilayer][i];
+                if (max_int < out[IMG::Q::iintens][ilayer][i])
+                    max_int = out[IMG::Q::iintens][ilayer][i];
+
+            }
+
+            /// size of the principle jet
             double xmin = std::numeric_limits<double>::max(), xmax = std::numeric_limits<double>::min();
             double ymin = std::numeric_limits<double>::max(), ymax = std::numeric_limits<double>::min();
-            double max_int = std::numeric_limits<double>::min();
             for (size_t i = 0; i < 2 * ncells; i++){
                 if (out[IMG::Q::ixr][ilayer][i] < xmin) xmin = out[IMG::Q::ixr][ilayer][i];
                 if (out[IMG::Q::ixr][ilayer][i] > xmax) xmax = out[IMG::Q::ixr][ilayer][i];
                 if (out[IMG::Q::iyr][ilayer][i] < ymin) ymin = out[IMG::Q::iyr][ilayer][i];
                 if (out[IMG::Q::iyr][ilayer][i] > ymax) ymax = out[IMG::Q::iyr][ilayer][i];
-
-                total_int += out[IMG::Q::iintens][ilayer][i];
-                if (max_int < out[IMG::Q::iintens][ilayer][i])
-                    max_int = out[IMG::Q::iintens][ilayer][i];
             }
 
             if (xmax == xmin){
@@ -688,10 +1064,35 @@ public:
             double delta_x = xmax - xmin;
             double delta_y = ymax - ymin;
 
+            /// normalize principle jet to its size
             double d_l = p_cumShells[ilayer]->getBW(0)->getPars()->d_l;
             for (size_t i = 0; i < 2 * ncells; i++) {
-                out[IMG::Q::iintens][ilayer][i] = out[IMG::Q::iintens][ilayer][i] / max_int * fluxes[ilayer] / delta_x / delta_y;// / (delta_x * CGS::rad2mas * delta_y * CGS::rad2mas) * d_l * d_l;
+                out[IMG::Q::iintens][ilayer][i] = out[IMG::Q::iintens][ilayer][i] / max_int * fluxes[ilayer] / delta_x / delta_y;
             }
+
+
+
+//            size_t iii = 0;
+//            for (size_t ith = 0; ith < nsublayers; ith++){
+//                size_t cil = EjectaID2::CellsInLayer_(ith);
+//                double flux_ctheta = 0;
+//                if (cthetas[ith] < id->getVec(0,EjectaID2::Q::itheta_c_l)[0])
+//                    flux_ctheta = fluxes[0];
+//                else if (cthetas[ith] > id->getVec(0,EjectaID2::Q::itheta_c_l)[id->nlayers-1])
+//                    flux_ctheta = fluxes[nlayers_-1];
+//                else
+//                    flux_ctheta = interp.Interpolate(cthetas[ith], Interp1d::METHODS::iLinear);
+//
+//                if (flux_ctheta <= 0){
+//                    std::cerr << AT << "error \n";
+//                    exit(1);
+//                }
+//                for (size_t iphi = 0;  iphi < cil; iphi++){
+//                    out[IMG::Q::iintens][ilayer][iii+iphi] = out[IMG::Q::iintens][ilayer][iii+iphi] / max_int * flux_ctheta / delta_x / delta_y;
+//                    out[IMG::Q::iintens][ilayer][ncells+iii+iphi] = out[IMG::Q::iintens][ilayer][ncells+iii+iphi] / max_int * flux_ctheta / delta_x / delta_y;
+//                }
+//                iii = iii + cil;
+//            }
 
             /// update image boundaries for overall image
 //            if (xmin < im.xmin) im.xmin = xmin;
@@ -699,6 +1100,7 @@ public:
 //            if (xmax > im.xmax) im.xmax = xmax;
 //            if (ymax > im.ymax) im.ymax = ymax;
         }
+#endif
         return im;
     }
 
