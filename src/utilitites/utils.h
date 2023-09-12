@@ -521,18 +521,6 @@ static void print_x_as_numpy(T & x_arr, int ever_i, std::string name="x_arr", st
     std::cout << "]) \n";
 }
 
-/// compute weighted average
-double weightedAverage(VecVector & xs, VecVector & intensity){
-    double _num = 0;
-    double _denum = 0;
-    for (size_t i = 0; i < xs.size(); i++){
-        for (size_t j = 0; j < xs[0].size(); j++){
-            _num += xs[i][j] * intensity[i][j];
-            _denum += intensity[i][j];
-        }
-    }
-    return _num / _denum;
-}
 
 struct Bin {
     double x_center;
@@ -630,7 +618,7 @@ private:
     std::unique_ptr<logger> p_log;
 public:
 
-    void remove_file_if_existis(const std::string &fname){
+    static void remove_file_if_existis(const std::string &fname, std::unique_ptr<logger> & p_log){
 
 //    LOG_INIT_CERR();
 //    Log.set_log_level(LOG_SILENT);
@@ -664,7 +652,7 @@ public:
 //    Log.set_log_level(LOG_SILENT);
 
         // remove the old file (so to avoid data piling up)
-        remove_file_if_existis(fpath);
+        remove_file_if_existis(fpath, p_log);
 
         std::fstream of(fpath, std::ios::out | std::ios::app);
 
@@ -688,14 +676,14 @@ public:
  * @param set_names
  * @param fpath
  */
-    void VectorOfTablesH5(std::vector<std::vector<std::vector<double>>> & data,
+    void VectorOfTablesH5(std::vector<VecVector> & data,
                           std::vector<std::string> set_names,
                           std::string fpath){
 
 //    std::cout << "S"
 
         // remove the old file (so to avoid data piling up)
-        remove_file_if_existis(fpath);
+        remove_file_if_existis(fpath, p_log);
 
         H5::H5File file(fpath, H5F_ACC_TRUNC); // "/home/m/Desktop/tryout/file.h5"
 
@@ -725,9 +713,126 @@ public:
             dataset.close();
             dataspace.close();
         }
-
         file.close();
     }
+
+
+    static void addVector(Vector & data, std::string name, H5::H5File & file){
+        if(data.empty()){ std::cerr << AT << " no data\n"; exit(1); }
+        size_t nrow = data.size();
+
+        /// convert VecVector to array[][]
+        double varray[nrow];
+        for( size_t i = 0; i<nrow; ++i) { varray[i] = data[i]; }
+
+        // preparation of a dataset and a file.
+        hsize_t dimsf[1] = {nrow };
+        H5::DataSpace dataspace(1, dimsf);
+        H5::DataType datatype(H5::PredType::NATIVE_DOUBLE);
+        H5::DataSet dataset = file.createDataSet(name, datatype, dataspace);
+        dataset.write( varray, H5::PredType::NATIVE_DOUBLE);
+        dataset.close();
+        dataspace.close();
+    }
+
+    static void add2Dtable(VecVector & data, std::string name, H5::H5File & file){
+        if(data.empty()){ std::cerr << AT << " no data\n"; exit(1); }
+        if(data[0].empty()){ std::cerr << AT << " no data[0]\n"; exit(1); }
+
+        size_t nrow = data.size();
+        size_t ncol = data[0].size();
+
+        /// convert VecVector to array[][]
+        double varray[nrow][ncol];
+        for( size_t i = 0; i<nrow; ++i) {
+            for( size_t j = 0; j<ncol; ++j) {
+                varray[i][j] = data[i][j];
+            }
+        }
+
+        /// create dimensions
+        hsize_t dimsf[2];
+        dimsf[0] = nrow;
+        dimsf[1] = ncol;
+        H5::DataSpace dataspace(2, dimsf);
+        H5::DataType datatype(H5::PredType::NATIVE_DOUBLE);
+        H5::DataSet dataset = file.createDataSet(name, datatype, dataspace);
+        dataset.write(varray, H5::PredType::NATIVE_DOUBLE);
+        dataset.close();
+        dataspace.close();
+    }
+
+    static void addStrDbMap(StrDbMap & attrs, H5::H5File & file){
+        for (auto & ele : attrs){
+            auto key = ele.first;
+            auto val = ele.second;
+            H5::IntType int_type(H5::PredType::NATIVE_DOUBLE);
+            H5::DataSpace att_space(H5S_SCALAR);
+            H5::Attribute att = file.createAttribute(key, int_type, att_space );
+            att.write( int_type, &val );
+        }
+    }
+
+    static void addGroupWith1Ddata(VecVector & data, std::string group_name, std::vector<std::string> array_names, H5::H5File & file){
+        if(data.empty()){ std::cerr << AT << " no data\n"; exit(1); }
+        if(data[0].empty()){ std::cerr << AT << " no data[0]\n"; exit(1); }
+        if(array_names.empty()){ std::cerr << AT << " no array_names\n"; exit(1); }
+        if(data.size()!=array_names.size()){ std::cerr << AT << " data.size()!=array_names.size()\n"; exit(1); }
+        H5::Group grp(file.createGroup(group_name));
+        for (size_t iv = 0; iv < data.size(); iv++){
+            double varray[data[iv].size()];
+            for (size_t ii = 0; ii < data[iv].size(); ii++)
+                varray[ii] = data[iv][ii];
+            hsize_t dimsf[1];
+            dimsf[0] = data[iv].size();
+            H5::DataSpace dataspace(1, dimsf);
+            H5::DataType datatype(H5::PredType::NATIVE_DOUBLE);
+            H5::DataSet dataset = grp.createDataSet(array_names[iv], datatype, dataspace);
+            dataset.write(varray, H5::PredType::NATIVE_DOUBLE);
+            dataset.close();
+            dataspace.close();
+        }
+        grp.close();
+    }
+
+    static void addGroupWith2Ddata(std::vector<VecVector> & data, std::string group_name, std::vector<std::string> table_names, H5::H5File & file){
+        if(data.empty()){ std::cerr << AT << " no data\n"; exit(1); }
+        if(data[0].empty()){ std::cerr << AT << " no data[0]\n"; exit(1); }
+        if(table_names.empty()){ std::cerr << AT << " no array_names\n"; exit(1); }
+        if(data.size()!=table_names.size()){ std::cerr << AT << " data.size()!=table_names.size()\n"; exit(1); }
+
+        H5::Group grp(file.createGroup(group_name));
+        for (size_t iv = 0; iv < data.size(); iv++){
+            size_t nrow = data[iv].size();
+            size_t ncol = data[iv][0].size(); /// ncoll is now different for each row
+
+            auto * varray = new double[nrow*ncol];
+
+            size_t kk = 0;
+            for (size_t ii = 0; ii < nrow; ii++)
+                for(size_t jj = 0; jj < ncol; jj++) {
+                    varray[kk] = data[iv][ii][jj];
+                    kk++;
+                }
+
+            hsize_t dimsf[2];
+            dimsf[0] = nrow;
+            dimsf[1] = ncol;
+            H5::DataSpace dataspace(2, dimsf);
+            H5::DataType datatype(H5::PredType::NATIVE_DOUBLE);
+            H5::DataSet dataset = grp.createDataSet(table_names[iv], datatype, dataspace);
+            dataset.write(varray, H5::PredType::NATIVE_DOUBLE);
+            dataset.close();
+            dataspace.close();
+
+            delete[] varray;
+        }
+        grp.close();
+    }
+
+
+
+
 
 
 
@@ -757,7 +862,7 @@ public:
         }
 
         // remove the old file (so to avoid data piling up)
-        remove_file_if_existis(fpath);
+        remove_file_if_existis(fpath, p_log);
 
         H5::H5File file(fpath, H5F_ACC_TRUNC); // "/home/m/Desktop/tryout/file.h5"
 
@@ -766,21 +871,13 @@ public:
         for (size_t id = 0; id < n_entries; ++id){
 
             size_t nrow = data[id].size();
-//        size_t ncol = data[id][0].size();
 
             /// convert VecVector to array[][]
             double varray[nrow];
             for( size_t i = 0; i<nrow; ++i) { varray[i] = data[id][i]; }
 
             // preparation of a dataset and a file.
-//        hsize_t dim[1];
-//        dim[0] = data.size();                   // using vector::size()
-//        int rank = sizeof(dim) / sizeof(hsize_t);
-//        H5::DataSpace dataspace(rank, dim);
-//
             hsize_t dimsf[1] = {nrow };
-//        dimsf[0] = nrow;
-//        dimsf[1] = ncol;
             H5::DataSpace dataspace(1, dimsf);
             H5::DataType datatype(H5::PredType::NATIVE_DOUBLE);
             H5::DataSet dataset = file.createDataSet(set_names[id], datatype, dataspace);
@@ -803,7 +900,7 @@ public:
         file.close();
     }
 
-    void VecVectorOfVectorsAsGroupsH5(std::vector<std::vector<std::vector<double>>>  & data,
+    void VecVectorOfVectorsAsGroupsH5(std::vector<VecVector>  & data,
                                       std::vector<std::string> group_names,
                                       std::vector<std::string> arr_names,
                                       std::string fpath,
@@ -811,7 +908,7 @@ public:
                                       std::vector<std::unordered_map<std::string, double>> group_attrs = {}
     ){
         // remove the old file (so to avoid data piling up)
-        remove_file_if_existis(fpath);
+        remove_file_if_existis(fpath, p_log);
 
         H5::H5File file(fpath, H5F_ACC_TRUNC); // "/home/m/Desktop/tryout/file.h5"
 
@@ -871,7 +968,7 @@ public:
 
     void VecVectorOfVectorsAsGroupsAndVectorOfVectorsH5(
             std::string fpath,
-            std::vector<std::vector<std::vector<double>>> & group_data,
+            std::vector<VecVector> & group_data,
             std::vector<std::string> group_names,
             std::vector<std::string> vector_names_in_each_group,
             std::vector<std::vector<double>> & data,
@@ -879,7 +976,7 @@ public:
             std::unordered_map<std::string, double> attrs = {}
     ){
         // remove the old file (so to avoid group_data piling up)
-        remove_file_if_existis(fpath);
+        remove_file_if_existis(fpath, p_log);
 
         H5::H5File file(fpath, H5F_ACC_TRUNC); // "/home/m/Desktop/tryout/file.h5"
 
@@ -973,7 +1070,7 @@ public:
 
     void VectorOfTablesAsGroupsAndVectorOfVectorsH5(
             std::string fpath,
-            std::vector<std::vector<std::vector<std::vector<double>>>> & group_data,
+            std::vector<std::vector<VecVector>> & group_data,
             std::vector<std::string> group_names_tables,
             std::vector<std::string> table_names_in_each_group,
             std::vector<std::vector<double>> & data,
@@ -981,7 +1078,7 @@ public:
             std::unordered_map<std::string, double> attrs = {}
     ){
         // remove the old file (so to avoid group_data piling up)
-        remove_file_if_existis(fpath);
+        remove_file_if_existis(fpath, p_log);
 
         H5::H5File file(fpath, H5F_ACC_TRUNC); // "/home/m/Desktop/tryout/file.h5"
 

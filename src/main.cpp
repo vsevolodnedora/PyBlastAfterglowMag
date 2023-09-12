@@ -215,10 +215,10 @@ int main(int argc, char** argv) {
 //        working_dir = "../tst/grbafg_gauss_dyn_spread/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_gauss_spec_rs/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grb/tophat/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-        working_dir = "../tst/grb/structured/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/grb/structured/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_gauss_lc_rs/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/structured/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-//        working_dir = "../tst/grb/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../tst/grb/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_skymap_tophat_eats/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_skymap_gauss_eats/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO;

@@ -74,7 +74,7 @@ public:
                 computeSaveEjectaSkyImagesAnalytic_new(
                         working_dir,
                         getStrOpt("fname_sky_map", m_opts, AT, p_log, "", true),
-                        skymap_times, skymap_freqs, main_pars, m_pars);
+                        skymap_times, skymap_freqs, main_pars, m_pars, m_opts);
 //                    (*p_log)(LOG_INFO, AT) << "jet analytic synch. sky map finished [" << timer.checkPoint() << " s]" << "\n";
 
         }
@@ -162,7 +162,7 @@ public:
 
     /// OUTPUT skymap
     void computeSaveEjectaSkyImagesAnalytic_new(std::string workingdir, std::string fname, Vector times, Vector freqs,
-                                                StrDbMap & main_pars, StrDbMap & ej_pars){
+                                                StrDbMap & main_pars, StrDbMap & ej_pars, StrStrMap & ej_opts){
         if ((!run_bws)&&(!load_dyn))
             return;
 
@@ -188,28 +188,12 @@ public:
             nlayers_ = 1;
         }
 
-        /// output container
-        std::vector< // times & freqs & shells / layers
-                std::vector< // v_ns
-                    std::vector<double>>> // data
-        out {};
-
-        /// allocate the memory the container 9except actual data arrays)
-        size_t itnush = 0;
-        out.resize(times.size() * freqs.size() * nshells_);
-        for (size_t ifreq = 0; ifreq < freqs.size(); ++ifreq){
-            for (size_t it = 0; it < times.size(); ++it){
-                for (size_t i_sh = 0; i_sh < nshells_; ++i_sh) {
-                    out[itnush].resize(IMG::m_names.size());
-                    itnush++;
-                }
-            }
-        }
+        std::vector<ImageExtend> ims;
 
         VecVector other_data{ times, freqs };
         std::vector<std::string> other_names { "times", "freqs" };
 
-        itnush = 0;
+        size_t itinu = 0;
         for (size_t ifreq = 0; ifreq < freqs.size(); ifreq++) {
             /// allocate space for the fluxes associated with skymaps
             Vector tota_flux(times.size(), 0.0);
@@ -222,54 +206,66 @@ public:
 
             /// compute skymaps
             for (size_t it = 0; it < times.size(); ++it) {
-                Vector fluxes_shells(nshells_);
+                ims.emplace_back(ImageExtend(times[it], freqs[ifreq], nshells_, nlayers_, m_loglevel));
+//                Vector fluxes_shells(nshells_);
                 if (id->method_eats == EjectaID2::STUCT_TYPE::ipiecewise) {
-                    computeEjectaSkyMapPW_new(out, itnush, fluxes_shells, times[it], freqs[ifreq]);
+                    computeEjectaSkyMapPW_new(ims[itinu], times[it], freqs[ifreq]);
                 } else if (id->method_eats == EjectaID2::STUCT_TYPE::iadaptive) {
-                    computeEjectaSkyMapA_new(out, itnush, fluxes_shells, times[it], freqs[ifreq],
+                    computeEjectaSkyMapA_new(ims[itinu], times[it], freqs[ifreq],
                                              (size_t) getDoublePar("ntheta", ej_pars, AT, p_log, 100, true),
                                              (size_t) getDoublePar("nphi", ej_pars, AT, p_log, 200, true));
                 }
-                for (size_t ish = 0; ish < nshells_; ish++) {
-                    total_flux_shell[ish][it] = fluxes_shells[ish];
-                    tota_flux[it] += fluxes_shells[ish];
-                }
 
-                // xc[it] = weightedAverage(out_i[IMG::Q::ixr], out_i[IMG::Q::iintens]);
-                // yc[it] = weightedAverage(out_i[IMG::Q::iyr], out_i[IMG::Q::iintens]);
-            }
-            other_data.emplace_back( tota_flux );
-            other_names.emplace_back( "totalflux at freq="+ string_format("%.4e", freqs[ifreq]) );
-            for (size_t ish = 0; ish < nshells_; ish++){
-                other_data.emplace_back( total_flux_shell[ish] );
-                other_names.emplace_back( "totalflux at freq="+ string_format("%.4e", freqs[ifreq])
-                                            + " shell=" + string_format("%d", ish));
-            }
+                if (getBoolOpt("save_raw_skymap", ej_opts, AT, p_log, false, false))
+                    saveRawImage(ims[itinu],itinu,workingdir, main_pars,ej_pars,p_log);
 
-            /// create names for the groups of data columns
-            std::vector<std::string> group_names{};
-            for (size_t ifreq = 0; ifreq < freqs.size(); ifreq++){
-                for (size_t it = 0; it < times.size(); it++){
-                    for (size_t i_sh = 0; i_sh < nshells_; ++i_sh) {
-                        group_names.emplace_back(
-                                "shell=" + std::to_string(i_sh) +
-                                " time=" +  string_format("%.4e",times[it]) +
-                                " freq=" + string_format("%.4e",freqs[ifreq]));
-                    }
-                }
+                ims[itinu].evalXcYc();
+
+                ims[itinu].binImage((size_t) getDoublePar("skymap_nx", ej_pars, AT, p_log, 200, true),
+                                    (size_t) getDoublePar("skymap_ny", ej_pars, AT, p_log, 200, true) );
+
+//                for (size_t ish = 0; ish < nshells_; ish++) {
+//                    total_flux_shell[ish][it] = ims[itinu].fluxes_shells[ish];
+//                    tota_flux[it] += ims[itinu].fluxes_shells[ish];
+//                }
+                itinu++;
+
             }
+            saveImages(ims, times, freqs, main_pars, ej_pars, workingdir+fname,p_log);
+//            other_data.emplace_back( tota_flux );
+//            other_names.emplace_back( "totalflux at freq="+ string_format("%.4e", freqs[ifreq]) );
+//            for (size_t ish = 0; ish < nshells_; ish++){
+//                other_data.emplace_back( total_flux_shell[ish] );
+//                other_names.emplace_back( "totalflux at freq="+ string_format("%.4e", freqs[ifreq])
+//                                          + " shell=" + string_format("%d", ish));
+//            }
+//
+//            /// create names for the groups of data columns
+//            std::vector<std::string> group_names{};
+//            for (size_t ifreq = 0; ifreq < freqs.size(); ifreq++){
+//                for (size_t it = 0; it < times.size(); it++){
+//                    for (size_t i_sh = 0; i_sh < nshells_; ++i_sh) {
+//                        group_names.emplace_back(
+//                                "shell=" + std::to_string(i_sh) +
+//                                " time=" +  string_format("%.4e",times[it]) +
+//                                " freq=" + string_format("%.4e",freqs[ifreq]));
+//                    }
+//                }
+//            }
 
             /// names of each data column in the group
-            auto in_group_names = IMG::m_names;
-
-            /// add attributes from model parameters
-            std::unordered_map<std::string,double> attrs{ {"nshells", nshells_}, {"nlayers", nlayers_} };
-            for (auto& [key, value]: main_pars) { attrs[key] = value; }
-            for (auto& [key, value]: ej_pars) { attrs[key] = value; }
-
-            p_out->VecVectorOfVectorsAsGroupsAndVectorOfVectorsH5(workingdir+fname,out,group_names,
-                                                              in_group_names,
-                                                              other_data,other_names,attrs);
+//            auto in_group_names = IMG::m_names;
+//
+//            /// add attributes from model parameters
+//            std::unordered_map<std::string,double> attrs{ {"nshells", nshells_}, {"nlayers", nlayers_} };
+//            for (auto& [key, value]: main_pars) { attrs[key] = value; }
+//            for (auto& [key, value]: ej_pars) { attrs[key] = value; }
+//
+//            p_out->VectorOfVectorsH5()
+//
+//            p_out->VecVectorOfVectorsAsGroupsAndVectorOfVectorsH5(workingdir+fname,out,group_names,
+//                                                                  in_group_names,
+//                                                                  other_data,other_names,attrs);
 
         }
     }
