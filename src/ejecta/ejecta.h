@@ -206,8 +206,7 @@ public:
 
             /// compute skymaps
             for (size_t it = 0; it < times.size(); ++it) {
-                ims.emplace_back(ImageExtend(times[it], freqs[ifreq], nshells_, nlayers_, m_loglevel));
-//                Vector fluxes_shells(nshells_);
+                ims.emplace_back( ImageExtend(times[it], freqs[ifreq], nshells_, nlayers_, m_loglevel) );
                 if (id->method_eats == EjectaID2::STUCT_TYPE::ipiecewise) {
                     computeEjectaSkyMapPW_new(ims[itinu], times[it], freqs[ifreq]);
                 } else if (id->method_eats == EjectaID2::STUCT_TYPE::iadaptive) {
@@ -218,20 +217,31 @@ public:
 
                 if (getBoolOpt("save_raw_skymap", ej_opts, AT, p_log, false, false))
                     saveRawImage(ims[itinu],itinu,workingdir, main_pars,ej_pars,p_log);
+                else {
+                    (*p_log)(LOG_ERR, AT) << " Cannot save final image. Only raw images can now be saved...\n";
+                    exit(1);
+                }
 
-                ims[itinu].evalXcYc();
+                /// TODO this words but we don't really need to do it here, as we do not save the final image...
+//                ims[itinu].evalXcYc();
 
-                ims[itinu].binImage((size_t) getDoublePar("skymap_nx", ej_pars, AT, p_log, 200, true),
-                                    (size_t) getDoublePar("skymap_ny", ej_pars, AT, p_log, 200, true) );
+                /// compute 2D histogram (aka collecting photons that arrive at a given area)
+                /// TODO this words but we don't really need to do it here, as we do not save the final image...
+//                ims[itinu].binImage((size_t) getDoublePar("skymap_nx", ej_pars, AT, p_log, 200, true),
+//                                    (size_t) getDoublePar("skymap_ny", ej_pars, AT, p_log, 200, true) );
 
-//                for (size_t ish = 0; ish < nshells_; ish++) {
-//                    total_flux_shell[ish][it] = ims[itinu].fluxes_shells[ish];
-//                    tota_flux[it] += ims[itinu].fluxes_shells[ish];
-//                }
+                /// perform bilinear interpolation of the data for a regular grid
+                // TODO: Because the grid the large and ustructred one need Delaney interpolation. Too complex...
+//                ims[itinu].interpImage((size_t) getDoublePar("skymap_nx", ej_pars, AT, p_log, 200, true),
+//                                       (size_t) getDoublePar("skymap_ny", ej_pars, AT, p_log, 200, true) );
+
                 itinu++;
 
             }
-            saveImages(ims, times, freqs, main_pars, ej_pars, workingdir+fname,p_log);
+            /// TODO sacing the final image is not usefull unless we can interpolate the result...
+//            saveImages(ims, times, freqs, main_pars, ej_pars, workingdir+fname,p_log);
+
+
 //            other_data.emplace_back( tota_flux );
 //            other_names.emplace_back( "totalflux at freq="+ string_format("%.4e", freqs[ifreq]) );
 //            for (size_t ish = 0; ish < nshells_; ish++){

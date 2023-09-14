@@ -891,6 +891,23 @@ private:
     }
 };
 
+// Function to perform 2D linear interpolation
+double interp2d(const std::vector<double>& X, const std::vector<double>& Y, const std::vector<double>& F,
+                double x, double y) {
+    for (std::size_t i = 0; i < X.size(); ++i) {
+        for (std::size_t j = i + 1; j < X.size(); ++j) {
+            if ((X[i] - x) * (X[j] - x) <= 0 && (Y[i] - y) * (Y[j] - y) <= 0) {
+                // Compute interpolation weights
+                double w1 = std::sqrt((X[i] - x) * (X[i] - x) + (Y[i] - y) * (Y[i] - y));
+                double w2 = std::sqrt((X[j] - x) * (X[j] - x) + (Y[j] - y) * (Y[j] - y));
+                if (w1 + w2 == 0.0) return (F[i] + F[j]) / 2.0; // Avoid division by zero
+                return (F[i] * w2 + F[j] * w1) / (w1 + w2);
+            }
+        }
+    }
+    return 0.0; // Default value
+}
+
 inline static double lagrangeInterpolation(Vector & x, Vector & y, size_t n, double xp){
     double intp = 0;
     for (size_t i = 0; i < n; i++){

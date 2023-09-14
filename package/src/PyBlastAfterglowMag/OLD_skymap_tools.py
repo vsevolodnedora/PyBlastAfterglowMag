@@ -14,13 +14,8 @@ def compute_position_of_the_flux_centroid(all_x_arrs, all_y_arrs, all_z_arrs, d_
     ycs_m = ycs# * rad2mas / d_l
     return(xcs_m, ycs_m) # in milli-arc-seconds
 
-
-
-
 def interp(xxs, yys, fluxes, x_grid, y_grid, method='linear'):
     return interpolate.griddata(np.vstack((xxs, yys)).T, fluxes, np.array((x_grid, y_grid)).T, method=method, fill_value=0.)
-
-
 
 def lateral_distributions(grid_x, grid_y, image, collapse_axis='y'):
     # if collapse_axis == "y":
@@ -69,6 +64,9 @@ def image_slice(fluxes, xxs, yys, position, nn=50, axis='y', inter='linear', fac
                             (grid_x * fac, grid_y * fac), method=inter, fill_value=0)
 
     return grid_x, grid_y, slice
+
+
+
 
 
 

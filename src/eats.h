@@ -56,27 +56,31 @@ struct ImageExtend{
     double xmin = std::numeric_limits<double>::max(), ymin = std::numeric_limits<double>::max();
     double xmax = std::numeric_limits<double>::min(), ymax = std::numeric_limits<double>::min();
     Vector fluxes_shells{};
+    Vector xmins_shells{};
+    Vector xmaxs_shells{};
+    Vector ymins_shells{};
+    Vector ymaxs_shells{};
     double total_flux;
-    double xc = 0;
-    double yc = 0;
+    double xc = 0.;
+    double yc = 0.;
     std::vector<VecVector> raw_data{}; // [ish][Q][i]
     VecVector binned_data{};
+    VecVector interp_data{};
 
     void binImage(size_t nx, size_t ny ) {
 
         // Initialize histogram with zeros
         binned_data.resize(nx, std::vector<double>(ny, 0.0));
-
-//        VecVector histogram(nx, std::vector<double>(ny, 0.0));
-
         double binWidthX = (xmax - xmin) / (double)nx;
         double binWidthY = (ymax - ymin) / (double)ny;
 
         for (size_t ish = 0; ish < nshells; ish++) {
+
+            auto & x = raw_data[ish][IMG::Q::ixr];
+            auto & z = raw_data[ish][IMG::Q::iyr];
+            auto & f = raw_data[ish][IMG::Q::iintens];
+
             for (size_t i = 0; i < raw_data[ish][0].size(); i++) {
-                auto & x = raw_data[ish][IMG::Q::ixr];
-                auto & z = raw_data[ish][IMG::Q::iyr];
-                auto & f = raw_data[ish][IMG::Q::iintens];
                 if ((x[i] >= xmin) && (x[i] <= xmax) &&
                     (z[i] >= ymin) && (z[i] <= ymax)) {
 
@@ -97,19 +101,57 @@ struct ImageExtend{
         }
     }
 
+    void interpImage(size_t nx, size_t ny){
+        double dx = (xmax - xmin) / (double)(nx - 1);
+        double dy = (ymax - ymin) / (double)(ny - 1);
+
+        interp_data.resize(nx, std::vector<double>(ny));
+        for (size_t ish = 0; ish < nshells; ish++) {
+            auto & X = raw_data[ish][IMG::Q::ixr];
+            auto & Y = raw_data[ish][IMG::Q::iyr];
+            auto & F = raw_data[ish][IMG::Q::iintens];
+            for (int i = 0; i < nx; ++i) {
+                for (int j = 0; j < ny; ++j) {
+                    double x = xmin + i * dx;
+                    double y = ymin + j * dy;
+                    interp_data[i][j] += interp2d(X, Y, F, x, y);
+                }
+            }
+        }
+    }
+
+//    void interpImage(size_t nx, size_t ny){
+//        interp_data.resize(nx, std::vector<double>(ny, 0.0));
+//        for (size_t ish = 0; ish < nshells; ish++) {
+//            auto & x = raw_data[ish][IMG::Q::ixr];
+//            auto & y = raw_data[ish][IMG::Q::iyr];
+//            auto & f = raw_data[ish][IMG::Q::iintens];
+//            Interp2d interp2D(x, y, f);
+//            for (size_t ix = 0; ix < nx; ix++){
+//                double xp = xmin + (double)ix * (xmax - xmin) / (double)nx;
+//                for (size_t iy = 0; iy < ny; iy++){
+//                    double yp = ymin + (double)iy * (ymax - ymin) / (double)ny;
+//                    double val = interp2D.InterpolateBilinear(xp, yp);
+//                    interp_data[ix][iy] += val;
+//                }
+//            }
+//        }
+//    }
+
     void evalXcYc(){
         /// compute weighted average
-        double _num_x = 0;
-        double _num_y = 0;
-        double _denum = 0;
+        double _num_x = 0.;
+        double _num_y = 0.;
+        double _denum = 0.;
         for (size_t i = 0; i < nshells; i++){
             if (raw_data[i][IMG::Q::iintens].empty()){
                 std::cerr << AT << " intensity array is 0\n";
                 exit(1);
             }
-            for (size_t j = 0; j < raw_data[i].size(); j++){
-                _num_x += raw_data[i][IMG::ixr][j] * raw_data[i][IMG::iintens][j];
-                _num_y += raw_data[i][IMG::iyr][j] * raw_data[i][IMG::iintens][j];
+            size_t nn = raw_data[i][IMG::ixr].size();
+            for (size_t j = 0; j < nn; j++){
+                _num_x += (raw_data[i][IMG::ixr][j] * raw_data[i][IMG::iintens][j]);
+                _num_y += (raw_data[i][IMG::iyr][j] * raw_data[i][IMG::iintens][j]);
                 _denum += raw_data[i][IMG::iintens][j];
             }
         }
@@ -129,21 +171,27 @@ void saveRawImage(ImageExtend & im, size_t itinu, std::string workdir,
 
     std::string fpath = workdir + "raw_skymap_"+std::to_string(itinu)+".h5";
     H5::H5File file(fpath, H5F_ACC_TRUNC); // "/home/m/Desktop/tryout/file.h5"
+
+    /// add data for each shell
     for (size_t ish = 0; ish < im.nshells; ish++){
         std::string group_name = "shell=" + std::to_string(ish);
         Output::addGroupWith1Ddata(im.raw_data[ish], group_name,IMG::m_names,file);
-
-        std::string fname = "totalflux at freq="+ string_format("%.4e", im.freq)
-                            + " shell=" + string_format("%d", ish);
-        Output::addVector(im.fluxes_shells, fname, file);
     }
+    /// add fluxes for from shell
+    std::string fname = "fluxs";
+    Output::addVector(im.fluxes_shells, fname, file);
 
     /// add attributes from model parameters
     std::unordered_map<std::string,double> attrs{
+            {"flux", im.total_flux},
             {"nshells", im.nshells},
             {"nlayers", im.nlayers},
             {"time", im.time},
-            {"freq", im.freq}
+            {"freq", im.freq},
+            {"xmin", im.xmin},
+            {"ymin", im.ymin},
+            {"xmax", im.xmax},
+            {"ymax", im.ymax},
     };
     for (auto& [key, value]: main_pars) { attrs[key] = value; }
     for (auto& [key, value]: ej_pars) { attrs[key] = value; }
@@ -155,6 +203,7 @@ void saveRawImage(ImageExtend & im, size_t itinu, std::string workdir,
 
 }
 
+/// To be used once I figure out inteproaltion of the image
 void saveImages(std::vector<ImageExtend> & ims, Vector & times, Vector & freqs,
                 StrDbMap & main_pars, StrDbMap & ej_pars,
                 std::string fpath, std::unique_ptr<logger> & p_log){
@@ -180,6 +229,7 @@ void saveImages(std::vector<ImageExtend> & ims, Vector & times, Vector & freqs,
         std::string name = " time=" + string_format("%.4e", im.time) +
                               " freq=" + string_format("%.4e", im.freq);
         Output::add2Dtable(im.binned_data, "image" + name, file);
+//        Output::add2Dtable(im.interp_data, "interp_im" + name, file);
         Output::addVector(times, "times", file);
         Output::addVector(freqs, "freqs", file);
 

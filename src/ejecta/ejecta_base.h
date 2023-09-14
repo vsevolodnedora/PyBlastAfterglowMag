@@ -517,6 +517,7 @@ public:
             double xmin = std::numeric_limits<double>::max(), xmax = std::numeric_limits<double>::min();
             double ymin = std::numeric_limits<double>::max(), ymax = std::numeric_limits<double>::min();
             double imin = std::numeric_limits<double>::max(), imax = std::numeric_limits<double>::min();
+            /// TODO replace with algorithmic search
             for (size_t i = 0; i < 2 * ncells_; i++){
                 if (out[IMG::Q::ixr][i] < xmin) xmin = out[IMG::Q::ixr][i];
                 if (out[IMG::Q::ixr][i] > xmax) xmax = out[IMG::Q::ixr][i];
@@ -539,6 +540,7 @@ public:
             if (ymin < im.ymin) im.ymin = ymin;
             if (xmax > im.xmax) im.xmax = xmax;
             if (ymax > im.ymax) im.ymax = ymax;
+            im.total_flux += im.fluxes_shells[ishell];
         }
     }
 
@@ -547,11 +549,10 @@ public:
                                size_t & nsublayers, size_t & nrestarts,
                                Vector & th_b_layers, double th_jet_max){
 
-        bool is_ok = true;
-
         size_t min_sublayers = 3;
         double frac_to_increase = 1.5;
         size_t max_restarts = 10;
+        size_t min_non_zero_cells = 3;
 
         /// allocate memory for angular grid for this shell
         Vector theta_pw(nsublayers + 1);
@@ -625,15 +626,18 @@ public:
                 /// evaluate intensity
                 layer_summed_intensity += bw_rad->evalSkyMapA(out, obs_time, obs_freq, ilayer, iii, cil, ncells);
                 iii = iii + cil;
-
             }
             /// check if the principle jet an counter jets are resolved (intensity found)
             double summed_int_pj = 0.;
             double summed_int_cj = 0.;
+            int nx_pj=0, nx_cj=0;
             for (size_t i = 0; i < ncells; i++) {
                 summed_int_pj += out[IMG::Q::iintens][i];
                 summed_int_cj += out[IMG::Q::iintens][ncells + i];
+                if (out[IMG::Q::iintens][i] > 0) nx_pj++;
+                if (out[IMG::Q::iintens][ncells + i] > 0) nx_cj++;
             }
+
             if ((summed_int_pj == 0) || (summed_int_cj == 0)) {
 //                    (*p_log)(LOG_ERR, AT)
 //                            << " sum(summed_int_pj)=" << summed_int_pj << " sum(summed_int_cj)=" << summed_int_cj
@@ -657,6 +661,35 @@ public:
                 return false;
 //                    exit(1);
             }
+            if (nx_pj < min_non_zero_cells){
+                auto nsublayers_new = size_t((double)nsublayers * frac_to_increase);
+                (*p_log)(LOG_WARN, AT) << "\t restarting skymap [il="<<ilayer<<"]"
+                                       <<" Reason: nx_pj="<<nx_pj<<" < min_non_zero_cells="<<min_non_zero_cells<<" [restarts="<<nrestarts<<"]"
+                                       <<" Increasing nsublayers="<<nsublayers<<"->"<<nsublayers_new<<"\n";
+                if (nrestarts>max_restarts){
+                    (*p_log)(LOG_ERR, AT)<<" maximum number of restarts exceeded for [il="<<ilayer<<"] "
+                                         << " nrestarts=" << nrestarts << " sublayers=" << nsublayers <<"\n";
+                    exit(1);
+                }
+                nsublayers = nsublayers_new;
+                nrestarts+=1;
+                return false;
+            }
+            if (nx_cj < min_non_zero_cells){
+                auto nsublayers_new = size_t((double)nsublayers * frac_to_increase);
+                (*p_log)(LOG_WARN, AT) << "\t restarting skymap [il="<<ilayer<<"]"
+                                       <<" Reason: nx_cj="<<nx_cj<<" < min_non_zero_cells="<<min_non_zero_cells<<" [restarts="<<nrestarts<<"]"
+                                       <<" Increasing nsublayers="<<nsublayers<<"->"<<nsublayers_new<<"\n";
+                if (nrestarts>max_restarts){
+                    (*p_log)(LOG_ERR, AT)<<" maximum number of restarts exceeded for [il="<<ilayer<<"] "
+                                         << " nrestarts=" << nrestarts << " sublayers=" << nsublayers <<"\n";
+                    exit(1);
+                }
+                nsublayers = nsublayers_new;
+                nrestarts+=1;
+                return false;
+            }
+
         }
         return true;
     }
@@ -787,6 +820,7 @@ public:
             if (im.ymin > ymin) im.ymin = ymin;
             if (im.xmax < xmax) im.xmax = xmax;
             if (im.ymax < xmax) im.ymax = ymax;
+            im.total_flux += im.fluxes_shells[il];
         }
 #if 0
         for (size_t ilayer = 0; ilayer < nlayers_; ++ilayer) {
@@ -1106,7 +1140,7 @@ public:
                         << " vel_shell=" << ishell << "/" << nshells() - 1
                         << " theta_layer=" << ilayer << "/" << nlayers()
                         << "\n";
-                auto &model = getShells()[ilayer];//ejectaModels[ishell][ilayer];
+                auto & model = getShells()[ilayer];//ejectaModels[ishell][ilayer];
                 model->getBW(ishell)->getFsEATS()->evalLightCurve(out[ii], id->method_eats, obs_times, obs_freqs);
                 ii++;
             }
