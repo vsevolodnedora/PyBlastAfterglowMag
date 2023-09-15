@@ -136,4 +136,6 @@ method_quad = CADRE
 method_synchrotron_rs = WSPN99
 use_ssa_rs = no
 
+skymap_remove_mu = no
+
 # --------------------------- END ---------------------------

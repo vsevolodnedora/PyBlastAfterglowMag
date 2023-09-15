@@ -82,7 +82,7 @@ do_skymap = no
 do_rs = no
 rhs_type = grb_fs
 method_collision = none # none
-method_eats = piece-wise # piece-wise
+method_eats = adaptive # piece-wise
 allow_termination = no
 use_rs = no
 
@@ -90,13 +90,13 @@ do_thermrad_loss = no
 
 use_1d_id = yes
 fname_dyn = dyn_grb_tophad.h5
-fname_light_curve = tophat_0_pw.h5
+fname_light_curve = tophat_0_a.h5
 fname_light_curve_layers = none
 fname_sky_map = skymap_grb_gauss.h5
 
 do_nucinj = no
 type = numeric
-fname_ejecta_id = tophat_grb_id_pw.h5
+fname_ejecta_id = tophat_grb_id_a.h5
 load_r0 = no
 
 tprompt = 0.
@@ -123,5 +123,7 @@ emissivity = em
 absorption = abs
 method_comp_mode = observFlux   # "comovSpec"
 method_quad = CADRE
+
+skymap_remove_mu = no
 
 # --------------------------- END ---------------------------

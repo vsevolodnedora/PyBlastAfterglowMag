@@ -10,22 +10,7 @@ from matplotlib.colors import Normalize, LogNorm
 from matplotlib import cm
 import os
 
-try:
-    from PyBlastAfterglowMag.interface import modify_parfile_par_opt
-    from PyBlastAfterglowMag.interface import PyBlastAfterglow
-    from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
-    from PyBlastAfterglowMag.utils import latex_float, cgs, get_beta, get_Gamma
-    from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
-except ImportError:
-    try:
-        from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
-        from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
-        from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
-        from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma)
-        from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
-    except ImportError:
-        raise ImportError("Cannot import PyBlastAfterglowMag")
-
+import package.src.PyBlastAfterglowMag as PBA
 
 try:
     import afterglowpy as grb
@@ -81,6 +66,9 @@ class RefData():
     def close(self) -> None:
         self.refdata.close()
 
+structure = {"Eiso_c": 1.e53, "Gamma0c": 1000., "M0c": -1., "theta_c": 0.1, "theta_w": 0.3,
+             "nlayers_pw": 50, "nlayers_a": 10, "struct": "gaussian"}
+
 def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
                        v_n_x = "R", v_n_ys = ("rho", "mom"), colors_by="layers",legend=False,
                        figname="dyn_layers_fsrs.png", run_fs_only=False):
@@ -93,25 +81,28 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
     theta_h = np.pi/2.
     one_min_cos = 2. * np.sin(0.5 * theta_h) * np.sin(0.5 * theta_h)
     ang_size_layer = 2.0 * np.pi * one_min_cos / (4.0 * np.pi)
-    prepare_grb_ej_id_1d({"Eiso_c":1.e53, "Gamma0c": 1000., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.3,
-                          "nlayers_pw": 50, "nlayers_a": 10, "struct":"gaussian"},
-                           type="a",outfpath="tophat_grb_id.h5")
+
+    pba_id = PBA.id_maker_analytic.JetStruct(n_layers_pw=50,n_layers_a=10)
+    pba_id_dict = pba_id.get_1D_id(type="adaptive",pars=structure)
+    with h5py.File(workdir+"tophat_grb_id.h5", "w") as dfile:
+        for key, data in pba_id_dict.items():
+            dfile.create_dataset(name=key, data=data)
 
     ### run fs-only model
     if(run_fs_only):
-        modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
+        PBA.parfile_tools.modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
                                newopts={"rhs_type":"grb_fs", "outfpath":"grb_fs.h5", "do_rs":"no",
                                         "fname_dyn":"dyn_bw_fs.h5","fname_light_curve":"lc_grb_tophad.h5", "method_eats": "adaptive"},
                                parfile="default_parfile.par", newparfile="parfile.par",keep_old=True)
-        pba_fs = PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
+        pba_fs = PBA.interface.PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
         pba_fs.run(loglevel="info")
 
     # run fsrs model
-    modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
+    PBA.parfile_tools.modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
                            newopts={"rhs_type":"grb_fsrs", "outfpath":"grb_fsrs.h5", "do_rs":"yes",
                                     "fname_dyn":"dyn_bw_fsrs.h5","fname_spectrum":"lc_grb_tophad.h5", "method_eats": "adaptive"},
                            parfile="default_parfile.par", newparfile="parfile.par",keep_old=True)
-    pba_fsrs = PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
+    pba_fsrs = PBA.interface.PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
     pba_fsrs.run(loglevel="info")
 
     # ref = RefData(workdir)
@@ -150,7 +141,7 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
                 # y_arr = y_arr/y_arr.max()
                 if (colors_by=="layers"): color=cmap(mynorm(int(i)))#color=cmap(norm(int(layer.split("layer=")[-1])))
                 else: color=cmap(mynorm(int(i)))#color=cmap(norm(int(layer.split("shell=")[-1].split("layer=")[0])))
-                if (v_n_x == "tburst"): x_arr /=cgs.day;
+                if (v_n_x == "tburst"): x_arr /=PBA.utils.cgs.day;
                 ax.plot(x_arr, y_arr, ls='-', color=color, label=layer)
                 i=i+1
         # --------------------------------
@@ -164,7 +155,7 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
             # y_arr = y_arr/y_arr.max()
             if (colors_by=="layers"): color=cmap(mynorm(int(i)))#color=cmap(norm(int(layer.split("layer=")[-1])))
             else: color=cmap(mynorm(int(i)))#color=cmap(norm(int(layer.split("shell=")[-1].split("layer=")[0])))
-            if (v_n_x == "tburst"): x_arr /=cgs.day;
+            if (v_n_x == "tburst"): x_arr /=PBA.utils.cgs.day;
             ax.plot(x_arr, y_arr, ls='--', color=color, label=layer)
             i=i+1
 
@@ -324,12 +315,18 @@ def plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,20,40,80,120),legend=Fa
             for i, i_nlayers in enumerate(nlayers):
                 pars["nlayers_a"] = i_nlayers
                 pars["nlayers_pw"] = i_nlayers
-                prepare_grb_ej_id_1d(pars, type=type,outfpath="gauss_grb_id.h5")
-                modify_parfile_par_opt(workingdir=workdir, part="main", newpars={"theta_obs":theta}, newopts={},
+
+                pba_id = PBA.id_maker_analytic.JetStruct(n_layers_pw=i_nlayers,n_layers_a=i_nlayers)
+                pba_id_dict = pba_id.get_1D_id(type="adaptive",pars=structure)
+                with h5py.File(workdir+"gauss_grb_id.h5", "w") as dfile:
+                    for key, data in pba_id_dict.items():
+                        dfile.create_dataset(name=key, data=data)
+
+                PBA.parfile_tools.modify_parfile_par_opt(workingdir=workdir, part="main", newpars={"theta_obs":theta}, newopts={},
                                        parfile="default_parfile.par", newparfile="default_parfile.par",keep_old=False)
                 ### run fs-only model
                 if(run_fs_only):
-                    modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
+                    PBA.parfile_tools.modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
                                            newopts={"rhs_type":"grb_fs", "outfpath":"grb_fs.h5", "do_rs":"no",
                                                     "fname_ejecta_id":"gauss_grb_id.h5", "method_spread":method_spread,
                                                     "fname_dyn":"dyn_bw_fs.h5","fname_light_curve":"lc_grb_fs.h5",
@@ -337,39 +334,39 @@ def plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,20,40,80,120),legend=Fa
                                                     # "method_comp_mode": "observFlux", "do_spec":"no"
                                                     },
                                            parfile="default_parfile.par", newparfile="parfile.par",keep_old=True)
-                    pba_fs = PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
+                    pba_fs = PBA.interface.PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
                     pba_fs.run(loglevel="info")
 
                 # run fsrs model
                 if (run_fsrs_only):
-                    modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
+                    PBA.parfile_tools.modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
                                            newopts={"rhs_type":"grb_fsrs", "outfpath":"grb_fsrs.h5", "do_rs":"yes",
                                                     "fname_ejecta_id":"gauss_grb_id.h5", "method_spread":method_spread,
                                                     "fname_dyn":"dyn_bw_fsrs.h5","fname_light_curve":"lc_grb_fsrs.h5",
                                                     "fname_light_curve_layers":"lc_grb_fsrs_layers.h5", "method_eats": method_eats
                                                     },
                                            parfile="default_parfile.par", newparfile="parfile.par",keep_old=True)
-                    pba_fsrs = PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
+                    pba_fsrs = PBA.interface.PyBlastAfterglow(workingdir=workdir, readparfileforpaths=True, parfile="parfile.par")
                     pba_fsrs.run(loglevel="info")
 
                 color_fs=cmap_fs(mynorm(int(i)))
                 color_fsrs=cmap_fsrs(mynorm(int(i)))
 
                 if(run_fs_only):
-                    ax.plot(pba_fs.GRB.get_lc_times(spec=False)/cgs.day,
+                    ax.plot(pba_fs.GRB.get_lc_times(spec=False)/PBA.utils.cgs.day,
                             # pba_fs.GRB.get_lc(freq=freq,ishell=None,ilayer=None,spec=False),
                     pba_fs.GRB.get_lc_totalflux(freq=freq,time=None,spec=False),
                     ls=ls, color=color_fs, lw=lw, label='FS')
 
                 if (run_fsrs_only):
-                    ax.plot(pba_fsrs.GRB.get_lc_times(spec=False)/cgs.day,
+                    ax.plot(pba_fsrs.GRB.get_lc_times(spec=False)/PBA.utils.cgs.day,
                             # pba_fsrs.GRB.get_lc(freq=freq,ishell=None,ilayer=None,spec=False),
                             pba_fsrs.GRB.get_lc_totalflux(freq=freq,spec=False),
                             ls=ls, color=color_fsrs, lw=lw, label='FSRS')
 
                 if (plot_ref):
                     times, fluxes = ref.get(freq=freq, theta_obs=theta)
-                    ax.plot(times/cgs.day, fluxes, color='gray', lw=0.8, ls=':')
+                    ax.plot(times/PBA.utils.cgs.day, fluxes, color='gray', lw=0.8, ls=':')
 
 
     ax.set_ylabel("Flux Density [mJy]", fontsize=12)
