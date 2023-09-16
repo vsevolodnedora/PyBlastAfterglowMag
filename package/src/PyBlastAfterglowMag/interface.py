@@ -9,7 +9,7 @@ from multiprocessing import Pool
 
 from .utils import cgs, get_beta, find_nearest_index
 from .parfile_tools import read_parfile
-from .skymap_tools import compute_position_of_the_flux_centroid
+from .OLD_skymap_tools import compute_position_of_the_flux_centroid
 
 ''' 
 pip uninstall --no-cache-dir PyBlastAfterglowMag & pip install .
@@ -76,8 +76,25 @@ class Base:
             self.skymap_dfile = None
 
 
+class Skymap:
+    def __init__(self, dfile : h5py.Group):
+        self.flux = dfile.attrs["flux"]
+        self.xc = dfile.attrs["xc"]
+        self.yc = dfile.attrs["yc"]
+        self.x1 = dfile.attrs["x1"]
+        self.x2 = dfile.attrs["x2"]
+        self.y1 = dfile.attrs["y1"]
+        self.y2 = dfile.attrs["y2"]
+        self.grid_x = np.array(dfile["grid_x"])
+        self.grid_y = np.array(dfile["grid_y"])
+        self.dist_x = np.array(dfile["dist_x"])
+        self.dist_y = np.array(dfile["dist_y"])
+        self.im_intp = np.array(dfile["image_intp"])
+        self.im_hist = np.array(dfile["image_hist"])
+
+
 class Ejecta(Base):
-    def __init__(self,workingdir,readparfileforpaths,parfile,type):
+    def __init__(self,workingdir, readparfileforpaths, parfile, type):
         super().__init__(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile)
 
         if not os.path.isdir(workingdir):
@@ -132,7 +149,7 @@ class Ejecta(Base):
             except OSError:
                 raise OSError("failed to load the file: \n {}".format(self.fpath_sky_map))
 
-
+    # --------- Dynamics -------------
 
     def get_dyn_obj(self):
         self._ckeck_if_loaded_dyn_obj()
@@ -189,7 +206,7 @@ class Ejecta(Base):
                 x_arr.append(self.get_dyn_arr(v_n, ishell=ish, ilayer=ilayer)[idx])
         return np.array(x_arr)
 
-    # --------- lightcurves -------------
+    # --------- Light Curves -------------
 
     def get_lc_obj(self,spec=False):
         if spec:
@@ -427,8 +444,6 @@ class Ejecta(Base):
                 raise NameError()
 
 
-
-
     def _alpha(self, freq, freqm1, ishell, ilayer, spec=False):
         values_i = self.get_lc(freq=freq, ishell=ishell, ilayer=ilayer,spec=spec)
         values_im1 = self.get_lc(freq=freqm1, ishell=ishell, ilayer=ilayer,spec=spec)
@@ -544,38 +559,173 @@ class Ejecta(Base):
     #         x_arr = np.array(x_arr)
     #         arr = np.reshape(np.array(arr), (len(x_arr), len(y_arr)))
     #     return arr
+    pass
+    # ---------- Sky Maps --------------
 
-    # ---------- skymaps --------------
-
-    def get_skymap_obj(self):
+    def get_skymap_obj(self) -> h5py.File:
         self._check_if_loaded_skymap()
         return self.skymap_dfile
 
-    def get_skymap_times(self):
+    def get_skymap_times(self) -> np.ndarray:
         self._check_if_loaded_skymap()
         # print(self.ej_skymap.keys())
         return np.array(self.skymap_dfile["times"])
 
-    def get_skymap_freqs(self):
+    def get_skymap_freqs(self) -> np.ndarray:
         self._check_if_loaded_skymap()
         return np.array(self.skymap_dfile["freqs"])
 
-    def get_skymap_property(self, v_n : str, freq : float, time : float = None) -> float:
-        if (v_n not in ["totalflux", "xc", "yc"]):
-            raise KeyError(f"key={v_n} is not available")
-        self._check_if_loaded_skymap()
-        arr = np.array(self.skymap_dfile[v_n + " at freq={:.4e}".format(freq)])
-        if (len(arr)==1):
-            return arr[0]
-        if (time < self.get_skymap_times().min()):
-            raise ValueError(f"time {time} < get_skymap_times().min()={self.get_skymap_times().min()}")
-        if (time > self.get_skymap_times().max()):
-            raise ValueError(f"time {time} > get_skymap_times().max()={self.get_skymap_times().max()}")
-        # self.get_skymap_totfluxes(freq=freq, shell=None, time=None)
-        val = arr[find_nearest_index(self.get_skymap_times(), time)]
-        return val
+    def check_skymap_time(self, time : float) -> float:
+        times = self.get_skymap_times()
+        if not time in times:
+            if (time < self.get_skymap_times().min()):
+                raise ValueError(f"time {time} < times.min()={times.min()}")
+            if (time > self.get_skymap_times().max()):
+                raise ValueError(f"time {time} > times.max()={times.max()}")
+                # self.get_skymap_totfluxes(freq=freq, shell=None, time=None)
+            time = times[find_nearest_index(times, time)]
+        return time
 
-    def get_skymap_totfluxes(self, freq, shell=None, time=None):
+    def check_skymap_freq(self, freq : float) -> float:
+        freqs = self.get_skymap_freqs()
+        if not freq in freqs:
+            if (freq < self.get_skymap_times().min()):
+                raise ValueError(f"freq {freq} < freqs.min()={freqs.min()}")
+            if (freq > self.get_skymap_times().max()):
+                raise ValueError(f"freq {freq} > freqs.max()={freqs.max()}")
+                # self.get_skymap_totfluxes(freq=freq, shell=None, time=None)
+            freq = freqs[find_nearest_index(freqs, freq)]
+        return freq
+
+    def get_skymap_attr(self, v_n : str, freq : float, time : float) -> np.number:
+
+        self.check_skymap_time(time=time)
+        self.check_skymap_freq(freq=freq)
+
+        dfile = self.get_skymap_obj()
+        ddfile = dfile["time={:.4e} freq={:.4e}".format(time, freq)]
+
+        if (not v_n in ddfile.attrs.keys()):
+            raise KeyError(f"key '{v_n}' is not found in \n {ddfile.attrs.keys()}")
+
+        return ddfile.attrs[v_n]
+
+    def get_skymap(self, time : float, freq : float) -> Skymap:
+
+        self.check_skymap_time(time=time)
+        self.check_skymap_freq(freq=freq)
+        # if (not type in ["hist","intp"]):
+        #     raise KeyError(f"skymap type '{type}' is not recognized.")
+        dfile = self.get_skymap_obj()
+        return Skymap(dfile["time={:.4e} freq={:.4e}".format(time, freq)])
+
+        # dfile = self.get_skymap_obj()
+        # ddfile = dfile["time={:.4e} freq={:.4e}".format(time, freq)]
+        #
+        # skymap = np.array(ddfile["image_"+type], dtype=np.float64)
+        # grid_x = np.array(ddfile["grid_x"], dtype=np.float64)
+        # grid_y = np.array(ddfile["grid_y"], dtype=np.float64)
+        #
+        # return (grid_x, grid_y, skymap)
+
+
+class Magnetar:
+    def __init__(self,workingdir,readparfileforpaths,parfile):
+        self.parfile = parfile
+        self.workingdir = workingdir
+        self.res_dir = workingdir
+        self.fpath_mag = None
+        if readparfileforpaths:
+            self.mag_pars, self.mag_opts = self.read_magnetar_part_parfile( self.parfile )
+        else:
+            self.fpath_mag = self.res_dir + "magnetar.h5"
+
+        self.mag_dfile = None
+
+    def reload_parfile(self):
+        self.mag_pars, self.mag_opts = self.read_magnetar_part_parfile( self.parfile )
+
+    def read_magnetar_part_parfile(self, parfile="parfile.par"):
+        mag_pars, mag_opts = read_parfile(workingdir=self.workingdir,fname=parfile,comment="#",
+                                          sep1="# ------------------------ Magnetar -------------------------",
+                                          sep2="# --------------------------- END ---------------------------")
+        if "fname_mag" in mag_opts.keys(): self.fpath_mag = self.res_dir + mag_opts["fname_mag"]
+        return (mag_pars, mag_opts)
+
+    def _check_if_loaded_mag_obj(self):
+        if (self.fpath_mag is None):
+            raise IOError("self.fpath_mag is not set")
+        if (self.mag_dfile is None):
+            self.mag_dfile = h5py.File(self.fpath_mag)
+    # magnetar
+    def get_mag_obj(self):
+        self._check_if_loaded_mag_obj()
+        return self.mag_dfile
+
+    def clear(self):
+        # self.overwrite = True
+        if (not self.mag_dfile is None):
+            self.mag_dfile.close()
+            self.mag_dfile = None
+
+
+class PyBlastAfterglow:
+    '''
+        Process output_uniform_grb files: load, extract for a specific way
+    '''
+    def __init__(self, workingdir, readparfileforpaths=True, parfile="parfile.par"):
+        # super().__init__(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile)
+
+        self.KN = Ejecta(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,type="kn")
+        self.GRB = Ejecta(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,type="grb")
+        self.PWN = Ejecta(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,type="pwn")
+        self.MAG = Magnetar(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile)
+
+        self.parfile = parfile
+        self.workingdir = workingdir
+        self.res_dir = workingdir
+
+        if readparfileforpaths:
+            self.main_pars, self.main_opts = self.read_main_part_parfile( self.parfile )
+
+    def read_main_part_parfile(self, parfile="parfile.par"):
+        main_pars, main_opts = read_parfile(workingdir=self.workingdir,fname=parfile,comment="#",
+                                            sep1="# -------------------------- main ---------------------------",
+                                            sep2="# --------------------------- END ---------------------------")
+        return (main_pars,main_opts)
+
+    def reload_parfile(self):
+        self.main_pars, self.main_opts = self.read_main_part_parfile()
+        self.KN.reload_parfile(type="kn")
+        self.GRB.reload_parfile(type="grb")
+        self.MAG.reload_parfile()
+
+    def run(self, loglevel="info"):
+        # this mess is because I did not figure out how $PATH thing works...
+        curdir = os.getcwd()
+        pbadir = curdir.split("PyBlastAfterglowMag")[0]
+        path_to_cpp_executable = pbadir+"PyBlastAfterglowMag"+"/src/pba.out"
+        # print(os.getcwd())
+        # os.chdir("../../../src/")
+        # path_to_executable = "pba.out"
+        if not os.path.isfile(path_to_cpp_executable):
+            raise IOError("pba.out executable is not found: {}".format(path_to_cpp_executable))
+        # subprocess.call(path_to_executable, input="")
+        # print("{} {} {} {}".format(path_to_cpp_executable, self.workingdir, self.parfile, self.loglevel))
+        # subprocess.run(path_to_cpp_executable, input=self.workingdir)
+        subprocess.check_call([path_to_cpp_executable, self.workingdir, self.parfile, loglevel])
+
+    def clear(self):
+        self.KN.clear()
+        self.GRB.clear()
+        self.MAG.clear()
+
+
+''' parallel runs TOBE REMOVED '''
+
+class REMOVE_ME:
+
+    def OLD_get_skymap_totfluxes(self, freq, shell=None, time=None):
         self._check_if_loaded_skymap()
         if time is None:
             if (shell is None):
@@ -598,17 +748,14 @@ class Ejecta(Base):
                 raise KeyError("Not finished...")
 
 
-    def get_skymap_cm(self, all_xrs, all_yrs, all_zz):
+    def OLD_get_skymap_cm(self, all_xrs, all_yrs, all_zz):
         dfile = self.get_skymap_obj()
-        # _x = np.concatenate(all_xrs)
-        # _y = np.concatenate(all_yrs)
-        # _z = np.concatenate(all_zz)
         xc_m, yc_m = compute_position_of_the_flux_centroid(all_xrs, all_yrs, all_zz, float(dfile.attrs["d_l"]))
         return (xc_m, yc_m)
 
 
 
-    def get_combained_skymaps_adjusted_to_other(self, time, freq, other_pb_instance, nx=100, ny=50):
+    def OLD_get_combained_skymaps_adjusted_to_other(self, time, freq, other_pb_instance, nx=100, ny=50):
 
         all_x, all_y, all_fluxes \
             = self.get_ej_skymap(time=time * cgs.day, freq=freq, verbose=False, remove_mu=True)
@@ -624,7 +771,7 @@ class Ejecta(Base):
 
         return (int_x, int_y, int_zz, int_zz_m1)
 
-    def get_combined_spectral_map(self, time, freq, nx=100, ny=50, extend=2):
+    def OLD_get_combined_spectral_map(self, time, freq, nx=100, ny=50, extend=2):
         freqs = self.get_skymap_freqs()
         assert len(freqs) > 2
         idx = find_nearest_index(freqs, freq)
@@ -662,7 +809,7 @@ class Ejecta(Base):
         return (int_x, int_y, int_zz)
 
 
-    def TOREMOVE_get_skymap_old(self, time=None, freq=None, ishell=None, verbose=False, remove_mu=False, renormalize=True, normtype="pw"):
+    def OLD_TOREMOVE_get_skymap_old(self, time=None, freq=None, ishell=None, verbose=False, remove_mu=False, renormalize=True, normtype="pw"):
 
         # nx = 200
         # ny = 100
@@ -1137,7 +1284,7 @@ class Ejecta(Base):
         else:
             raise NotImplementedError("Not implemented")
 
-    def TOREMOVE_get_skymap(self, time, freq, verbose=False, remove_zeros=True, return_sph_coords=False):
+    def OLD_TOREMOVE_get_skymap(self, time, freq, verbose=False, remove_zeros=True, return_sph_coords=False):
         times = self.get_skymap_times()
         freqs = self.get_skymap_freqs()
         dfile = self.get_skymap_obj()
@@ -1230,7 +1377,7 @@ class Ejecta(Base):
 
             if (len(all_xrs_pjcj[-1]) == 0):
                 raise ValueError(f"Empty shell {ish} ncells[ii]={ncells[ii]} "
-                         f"len(all_xrs[ii][:ncells[ii]]={all_xrs[ii][:ncells[ii]]}); after 'remove_zeros' {len(all_zz_pjcj[-1])}")
+                                 f"len(all_xrs[ii][:ncells[ii]]={all_xrs[ii][:ncells[ii]]}); after 'remove_zeros' {len(all_zz_pjcj[-1])}")
 
             if (return_sph_coords):
                 _ctheta_cj  = all_theta[ii][ncells[ii]:]
@@ -1249,7 +1396,7 @@ class Ejecta(Base):
             return (all_xrs_pjcj, all_yrs_pjcj, all_zz_pjcj)
 
 
-    def get_skymap(self, time : float, freq : float, verbose=False, remove_zeros=True, return_sph_coords=False):
+    def OLD_get_skymap_OLD(self, time : float, freq : float, verbose=False, remove_zeros=True, return_sph_coords=False):
         times = self.get_skymap_times()
         freqs = self.get_skymap_freqs()
         dfile = self.get_skymap_obj()
@@ -1357,107 +1504,6 @@ class Ejecta(Base):
             return (all_xrs_pjcj, all_yrs_pjcj, all_zz_pjcj, all_ctheta_pjcj, all_cphi_pjcj, all_r_pjcj)
         else:
             return (all_xrs_pjcj, all_yrs_pjcj, all_zz_pjcj)
-
-
-class Magnetar:
-    def __init__(self,workingdir,readparfileforpaths,parfile):
-        self.parfile = parfile
-        self.workingdir = workingdir
-        self.res_dir = workingdir
-        self.fpath_mag = None
-        if readparfileforpaths:
-            self.mag_pars, self.mag_opts = self.read_magnetar_part_parfile( self.parfile )
-        else:
-            self.fpath_mag = self.res_dir + "magnetar.h5"
-
-        self.mag_dfile = None
-
-    def reload_parfile(self):
-        self.mag_pars, self.mag_opts = self.read_magnetar_part_parfile( self.parfile )
-
-    def read_magnetar_part_parfile(self, parfile="parfile.par"):
-        mag_pars, mag_opts = read_parfile(workingdir=self.workingdir,fname=parfile,comment="#",
-                                          sep1="# ------------------------ Magnetar -------------------------",
-                                          sep2="# --------------------------- END ---------------------------")
-        if "fname_mag" in mag_opts.keys(): self.fpath_mag = self.res_dir + mag_opts["fname_mag"]
-        return (mag_pars, mag_opts)
-
-    def _check_if_loaded_mag_obj(self):
-        if (self.fpath_mag is None):
-            raise IOError("self.fpath_mag is not set")
-        if (self.mag_dfile is None):
-            self.mag_dfile = h5py.File(self.fpath_mag)
-    # magnetar
-    def get_mag_obj(self):
-        self._check_if_loaded_mag_obj()
-        return self.mag_dfile
-
-    def clear(self):
-        # self.overwrite = True
-        if (not self.mag_dfile is None):
-            self.mag_dfile.close()
-            self.mag_dfile = None
-
-
-class PyBlastAfterglow:
-    '''
-        Process output_uniform_grb files: load, extract for a specific way
-    '''
-    def __init__(self, workingdir, readparfileforpaths=True, parfile="parfile.par"):
-        # super().__init__(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile)
-
-        self.KN = Ejecta(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,type="kn")
-        self.GRB = Ejecta(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,type="grb")
-        self.PWN = Ejecta(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,type="pwn")
-        self.MAG = Magnetar(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile)
-
-        self.parfile = parfile
-        self.workingdir = workingdir
-        self.res_dir = workingdir
-
-        if readparfileforpaths:
-            self.main_pars, self.main_opts = self.read_main_part_parfile( self.parfile)
-
-    def read_main_part_parfile(self, parfile="parfile.par"):
-        main_pars, main_opts = read_parfile(workingdir=self.workingdir,fname=parfile,comment="#",
-                                            sep1="# -------------------------- main ---------------------------",
-                                            sep2="# --------------------------- END ---------------------------")
-        return (main_pars,main_opts)
-
-    def reload_parfile(self):
-        self.main_pars, self.main_opts = self.read_main_part_parfile()
-        self.KN.reload_parfile(type="kn")
-        self.GRB.reload_parfile(type="grb")
-        self.MAG.reload_parfile()
-
-    def run(self, loglevel="info"):
-        # this mess is because I did not figure out how $PATH thing works...
-        curdir = os.getcwd()
-        pbadir = curdir.split("PyBlastAfterglowMag")[0]
-        path_to_cpp_executable = pbadir+"PyBlastAfterglowMag"+"/src/pba.out"
-        # print(os.getcwd())
-        # os.chdir("../../../src/")
-        # path_to_executable = "pba.out"
-        if not os.path.isfile(path_to_cpp_executable):
-            raise IOError("pba.out executable is not found: {}".format(path_to_cpp_executable))
-        # subprocess.call(path_to_executable, input="")
-        # print("{} {} {} {}".format(path_to_cpp_executable, self.workingdir, self.parfile, self.loglevel))
-        # subprocess.run(path_to_cpp_executable, input=self.workingdir)
-        subprocess.check_call([path_to_cpp_executable, self.workingdir, self.parfile, loglevel])
-
-    def clear(self):
-        self.KN.clear()
-        self.GRB.clear()
-        self.MAG.clear()
-
-    ''' -------- ejecta (shells and layers) -------- '''
-
-    # ejecta dynamics
-
-
-''' parallel runs '''
-
-
 
 class PBA_BASE_OLD:
     '''

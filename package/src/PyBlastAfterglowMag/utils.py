@@ -49,6 +49,7 @@ class cgs:
 
 get_beta = lambda Gamma: np.sqrt(1. - np.power(Gamma, -2))
 get_Gamma = lambda beta: np.float64(np.sqrt(1. / (1. - np.float64(beta) ** 2.)))
+
 def get_Beta(Gamma):
     return (1. / Gamma) * np.sqrt((Gamma - 1.) * (Gamma + 1.))
 

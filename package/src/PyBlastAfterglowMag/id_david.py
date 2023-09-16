@@ -26,7 +26,7 @@ import argparse
 # from .rebin import rebin
 
 
-from .id_maker_tools import (reinterpolate_hist, compute_ek_corr)
+from .id_tools import (reinterpolate_hist, compute_ek_corr)
 from .utils import (cgs, get_Gamma, get_beta, MomFromGam, GamFromMom, BetFromMom)
 
 

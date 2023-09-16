@@ -48,6 +48,7 @@ def _generate_grid_cthetas(nlayers, theta0):
     thetas = 2. * np.arcsin(fac * np.sin(theta0 / 2.))
     cthetas = 0.5 * (thetas[1:] + thetas[:-1])
     return (thetas, cthetas)
+
 def _generate_grid_cthetas2(nlayers, theta0, theta1):
     dtheta = theta1 / (nlayers + 1)
     thetas_l, thetas_h, cthetas = [], [], []
@@ -62,6 +63,7 @@ def _generate_grid_cthetas2(nlayers, theta0, theta1):
     # thetas = 2. * np.arcsin(fac * np.sin(theta0 / 2.))
     # cthetas = 0.5 * (thetas[1:] + thetas[:-1])
     return (thetas_h, cthetas)
+
 def reinterpolate_hist(thetas_pol_edges, mass_2d_hist, new_theta_len=None, dist="pw"):
     print("Rebinning historgram")
     if (new_theta_len is None):
@@ -94,9 +96,10 @@ def reinterpolate_hist(thetas_pol_edges, mass_2d_hist, new_theta_len=None, dist=
     thetas_pol_edges = new_thetas_edges
     mass = new_mass
     return (thetas_pol_edges, mass)
+
 def reinterpolate_hist2(vinf_edges, thetas_pol_edges, mass_2d_hist,
                         new_theta_len=None,new_vinf_len=None, dist="pw",
-                        mass_conserving=False):
+                        mass_conserving=False) -> tuple[np.ndarray,np.ndarray,np.ndarray]:
 
     print("Rebinning historgram")
     if (new_theta_len is None):
@@ -104,9 +107,9 @@ def reinterpolate_hist2(vinf_edges, thetas_pol_edges, mass_2d_hist,
     # else:
     #     new_theta_len += 1
     # if ()
-    if dist == "pw":
+    if (dist == "pw" or dist == "piece-wise"):
         new_thetas_edges, new_theta_centers = _generate_grid_cthetas(new_theta_len, theta0=np.pi / 2.)
-    elif dist == "a":
+    elif (dist == "a" or dist == "adaptive"):
         new_thetas_edges, new_theta_centers = _generate_grid_cthetas2(new_theta_len, theta0=0., theta1=np.pi / 2.)
     else:
         raise KeyError("Only 'pw' or 'a' are supported")
@@ -141,27 +144,24 @@ def reinterpolate_hist2(vinf_edges, thetas_pol_edges, mass_2d_hist,
     thetas_pol_edges = new_thetas_edges
     mass = new_mass
 
-    # rebin for velocity
-    if not new_vinf_len is None:
-        new_vinf_edges = np.linspace(vinf_edges[0], vinf_edges[-1], endpoint=True, num=new_vinf_len)
-        new_vinf_centers = 0.5 * (new_vinf_edges[1:] + new_vinf_edges[:-1])
+    if (new_vinf_len is None):
+        _vinf_edges = 0.5 * (vinf_edges[1:] + vinf_edges[:-1])
+        new_vinf_edges = np.linspace(_vinf_edges[0], _vinf_edges[-1], endpoint=True, num=len(vinf_edges)+1)
         new_new_mass = np.zeros((len(thetas_pol_edges)-1, len(new_vinf_edges) - 1))
-        # import matplotlib.pyplot as plt
-        # plt.close()
-        # plt.plot(range(len(vinf_edges)), vinf_edges, ls='none', marker='x',  color="black")
-        # plt.plot(range(len(new_vinf_edges)), new_vinf_edges, ls='none', marker='.', color="red")
-        # plt.axhline(y=np.pi/2.)
-        # plt.show()
-        for itheta in range(len(new_thetas_edges)-1):
-            if (mass_conserving):
-                tmp = rebin.rebin(vinf_edges, mass[itheta, :], new_vinf_edges, interp_kind='piecewise_constant')
-            else:
-                tmp = interpolate.interp1d(vinf_edges,mass_2d_hist[itheta,:],kind='linear')(new_vinf_edges)
-            new_new_mass[itheta, :] = tmp
+    else:
+        _vinf_edges = 0.5 * (vinf_edges[1:] + vinf_edges[:-1])
+        new_vinf_edges = np.linspace(_vinf_edges[0], _vinf_edges[-1], endpoint=True, num=new_vinf_len)
+        new_new_mass = np.zeros((len(thetas_pol_edges)-1, len(new_vinf_edges) - 1))
 
-        # update
-        mass = new_new_mass
-        vinf_edges = new_vinf_edges
+    for itheta in range(len(new_thetas_edges)-1):
+        if (mass_conserving):
+            tmp = rebin.rebin(vinf_edges, mass[itheta, :], new_vinf_edges, interp_kind='piecewise_constant')
+        else:
+            tmp = interpolate.interp1d(vinf_edges,mass_2d_hist[itheta,:],kind='linear')(new_vinf_edges)
+        new_new_mass[itheta, :] = tmp
 
+    # update
+    mass = new_new_mass
+    vinf_edges = new_vinf_edges
 
     return (vinf_edges, thetas_pol_edges, mass)

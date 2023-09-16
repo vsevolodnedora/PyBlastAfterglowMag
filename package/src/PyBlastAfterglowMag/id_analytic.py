@@ -99,10 +99,8 @@ def make_gaussian_dist_pw(E_iso_c, Gamma0c, theta_c, theta_w, M0c, n_layers_pw, 
 
     return (theta_pw, cthetas0, dist_G0_pw, dist_M0_pw, dist_E0_pw)
 
-
-
 class JetStruct:
-    def __init__(self, n_layers_pw,n_layers_a):
+    def __init__(self, n_layers_pw, n_layers_a):
         self.m_theta_w = 0
         self.m_theta_c = 0
         self.dist_E0_pw = np.zeros(n_layers_pw)
@@ -124,10 +122,10 @@ class JetStruct:
 
 
     @staticmethod
-    def CellsInLayer(i_layer):
+    def _CellsInLayer(i_layer):
         return 2 * i_layer + 1
 
-    def setThetaGridA(self):
+    def _setThetaGridA(self):
 
         self.thetas_c_l=np.zeros( self.nlayers_a )
         self.thetas_c_h=np.zeros( self.nlayers_a )
@@ -149,7 +147,7 @@ class JetStruct:
             #std::cout << "ilayer=" << i << "theta" \ _tmp+=i_theta_c_h;
 
 
-    def setThetaGridPW(self):
+    def _setThetaGridPW(self):
         self.theta_pw = np.zeros( self.nlayers_pw + 1 )
         self.cthetas0 = np.zeros( self.nlayers_pw )
         for i in range(self.nlayers_pw + 1):
@@ -167,10 +165,10 @@ class JetStruct:
         # compute the number of phi cells in each 'theta' layer
         cil = np.zeros( self.nlayers_pw )
         for i in range(self.nlayers_pw):
-            cil[i] = JetStruct.CellsInLayer(i)
+            cil[i] = JetStruct._CellsInLayer(i)
         self.ncells = cil.sum() # total number of cells
 
-    def gaussian(self, E_iso_c, Gamma0c, theta_c, theta_w, M0c, gflat=False):
+    def _gaussian(self, E_iso_c, Gamma0c, theta_c, theta_w, M0c, gflat=False):
 
         self.m_theta_w = theta_w
         self.m_theta_c = theta_c
@@ -179,7 +177,7 @@ class JetStruct:
 
         # set piece-wise
 
-        self.setThetaGridPW()
+        self._setThetaGridPW()
         ang_size_layer = 2.0 * np.pi * ( 2.0 * np.sin(0.5 * theta_w) * np.sin(0.5 * theta_w) );
         for i  in range(len(self.cthetas0)):
             self.dist_E0_pw[i] = E_iso_c * ang_size_layer / (4.0 * np.pi) * np.exp( -1. * self.cthetas0[i] * self.cthetas0[i] / (theta_c * theta_c) )
@@ -192,14 +190,14 @@ class JetStruct:
             self.dist_Mom0_pw[i] = MomFromGam(Gamma)
             self.dist_M0_pw[i] = self.dist_E0_pw[i] / (Gamma * c * c)
             self.dist_E0_pw[i] /= self.ncells
-            self.dist_E0_pw[i] *= JetStruct.CellsInLayer(i)
+            self.dist_E0_pw[i] *= JetStruct._CellsInLayer(i)
             self.dist_M0_pw[i] /= self.ncells
-            self.dist_M0_pw[i] *= JetStruct.CellsInLayer(i)
+            self.dist_M0_pw[i] *= JetStruct._CellsInLayer(i)
 
 
         # set adaptive
         # self.nlayers_a = n_layers_a
-        self.setThetaGridA()
+        self._setThetaGridA()
         self.dist_E0_a = np.zeros( self.nlayers_a )
         self.dist_Mom0_a = np.zeros( self.nlayers_a )
         self.dist_M0_a = np.zeros( self.nlayers_a )
@@ -221,7 +219,7 @@ class JetStruct:
 
         i = 0
 
-    def tophat(self, E_iso, Gamma0, theta_h, M0, Ye, s):
+    def _tophat(self, E_iso, Gamma0, theta_h, M0, Ye, s):
 
         self.m_theta_w = theta_h
         self.m_theta_c = theta_h
@@ -236,7 +234,7 @@ class JetStruct:
         self.dist_M0_pw = np.zeros( self.nlayers_pw )
         self.dist_Ye_pw = np.zeros( self.nlayers_pw )
         self.dist_s_pw = np.zeros( self.nlayers_pw )
-        self.setThetaGridPW()
+        self._setThetaGridPW()
 
         one_min_cos = 2. * np.sin(0.5 * theta_h) * np.sin(0.5 * theta_h)
         ang_size_layer = 2.0 * np.pi * one_min_cos / (4.0 * np.pi)
@@ -248,9 +246,9 @@ class JetStruct:
             self.dist_M0_pw[i] = self.dist_E0_pw[i] / (Gamma0 * c * c) if M0 < 0 else M0 * ang_size_layer / (4 * np.pi)
 
             self.dist_E0_pw[i] /= self.ncells
-            self.dist_E0_pw[i] *= JetStruct.CellsInLayer(i)
+            self.dist_E0_pw[i] *= JetStruct._CellsInLayer(i)
             self.dist_M0_pw[i] /= self.ncells
-            self.dist_M0_pw[i] *= JetStruct.CellsInLayer(i)
+            self.dist_M0_pw[i] *= JetStruct._CellsInLayer(i)
             self.dist_Ye_pw[i] = Ye
             self.dist_s_pw[i] = s
 
@@ -258,7 +256,7 @@ class JetStruct:
 
         # set adaptive
         # self.nlayers_a = n_layers;
-        self.setThetaGridA()
+        self._setThetaGridA()
         self.dist_E0_a = np.zeros( self.nlayers_a )
         self.dist_Mom0_a= np.zeros( self.nlayers_a )
         self.dist_M0_a=np.zeros( self.nlayers_a )
@@ -279,6 +277,45 @@ class JetStruct:
         # os.path.isfile()
         self.dist_E0_a /= (frac_of_solid_ang / 2.) # TODO Get rid of shis (used in code)
         self.dist_M0_a /= (frac_of_solid_ang / 2.)
+
+    def get_1D_id(self, pars : dict, type : str) -> dict:
+
+        if (pars["struct"] == "gaussian"):
+            self._gaussian(E_iso_c=pars["Eiso_c"], Gamma0c=pars["Gamma0c"], theta_c=pars["theta_c"], theta_w=pars["theta_w"], M0c=pars["M0c"])
+        elif (pars["struct"] == "tophat"):
+            self._tophat(E_iso=pars["Eiso_c"], Gamma0=pars["Gamma0c"], theta_h=pars["theta_c"], M0=pars["M0c"], Ye=0, s=0)
+        else:
+            raise KeyError("Not implemented")
+
+        if (type == "pw" or type=="piece-wise"):
+            res = {
+                "theta_w":self.m_theta_w,
+                "theta_c":self.m_theta_c,
+                "r":np.zeros_like(self.theta_pw[1:]),
+                "theta":self.theta_pw[1:],
+                "ctheta":self.cthetas0,
+                "mom":self.dist_Mom0_pw,
+                "mass":self.dist_M0_pw,
+                "ek": self.dist_E0_pw,
+                "ye":self.dist_Ye_pw,
+                "s":self.dist_s_pw
+            }
+        elif(type=="a" or type=="adaptive"):
+            res = {
+                "theta_w":self.m_theta_w,
+                "theta_c":self.m_theta_c,
+                "r":np.zeros_like(self.thetas_c_h),
+                "theta":self.thetas_c_h,
+                "ctheta":self.thetas_c,
+                "mom":self.dist_Mom0_a,
+                "mass":self.dist_M0_a,
+                "ek": self.dist_E0_a,
+                "ye":self.dist_Ye_a,
+                "s":self.dist_s_a
+            }
+        else: raise KeyError()
+
+        return res
 
     def saveCurrentStructure(self, outfpath, type="pw"):
         if type == "pw":
@@ -321,14 +358,14 @@ class JetStruct:
 
 
 
-def prepare_grb_ej_id_1d(pars, outfpath, type="pw"):
+
+def OLD_prepare_grb_ej_id_1d(pars, outfpath, type="pw"):
 
     o_jet = JetStruct(pars["nlayers_pw"],pars["nlayers_a"])
     if (pars["struct"] == "gaussian"):
-        o_jet.gaussian(E_iso_c=pars["Eiso_c"],Gamma0c=pars["Gamma0c"],
-                       theta_c=pars["theta_c"],theta_w=pars["theta_w"],M0c=pars["M0c"])
+        o_jet._gaussian(E_iso_c=pars["Eiso_c"], Gamma0c=pars["Gamma0c"], theta_c=pars["theta_c"], theta_w=pars["theta_w"], M0c=pars["M0c"])
     elif (pars["struct"] == "tophat"):
-        o_jet.tophat(E_iso=pars["Eiso_c"],Gamma0=pars["Gamma0c"],theta_h=pars["theta_c"],M0=pars["M0c"],Ye=0,s=0)
+        o_jet._tophat(E_iso=pars["Eiso_c"], Gamma0=pars["Gamma0c"], theta_h=pars["theta_c"], M0=pars["M0c"], Ye=0, s=0)
     else:
         raise KeyError("Not implemented")
 
@@ -361,7 +398,7 @@ def prepare_grb_ej_id_1d(pars, outfpath, type="pw"):
     # dfile.close()
     # print("file saved: {}".format(outfpath))
 
-def prepare_grb_ej_id_2d(pars, outfpath, type="pw"):
+def OLD_prepare_grb_ej_id_2d(pars, outfpath, type="pw"):
 
     if (type == "a"):
         thetas0,cthetas0, dist_G0, dist_M0, dist_E0 = make_gaussian_dist_a(

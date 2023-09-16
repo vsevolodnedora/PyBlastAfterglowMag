@@ -26,11 +26,527 @@ from mpl_toolkits.axisartist.grid_finder import MaxNLocator
 from matplotlib.colors import BoundaryNorm
 from matplotlib.ticker import MaxNLocator
 
-from .id_maker_tools import (reinterpolate_hist, reinterpolate_hist2, compute_ek_corr)
+from .id_tools import (reinterpolate_hist, reinterpolate_hist2, compute_ek_corr)
 from .utils import (cgs, get_Gamma, get_Beta, find_nearest_index, MomFromGam, GamFromMom, BetFromMom)
 
+class ProcessRawFiles:
 
-def get_ej_data_for_text(files : list[str],
+    def __init__(self, files : list[str], verbose:bool):
+        self.files = files
+        self.expected_keys = ['Mejecta', 'T_ejecta', 'Ye_ejecta', 'entropy_ejecta',
+                              'internal_energy_ejecta', 'pressure_ejecta', 'rho_ejecta', 'time']
+        self.key_to_key = {
+            "T_ejecta":"temp",
+            "Ye_ejecta":"ye",
+            "entropy_ejecta":"entr",
+            "internal_energy_ejecta":"eps",
+            "pressure_ejecta":"press",
+            "rho_ejecta":"rho",
+            "Mejecta":"mass"
+
+        }
+        self.verb=verbose
+        if len(files) == 0:
+            raise ValueError(f"Files list is empty")
+
+    def _get_data(self) -> tuple[np.ndarray,np.ndarray,tuple[np.ndarray,list[dict]]]:
+        pars_list = []
+        texts = []
+        v_inf = np.zeros(0,)
+        thetas = np.zeros(0,)
+        for i, fl in enumerate(self.files):
+            if self.verb: print("\t Processing File {}".format(fl))
+            dfile = h5py.File(fl, "r")
+            if self.verb:
+                print("\t Keys in the dfile: {}".format(dfile.keys()))
+                print("\t theta              = {} [{}, {}]".format(np.array(dfile["theta"]).shape,
+                                                                   np.array(dfile["theta"])[0],
+                                                                          np.array(dfile["theta"])[-1]))
+                print("\t v_asymptotic       = {} [{}, {}]".format(np.array(dfile["v_asymptotic"]).shape,
+                                                                          np.array(dfile["v_asymptotic"])[0],
+                                                                          np.array(dfile["v_asymptotic"])[-1]))
+                print("\t dfile['data1'].keys= {}".format(dfile["data1"].keys()))
+
+            # sort the keys in the file (data groups for different extraction times)
+            sort_by = lambda k: int(re.findall(r'\d+', k)[0]) if k.__contains__("data") else -1
+            keys = sorted(dfile.keys(), key=sort_by)
+            tkeys = [key for key in keys if key.__contains__("data")]
+
+            # check what data groups are not empty
+            times = []
+            failed_to_get_time = []
+            for key in keys:
+                if key.__contains__("data"):
+                    try:
+                        times.append(np.array(dfile[key]["time"], dtype=np.float64)[0])
+                    except KeyError:
+                        failed_to_get_time.append(key)
+                        if self.verb:
+                            print(f"Count not extract time from key={key} dfile[key]={dfile[key]}")
+            if self.verb:
+                print(f"Failed to extract time for {len(failed_to_get_time)}/{len(keys)}")
+
+            # get unique times from the dataframe (some might be too close)
+            unique_times = list(set(np.around(times, 0)))
+            if len(unique_times) == 1:
+                idxs = [0]
+            else:
+                idxs = [find_nearest_index(times, u_time) for u_time in unique_times]
+
+            # process data from each group (each timestep)
+            for idx in idxs:
+                # load 2D histogram axis data (velocity and angle)
+                v_inf = np.array(dfile["v_asymptotic"], dtype=np.float64)
+                thetas = np.array(dfile["theta"], dtype=np.float64)
+                # load the histogram weights (mass)
+                mass = np.array(dfile[tkeys[idx]]["Mejecta"], dtype=np.float64)
+
+                if self.verb:
+                    print("Processing: time={} key={} tot_mass={}".format(times[idx], tkeys[idx], np.sum(mass)))
+
+                res = {}
+                for key, new_key in self.key_to_key.items():
+                    if key in list(dfile[tkeys[idx]].keys()):
+                        arr = np.array(dfile[tkeys[idx]][key], dtype=np.float64)
+                        if self.verb: print(f"\tFound '{key}' sahpe={arr.shape} min={arr.min()} max={arr.max()} sum={arr.sum()}")
+                        if key == "T_ejecta": arr *= 11604525006.17 # MeV -> Kelvin
+                        if key == "rho_ejecta": arr *= 5.807e18
+                        res[new_key] = arr
+
+                # ek = compute_ek_corr(v_inf, res[mass]).T
+
+                pars_list.append(copy.deepcopy(res))
+                texts.append(times[idx])
+
+        if self.verb:
+            print(" N of Total iterations : {}".format(len(pars_list)))
+        if self.verb:
+            print("Total times            : {}".format(np.array(texts,dtype=float)))
+
+        # sort the list with respect to time
+        sorted_pars_list = []
+        texts = np.array(texts)
+        sorted_texts = np.array(np.sort(texts))
+        for _time in sorted_texts:
+            for i in range(len(pars_list)):
+                if (_time == np.array(texts)[i]):
+                    sorted_pars_list.append(pars_list[i])
+        assert len(pars_list) == len(sorted_pars_list)
+
+        return (v_inf, thetas, (sorted_texts, sorted_pars_list))
+
+    def process_save(self, outfnmae : str):
+
+        vinf, thetas, (times, datas) = self._get_data()
+
+        # save data as a single file
+        with h5py.File(outfnmae,"w") as f:
+            f.create_dataset("vinf",data=vinf)
+            f.create_dataset("theta",data=thetas)
+            f.create_dataset("text",data=times)
+            for t, d in zip(times, datas):
+                group = f.create_group(name="time={:.4f}".format(t))
+                for key, arr in d.items():
+                    group.create_dataset(name=key, data=arr)
+
+class EjectaData:
+    def __init__(self, fpath : str, verbose : bool):
+        self.verb = verbose
+        self.fpath = fpath
+        self.dfile = None
+        self.texts = np.zeros(0,)
+        self.vinf = np.zeros(0,)
+        self.theta = np.zeros(0,)
+        self.v_ns = ["temp","ye","entr","eps","press","rho","mass"]
+
+        self._load()
+
+    def _load(self):
+        if (not os.path.isfile(self.fpath)):
+            raise FileNotFoundError(f"Collated ejecta file is not found. {self.fpath}")
+        if self.dfile is None:
+            self.dfile = h5py.File(self.fpath, "r")
+            self.texts = np.array(self.dfile["text"])
+            self.vinf = np.array(self.dfile["vinf"])
+            self.theta = np.array(self.dfile["theta"])
+
+    def get_theta(self):
+        return self.theta
+
+    def get_vinf(self):
+        return self.vinf
+
+    def get(self, v_n : str, text : float):
+        if (text not in self.texts):
+            if (text < self.texts.min()):
+                raise ValueError(f"text={text} < texts.min()={self.texts.min()}")
+            if (text > self.texts.max()):
+                raise ValueError(f"text={text} > texts.max()={self.texts.max()}")
+            text = self.texts[find_nearest_index(self.texts, text)]
+        ddfile = self.dfile["time={:.4f}".format(text)]
+        if not v_n in ddfile.keys():
+            raise KeyError(f"key={v_n} is not in the dfile.keys():\n {ddfile.keys()}")
+        ddfile = self.dfile["time={:.4f}".format(text)]
+        return np.array(ddfile[v_n])
+
+    def total_mass(self) -> np.ndarray:
+        mass = np.array([np.sum(self.get(v_n="mass",text=text)) for text in self.texts])
+        return mass
+    def total_mass_fasttail(self,crit="mom>1") -> np.ndarray:
+        if crit == "mom>1":
+            mass = np.array([np.sum(self.get(v_n="mass",text=text)[:, self.vinf * get_Gamma(self.vinf) > 1]) for text in self.texts])
+        else:
+            raise KeyError()
+        return mass
+
+class Data():
+    def __init__(self, fpath_rhomax:str, fpath_mdot:str):
+        self.fpath_rhomax = fpath_rhomax
+        self.fpath_mdot = fpath_mdot
+
+    def get_rhomax(self):
+        rho_nuc = 2.7e14
+        ut = 1.607e-6
+        t_rho_max, rho_max = np.loadtxt(self.fpath_rhomax, unpack=True, usecols=(0,1))
+        return (t_rho_max * ut * 1e3, rho_max / rho_nuc) # [s,rho/rho_nuc]
+
+    def get_mdot(self, r_ext=1000):
+        # convert the units from what Kenta was using to CGS + Msun
+        ul = 0.4816 # km
+        ut = 1.607e-6
+        um = 0.326
+        umdot = um / ut
+        table = np.loadtxt(self.fpath_mdot, unpack=True).T
+        names = None
+        with open(self.fpath_mdot, "r") as file:
+            names = file.readline()
+        names = names.split()[1:]
+        iv_n = lambda v_n : int(list(names).index(v_n)) if v_n in names else print("{} not found".format(v_n))
+        get_mdot = lambda r_ext : table[:, iv_n("Mdot(rext={})".format(r_ext))] * umdot# Msun
+        time = table[:, 0] * ut * 1e3 # -> s -> ms
+        return (time, get_mdot(r_ext))
+
+class EjStruct(EjectaData):
+    def __init__(self, fpath : str, verbose : bool):
+        super().__init__(fpath, verbose)
+
+    def get_r0(self, vinf, theta, mass, rho, t0 : float, method : str) -> np.ndarray:
+        r = np.zeros_like(mass)
+        if (method == "from_rho"):
+            if (t0 < 0):
+                raise ValueError(f" Not set t0={t0} must be > 0 in seconds for: r_base = t0 * cgs.c * vinf[0]")
+            for ith in range(len(theta)):
+                r_base = t0 * cgs.c * vinf[0]
+                r[0,ith] = r_base
+                for ir in range(1, len(vinf)):
+                    if (mass[ir,ith]==0. or rho[ir,ith]==0.):
+                        print(f"Error ir={ir} ith={ith} mass={mass[ir,ith]} rho={rho[ir,ith]}. Setting mass to 0.")
+                        mass[ir,ith]=0.
+                        continue
+                    r_i = (3./4.) * (1./np.pi) * len(theta) * mass[ir,ith] / rho[ir,ith] + r[ir - 1,ith] ** 3
+                    r_i = r_i**(1./3.)
+                    r[ir,ith] = r_i
+                    if ((r_i <= r[ir-1,ith]) or (~np.isfinite(r[ir,ith]))):
+                        raise ValueError()
+        elif (method == "from_beta"):
+            t = t0
+            for ith in range(len(theta)):
+                for ir in range(len(vinf)):
+                    r[ir,ith] = BetFromMom(vinf[ir]) * cgs.c * t # TODO THis is theta independent!
+        else:
+            raise KeyError(f"method={method} is not recognized")
+        return r
+
+    def get_2D_id(self, text : float, method_r0 : str, t0 = None, new_theta_len = None, new_vinf_len = None) -> dict:
+        res = {}
+        v_inf, thetas, masses = reinterpolate_hist2(self.vinf, self.theta, self.get(v_n="mass", text=text)[:, :],
+                                                    new_theta_len=new_theta_len,
+                                                    new_vinf_len=new_vinf_len,
+                                                    mass_conserving=True)
+        masses = masses.T # [i_vinf, i_theta]
+
+        thetas = 0.5 * (thetas[1:] + thetas[:-1])
+        v_inf  = 0.5 * (v_inf[1:] + v_inf[:-1])
+        mask = ((v_inf > 0) & (v_inf < 1) & (np.sum(masses, axis=1) > 0))
+        for v_n in self.v_ns:
+            if (v_n != "mass"):
+                _, _, data = reinterpolate_hist2(self.vinf, self.theta, self.get(v_n=v_n, text=text)[:, :],
+                                                            new_theta_len=new_theta_len,
+                                                            new_vinf_len=new_vinf_len,
+                                                            mass_conserving=True)
+                res[v_n] = data[:, mask].T
+
+        res["mass"] = masses[mask,:]
+        res["r"] = self.get_r0(vinf=v_inf[mask], theta=thetas, mass=masses[mask,:], rho=res["rho"],
+                               t0=t0, method=method_r0)
+        res["ek"] = np.column_stack([masses[mask, i] * cgs.solar_m * v_inf[mask]**2 * cgs.c * cgs.c for i in range(len(thetas))])
+        res["mom"] = v_inf[mask] * get_Gamma(v_inf[mask])
+        res["theta"] = thetas
+        res["ctheta"] = thetas
+
+        return res
+
+    @staticmethod
+    def plot_init_profile(mom : np.ndarray, ctheta : np.ndarray, mass : np.ndarray,
+                          xmin=0,xmax=90,ymin=1e-2,ymax=6,vmin=1e-12,vmax=1e-6,
+                          norm_mode="log", cmap = plt.get_cmap('RdYlBu_r'),
+                          xscale="linear",yscale="linear",
+                          subplot_mode="sum",
+                          title=None, figpath=None):
+
+        fontsize=12
+
+        # moms = data["mom"]
+        # ctheta = data["ctheta"] * 180 / cgs.pi
+        # eks = data["ek"]
+
+        ctheta *= 180 / cgs.pi
+
+        fig = plt.figure(figsize=(4.5 + 1, 3.6 + 3))
+        # fig.suptitle(r"BLh* $(1.259+1.482)M_{\odot}$")
+
+        ax0 = fig.add_axes([0.16, 0.12, 0.81 - 0.15, 0.59 - 0.12])
+        ax1 = fig.add_axes([0.16, 0.61, 0.81 - 0.15, 0.91 - 0.61])
+        cax = fig.add_axes([0.83, 0.12, 0.86 - 0.83, 0.59 - 0.12])
+
+        #                   x1    y1    delta x       delta y
+        # ax1 = fig.add_axes([0.16, 0.45, 0.81 - 0.15, 0.59 - 0.12])
+        # ax0 = fig.add_axes([0.16, 0.12, 0.81 - 0.15, 0.91 - 0.61])
+        # cax = fig.add_axes([0.83, 0.12, 0.86 - 0.83, 0.91 - 0.61])
+
+        # top panel
+        # for t in tasks:
+        #     hist_vinf, hist_mass = t["data"].load_vinf_hist()
+        #     hist_mom = hist_vinf * get_Gamma(hist_vinf)
+        #     hist_eks = np.cumsum(np.array(0.5 * (hist_vinf * cgs.c) ** 2 * hist_mass * cgs.solar_m)[::-1])[::-1]
+
+        ax1.plot(ctheta, np.sum(mass,axis=0), color='black', ls='-', drawstyle='steps')
+
+        if (not title is None): ax1.set_title(title)
+
+        ###  mooley
+        # mool_mom = np.linspace(0.5 * get_Gamma(0.5), 0.8 * get_Gamma(0.8), 20)
+        # mool_ek = 5e50 * (mool_mom / 0.4) ** -5
+        # _l, = ax1.plot(mool_mom, mool_ek, color="gray", ls="-")
+        # ax1.text(0.30, 0.90, "Mooley+17", color='black', transform=ax1.transAxes, fontsize=12)
+
+        # tasks = [1, 1, 1]
+        # ax1.plot([-1., -1., ], [-1., -1., ], color="gray", ls="-", label=r"$q=1.00$")
+        # ax1.plot([-1., -1., ], [-1., -1., ], color="gray", ls="--", label=r"$q=1.43$")
+        # ax1.plot([-1., -1., ], [-1., -1., ], color="gray", ls=":", label=r"$q=1.82$")
+        # han, lab = ax1.get_legend_handles_labels()
+        # ax1.add_artist(ax1.legend(han[:-1 * len(tasks)], lab[:-1 * len(tasks)],
+        #                          **{"fancybox": False, "loc": 'lower left',
+        #                            # "bbox_to_anchor":(1.0, 0.0),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+        #                            "shadow": "False", "ncol": 1, "fontsize": 11,
+        #                            "framealpha": 0., "borderaxespad": 0., "frameon": False}))
+        #
+        # ax1.add_artist(ax1.legend(han[:-1 * len(tasks)], lab[:-1 * len(tasks)],
+        #                           **{"fancybox": False, "loc": 'upper right',
+        #                              "bbox_to_anchor":(1.0, 0.0),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+        # "shadow": "False", "ncol": 1, "fontsize": 11,
+        # "framealpha": 0., "borderaxespad": 0., "frameon": False}))
+        #
+        # ax1.add_artist(ax1.legend(han[len(han) - len(tasks):], lab[len(lab) - len(tasks):],
+        #                           **{"fancybox": False, "loc": 'center right',
+        #                              "bbox_to_anchor":(1.0, 0.0),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+        # "shadow": "False", "ncol": 1, "fontsize": 11,
+        # "framealpha": 0., "borderaxespad": 0., "frameon": False}))
+        #
+        # fit *= np.sum(mdens) / np.sum(fit)
+        # fit_x, fit_y = _fit(mom, ekdens)
+        # ax1.plot(fit_x, fit_y, 'k--', label=r'$\sin^2(\theta)$')
+        # ax1.legend(**{"fancybox": False, "loc": 'upper right',
+        #                # "bbox_to_anchor":(1.0, 0.0),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+        #                "shadow": "False", "ncol": 1, "fontsize": 11,
+        #                "framealpha": 0., "borderaxespad": 0., "frameon": False})
+
+        if norm_mode=="log":
+            ax1.set_yscale("log")
+        else:
+            ax1.set_yscale("linear")
+        # ax1.set_ylim(ymin, ymax)
+        # ax1.yaxis.tick_right()
+        # ax1.yaxis.tick_left()
+        ax1.set_ylabel(r"$M_{\rm ej}$ [M$_{\odot}$]", fontsize=fontsize)
+        ax1.get_yaxis().set_label_coords(-0.15, 0.5)
+
+        ax1.set_xlim(xmin, xmax)
+        ax1.xaxis.set_ticklabels([])
+
+        ax1.tick_params(axis='both', which='both', labelleft=True,
+                        labelright=False, tick1On=True, tick2On=True,
+                        labelsize=12,
+                        direction='in',
+                        bottom=True, top=True, left=True, right=True)
+        ax1.minorticks_on()
+
+        ax11 = ax1.twinx()
+
+        mask = mom > 1
+
+        if len(mom[mask])>0:
+            # axx = np.sum(betas[mask, np.newaxis] * eks[mask, :],axis=0)
+            # ayy = np.sum(eks[mask, :],axis=0)
+            # ax11.plot(ctheta, axx/ayy, color="gray", ls="-")
+            # if (subplot_mode=="sum"): _yarr = np.sum(ctheta*eks[mask, :],axis=0)
+            # elif (subplot_mode=="ave"): _yarr = axx/ayy
+            # else:raise KeyError("subplot_mode is not recognized")
+            ax11.plot(ctheta, np.sum(mass[mask, :],axis=0), color="gray", ls="-")
+        if norm_mode=="log":
+            ax11.set_yscale("log")
+        else:
+            ax11.set_yscale("linear")
+        ax11.set_ylabel(r"$M_{\rm ej}(\Gamma\beta>1)$ [M$_{\odot}$]", fontsize=fontsize, color="gray")
+        ax11.minorticks_on()
+        ax11.tick_params(axis='both', which='both', labelleft=False,
+                         labelright=True, tick1On=False, tick2On=True,
+                         labelsize=12,
+                         direction='in',
+                         bottom=True, top=True, left=True, right=True)
+
+
+        # bottom panel
+        # mask = vinf > 0.6
+        # eks2 = np.zeros_like(eks)
+        # for i in range(len(vinf)):
+        #     if vinf[i] > 0.6:
+        #         eks2[:, i] = eks[:, i]
+
+        # import h5py
+        # dset = h5py.File("/home/vsevolod/Desktop/Hajela/BLh_q100.h5", 'w')
+        # dset.create_dataset(name="beta", data=vinf)
+        # dset.create_dataset(name="theta", data=theta * 180 / np.pi)
+        # dset.create_dataset(name="Ek(>Gamma_beta)", data=eks)
+        # dset.close()
+
+        if (norm_mode=="log"):
+            norm = LogNorm(mass[(mass > 0) & (np.isfinite(mass))].min(), mass[(mass > 0) & (np.isfinite(mass))].max())
+        elif (norm_mode=="linear"):
+            norm = Normalize(mass[(mass > 0) & (np.isfinite(mass))].min(), mass[(mass > 0) & (np.isfinite(mass))].max())
+        elif (norm_mode=="levels"):
+            levels = MaxNLocator(nbins=15).tick_values(mass.min(), mass.max())
+            norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
+        else:
+            raise KeyError(" norm_mode is not recognized ")
+
+
+        im = ax0.pcolor(ctheta, mom, mass, cmap=cmap, norm=norm, shading='auto')
+        # cbar = fig.colorbar(im, ax=ax, extend='both')
+        # cbar.ax.set_title(r"Mass [$M_{\odot}$]")
+
+        ax0.axhline(y=1, linestyle='--', color='gray')
+
+        ax0.set_ylim(ymin, ymax)
+        ax0.set_xlim(xmin, xmax)
+        ax0.set_xscale(xscale)
+        ax0.set_yscale(yscale)
+
+        ax0.set_ylabel(r"$\Gamma\beta$", fontsize=fontsize)
+        ax0.set_xlabel(r"Polar angle", fontsize=fontsize)
+        ax0.get_yaxis().set_label_coords(-0.15, 0.5)
+        # ax0.text(0.75, 0.88, lbl, color='white', transform=ax0.transAxes, fontsize=fontsize)
+        ax0.minorticks_on()
+        ax0.tick_params(axis='both', which='both', labelleft=True,
+                        labelright=False, tick1On=True, tick2On=True,
+                        labelsize=12,
+                        direction='in',
+                        bottom=True, top=True, left=True, right=True)
+
+        # ax0.text(0.05, 0.05, models.print_fancy_label(name), color='white', transform=ax0.transAxes)
+
+        # ekdens = np.sum(eks, axis=0)
+        # ax1.step(0.5 * (theta[1:] + theta[:-1]), mdens, where='mid', color='red')
+        # hist_vinf, hist_mass = o_data.load_vinf_hist()
+        # hist_mom = hist_vinf * get_Gamma(hist_vinf)
+        # hist_eks = 0.5 * (hist_vinf * cgs.c) ** 2 * hist_mass * cgs.solar_m
+        # ax1.step(mom, ekdens, where='mid', color='red')
+        # ax1.step(hist_mom, hist_eks, where='mid', color='black')
+
+        cbar = plt.colorbar(im, cax=cax, norm=norm)
+        cbar.set_label(r"$M_{\rm ej}$ [M$_{\odot}$]", fontsize=fontsize)
+        cbar.ax.minorticks_off()
+        # plt.savefig(PAPERPATH + "kinetic_energy_struct_models.pdf")
+        # plt.savefig(FIGPATH + "kinetic_energy_struct_models.png")
+        if not figpath is None: plt.savefig(figpath+".png", dpi=256)
+        if not figpath is None: plt.savefig(figpath+".pdf")
+        # plt.savefig(sys.argv[0].replace(".py", "_") + name.lower() + ".pdf")
+        plt.show()
+        plt.close()
+
+
+
+
+
+
+
+    #
+    #
+    #
+    #
+    # # eks = np.log10(eks)
+    # fig, ax = plt.subplots(figsize=(4.6, 2.8), ncols=1, nrows=2, sharex="all")
+    #
+    # # fig.add_axes([0.6, .1, .35, .3])
+    #
+    # ax = ax[1]
+    #
+    # # ax = plt.subplot(111, polar=True)
+    # levels = MaxNLocator(nbins=15).tick_values(eks.min(), eks.max())
+    # cmap = plt.get_cmap('RdYlBu_r')
+    # norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
+    # norm = LogNorm(eks[(eks>0)&(np.isfinite(eks))].min(), eks[(eks>0)&(np.isfinite(eks))].max())
+    #
+    # im = ax.pcolor(ctheta, moms, eks, cmap=cmap, norm=norm, shading='auto')
+    # cbar = fig.colorbar(im, ax=ax, extend='both')
+    # cbar.ax.set_title(r"Mass [$M_{\odot}$]")
+    #
+    # ax.set_xlabel(r"Polar angle, $\theta$ [deg]")
+    # ax.set_ylabel(r"$\Gamma\beta$")
+    # ax.set_yscale("log")
+    # ax.set_ylim(1e-1, 4)
+    # if (not title is None):
+    #     ax.set_title(title)
+    #
+    # ax.tick_params(axis='both', which='both', labelleft=True,
+    #                labelright=False, tick1On=True, tick2On=True,
+    #                labelsize=12,
+    #                direction='in',
+    #                bottom=True, top=True, left=True, right=True)
+    # ax.minorticks_on()
+    #
+    # # ax.set_yscale("log")
+    #
+    # # cbar.set_title("x")
+    # # ax.set_title('pcolormesh with levels')
+    # # print(ax.get_rmin(), ax.get_rmax())
+    # # ax.set_rmax(10)
+    # # ax.set_rmin(20)
+    # # print(ax.get_rmin(), ax.get_rmax())
+    #
+    # # max_theta = 90
+    # # ax.set_thetamax(max_theta)
+    # # ax.set_rlim(10,20)
+    #
+    # # ax.set_rlim(Rs.min(), Rs.max())
+    # # ax.set_rscale("log")
+    # # ax.set_rscale('log')
+    # #
+    # # ticklabels = ax.get_yticklabels()
+    # # labels = range(80, 0, -10)
+    # # for i in range(0, len(labels)):
+    # #     ticklabels[i] = str(labels[i])
+    # # ax.set_yticklabels(ticklabels)
+    # plt.tight_layout()
+    # if (save_figs): plt.savefig(FIGPATH + figname + ".png", dpi=256)
+    # # if (save_figs): plt.savefig(PAPERPATH + figname + ".pdf")
+    # plt.show()
+
+
+
+
+
+def OLD_get_ej_data_for_text(files : list[str],
                          req_times=np.array([25]),
                          new_theta_len=None,
                          new_vinf_len=None,
@@ -346,7 +862,7 @@ def get_ej_data_for_text(files : list[str],
         return (sorted_pars_list, sorted_vals)
 
 
-def prepare_kn_ej_id_2d(files : list[str],
+def OLD_prepare_kn_ej_id_2d(files : list[str],
                         outfpaths : list[str],
                         dist="pw",
                         req_times=np.array([25]),
@@ -363,7 +879,7 @@ def prepare_kn_ej_id_2d(files : list[str],
         raise NotImplementedError(" ID for other EATS methods are not available")
 
     selected_par_list, sorted_vals = \
-        get_ej_data_for_text(files=files, req_times=req_times,
+        OLD_get_ej_data_for_text(files=files, req_times=req_times,
                              new_theta_len=new_theta_len, new_vinf_len=new_vinf_len, verbose = verbose)
 
     for pars, outfpath in zip(selected_par_list, outfpaths):
@@ -493,7 +1009,7 @@ def prepare_kn_ej_id_2d(files : list[str],
         dfile.close()
         if verbose: print("file saved: {}".format(outfpath))
 
-def load_init_data(fpath):
+def OLD_load_init_data(fpath):
     dfile = h5py.File(fpath, "r")
     r_corr2 = np.array(dfile["r"],dtype=np.float64)
     theta_corr2 = np.array(dfile["theta"],dtype=np.float64)
@@ -510,7 +1026,7 @@ def load_init_data(fpath):
     dfile.close()
     return (r_corr2, mom_corr2, theta_corr2, ctheta_corr2, ek_corr2, mass_corr2, ye_corr2, rho_corr2, temp_corr2, press_corr2, eps_corr2, entr_corr2)
 
-def plot_init_profile(ctheta, betas, eks,
+def OLD_plot_init_profile(ctheta, betas, eks,
                       xmin=0,xmax=90,ymin=1e-2,ymax=6,vmin=1e-12,vmax=1e-6,
                       norm_mode="log", cmap = plt.get_cmap('RdYlBu_r'),
                       xscale="linear",yscale="linear",
