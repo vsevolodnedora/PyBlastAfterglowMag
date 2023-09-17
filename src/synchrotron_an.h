@@ -208,7 +208,7 @@ struct Margalit21 {
         try {
             tmp = 2.0 * Theta * Theta / std::cyl_bessel_k(2, 1.0 / Theta);
         } catch (const std::runtime_error& error) {
-            std::cout << AT << error.what() << "\n";
+            std::cout << AT << " " << error.what() << " Theta="<<Theta<< "\n";
         }
         return tmp;
     }

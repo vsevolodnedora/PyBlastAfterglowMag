@@ -24,11 +24,11 @@ public:
     enum Q{ ir,imom,itheta,ictheta,iek,imass,iye,is,
             itheta_c_l, itheta_c_h, itheta_c, ieint    };
     std::vector<std::string> m_names{
-            "r","mom","theta","ctheta","ek","mass","ye","s",
-            "theta_c_l","theta_c_h","theta_c", "eint"
+            "r","mom","theta","ctheta","ek","mass","ye","entr","press","eps","temp",
+            "theta_c_l","theta_c_h","theta_c",
     };
     std::vector<std::string> m_v_ns {
-            "r","mom", "theta", "ctheta", "ek", "mass", "ye", "s"
+            "r","mom", "theta", "ctheta", "ek", "mass","ye","entr","press","eps","temp",
     };
     enum STUCT_TYPE { iadaptive, ipiecewise };
     IDTYPE idtype{};  STUCT_TYPE method_eats{};
@@ -62,7 +62,21 @@ public:
         _load_id_file(path_to_table,use_1d_id, load_r0, t0);
         theta_max = CGS::pi/2.; // for dynamics
     }
-    double get(size_t ish, size_t il, Q iv){ return m_data[iv][ish][il]; }
+    double get(size_t ish, size_t il, Q iv){
+        if (m_data[iv].empty()){
+            (*p_log)(LOG_ERR,AT) << " Out of bound: iv="<<iv<< " > m_data.size()="<<m_data.size()<<"\n";
+            exit(1);
+        }
+        if (ish > nshells-1){
+            (*p_log)(LOG_ERR,AT) << " Out of bound: ish="<<ish<< " > nshells-1"<<nshells-1<<"\n";
+            exit(1);
+        }
+        if (il > nlayers-1){
+            (*p_log)(LOG_ERR,AT) << " Out of bound: il="<<il<< " > nlayers-1"<<nlayers-1<<"\n";
+            exit(1);
+        }
+        return m_data[iv][ish][il];
+    }
     Vector & getVec(size_t ish, Q iv){ return m_data[iv][ish]; }
     inline static double ctheta(double theta, size_t ilayer, size_t nlayers_pw){
         // cthetas = 0.5*(2.*arcsin(facs[0]*sin(self.joAngles[:,layer-1]/2.)) + 2.*arcsin(facs[1]*sin(self.joAngles[:,layer-1]/2.)))

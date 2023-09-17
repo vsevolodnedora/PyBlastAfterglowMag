@@ -452,11 +452,11 @@ public:
 
         p_pars->E0        = (double)id->get(ish,il,EjectaID2::Q::iek);//latStruct.dist_E0_pw[ilayer];
         p_pars->Ye0       = (double)id->get(ish,il,EjectaID2::Q::iye);//latStruct.dist_Ye_pw[ilayer];
-        p_pars->s0        = (double)id->get(ish,il,EjectaID2::Q::is);//latStruct.dist_s_pw[ilayer];
         p_pars->M0        = (double)id->get(ish,il,EjectaID2::Q::imass);//latStruct.dist_M0_pw[ilayer];
         p_pars->R0        = (double)id->get(ish,il,EjectaID2::Q::ir);//latStruct.dist_M0_pw[ilayer];
         p_pars->mom0      = (double)id->get(ish,il,EjectaID2::Q::imom);//latStruct.dist_Mom0_pw[ilayer];
         p_pars->Gamma0    = GamFromMom(id->get(ish,il,EjectaID2::Q::imom));//latStruct.dist_Mom0_pw[ilayer];
+        p_pars->s0        = (double)id->get(ish,il,EjectaID2::Q::is);//latStruct.dist_s_pw[ilayer];
         p_pars->tb0       = m_tb_arr.empty() ? 0 : m_tb_arr[0];
         p_pars->theta_a   = 0.;
         p_pars->theta_b0  = ((id->method_eats) == EjectaID2::ipiecewise)

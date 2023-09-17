@@ -1014,6 +1014,10 @@ std::vector<std::vector<double> > LoadH5::getData2Ddouble() const
       DataType datatype = dataset.getDataType();
       DataSpace dataspace = dataset.getSpace();
       int rank = dataspace.getSimpleExtentNdims();
+      if (rank == 1){
+          std::cerr << " Found 1D array when reading 2D arrays fname="<<LoadH5::filename<<" variable="<<LoadH5::variable<<"\n";
+          exit(1);
+      }
       hsize_t dims[rank];
       dataspace.getSimpleExtentDims(dims);
       FloatType ftype = dataset.getFloatType();
