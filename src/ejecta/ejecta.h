@@ -113,8 +113,9 @@ public:
     }
 
     /// OUTPUT dynamics/electrons
-    void saveEjectaBWsDynamics(std::string workingdir, std::string fname, size_t every_it,
+    void saveEjectaBWsDynamics_OLD(std::string workingdir, std::string fname, size_t every_it,
                                StrDbMap & main_pars, StrDbMap & ej_pars){
+
         (*p_log)(LOG_INFO,AT) << "Saving Ejecta BW dynamics...\n";
 
         if (every_it < 1){
@@ -158,6 +159,45 @@ public:
         for (auto& [key, value]: main_pars) { attrs[key] = value; }
         for (auto& [key, value]: ej_pars) { attrs[key] = value; }
         p_out->VectorOfVectorsH5(tot_dyn_out,arr_names,workingdir+fname,attrs);
+    }
+
+    void saveEjectaBWsDynamics(std::string workingdir, std::string fname, size_t every_it,
+                               StrDbMap & main_pars, StrDbMap & ej_pars){
+
+
+        (*p_log)(LOG_INFO,AT) << "Saving Ejecta BW dynamics...\n";
+
+        std::string fpath = workingdir + fname;
+        Output::remove_file_if_existis(fname,p_log);
+        H5::H5File file(fpath, H5F_ACC_TRUNC); // "/home/m/Desktop/tryout/file.h5"
+
+        size_t nshells_ = nshells();
+        size_t nlayers_ = nlayers();
+
+        /// add data for each shell
+        for (size_t ish = 0; ish < nshells_; ish++) {
+            for (size_t il = 0; il < nlayers_; il++) {
+                std::string group_name = "shell=" + std::to_string(ish) + " layer=" + std::to_string(il);
+                auto &bw = getShells()[il]->getBW(ish);
+                if (bw->getData()[0].size() > 1)
+                    Output::addGroupWith1Ddata(bw->getData(), group_name, BW::m_vnames, file);
+            }
+        }
+
+        std::unordered_map<std::string, double> attrs{
+                {"nshells", nshells_ },
+                {"nlayers", nlayers_ },
+                {"ntimes", t_arr.size() },
+                {"ncells", ncells() }
+        };
+
+        for (auto& [key, value]: main_pars) { attrs[key] = value; }
+        for (auto& [key, value]: ej_pars) { attrs[key] = value; }
+
+        Output::addStrDbMap(attrs, file);
+
+        file.close();
+
     }
 
     /// OUTPUT skymap
@@ -208,7 +248,7 @@ public:
             for (size_t it = 0; it < times.size(); ++it) {
                 ims.emplace_back( ImageExtend(times[it], freqs[ifreq], nshells_, nlayers_, m_loglevel) );
                 if (id->method_eats == EjectaID2::STUCT_TYPE::ipiecewise) {
-                    computeEjectaSkyMapPW_new(ims[itinu], times[it], freqs[ifreq]);
+                    computeEjectaSkyMapPW(ims[itinu], times[it], freqs[ifreq]);
                 } else if (id->method_eats == EjectaID2::STUCT_TYPE::iadaptive) {
                     computeEjectaSkyMapA_new(ims[itinu], times[it], freqs[ifreq],
                                              (size_t) getDoublePar("ntheta", ej_pars, AT, p_log, 100, true),

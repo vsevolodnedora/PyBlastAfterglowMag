@@ -218,7 +218,7 @@ int main(int argc, char** argv) {
 //        working_dir = "../tst/grb/structured/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/gauss_lcs_rs/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/structured/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-        working_dir = "../tst/grb/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/grb/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_skymap_tophat_eats/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_skymap_gauss_eats/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
@@ -233,6 +233,7 @@ int main(int argc, char** argv) {
 //        working_dir = "../../projects/grbgauss_mcmc/working/"; parfilename="tophat_7549a8d74ce86fc502b087d8eb0e341656ee536a.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/problems/"; parfilename="tst.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/problems/"; parfilename="failed_tophat_4d4f9670289d90ea734b93aeb3ba05795defeca9.par"; loglevel=LOG_INFO;
+        working_dir="/media/vsevolod/T7/work/afterglowKentaProject/run1/afg/";parfilename = "parfile.par"; loglevel=LOG_INFO;
         std::cerr << " working directory and parfile are not given. Using default: "
                   << " workdir=" << working_dir << " parfile="<<parfilename << " loglevel="<< loglevel<<"\n";
     }

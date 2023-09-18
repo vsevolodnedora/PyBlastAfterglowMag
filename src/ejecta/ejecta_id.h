@@ -21,11 +21,11 @@ class EjectaID2{
     std::unique_ptr<Pars> p_pars = nullptr;
     unsigned m_loglevel{};
 public:
-    enum Q{ ir,imom,itheta,ictheta,iek,imass,iye,is,
-            itheta_c_l, itheta_c_h, itheta_c, ieint    };
+    enum Q{ ir,imom,itheta,ictheta,iek,imass,iye,ientr,ipress,ieps,itemp,
+            itheta_c_l, itheta_c_h, itheta_c };/// additioanl quntities (will not be loaded)
     std::vector<std::string> m_names{
             "r","mom","theta","ctheta","ek","mass","ye","entr","press","eps","temp",
-            "theta_c_l","theta_c_h","theta_c",
+            "theta_c_l","theta_c_h","theta_c", /// additioanl quntities (will not be loaded)
     };
     std::vector<std::string> m_v_ns {
             "r","mom", "theta", "ctheta", "ek", "mass","ye","entr","press","eps","temp",
@@ -328,10 +328,41 @@ private:
             nlayers = tmp[0].size();
             for (auto & arr : m_data)
                 arr.resize(nshells);
-            for (size_t ish = 0; ish < nshells; ish++) {
-                for (size_t i_v_n = 0; i_v_n < m_v_ns.size(); i_v_n++) {
-                    ldata.setVarName(m_v_ns[i_v_n]);
-                    m_data[i_v_n] = std::move( ldata.getData2Ddouble() ); // load 2D vec [ishell, ilayer]
+
+            /// m_data [iv][ish][il]
+            for (size_t i_v_n = 0; i_v_n < m_v_ns.size(); i_v_n++) {
+                ldata.setVarName(m_v_ns[i_v_n]);
+                VecVector vec = ldata.getData2Ddouble();
+                if (vec.size() == nshells and vec[0].size() == nlayers)
+                    m_data[i_v_n] = std::move(vec);
+                else
+                    m_data[i_v_n] = std::move(VecVector(nshells,Vector(nlayers,0.)));
+            }
+            /// check main parameters (in case of mistakes in ID)
+            for (size_t ish = 0; ish < nshells; ish++){
+                for (size_t il = 0; il < nlayers; il++){
+                    double mom = m_data[EjectaID2::Q::imom][ish][il];
+                    double mass = m_data[EjectaID2::Q::imass][ish][il];
+                    double ek = m_data[EjectaID2::Q::iek][ish][il];
+                    double ctheta = m_data[EjectaID2::Q::ictheta][ish][il];
+                    ///
+                    if (mom < 0 || mom > 1e5 || !std::isfinite(mom)){
+                        (*p_log)(LOG_ERR,AT)<<"Bad Value ID: ish="<<ish<<" il="<<il<<" mom="<<mom<<"\n";
+                        exit(1);
+                    }
+                    if ((mass < 1 && mass != 0) || mass > 1e50 || !std::isfinite(mass)){
+                        (*p_log)(LOG_ERR,AT)<<"Bad Value ID: ish="<<ish<<" il="<<il<<" mass="<<mass<<"\n";
+                        exit(1);
+                    }
+                    if ((ek < 1e10 && ek != 0) || ek > 1e100 || !std::isfinite(ek)){
+                        (*p_log)(LOG_ERR,AT)<<"Bad Value ID: ish="<<ish<<" il="<<il<<" ek="<<ek<<"\n";
+                        exit(1);
+                    }
+                    if (ctheta < 0 || ctheta > 1.57 || !std::isfinite(ctheta)){
+                        (*p_log)(LOG_ERR,AT)<<"Bad Value ID: ish="<<ish<<" il="<<il<<" ctheta="<<ctheta<<"\n";
+                        exit(1);
+                    }
+
                 }
             }
         }
@@ -342,8 +373,8 @@ private:
             (*p_log)(LOG_ERR,AT)<<" theta_core is NOT given in new ID. Fix it by evaluating it FROM profile!\n";
             theta_wing = m_data[Q::itheta][ish][nlayers-1];
             theta_core = m_data[Q::itheta][ish][nlayers-1]/4.;
-            double mom_max = std::numeric_limits<double>::max();
-            double mom_min = 0.;
+//            double mom_max = std::numeric_limits<double>::max();
+//            double mom_min = 0.;
 //            for (size_t il = 0; il < nlayers; il++){
 //                double mom = m_data[Q::imom][ish][il];
 //                /// find
@@ -396,6 +427,7 @@ private:
             }
         }
         /// ---------------------------
+        int x =1;
 //        ldata.setVarName(m_v_ns[i_v_n]);
 //        m_data[i_v_n][ish] = ldata.getDataVDouble();
 

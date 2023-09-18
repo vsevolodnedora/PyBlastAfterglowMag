@@ -236,7 +236,7 @@ namespace BW{
             // --- FOR PWN ---
             "WR", "Wmom", "Wenb", "Wepwn", "Wtt", "Wb", "WGamma", "Wdr"
     };
-    static constexpr size_t NVALS = 87; // number of variables to save
+    static constexpr size_t NVALS = 86; // number of variables to save
 //    static constexpr size_t DERIVATIVES_NVALS = 14; // number of variables to save for derivatives at EACH step
 
     /// ---

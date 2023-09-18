@@ -192,6 +192,7 @@ class EjectaData:
     def total_mass(self) -> np.ndarray:
         mass = np.array([np.sum(self.get(v_n="mass",text=text)) for text in self.texts])
         return mass
+
     def total_mass_fasttail(self,crit="mom>1") -> np.ndarray:
         if crit == "mom>1":
             mass = np.array([np.sum(self.get(v_n="mass",text=text)[:, self.vinf * get_Gamma(self.vinf) > 1]) for text in self.texts])
@@ -257,7 +258,8 @@ class EjStruct(EjectaData):
             raise KeyError(f"method={method} is not recognized")
         return r
 
-    def get_2D_id(self, text : float, method_r0 : str, t0 = None, new_theta_len = None, new_vinf_len = None) -> dict:
+    def get_2D_id(self, text : float, method_r0 : str, t0 = None,
+                  new_theta_len = None, new_vinf_len = None) -> dict:
         res = {}
         v_inf, thetas, masses = reinterpolate_hist2(self.vinf, self.theta, self.get(v_n="mass", text=text)[:, :],
                                                     new_theta_len=new_theta_len,
@@ -276,14 +278,23 @@ class EjStruct(EjectaData):
                                                             mass_conserving=True)
                 res[v_n] = data[:, mask].T
 
-        res["mass"] = masses[mask,:]
+        res["mass"] = masses[mask,:] * cgs.solar_m
         res["r"] = self.get_r0(vinf=v_inf[mask], theta=thetas, mass=masses[mask,:], rho=res["rho"],
                                t0=t0, method=method_r0)
         res["ek"] = np.column_stack([masses[mask, i] * cgs.solar_m * v_inf[mask]**2 * cgs.c * cgs.c for i in range(len(thetas))])
-        res["mom"] = v_inf[mask] * get_Gamma(v_inf[mask])
+        mom = v_inf[mask] * get_Gamma(v_inf[mask])
+        thetas,mom = np.meshgrid(thetas,mom)
+        if not (mom.shape == res["ek"].shape):
+            raise ValueError("{} != {}".format(mom.shape,res["ek"].shape))
+        res["mom"] = mom
         res["theta"] = thetas
         res["ctheta"] = thetas
 
+        # for v_n in res.keys():
+        #     res[v_n] = np.copy(res[v_n].T)
+        print(res["mom"][:,0])
+        print(res["mom"][0,:])
+        print(res["ctheta"][0,:])
         return res
 
     @staticmethod

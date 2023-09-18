@@ -777,7 +777,11 @@ public:
         if(data.empty()){ std::cerr << AT << " no data\n"; exit(1); }
         if(data[0].empty()){ std::cerr << AT << " no data[0]\n"; exit(1); }
         if(array_names.empty()){ std::cerr << AT << " no array_names\n"; exit(1); }
-        if(data.size()!=array_names.size()){ std::cerr << AT << " data.size()!=array_names.size()\n"; exit(1); }
+        if(data.size()!=array_names.size()){
+            std::cerr << data.size() << ": " << array_names.size()<<"\n";
+            std::cerr << AT << " data.size()!=array_names.size()\n";
+            exit(1);
+        }
         H5::Group grp(file.createGroup(group_name));
         for (size_t iv = 0; iv < data.size(); iv++){
             double varray[data[iv].size()];

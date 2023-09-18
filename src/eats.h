@@ -170,6 +170,9 @@ void saveRawImage(ImageExtend & im, size_t itinu, std::string workdir,
     }
 
     std::string fpath = workdir + "raw_skymap_"+std::to_string(itinu)+".h5";
+
+    Output::remove_file_if_existis(fpath,p_log);
+
     H5::H5File file(fpath, H5F_ACC_TRUNC); // "/home/m/Desktop/tryout/file.h5"
 
     /// add data for each shell
@@ -711,6 +714,9 @@ public:
         Vector r(p_pars->m_i_end_r, 0);
         Vector fluxes(p_pars->m_i_end_r, 0);
         /// Find the region for EATS interpoaltion
+
+        size_t nskipped_h = 0;
+        size_t nskipped_r = 0;
         for (size_t i = 0; i < cil; i++) {
             double cphi = (double)i * 2.0 * M_PI / (double)cil;
             double ctheta_cell = p_pars->ctheta0;
@@ -728,10 +734,7 @@ public:
                 exit(1);
             }
             else if ((obs_time > p_pars->ttobs[p_pars->m_i_end_r - 1])) {
-                (*p_log)(LOG_WARN, AT) << " time grid was shorten to i=" << p_pars->m_i_end_r
-                                       << " from nr=" << p_pars->m_i_end_r
-                                       << " and now ends at t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
-                                       << " while t_obs=" << obs_time << "\n";
+                nskipped_h++;
                 mu[i] = std::numeric_limits<double>::max();
                 continue;
             }
@@ -749,16 +752,9 @@ public:
             r[i] = interpSegLog(ia[i], ib[i], obs_time, p_pars->ttobs, p_pars->m_r);
             //  double r = ( Interp1d(ttobs, m_data[BW::Q::iR] ) ).Interpolate(t_obs, mth );
             if ((r[i] <= 0.0) || (!std::isfinite(r[i]))) {
-                (*p_log)(LOG_ERR, AT) << " R <= 0. Extend R grid (increasing R0, R1). "
-                                      << " Current R grid us ["
-                                      << p_pars->m_r[0] << ", "
-                                      << p_pars->m_r[p_pars->m_i_end_r - 1] << "] "
-                                      << "and tobs arr ["
-                                      << p_pars->ttobs[0] << ", " << p_pars->ttobs[p_pars->m_i_end_r - 1]
-                                      << "] while the requried obs_time=" << p_pars->t_obs
-                                      << "\n";
+                nskipped_r++;
                 mu[i] = std::numeric_limits<double>::max();
-                break;
+                continue;
             }
         }
 
@@ -801,6 +797,28 @@ public:
             }
             tot_flux += flux_dens;
         }
+
+        ///
+        if (nskipped_h > 0){
+            (*p_log)(LOG_WARN, AT) << "nskipped_h="<<nskipped_h
+                << " NOTE time grid was shorten to i=" << p_pars->m_i_end_r
+                                   << " from nr=" << p_pars->m_i_end_r
+                                   << " and now ends at t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
+                                   << " while t_obs=" << obs_time << "\n";
+        }
+        //
+        if (nskipped_r > 0){
+            (*p_log)(LOG_ERR, AT) << "nskipped_r="<<nskipped_r
+                << " NOTE R <= 0. Extend R grid (increasing R0, R1). "
+                                  << " Current R grid us ["
+                                  << p_pars->m_r[0] << ", "
+                                  << p_pars->m_r[p_pars->m_i_end_r - 1] << "] "
+                                  << "and tobs arr ["
+                                  << p_pars->ttobs[0] << ", " << p_pars->ttobs[p_pars->m_i_end_r - 1]
+                                  << "] while the requried obs_time=" << p_pars->t_obs
+                                  << "\n";
+        }
+
         return (tot_flux * CGS::cgs2mJy);
     }
 

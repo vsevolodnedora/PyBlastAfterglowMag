@@ -456,7 +456,7 @@ public:
         p_pars->R0        = (double)id->get(ish,il,EjectaID2::Q::ir);//latStruct.dist_M0_pw[ilayer];
         p_pars->mom0      = (double)id->get(ish,il,EjectaID2::Q::imom);//latStruct.dist_Mom0_pw[ilayer];
         p_pars->Gamma0    = GamFromMom(id->get(ish,il,EjectaID2::Q::imom));//latStruct.dist_Mom0_pw[ilayer];
-        p_pars->s0        = (double)id->get(ish,il,EjectaID2::Q::is);//latStruct.dist_s_pw[ilayer];
+        p_pars->s0        = (double)id->get(ish,il,EjectaID2::Q::ientr);//latStruct.dist_s_pw[ilayer];
         p_pars->tb0       = m_tb_arr.empty() ? 0 : m_tb_arr[0];
         p_pars->theta_a   = 0.;
         p_pars->theta_b0  = ((id->method_eats) == EjectaID2::ipiecewise)
@@ -722,7 +722,7 @@ public:
         opt = "method_single_bw_delta";
         METHOD_SINGLE_BW_DELTA method_single_bw_delta;
         if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
             method_single_bw_delta = METHOD_SINGLE_BW_DELTA::iconst;
         }
         else{
@@ -841,6 +841,7 @@ public:
         frac_psr_dep_.resize(iters);
 
     }
+
     /// --------------------------------------------------------
     Pars *& getPars(){ return p_pars; }
     std::unique_ptr<EOSadi> & getEos(){ return p_eos; }

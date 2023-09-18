@@ -483,7 +483,7 @@ public:
     }
 
     /// Compute Skymap for piece-wise EATS
-    void computeEjectaSkyMapPW_new(ImageExtend & im, double obs_time, double obs_freq){
+    void computeEjectaSkyMapPW(ImageExtend & im, double obs_time, double obs_freq){
         /// out is [i_vn][ish][itheta_iphi]
         size_t nshells_ = nshells();
         size_t nlayers_ = nlayers();
@@ -512,6 +512,10 @@ public:
                 im.fluxes_shells[ishell] += flux;
                 offset += cil;
             }
+            if ((im.fluxes_shells[ishell] <=0) || (!std::isfinite(im.fluxes_shells[ishell]))){
+                (*p_log)(LOG_ERR,AT)<<" im.fluxes_shells[ishell]="<<im.fluxes_shells[ishell]<<"\n";
+                exit(1);
+            }
 
             /// find the image extend for this shell
             double xmin = std::numeric_limits<double>::max(), xmax = std::numeric_limits<double>::min();
@@ -525,6 +529,11 @@ public:
                 if (out[IMG::Q::iyr][i] > ymax) ymax = out[IMG::Q::iyr][i];
                 if (out[IMG::Q::iintens][i] < imin) imin = out[IMG::Q::iintens][i];
                 if (out[IMG::Q::iintens][i] > imax) imax = out[IMG::Q::iintens][i];
+            }
+            ///
+            if ((imax <= 0) || (!std::isfinite(imax))){
+                (*p_log)(LOG_ERR,AT) << "  imax="<<imax<<"\n";
+                exit(1);
             }
 
             /// normalize image to be mJy/mas^2

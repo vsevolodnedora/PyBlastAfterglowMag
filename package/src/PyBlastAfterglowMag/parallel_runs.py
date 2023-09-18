@@ -13,16 +13,21 @@ from .interface import PyBlastAfterglow
 from .skymap_process import ProcessRawSkymap
 
 class ParallelRunDispatcher:
-    def __init__(self, working_dirs : list[str], parfile_name:str, skymap_postprocess_conf : dict):
+    def __init__(self,path_to_executable:str,parfile_name:str,loglevel:str,
+                 working_dirs : list[str], skymap_postprocess_conf : dict):
         assert len(working_dirs) > 0, "no simulation direrctories given"
         for sim_dir in working_dirs:
             if not os.path.isdir(sim_dir):
                 raise FileNotFoundError(f"Simulation dir not found: {sim_dir}")
             if not os.path.isfile(sim_dir+parfile_name):
                 raise FileNotFoundError(f"parfile not found: {sim_dir+parfile_name}")
+        if not os.path.isfile(path_to_executable):
+            raise FileNotFoundError(f"path_to_executable is invalid: {path_to_executable}")
         self.sim_dirs = working_dirs
         self.parfile_name = parfile_name
         self.skymap_postprocess_conf = skymap_postprocess_conf
+        self.path_to_executable = path_to_executable
+        self.loglevel = loglevel
 
     def __call__(self, idx):
         ''' run PyBlastAfterglow with parfile in a given working directory '''
@@ -34,7 +39,7 @@ class ParallelRunDispatcher:
 
         pba = PyBlastAfterglow(workingdir=sim_dir, readparfileforpaths=True, parfile=self.parfile_name)
 
-        pba.run()
+        pba.run(path_to_cpp_executable=self.path_to_executable,loglevel=self.loglevel)
 
         if (pba.KN.opts["do_skymap"]=="yes"):
             prep = ProcessRawSkymap(conf=self.skymap_postprocess_conf, verbose=False)
@@ -43,7 +48,7 @@ class ParallelRunDispatcher:
 
         pba.clear()
 
-def distribute_and_parallel_run(working_dirs:list[str], parfile_name:str, n_cpu:int):
+def distribute_and_parallel_run(path_to_executable:str, working_dirs:list[str], parfile_name:str, n_cpu:int):
     ''' run multiple instances of PyBlastAfterglow in different directories '''
     pba_parallel = ParallelRunDispatcher(working_dirs=working_dirs, parfile_name=parfile_name)
     if (n_cpu == 1):

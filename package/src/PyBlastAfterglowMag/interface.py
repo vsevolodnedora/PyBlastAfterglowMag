@@ -673,7 +673,8 @@ class PyBlastAfterglow:
     '''
         Process output_uniform_grb files: load, extract for a specific way
     '''
-    def __init__(self, workingdir, readparfileforpaths=True, parfile="parfile.par"):
+    def __init__(self, workingdir : str, readparfileforpaths : bool = True,
+                 parfile : str = "parfile.par"):
         # super().__init__(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile)
 
         self.KN = Ejecta(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,type="kn")
@@ -688,28 +689,29 @@ class PyBlastAfterglow:
         if readparfileforpaths:
             self.main_pars, self.main_opts = self.read_main_part_parfile( self.parfile )
 
-    def read_main_part_parfile(self, parfile="parfile.par"):
+    def read_main_part_parfile(self, parfile : str = "parfile.par") -> tuple[dict,dict]:
         main_pars, main_opts = read_parfile(workingdir=self.workingdir,fname=parfile,comment="#",
                                             sep1="# -------------------------- main ---------------------------",
                                             sep2="# --------------------------- END ---------------------------")
         return (main_pars,main_opts)
 
-    def reload_parfile(self):
+    def reload_parfile(self) -> None:
         self.main_pars, self.main_opts = self.read_main_part_parfile()
         self.KN.reload_parfile(type="kn")
         self.GRB.reload_parfile(type="grb")
         self.MAG.reload_parfile()
 
-    def run(self, loglevel="info"):
+    def run(self, path_to_cpp_executable : str, loglevel : str = "info") -> None:
         # this mess is because I did not figure out how $PATH thing works...
-        curdir = os.getcwd()
-        pbadir = curdir.split("PyBlastAfterglowMag")[0]
-        path_to_cpp_executable = pbadir+"PyBlastAfterglowMag"+"/src/pba.out"
+        # curdir = os.getcwd()
+        # curdir = os.path.dirname(os.path.abspath(__file__))
+        # pbadir = curdir.split("PyBlastAfterglowMag")[0]
+        # path_to_cpp_executable = pbadir+"PyBlastAfterglowMag"+"/src/pba.out"
         # print(os.getcwd())
         # os.chdir("../../../src/")
         # path_to_executable = "pba.out"
         if not os.path.isfile(path_to_cpp_executable):
-            raise IOError("pba.out executable is not found: {}".format(path_to_cpp_executable))
+            raise IOError("executable is not found: {}".format(path_to_cpp_executable))
         # subprocess.call(path_to_executable, input="")
         # print("{} {} {} {}".format(path_to_cpp_executable, self.workingdir, self.parfile, self.loglevel))
         # subprocess.run(path_to_cpp_executable, input=self.workingdir)

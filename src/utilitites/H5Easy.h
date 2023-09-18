@@ -1003,10 +1003,8 @@ std::vector<std::vector<float> > LoadH5::getData2Dfloat() const
 }
 
 // DOUBLE
-std::vector<std::vector<double> > LoadH5::getData2Ddouble() const
-{
-   try
-   {
+std::vector<std::vector<double> > LoadH5::getData2Ddouble() const {
+   try {
       Exception::dontPrint();
       H5std_string FILE_NAME(LoadH5::filename);
       H5File file(FILE_NAME, H5F_ACC_RDONLY);
@@ -1052,7 +1050,7 @@ std::vector<std::vector<double> > LoadH5::getData2Ddouble() const
       datatype.close();
       dataset.close();
       file.close();
-      return v;
+      return std::move(v);
    }
    catch (FileIException error)
    {
