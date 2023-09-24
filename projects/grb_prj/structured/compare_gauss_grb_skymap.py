@@ -1,46 +1,27 @@
 # import PyBlastAfterglowMag
-import numpy as np
-import h5py
-import shutil
-from scipy.integrate import ode
-import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize, LogNorm
-from matplotlib import cm, rc, rcParams
-import matplotlib.colors as colors
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from mpl_toolkits.axes_grid1 import ImageGrid
-from mpl_toolkits.axisartist.grid_finder import MaxNLocator
-from matplotlib.colors import BoundaryNorm
-from matplotlib.ticker import MaxNLocator
-from matplotlib.cm import ScalarMappable
-from scipy import interpolate
+
 # import pytest
-from pathlib import Path
-from matplotlib.colors import Normalize, LogNorm
-from matplotlib import cm
 import os
+# import path
 
 # from PyBlastAfterglowMag import BPA_METHODS as PBA
 # from package.src.PyBlastAfterglowMag.interface import BPA_METHODS as PBA
 # from package.src.PyBlastAfterglowMag
 
-try:
-    from PyBlastAfterglowMag.interface import modify_parfile_par_opt
-    from PyBlastAfterglowMag.interface import PyBlastAfterglow
-    from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
-    from PyBlastAfterglowMag.utils import latex_float, cgs, get_beta, get_Gamma
-    from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
-except ImportError:
-    try:
-        from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
-        from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
-        from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
-        from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma)
-        from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
-    except ImportError:
-        raise ImportError("Cannot import PyBlastAfterglowMag")
-
-
+# try:
+#     from PyBlastAfterglowMag.interface import *
+#     from PyBlastAfterglowMag.utils import *
+#     from PyBlastAfterglowMag.id_maker_analytic import *
+#
+# except ImportError:
+#     try:
+#         from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
+#         from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
+#         from package.src.PyBlastAfterglowMag.interface import (distribute_and_parallel_run, get_str_val, set_parlists_for_pars)
+#         from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma)
+#         from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+#     except ImportError:
+#         raise ImportError("Cannot import PyBlastAfterglowMag")
 
 
 try:
@@ -50,206 +31,76 @@ except:
     print("Error! could not import afteglowpy")
 
 curdir = os.getcwd() + '/' #"/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglow_dev/PyBlastAfterglow/src/PyBlastAfterglow/tests/dyn/"
-parfiledir = os.getcwd().replace("structured","")
-paperfigdir = "/home/vsevolod/Work/GIT/overleaf/grb_afg/figs/"
+# parfiledir = os.getcwd().replace("structured","")
+# paperfigdir = "/home/vsevolod/Work/GIT/overleaf/grb_afg/figs/"
+
+# directory = Path(__file__)
+# sys.path.append(directory.parent.parent)
+# directory = os.path.dirname(os.path.abspath("__file__"))
+# sys.path.append(os.path.dirname(os.path.dirname(directory)))
+
+from projects.grb_prj.grb_tst_tools import *
+from settings import SettingsGaussian
+
+def main():
+
+    grb = TestCasesFS(default_parfile_fpath=curdir+"parfile_def.par",
+                      workingdir=curdir+"output/")
+    tsk = SettingsGaussian()
+    runset_for_skymap(tsk=tsk,
+                      default_parfile_fpath=curdir+"parfile_def.par",
+                      workingdir=curdir+"output/",
+                      figdir=curdir+"figs/")
+    # grb.plot_generic(struct=tsk.structure, pars=tsk.pars, opts_a=tsk.opts_a, title=tsk.figname)
+    # grb.paper_plot_compare_spreading(struct=tsk.structure, pars=tsk.pars, opts_a=tsk.opts_a, title=tsk.figname)
+    # grb.compare_skymaps_3d_theta_im_max(struct=tsk.structure, pars=tsk.pars, opts_a=tsk.opts_a, title=tsk.figname,
+    #                                     theta_maxs=(
+    #                                         (1.57,), #0.4, .9, 1.2,  1.57),
+    #                                         # (21,121,121,121,121),
+    #                                         ((20,20),),#121,121,121,121),
+    #                                         ('red','orange','yellow', 'cyan', 'lime')))
+
+if __name__ == '__main__':
+    main()
+    exit(0)
 
 
-class RefData():
-    def __init__(self,workdir:str,fname:str):
-        self.workdir = workdir
-        self.keys = ["tburst",
-                     "tcomov",
-                     "Gamma",
-                     "Eint2",
-                     "Eint3",
-                     "theta",
-                     "Erad2",
-                     "Erad3",
-                     "Esh2",
-                     "Esh3",
-                     "Ead2",
-                     "Ead3",
-                     "M2",
-                     "M3",
-                     "deltaR4"]
-        self.keys = [
-            "R", "rho", "dlnrhodr", "Gamma", "Eint2", "U_e", "theta", "ctheta", "Erad2", "Esh2", "Ead2", "M2",
-            "tcomov", "tburst", "tt", "delta", "W",
-            "Gamma43", "Eint3", "U_e3", "Erad3", "Esh3", "Ead3", "M3", "rho4", "deltaR4", "W3"
-        ]
-        self.refdata = None
-        self.fname = fname
-    def idx(self, key : str) -> int:
-        return self.keys.index(key)
-    def load(self) -> None:
-        # self.refdata = np.loadtxt(self.workdir+"reference_fsrs.txt")
-        self.refdata = h5py.File(self.workdir+self.fname,'r')
-    def get(self,il,key) -> np.ndarray:
-        if (self.refdata is None):
-            self.load()
-        if (key in self.keys):
-            return np.array(np.array(self.refdata[f"layer={il}"][key]))
-        elif (key=="mom"):
-            return np.array(np.array(self.refdata[f"layer={il}"]["Gamma"])) * \
-                get_beta(np.array(np.array(self.refdata[f"layer={il}"]["Gamma"])))
-        else:
-            raise KeyError(f"key={key} is not recognized")
-    def close(self) -> None:
-        self.refdata.close()
 
-    def nlayers(self):
-        if (self.refdata is None):
-            self.load()
-        return int(len(self.refdata.keys()))
 
-class RefDataLC():
-    def __init__(self,workdir:str,fname:str):
-        self.workdir = workdir
-        self.keys = ["times", "fluxes"]
-        self.refdata = None
-        self.fname = fname
-    def idx(self, key : str) -> int:
-        return self.keys.index(key)
-    def load(self) -> None:
-        # self.refdata = np.loadtxt(self.workdir+"reference_fsrs.txt")
-        self.refdata = h5py.File(self.workdir+self.fname,'r')
-    def get(self,il) -> np.ndarray:
-        if (il == -1):
-            arr = np.zeros_like(np.array(self.refdata[f"layer={0}"]["fluxes"]))
-            for _il in range(self.nlayers()):
-                arr += np.array(self.refdata[f"layer={_il}"]["fluxes"])
-            return arr
-        if (self.refdata is None):
-            self.load()
-        return np.array(self.refdata[f"layer={il}"]["fluxes"])
+class TestCasesFS_(TestBases):
+    # name_grb170817a_like_event = "Gauss 170817-like off-axis"
+    # struct_grb170817a_like_event = {
+    #     "struct":"gaussian",
+    #     "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
+    #     "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":150,"nlayers_a": 10
+    # }
+    # pars_grb170817a_like_event = {
+    #     "obs_freq":3e9,
+    #     "n_ism":0.00031,    "eps_e":0.0708,
+    #     "d_l":1.27e+26,     "eps_b": 0.0052,
+    #     "z": 0.0099,        "p":2.16,
+    #     "theta_obs": 0.3752
+    # }
+    #
+    # name_1 = "Gauss off-axis"
+    # struct_1 = {
+    #     "struct":"gaussian",
+    #     "Eiso_c":1.e53, "Gamma0c": 1000., "M0c": -1.,
+    #     "theta_c": 0.1, "theta_w": 0.4, "nlayers_pw": 150, "nlayers_a": 52
+    # }
+    # pars_1 = {
+    #     "obs_freq":3e9,
+    #     "n_ism": 1e-2,      "eps_e": 0.1,
+    #     "d_l": 3.09e26,     "eps_b": 0.01,
+    #     "z": 0.028,         "p": 2.2,
+    #     "theta_obs": 0.9,
+    #     "nsublayers":41
+    # }
+    # opts_a_1 = {"method_eats":"adaptive", "method_spread":"AFGPY"}
+    # opts_pw_1 = {"method_eats":"piece-wise", "method_spread":"AA"}
 
-    def close(self) -> None:
-        self.refdata.close()
-
-    def times(self):
-        if (self.refdata is None):
-            self.load()
-        return np.array(np.array(self.refdata[f"layer={0}"]["times"]))
-
-    def nlayers(self):
-        if (self.refdata is None):
-            self.load()
-        return int(len(self.refdata.keys()))
-
-class TestBases():
-
-    def run_pw(self, pars : dict, struct : dict, opts : dict, opts_grb : dict) -> PyBlastAfterglow:
-        workdir = os.getcwd()+'/'
-        # copy the main parfile into workdir
-        shutil.copy(parfiledir+"parfile_def.par", curdir+"parfile_def.par")
-        prepare_grb_ej_id_1d(struct, type="pw", outfpath=workdir+"gauss_grb_id.h5")
-        modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main",
-                               newpars=pars,
-                               newopts=opts,
-                               parfile="parfile_def.par", newparfile="parfile.par", keep_old=True)
-        modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
-                               newpars=pars,
-                               newopts=opts_grb,
-                               parfile="parfile.par", newparfile="parfile.par", keep_old=False)
-
-        pba_pw = PyBlastAfterglow(workingdir=os.curdir+'/',readparfileforpaths=True, parfile="parfile.par")
-        pba_pw.run()
-        # remove the default parfile from the working dir
-        os.remove(curdir+"parfile_def.par")
-        return pba_pw
-
-    def run_a(self, pars : dict, struct : dict, opts : dict, opts_grb : dict) -> PyBlastAfterglow:
-        workdir = os.getcwd()+'/'
-        # copy the main parfile into workdir
-        shutil.copy(parfiledir+"parfile_def.par", curdir+"parfile_def.par")
-        prepare_grb_ej_id_1d(struct, type="a", outfpath=workdir+"gauss_grb_id.h5")
-        modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main",
-                               newpars=pars,
-                               newopts=opts,
-                               parfile="parfile_def.par", newparfile="parfile.par", keep_old=True)
-        modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
-                               newpars=pars,
-                               newopts=opts_grb,
-                               parfile="parfile.par", newparfile="parfile.par", keep_old=False)
-
-        pba_a = PyBlastAfterglow(workingdir=os.curdir+'/',readparfileforpaths=True, parfile="parfile.par")
-        pba_a.run()
-        # remove the default parfile from the working dir
-        os.remove(curdir+"parfile_def.par")
-        return pba_a
-
-    def plot_lcs(self, ax, pars : dict, pba : PyBlastAfterglow, layers = (), plot={}, plot_layer={}):
-        ls = plot["ls"] if "ls" in plot.keys() else '-'
-        color = plot["color"] if "color" in plot.keys() else 'red'
-        alpha = plot["alpha"] if "alpha" in plot.keys() else 1.0
-        label = plot["label"] if "label" in plot.keys() else None
-        ax.plot(pba.GRB.get_lc_times(), pba.GRB.get_lc_totalflux(freq=pars["obs_freq"]),
-                ls=ls, color=color, label=label, alpha=alpha)
-        cmap = plot_layer["cmap"] if "cmap" in plot_layer.keys() else 'viridis'
-        cmap = cm.get_cmap(cmap)
-        vmin = plot_layer["vmin"] if "vmin" in plot_layer.keys() else 0
-        vmax = plot_layer["vmax"] if "vmax" in plot_layer.keys() else int(pba.GRB.get_lc_obj().attrs["nlayers"])
-        norm = Normalize(vmin=vmin, vmax=vmax)
-        for il in range(int(pba.GRB.get_lc_obj().attrs["nlayers"])):
-            if (((len(layers) > 0) and (il in layers)) or (len(layers)==0)):
-                ls = plot_layer["ls"] if "ls" in plot_layer.keys() else '-'
-                color = plot_layer["color"] if "color" in plot_layer.keys() else 'red'
-                color = cmap(norm(il)) if "cmap" in plot_layer.keys() else color
-                alpha = plot_layer["alpha"] if "alpha" in plot_layer.keys() else 0.9
-                label = plot_layer["label"] if "label" in plot_layer.keys() else None
-                ax.plot(pba.GRB.get_lc_times(), pba.GRB.get_lc(freq=pars["obs_freq"], ishell=0, ilayer=il),
-                        ls=ls, color=color, alpha=alpha, label=label)
-
-    def plot_dyn(self, ax, pba : PyBlastAfterglow, v_n_x : str, v_n_y : str, layers=(), plot_layer = {}):
-        cmap = plot_layer["cmap"] if "cmap" in plot_layer.keys() else 'viridis'
-        cmap = cm.get_cmap(cmap)
-        llayers = pba.GRB.get_dyn_obj().attrs["nlayers"]
-        vmin = plot_layer["vmin"] if "vmin" in plot_layer.keys() else 0
-        vmax = plot_layer["vmax"] if "vmax" in plot_layer.keys() else int(pba.GRB.get_dyn_obj().attrs["nlayers"])
-        norm = Normalize(vmin=vmin, vmax=vmax)
-        for il in range(int(pba.GRB.get_dyn_obj().attrs["nlayers"])):
-            if (((len(layers) > 0) and (il in layers)) or (len(layers)==0)):
-                ls = plot_layer["ls"] if "ls" in plot_layer.keys() else '-'
-                color = plot_layer["color"] if "color" in plot_layer.keys() else 'red'
-                color = cmap(norm(il)) if "cmap" in plot_layer.keys() else color
-                alpha = plot_layer["alpha"] if "alpha" in plot_layer.keys() else 0.9
-                label = plot_layer["label"] if "label" in plot_layer.keys() else None
-                ax.plot(pba.GRB.get_dyn_arr(v_n=v_n_x,ishell=0,ilayer=il),
-                        pba.GRB.get_dyn_arr(v_n=v_n_y,ishell=0,ilayer=il), ls=ls, color=color, alpha=alpha, label=label)
-
-class TestCasesFS(TestBases):
-    name_grb170817a_like_event = "Gauss 170817-like off-axis"
-    struct_grb170817a_like_event = {
-        "struct":"gaussian",
-        "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
-        "theta_c": 0.085, "theta_w": 0.2618, "nlayers_pw":150,"nlayers_a": 10
-    }
-    pars_grb170817a_like_event = {
-        "obs_freq":3e9,
-        "n_ism":0.00031,    "eps_e":0.0708,
-        "d_l":1.27e+26,     "eps_b": 0.0052,
-        "z": 0.0099,        "p":2.16,
-        "theta_obs": 0.3752
-    }
-
-    name_1 = "Gauss off-axis"
-    struct_1 = {
-        "struct":"gaussian",
-        "Eiso_c":1.e53, "Gamma0c": 1000., "M0c": -1.,
-        "theta_c": 0.1, "theta_w": 0.4, "nlayers_pw": 150, "nlayers_a": 52
-    }
-    pars_1 = {
-        "obs_freq":3e9,
-        "n_ism": 1e-2,      "eps_e": 0.1,
-        "d_l": 3.09e26,     "eps_b": 0.01,
-        "z": 0.028,         "p": 2.2,
-        "theta_obs": 0.9
-    }
-    opts_a_1 = {"method_eats":"adaptive", "method_spread":"AFGPY"}
-    opts_pw_1 = {"method_eats":"piece-wise", "method_spread":"AA"}
-
-    def __init__(self):
-        pass
+    def __init__(self, parfiledir):
+        super().__init__(parfiledir)
 
     def plot_lcs_ref(self, ax, ref : RefDataLC, nlayers : int, layers = (),):
         cmap = cm.get_cmap('Greys')
@@ -278,19 +129,30 @@ class TestCasesFS(TestBases):
                 x_arr = ref.get(il, v_n_x)
                 ax.plot(x_arr, ref.get(il, v_n_y), ls=':', color=cmap(norm(il)), lw=1., zorder=-1)
 
-    def plot_170817_like(self, pars : dict, struct : dict, title : str):
+    def plot_170817_like(self, pars : dict, opts_a:dict, opts_pw:dict, struct : dict, title : str):
 
         # run the code for given pars
-        pba_pw = self.run_pw(struct=struct, pars=pars, opts={}, opts_grb=self.opts_pw_1)
-        pba_a = self.run_a(struct=struct, pars=pars, opts={}, opts_grb=self.opts_a_1)
+
 
         fig, ax = plt.subplots(figsize=(9,2.5), ncols=1, nrows=1)
 
-        # self.plot_lcs(ax, pars=pars, pba_pw=pba_pw, pba_a=pba_a, ref = None)
-        self.plot_lcs(ax=ax, pars=pars, pba=pba_pw, layers = (),
+        # --- piece-wise
+        pars_pw = copy.deepcopy(pars)
+        pars_pw["mom0_frac_when_start_spread"] = 0.1
+        opts_pw["fname_light_curve"]=f"lc_pw_res_170817.h5"
+        opts_pw["fname_light_curve_layers"]=f"lc_dense_pw_res_170817.h5"
+        pba_pw = self.run_pw(struct=struct, pars=pars_pw, opts={}, opts_grb=opts_pw)
+        self.plot_lcs(ax=ax, pars=pars_pw, pba=pba_pw, layers = (),
                       plot={"ls":'-', "color":"green", "label":"PBA [PW]"},
                       plot_layer={"ls":'-', "cmap":"inferno", "alpha":.5})
-        self.plot_lcs(ax=ax, pars=pars, pba=pba_a, layers = (),
+
+        # --- adaptive
+        pars_a = copy.deepcopy(pars)
+        pars_a["mom0_frac_when_start_spread"] = 0.95
+        opts_a["fname_light_curve"]=f"lc_a_res_170817.h5"
+        opts_a["fname_light_curve_layers"]=f"lc_dense_a_res_170817.h5"
+        pba_a = self.run_a(struct=struct, pars=pars_a, opts={}, opts_grb=opts_a)
+        self.plot_lcs(ax=ax, pars=pars_a, pba=pba_a, layers = (),
                       plot={"ls":'-', "color":"red", "label":"PBA [A]"},
                       plot_layer={"ls":'-', "cmap":"viridis", "alpha":.5})
 
@@ -339,13 +201,13 @@ class TestCasesFS(TestBases):
         ax.grid()
         plt.show()
 
-    def plot_generic(self, pars : dict, struct : dict, title : str):
+    def plot_generic(self, pars : dict, opts_a : dict, struct : dict, title : str):
         # run the code for given pars
-        pba_a = self.run_a(struct=struct, pars=pars, opts={}, opts_grb=self.opts_a_1)
+        pba_a = self.run_a(struct=struct, pars=pars, opts={}, opts_grb=opts_a)
 
         ref = RefData(workdir=curdir, fname="reference_afgpy_dyn.h5")
-        # ref_lc = RefDataLC(workdir=curdir, fname="reference_lc_layer.h5")
-        ref_lc = RefDataLC(workdir=curdir, fname="reference_lc_layer.h5")
+        # ref_lc = RefDataLC(workdir=curdir, fname="reference_lc_0deg_layer.h5")
+        ref_lc = RefDataLC(workdir=curdir, fname="reference_lc_0deg_layer.h5")
 
         fig, axes = plt.subplots(figsize=(9,9.5), ncols=1, nrows=3)
 
@@ -416,7 +278,7 @@ class TestCasesFS(TestBases):
         # run the code for given pars
 
         # ref = RefData(workdir=curdir, fname="reference_afgpy_dyn.h5")
-        # ref_lc = RefDataLC(workdir=curdir, fname="reference_lc_layer.h5")
+        # ref_lc = RefDataLC(workdir=curdir, fname="reference_lc_0deg_layer.h5")
 
         ref_lc = RefDataLC(workdir=curdir, fname="reference_lc_layer_GamInf.h5")
         ref = RefData(workdir=curdir, fname="reference_afgpy_dyn_GamInf.h5")
@@ -511,10 +373,10 @@ class TestCasesFS(TestBases):
         # ax.grid()
         ax.minorticks_on()
         ax.tick_params(axis='both', which='both', labelleft=True,
-                        labelright=False, tick1On=True, tick2On=True,
-                        labelsize=12,
-                        direction='in',
-                        bottom=True, top=True, left=True, right=True)
+                       labelright=False, tick1On=True, tick2On=True,
+                       labelsize=12,
+                       direction='in',
+                       bottom=True, top=True, left=True, right=True)
         # ax.set_facecolor("pink")
 
         ax = axes[1]
@@ -556,7 +418,9 @@ class TestCasesFS(TestBases):
         plt.savefig(paperfigdir+"abstract_gaus_spread_lcs_dyn.png", dpi=256)
         plt.show()
 
-class TestCasesRS(TestBases):
+    # --- SKYMAPS ---
+
+class TestCasesRS_(TestBases):
     name_1 = "Gauss off-axis"
     struct_1 = {
         "struct":"gaussian",
@@ -573,14 +437,14 @@ class TestCasesRS(TestBases):
     opts_1 = {"rtol": 1e-6, "ntb":10000, "iout": 10}
     opts_a_1 = {"method_eats":"adaptive", "method_spread":"AFGPY", "rhs_type":"grb_fs", "do_rs": "no"}
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, parfiledir):
+        super().__init__(parfiledir)
 
     def paper_plot_compare_fsrs(self, pars : dict, struct : dict, title : str):
         # run the code for given pars
 
         # ref = RefData(workdir=curdir, fname="reference_afgpy_dyn.h5")
-        # ref_lc = RefDataLC(workdir=curdir, fname="reference_lc_layer.h5")
+        # ref_lc = RefDataLC(workdir=curdir, fname="reference_lc_0deg_layer.h5")
 
         fig, axes = plt.subplots(figsize=(6,6.5), ncols=1, nrows=3)
 
@@ -697,21 +561,6 @@ class TestCasesRS(TestBases):
         plt.savefig(paperfigdir+"abstract_spread_lcs_dyn.pdf")
         plt.savefig(paperfigdir+"abstract_gaus_spread_lcs_dyn.png", dpi=256)
         plt.show()
-
-def main():
-    grb = TestCasesFS()
-    # grb.plot_170817_like(struct=grb.struct_grb170817a_like_event, pars=grb.pars_grb170817a_like_event, title=grb.name_grb170817a_like_event)
-    # grb.plot_generic(struct=grb.struct_1, pars=grb.pars_1, title=grb.name_1)
-    # grb.plot_generic(struct=grb.struct_1, pars=grb.pars_1, title=grb.name_1)
-    # grb.paper_plot_compare_spreading(struct=grb.struct_1, pars=grb.pars_1, title=grb.name_1)
-
-    grbrs = TestCasesRS()
-    grbrs.paper_plot_compare_fsrs(struct=grbrs.struct_1, pars=grbrs.pars_1, title=grbrs.name_1)
-
-if __name__ == '__main__':
-    main()
-
-
 
 
 def tst_tophat_old():
