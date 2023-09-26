@@ -1108,7 +1108,7 @@ class SynchrotronAnalytic : public RadiationBase{
     };
     std::unique_ptr<Pars> p_pars = nullptr;
     std::unique_ptr<logger> p_log = nullptr;
-//    Vector m_data{};
+//    Vector mD{};
     Vector m_gamma_arr{};
     Vector m_freq_arr_syn{};
     Vector m_tmp_arr1{};
@@ -1122,7 +1122,7 @@ public:
 //        p_pars = new PWNPars();
         p_pars = std::make_unique<Pars>();
         p_pars->lim_gm_to_1 = false;
-//        m_data.resizeEachImage( Rad::m_names_.size(), -1. );
+//        mD.resizeEachImage( Rad::m_names_.size(), -1. );
         is_rs = _is_rs;
     }
     ~SynchrotronAnalytic(){ }
@@ -1703,14 +1703,14 @@ public:
             exit(1);
         }
 
-        p_pars->em_pl=em_pl;//m_data[i_em_pl] = em_pl; // 1e-26
-        p_pars->em_th=em_th;//m_data[i_em_th] = em_th;
-        p_pars->em=em_pl+em_th;//m_data[i_em] = em_pl + em_th;
+        p_pars->em_pl=em_pl;//mD[i_em_pl] = em_pl; // 1e-26
+        p_pars->em_th=em_th;//mD[i_em_th] = em_th;
+        p_pars->em=em_pl+em_th;//mD[i_em] = em_pl + em_th;
 
         if (p_pars->m_methods_ssa!=iSSAoff) {
-            p_pars->abs_pl=abs_pl;//m_data[i_abs_th] = abs_th;
-            p_pars->abs_th=abs_th;//m_data[i_abs_pl] = abs_pl; // 1e-17
-            p_pars->abs=abs_pl+abs_th;//m_data[i_abs] = abs_th + abs_pl;
+            p_pars->abs_pl=abs_pl;//mD[i_abs_th] = abs_th;
+            p_pars->abs_th=abs_th;//mD[i_abs_pl] = abs_pl; // 1e-17
+            p_pars->abs=abs_pl+abs_th;//mD[i_abs] = abs_th + abs_pl;
         }
 
         if (( em_pl < 0.) || (!std::isfinite( abs_pl )) ){
@@ -1945,7 +1945,7 @@ class MagnetarSynchrotron{
     };
     std::unique_ptr<Pars> p_pars = nullptr;
     std::unique_ptr<logger> p_log = nullptr;
-//    VecVector & m_data;
+//    VecVector & mD;
 //    Vector spectrum{}; Vector spec_gams{}; Vector spec_freqs{};
 //    Vector emissivity{}; Vector absorption{};
 public:
@@ -2097,7 +2097,7 @@ public:
 //    static constexpr size_t n_vars = 5;
 //    enum QS { igm, igc };
 //    std::vector<std::string> m_vars{ "gm", "gc", "num", "nuc", "pmax" };
-//    VecArray m_data{};// ( n_vars );
+//    VecArray mD{};// ( n_vars );
 //public:
 //    SynchrotronAnalyticComoving(size_t nt){
 //        p_pars = new PWNPars();
@@ -2105,8 +2105,8 @@ public:
 //    }
 //    ~SynchrotronAnalyticComoving(){ delete p_pars; }
 //    void allocateSpace(size_t nt){
-//        m_data.resizeEachImage(n_vars);
-//        for (auto & arr : m_data){
+//        mD.resizeEachImage(n_vars);
+//        for (auto & arr : mD){
 //            arr.resizeEachImage( nt, 0. );
 //        }
 //    }

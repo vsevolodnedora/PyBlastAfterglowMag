@@ -76,14 +76,14 @@ namespace TOOLS{
         std::generate_n(std::back_inserter(vec), num, Logspace<double>(realStart,realBase));
     }
 
-    static std::vector<double> MakeLogspaceVec(const double &start,
+    static Vector MakeLogspaceVec(const double &start,
                                                const double &stop,
                                                const int &num = 50,
                                                const double &base = 10) {
         double realStart = pow(base, start);
         double realBase = pow(base, (stop-start)/num);
 
-        std::vector<double> retval;
+        Vector retval;
         retval.reserve(num);
 
         std::generate_n(std::back_inserter(retval), num, Logspace<double>(realStart,realBase));
@@ -264,7 +264,7 @@ double getDoublePar(std::string par, StrDbMap & pars,
 }
 
 Vector arrToVec(Vector & array){
-    std::vector<double> vec;
+    Vector vec;
     vec.assign(std::begin(array), std::end(array));
     return std::move( vec );
 }
@@ -773,6 +773,21 @@ public:
         }
     }
 
+    static void addVectorToGroup(H5::Group & grp, Vector & data, std::string data_name){
+        if(data.empty()){ std::cerr << AT << " no data\n"; exit(1); }
+        double varray[data.size()];
+        for (size_t ii = 0; ii < data.size(); ii++)
+            varray[ii] = data[ii];
+        hsize_t dimsf[1];
+        dimsf[0] = data.size();
+        H5::DataSpace dataspace(1, dimsf);
+        H5::DataType datatype(H5::PredType::NATIVE_DOUBLE);
+        H5::DataSet dataset = grp.createDataSet(data_name, datatype, dataspace);
+        dataset.write(varray, H5::PredType::NATIVE_DOUBLE);
+        dataset.close();
+        dataspace.close();
+    }
+
     static void addGroupWith1Ddata(VecVector & data, std::string group_name, std::vector<std::string> array_names, H5::H5File & file){
         if(data.empty()){ std::cerr << AT << " no data\n"; exit(1); }
         if(data[0].empty()){ std::cerr << AT << " no data[0]\n"; exit(1); }
@@ -797,6 +812,75 @@ public:
             dataspace.close();
         }
         grp.close();
+    }
+
+    static void addGroupWith1Ddata(H5::Group & grp, VecVector & data, std::vector<std::string> array_names){
+        if(data.empty()){ std::cerr << AT << " no data\n"; exit(1); }
+        if(data[0].empty()){ std::cerr << AT << " no data[0]\n"; exit(1); }
+        if(array_names.empty()){ std::cerr << AT << " no array_names\n"; exit(1); }
+        if(data.size()!=array_names.size()){
+            std::cerr << data.size() << ": " << array_names.size()<<"\n";
+            std::cerr << AT << " data.size()!=array_names.size()\n";
+            exit(1);
+        }
+        for (size_t iv = 0; iv < data.size(); iv++){
+            double varray[data[iv].size()];
+            for (size_t ii = 0; ii < data[iv].size(); ii++)
+                varray[ii] = data[iv][ii];
+            hsize_t dimsf[1];
+            dimsf[0] = data[iv].size();
+            H5::DataSpace dataspace(1, dimsf);
+            H5::DataType datatype(H5::PredType::NATIVE_DOUBLE);
+            H5::DataSet dataset = grp.createDataSet(array_names[iv], datatype, dataspace);
+            dataset.write(varray, H5::PredType::NATIVE_DOUBLE);
+            dataset.close();
+            dataspace.close();
+        }
+    }
+
+    static void load1DDataFromGroup(std::string key, Vector & out, H5::Group & grp){
+
+        if (!out.empty()){
+            std::cerr << AT << " container is not isEmpty\n";
+        }
+
+        H5::DataSet dataset = grp.openDataSet(key);
+        H5::DataType datatype = dataset.getDataType();
+        H5::DataSpace dataspace = dataset.getSpace();
+        const int npts = dataspace.getSimpleExtentNpoints();
+
+        H5T_class_t classt = datatype.getClass();
+        if ( classt != 1 ) {
+            std::cout << key << " is not a float... you can't save this as a float." << std::endl;
+            exit(1);
+        }
+        H5::FloatType ftype = dataset.getFloatType();
+        H5std_string order_string;
+        H5T_order_t order = ftype.getOrder( order_string);
+        size_t size = ftype.getSize();
+//                    vec.resizeEachImage(1);
+        double * data = new double[npts];
+        if ( order==0 && size == 4 ) {
+            std::cout << "NOTE: This is actually float data. We are casting to double" << std:: endl;
+            dataset.read((double*)data, H5::PredType::IEEE_F32LE); // Our standard integer
+        }
+        else if ( order == 0 && size == 8 )
+            dataset.read(data, H5::PredType::IEEE_F64LE);
+        else if ( order == 1 && size == 4 )
+        {
+            std::cout << "NOTE: This is actually float data. We are casting to double" << std:: endl;
+            dataset.read((double*)data, H5::PredType::IEEE_F32BE);
+        }
+        else if ( order ==1 && size == 8 )
+            dataset.read((double*)data, H5::PredType::IEEE_F64BE);
+        else
+            std::cout << "Did not find data type" << std::endl;
+        Vector v(data, data + npts);
+        out = std::move( v );
+//      delete[] data;
+        dataspace.close();
+        datatype.close();
+        dataset.close();
     }
 
     static void addGroupWith2Ddata(std::vector<VecVector> & data, std::string group_name, std::vector<std::string> table_names, H5::H5File & file){

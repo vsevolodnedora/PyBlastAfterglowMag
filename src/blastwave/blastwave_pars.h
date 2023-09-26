@@ -10,7 +10,8 @@
 
 /* ------------- EQUATIONS ----------------- */
 
-enum RHS_TYPES { iGRG_FS, iGRG_FSRS, iEJ, iEJ_PWN };
+//enum RHS_TYPES { iGRG_FS, iGRG_FSRS, iEJ, iEJ_PWN };
+enum BW_TYPES { iFS, iFSRS, iFS_DENSE, iFS_PWN_DENSE };
 
 
 enum METHODS_Up { iuseEint2, iuseGamma }; // energy density behind the shock
@@ -47,7 +48,7 @@ struct Pars{
 
     // initial conditions (settings)
 //    bool is_init = false;
-    RHS_TYPES m_rhs{};
+    BW_TYPES m_type{};
     METHODS_Up m_method_up{};
     METHOD_Delta m_method_Delta{};
     METHOD_GammaSh m_method_gamma_sh{};
@@ -196,52 +197,96 @@ struct Pars{
 
 /// Each BlastWave collects the following data
 namespace BW{
-    enum Q {
-        // -- dynamics ---
-        iR, iRsh, irho, idrhodr, iGammaCBM, iGammaREL, idGammaCBMdr, idGammaRELdGamma, iPcbm, idPCBMdrho, iMCBM, iCSCBM,
-        iGamma, ibeta, imom, iEint2, iU_p, itheta, ictheta, iErad2, iEsh2, iEad2, iM2,
-        iEint3, iErad3, iEad3, iEsh3, iM3, ideltaR4, iGamma43, iadi3, irho4, irho3, ithichness_rs, iU_p3,
-        itcomov, itburst, itt, ithickness, iadi, irho2, iGammaFsh,
-        // --- electrons  ---
-        igm, igc, igM, iB, iTheta, iz_cool, ix, inprime, iacc_frac,
-        igm_rs, igc_rs, igM_rs, iB3, iTheta_rs, iz_cool_rs, ix_rs, inprime_rs, iacc_frac_rs,
-        // --- observables ---
-        imu,
-        // ---
-        ijl, ir_dist,
-        // --- energy injection
-        ipsrFrac, iLmag, iLnuc,
-        // --- properties of the ejecta element
-        iEJr, iEJrho, iEJbeta, iEJdelta, iEJvol, iEJdtau, iEJtaucum, iEJtaucum0, iEJeth, iEJtemp, iEJlum, iEJtdiff,
-        // -- PWN
-        i_Rw, i_Wmom, i_Wenb, i_Wepwn, i_Wtt, i_Wb, i_WGamma, i_Wdr
-    };
-    const std::vector<std::string> m_vnames{
-            // --- dynamics ---
-            "R", "Rsh", "rho", "drhodr", "GammaRho", "GammaRel", "dGammaRhodr", "dGammaReldGamma", "PCBM", "dPCBMdrho", "MCBM", "CSCBM",
-            "Gamma", "beta", "mom", "Eint2", "U_p", "theta", "ctheta", "Erad2", "Esh2", "Ead2", "M2",
-            "Eint3", "Erad3", "iEad3", "Esh3", "M3", "deltaR4", "Gamma43", "adi3", "rho4", "rho3", "thichness_rs", "U_p3",
-            "tcomov", "tburst", "tt", "thickness", "adi", "rho2", "GammaFsh",
-            // --- electrons
-            "gamma_min", "gamma_c", "gamma_max", "B", "ThetaTherm", "z_cool", "x", "nprime", "accel_frac",
-            "gamma_min_rs", "gamma_c_rs", "gamma_max_rs", "B_rs", "ThetaTherm_rs", "z_cool_rs", "x_rs", "nprime_rs", "accel_frac_rs",
-            // --- observables
-            "mu",
-            // ---
-            "ijl", "r_dist",
-            // --- energy injection
-            "psrFrac", "Lmag", "Lnuc",
-            // --- properties of the ejecta as a part of the cumShell
-            "EJr", "EJrho", "EJbeta", "EJdelta", "EJvol", "EJdtau", "EJtaucum", "EJtaucum0", "EJeth", "EJtemp", "EJlum", "EJtdiff",
-            // --- FOR PWN ---
-            "WR", "Wmom", "Wenb", "Wepwn", "Wtt", "Wb", "WGamma", "Wdr"
-    };
-    static constexpr size_t NVALS = 86; // number of variables to save
-//    static constexpr size_t DERIVATIVES_NVALS = 14; // number of variables to save for derivatives at EACH step
-
-    /// ---
+    /// USED inside RHS for PWN_DENSE for each iterration (not across all timestes)
     enum QSH { iRs, iGammas, iDeltas, iVols, irhos, iEints, iPs};
     static const size_t NVALS_SH = 7;
+
+    enum Q {
+        /// Blast Wave with a forward shock
+        iR, iRsh, irho, idrhodr, iGammaREL,
+        iGamma, ibeta, imom, iEint2, iU_p, itheta, ictheta, iErad2, iEsh2, iEad2, iM2,
+        itcomov, itburst, itt, ithickness, iadi, irho2, iGammaFsh,
+        igm, igc, igM, iB, iTheta, iz_cool, ix, inprime, iacc_frac,
+        /// additional quantities for RS
+        iEint3, iErad3, iEad3, iEsh3, iM3, ideltaR4, iGamma43, iadi3, irho4, irho3,
+        ithichness_rs, iU_p3,
+        igm_rs, igc_rs, igM_rs, iB3, iTheta_rs, iz_cool_rs, ix_rs,
+        inprime_rs, iacc_frac_rs,
+        /// additional quantities for pre-accelerated upstream
+        iGammaCBM, idGammaCBMdr, idGammaRELdGamma, iPcbm, idPCBMdrho,
+        iMCBM, iCSCBM,
+        /// additional quantities for inter-BW and PWN
+        ipsrFrac, iLmag, iLnuc,
+        iEJr, iEJrho, iEJbeta, iEJdelta, iEJvol, iEJdtau, iEJtaucum, iEJtaucum0, iEJeth,
+        iEJtemp, iEJlum, iEJtdiff,
+        i_Rw, i_Wmom, i_Wenb, i_Wepwn, i_Wtt, i_Wb, i_WGamma, i_Wdr,
+    }; /// 82 variables
+    const std::vector<std::string> VARNAMES{
+            /// Blast Wave with a forward shock
+            "R", "Rsh", "rho", "drhodr", "GammaRel",
+            "Gamma", "beta", "mom", "Eint2", "U_p", "theta", "ctheta", "Erad2", "Esh2", "Ead2", "M2",
+            "tcomov", "tburst", "tt", "thickness", "adi", "rho2", "GammaFsh",
+            "gamma_min", "gamma_c", "gamma_max", "B", "ThetaTherm", "z_cool", "x",
+            "nprime", "accel_frac",
+            /// additional quantities for RS
+            "Eint3", "Erad3", "iEad3", "Esh3", "M3", "deltaR4", "Gamma43", "adi3", "rho4", "rho3",
+            "thichness_rs", "U_p3",
+            "gamma_min_rs", "gamma_c_rs", "gamma_max_rs", "B_rs", "ThetaTherm_rs", "z_cool_rs", "x_rs",
+            "nprime_rs", "accel_frac_rs",
+            /// additional quantities for pre-accelerated upstream
+            "GammaRho", "dGammaRhodr", "dGammaReldGamma", "PCBM", "dPCBMdrho",
+            "MCBM", "CSCBM",
+            /// additional quantities for inter-BW and PWN
+            "psrFrac", "Lmag", "Lnuc",
+            "EJr", "EJrho", "EJbeta", "EJdelta", "EJvol", "EJdtau", "EJtaucum", "EJtaucum0", "EJeth",
+            "EJtemp", "EJlum", "EJtdiff",
+            "WR", "Wmom", "Wenb", "Wepwn", "Wtt", "Wb", "WGamma", "Wdr",
+    }; // 82
+    /// total mumber of variables
+    constexpr unsigned TOTAL_VARS = 83;
+    /// what varaibles to allocate memory for
+    static std::unordered_map<BW_TYPES,std::vector<std::size_t>> VARS {
+            {BW_TYPES::iFS,
+             {
+                     iR, iRsh, irho, idrhodr, iGammaREL,
+                     iGamma, ibeta, imom, iEint2, iU_p, itheta, ictheta, iErad2, iEsh2, iEad2, iM2,
+                     itcomov, itburst, itt, ithickness, iadi, irho2, iGammaFsh,
+                     igm, igc, igM, iB, iTheta, iz_cool, ix, inprime, iacc_frac,
+             }},
+            {BW_TYPES::iFSRS,
+             {
+                     iR, iRsh, irho, idrhodr, iGammaREL,
+                     iGamma, ibeta, imom, iEint2, iU_p, itheta, ictheta, iErad2, iEsh2, iEad2, iM2,
+                     itcomov, itburst, itt, ithickness, iadi, irho2, iGammaFsh,
+                     igm, igc, igM, iB, iTheta, iz_cool, ix, inprime, iacc_frac,
+                     iEint3, iErad3, iEad3, iEsh3, iM3, ideltaR4, iGamma43, iadi3, irho4, irho3,
+                     ithichness_rs, iU_p3,
+                     igm_rs, igc_rs, igM_rs, iB3, iTheta_rs, iz_cool_rs, ix_rs,
+                     inprime_rs, iacc_frac_rs,
+             }},
+            {BW_TYPES::iFS_DENSE,
+             {
+                     iR, iRsh, irho, idrhodr, iGammaREL,
+                     iGamma, ibeta, imom, iEint2, iU_p, itheta, ictheta, iErad2, iEsh2, iEad2, iM2,
+                     itcomov, itburst, itt, ithickness, iadi, irho2, iGammaFsh,
+                     igm, igc, igM, iB, iTheta, iz_cool, ix, inprime, iacc_frac,
+                     iGammaCBM, idGammaCBMdr, idGammaRELdGamma, iPcbm, idPCBMdrho,
+                     iMCBM, iCSCBM,
+             }},
+            {BW_TYPES::iFS_PWN_DENSE,
+             {
+                     iR, iRsh, irho, idrhodr, iGammaREL,
+                     iGamma, ibeta, imom, iEint2, iU_p, itheta, ictheta, iErad2, iEsh2, iEad2, iM2,
+                     itcomov, itburst, itt, ithickness, iadi, irho2, iGammaFsh,
+                     igm, igc, igM, iB, iTheta, iz_cool, ix, inprime, iacc_frac,
+                     iGammaCBM, idGammaCBMdr, idGammaRELdGamma, iPcbm, idPCBMdrho,
+                     iMCBM, iCSCBM,
+                     ipsrFrac, iLmag, iLnuc,
+                     iEJr, iEJrho, iEJbeta, iEJdelta, iEJvol, iEJdtau, iEJtaucum, iEJtaucum0, iEJeth,
+                     iEJtemp, iEJlum, iEJtdiff,
+                     i_Rw, i_Wmom, i_Wenb, i_Wepwn, i_Wtt, i_Wb, i_WGamma, i_Wdr,
+             }}
+    };
 
 }
 

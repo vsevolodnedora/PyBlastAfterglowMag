@@ -172,7 +172,9 @@ class LoadH5
 //      }
 };
 
-
+bool pathExists(hid_t id, const std::string& path) {
+    return H5Lexists( id, path.c_str(), H5P_DEFAULT ) > 0;
+}
 
 /*
  * ************************************************************************************************

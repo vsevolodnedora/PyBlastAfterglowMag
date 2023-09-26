@@ -13,9 +13,9 @@ class BlastWaveBase{
     std::unique_ptr<logger> p_log;
 protected:
     Vector m_tb_arr;
-    VecVector m_data{}; // container for the solution of the evolution
+    VecVector mD{}; // container for the solution of the evolution
 //    VecVector m_tmp_data{}; // container for the solution for each evolved step (for derivatives)
-    VecVector m_data_tmp{};
+    VecVector mDtmp{};
     VecVector m_data_shells{};
     /// -----------------------------------------------------
     Pars * p_pars = nullptr;
@@ -31,37 +31,34 @@ protected:
     Vector frac_psr_dep_{};
 public:
     bool is_initialized = false;
-    BlastWaveBase(Vector & tb_arr, size_t ishell, size_t ilayer, size_t n_substeps, int loglevel): m_tb_arr(tb_arr){
+    BlastWaveBase(Vector & tb_arr, size_t ishell, size_t ilayer, size_t n_substeps, BW_TYPES type, int loglevel)
+        : m_tb_arr(tb_arr){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BW_Base");
 
-//        size_t n_substeps = 10;
+        /// parameters
+        p_pars = new Pars(mD, mDtmp, loglevel); //
+        p_pars->m_type = type;
 
         /// the container for the final solution
-        if (m_data.empty()){
-            m_data.resize( BW::NVALS );
+        if (mD.empty()){
+            mD.resize( BW::TOTAL_VARS );
         }
         /// the container for the last N substeps
-        if (m_data_tmp.empty()){
-            m_data_tmp.resize( BW::NVALS );
+        if (mDtmp.empty()){
+            mDtmp.resize( BW::TOTAL_VARS );
         }
         /// Check if contener will be filled by evolving or loading
         if (m_tb_arr.empty()){
-            // REMOVING LOGGER
             (*p_log)(LOG_WARN,AT) << " Time grid was not initialized\n";
-//            std::cerr << AT  << "\n";
-//            exit(1);
         }
-        /// if no evolution required; do not allocate memory for each variable
-        if (m_data[BW::Q::itburst].size() < 1) {
-            for (auto & arr : m_data) {
-                arr.resize( tb_arr.size(), 0.0);
-            }
-        }
+        /// if no evolution required; do not allocate memory for each variable (only for evolved)
+        if (mD[BW::Q::itburst].size() < 1)
+            for (auto & ivn : BW::VARS.at(p_pars->m_type))
+                mD[ivn].resize(tb_arr.size(), 0.0);
+
         // ---------------------- Methods
-//        p_pars = std::make_unique<PWNPars>(); //
-        p_pars = new Pars(m_data, m_data_tmp, loglevel); //
-        p_lr_delta = std::make_unique<LinearRegression>(m_data[BW::Q::iR],m_data[BW::Q::iEJdelta]);
-        p_lr_vol = std::make_unique<LinearRegression>(m_data[BW::Q::iR],m_data[BW::Q::iEJvol]);
+        p_lr_delta = std::make_unique<LinearRegression>(mD[BW::Q::iR], mD[BW::Q::iEJdelta]);
+        p_lr_vol = std::make_unique<LinearRegression>(mD[BW::Q::iR], mD[BW::Q::iEJvol]);
         p_spread = std::make_unique<LatSpread>();
         p_eos = std::make_unique<EOSadi>();
         p_dens = std::make_unique<RhoISM>(loglevel);
@@ -70,11 +67,10 @@ public:
         p_nuc = std::make_unique<NuclearAtomic>(loglevel);
         /// if no evolution required; do not allocate memory for each variable
         p_pars->n_substeps = n_substeps;
-        if (m_data_tmp[BW::Q::itburst].size() < 1) {
-            for (auto & arr : m_data_tmp) {
-                arr.resize( p_pars->n_substeps, 0.0);
-            }
-        }
+        if (mDtmp[BW::Q::itburst].size() < 1)
+            for (auto & ivn : BW::VARS.at(p_pars->m_type))
+                mDtmp[ivn].resize(p_pars->n_substeps, 0.0);
+
         /// ----------------------
         p_pars->loglevel = loglevel;
         p_pars->nr = m_tb_arr.size();
@@ -270,10 +266,20 @@ public:
                 m_method_gamma_sh = METHOD_GammaSh::isameAsGamma;
             else if(opts.at(opt) == "useGammaRel")
                 m_method_gamma_sh = METHOD_GammaSh::iuseGammaRel;
-            else if(opts.at(opt) == "useJK")
+            else if(opts.at(opt) == "useJK") {
+                if (!(p_pars->m_type == BW_TYPES::iFS_DENSE || p_pars->m_type == BW_TYPES::iFS_DENSE)){
+                    (*p_log)(LOG_ERR,AT)<<" Cannot use this GammaSh option for this bw_type\n";
+                    exit(1);
+                }
                 m_method_gamma_sh = METHOD_GammaSh::iuseJK;
-            else if(opts.at(opt) == "useJKwithGammaRel")
+            }
+            else if(opts.at(opt) == "useJKwithGammaRel") {
+                if (!(p_pars->m_type == BW_TYPES::iFS_DENSE || p_pars->m_type == BW_TYPES::iFS_DENSE)){
+                    (*p_log)(LOG_ERR,AT)<<" Cannot use this GammaSh option for this bw_type\n";
+                    exit(1);
+                }
                 m_method_gamma_sh = METHOD_GammaSh::iuseJKwithGammaRel;
+            }
             else{
                 (*p_log)(LOG_WARN,AT) << " option for: " << opt
                                       <<" given: " << opts.at(opt)
@@ -440,7 +446,7 @@ public:
 
         /// set sedov-taylor profile (for jet to be seen by ejecta as it moves behind)
         if (p_pars->use_st_dens_profile) {
-            p_sedov->setPars(1.5, 3, 0.); // TODO this should not be here and evaluated for EVERY bw...
+            p_sedov->setPars(1.5, 3, 0., 1e5); // TODO this should not be here and evaluated for EVERY bw...
             p_sedov->evaluate();
         }
 
@@ -619,37 +625,6 @@ public:
 
         /// ----------------------- set options ------------------------------
 
-        opt = "rhs_type";
-        RHS_TYPES rhs_type;
-        if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. No default option set\n";
-            exit(1);
-//            rhs_type = RHS_TYPES::iGRG_FS;
-        }
-        else{
-            if(opts.at(opt) == "grb_fs")
-                rhs_type = RHS_TYPES::iGRG_FS;
-            else if(opts.at(opt) == "grb_fsrs")
-                rhs_type = RHS_TYPES::iGRG_FSRS;
-            else if(opts.at(opt) == "ej")
-                rhs_type = RHS_TYPES::iEJ;
-            else if(opts.at(opt) == "ej_pwn")
-                rhs_type = RHS_TYPES::iEJ_PWN;
-            else{
-                (*p_log)(LOG_ERR,AT) << " option for: " << opt
-                                     <<" given: " << opts.at(opt)
-                                     << " is not recognized. "
-                                     << "Possible options: "
-                                     << " grb_fs "<< " grb_fsrs " << " ej " << " ej_pwn " << "\n";
-//                std::cerr << AT << "\n";
-                exit(1);
-            }
-        }
-        p_pars->m_rhs = rhs_type;
-        if (p_pars->do_rs && p_pars->m_rhs!=RHS_TYPES::iGRG_FSRS){
-            (*p_log)(LOG_ERR,AT)<<" if do_rs = yes, the rhs_type should be 'grb_fsrs' \n";
-            exit(1);
-        }
 
         opt = "method_ne";
         METHOD_NE methodNe;
@@ -766,6 +741,10 @@ public:
         /// -------------------------------------
 
         p_pars->do_rs = getBoolOpt("do_rs", opts, AT,p_log, false, true);
+        if (p_pars->do_rs && p_pars->m_type!=BW_TYPES::iFSRS){
+            (*p_log)(LOG_ERR,AT)<<" if do_rs = yes, the rhs_type should be 'fsrs' \n";
+            exit(1);
+        }
 
         p_pars->adiabLoss_rs =
                 getBoolOpt("use_adiabLoss_rs", opts, AT,p_log,true, false);
@@ -779,7 +758,7 @@ public:
         if (p_pars->Gamma0 < p_pars->min_Gamma0_for_rs) {
             p_pars->do_rs = false;
             p_pars->shutOff = true;
-            p_pars->m_rhs = RHS_TYPES::iGRG_FS;
+            p_pars->m_type = BW_TYPES::iFS;
         }
 
         /// ---------------------------------------
@@ -862,8 +841,8 @@ public:
 ////        Vector tmp2 (tmp.data(), tmp.size());
 //        return std::move(tmp);
 //    }
-    inline Vector & operator[](unsigned ll){ return this->m_data[ll]; }
-    inline double & operator()(size_t ivn, size_t ir){ return this->m_data[ivn][ir]; }
+    inline Vector & operator[](unsigned ll){ return this->mD[ll]; }
+    inline double & operator()(size_t ivn, size_t ir){ return this->mD[ivn][ir]; }
     inline double ctheta(double theta){
         // cthetas = 0.5*(2.*arcsin(facs[0]*sin(self.joAngles[:,layer-1]/2.)) + 2.*arcsin(facs[1]*sin(self.joAngles[:,layer-1]/2.)))
 //        if (theta > p_pars->theta_max ){
@@ -899,9 +878,8 @@ public:
         }
         return ctheta;
     }
-    inline VecVector & getData(){ return m_data; }
-    inline Vector & getData(BW::Q var){ return m_data[ var ]; }
-//    inline VecVector & getDataTMP(){return m_data_tmp;}
+    inline VecVector & getData(){ return mD; }
+    inline Vector & getData(BW::Q var){ return mD[ var ]; }
     inline Vector & get_tburst(){return m_tb_arr;}
     ~BlastWaveBase(){ delete p_pars; }
 };

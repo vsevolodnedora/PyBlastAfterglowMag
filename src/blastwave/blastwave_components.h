@@ -401,8 +401,8 @@ inline namespace EQS{
         if (Eint3 != 0)
             h_3 = fh_factor3 * (dM3dR / M3 - dlnrho4dR);
 
-        long double dGammadR = -((Gamma - 1.0) * (GammaEff + 1.0) * dM2dR + (Gamma - Gamma0 + GammaEff3 * gamma43_m1) *
-                    dM3dR - h_2 - h_3) / ((M2 + M3) + Eint2 * dGammaEffdGamma + Eint3 * dGammaEff3dGamma + f_2 + f_3);
+        long double dGammadR = -((Gamma - 1.0) * (GammaEff + 1.0) * dM2dR + (Gamma - Gamma0 + GammaEff3 * gamma43_m1) * dM3dR - h_2 - h_3)
+                               / ((M2 + M3) + Eint2 * dGammaEffdGamma + Eint3 * dGammaEff3dGamma + f_2 + f_3);
 //        if (dGammadR > 0 and Gamma > .95 * Gamma0){
 //            std::cerr << " error dGammadR > 0 and Gamma > .59 * Gamma0 \n";
 //            exit(1);
@@ -563,11 +563,13 @@ class SedovTaylor{
 public:
     SedovTaylor() {
         p_pars = new Pars();
-        p_pars->f.resize(1e5);
-        p_pars->eta.resize( p_pars->f.size() );
     }
     ~SedovTaylor() { delete p_pars; }
-    void setPars(double gamma, size_t nu, double w){
+    void setPars(double gamma, size_t nu, double w, int size){
+        std::cout << " allocating n="<<size<<" for Sedov-Taylor profile!\n";
+        p_pars->f.resize(size);
+        p_pars->eta.resize( p_pars->f.size() );
+
         p_pars->gamma = gamma;
         p_pars->nu = nu;
         p_pars->w = w;

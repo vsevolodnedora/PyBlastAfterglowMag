@@ -113,53 +113,6 @@ public:
     }
 
     /// OUTPUT dynamics/electrons
-    void saveEjectaBWsDynamics_OLD(std::string workingdir, std::string fname, size_t every_it,
-                               StrDbMap & main_pars, StrDbMap & ej_pars){
-
-        (*p_log)(LOG_INFO,AT) << "Saving Ejecta BW dynamics...\n";
-
-        if (every_it < 1){
-            std::cerr << " every_it must be > 1; Given every_it="<<every_it<<" \n Exiting...\n";
-            std::cerr << AT << "\n";
-            exit(1);
-        }
-        auto & models = getShells();
-        std::vector<std::vector<double>> tot_dyn_out ( nshells() * nlayers() * BW::m_vnames.size() );
-        for (auto & arr : tot_dyn_out)
-            arr.resize(t_arr.size());
-        std::vector<std::string> arr_names{};
-        size_t ii = 0;
-        for (size_t ishell = 0; ishell < nshells(); ishell++){
-            for(size_t ilayer = 0; ilayer < nlayers(); ilayer++){
-                for (size_t ivar = 0; ivar < BW::m_vnames.size(); ivar++) {
-                    arr_names.push_back("shell="+std::to_string(ishell)
-                                        +" layer="+std::to_string(ilayer)
-                                        +" key="+BW::m_vnames[ivar]);
-                    auto & bw = models[ilayer]->getBW(ishell);
-                    auto & arr = bw->getData()[static_cast<BW::Q>(ivar)];
-                    for (size_t it = 0; it < arr.size(); it++)
-                        tot_dyn_out[ii][it] = arr[it];
-//                    if (BW::m_vnames[BW::Q::iM3] == "M3"){
-//                        std::cout << AT << "\n" << arr << "\n";
-//                        exit(1);
-//                    }
-                    size_t size = tot_dyn_out[ii].size();
-                    auto & x = tot_dyn_out[ii];
-                    ii++;
-                }
-            }
-        }
-
-        std::unordered_map<std::string, double> attrs{
-                {"nshells", nshells() },
-                {"nlayers", nlayers() },
-                {"ntimes", t_arr.size() },
-                {"ncells", ncells() }
-        };
-        for (auto& [key, value]: main_pars) { attrs[key] = value; }
-        for (auto& [key, value]: ej_pars) { attrs[key] = value; }
-        p_out->VectorOfVectorsH5(tot_dyn_out,arr_names,workingdir+fname,attrs);
-    }
 
     void saveEjectaBWsDynamics(std::string workingdir, std::string fname, size_t every_it,
                                StrDbMap & main_pars, StrDbMap & ej_pars){
@@ -178,9 +131,11 @@ public:
         for (size_t ish = 0; ish < nshells_; ish++) {
             for (size_t il = 0; il < nlayers_; il++) {
                 std::string group_name = "shell=" + std::to_string(ish) + " layer=" + std::to_string(il);
+                H5::Group grp(file.createGroup(group_name));
                 auto &bw = getShells()[il]->getBW(ish);
-                if (bw->getData()[0].size() > 1)
-                    Output::addGroupWith1Ddata(bw->getData(), group_name, BW::m_vnames, file);
+                for (auto & ivn : BW::VARS.at(bw->getPars()->m_type))
+                    Output::addVectorToGroup(grp,bw->getData(static_cast<BW::Q>(ivn)), BW::VARNAMES[ivn]);
+                grp.close();
             }
         }
 
@@ -532,61 +487,25 @@ public:
             size_t n_empty_shells = 0;
             for (size_t ish = 0; ish < nshells(); ish++) {
                 auto &bw = models[il]->getBW(ish);
-                for (size_t ivar = 0; ivar < BW::m_vnames.size(); ivar++) {
-                    std::string key = "shell=" + std::to_string(ish)
-                                      + " layer=" + std::to_string(il)
-                                      + " key=" + BW::m_vnames[ivar];
-                    auto & vec = bw->getData()[static_cast<BW::Q>(ivar)];
+                for (auto & iv : BW::VARS.at(bw->getPars()->m_type)) {
+                    std::string key = "shell=" + std::to_string(ish) + " layer=" + std::to_string(il);
+                    if (!pathExists(file.getId(), key))
+                        continue;
+                    auto grp = file.openGroup(key);
+                    auto & vec = bw->getData(static_cast<BW::Q>(iv));
                     if (!vec.empty()){
                         (*p_log)(LOG_ERR,AT) << " container is not isEmpty\n";
                     }
 
-                    DataSet dataset = file.openDataSet(key);
-                    DataType datatype = dataset.getDataType();
-                    DataSpace dataspace = dataset.getSpace();
-                    const int npts = dataspace.getSimpleExtentNpoints();
+                    Output::load1DDataFromGroup(BW::VARNAMES[iv],vec,grp);
 
-                    H5T_class_t classt = datatype.getClass();
-                    if ( classt != 1 )
-                    {
-                        std::cout << key << " is not a float... you can't save this as a float." << std::endl;
+                    if ( bw->getData(static_cast<BW::Q>(iv)).empty() ){
+                        (*p_log)(LOG_ERR,AT) << " Failed loading v_n="<< key << " group="<<key<<"\n";
                         exit(1);
                     }
-                    FloatType ftype = dataset.getFloatType();
-                    H5std_string order_string;
-                    H5T_order_t order = ftype.getOrder( order_string);
-                    size_t size = ftype.getSize();
-//                    vec.resizeEachImage(1);
-                    double * data = new double[npts];
-                    if ( order==0 && size == 4 )
-                    {
-                        std::cout << "NOTE: This is actually float data. We are casting to double" << std:: endl;
-                        dataset.read((double*)data, PredType::IEEE_F32LE); // Our standard integer
-                    }
-                    else if ( order == 0 && size == 8 )
-                        dataset.read(data, PredType::IEEE_F64LE);
-                    else if ( order == 1 && size == 4 )
-                    {
-                        std::cout << "NOTE: This is actually float data. We are casting to double" << std:: endl;
-                        dataset.read((double*)data, PredType::IEEE_F32BE);
-                    }
-                    else if ( order ==1 && size == 8 )
-                        dataset.read((double*)data, PredType::IEEE_F64BE);
-                    else
-                        std::cout << "Did not find data type" << std::endl;
-                    std::vector<double> v(data, data + npts);
-                    vec = std::move( v );
-//                    delete[] data;
-                    dataspace.close();
-                    datatype.close();
-                    dataset.close();
-
-                    if ( bw->getData()[static_cast<BW::Q>(ivar)].empty() ){
-                        std::cout << key << " faild" << std::endl;
-                        exit(1);
-                    }
+                    grp.close();
                 }
-                if (bw->getData()[BW::iR][0] == 0){
+                if (bw->getData(BW::iR)[0] == 0){
 //                    (*p_log)(LOG_WARN,AT) << "Loaded not evolved shell [il="<<il<<", "<<"ish="<<ish<<"] \n";
                     n_empty_shells+=1;
                 }
@@ -717,7 +636,7 @@ public:
 
                 // get BW (a cell) properties
                 double cphi = 0. ; // We don't care about phi diretion due to symmetry
-                double ctheta_cell = bw->getPars()->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
+                double ctheta_cell = bw->getPars()->ctheta0;//mD[BW::Q::ictheta][0]; //cthetas[0];
 #if 1
                 size_t ia=0, ib=0;
                 bool is_in_time = bw->getFsEATS()->evalEATSindexes(ia,ib,time,theta_obs, ctheta_cell,cphi,obsAngle);
@@ -1085,7 +1004,7 @@ public:
 
                 // get BW (a cell) properties
                 double cphi = 0. ; // We don't care about phi diretion due to symmetry
-                double ctheta_cell = bw->getPars()->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
+                double ctheta_cell = bw->getPars()->ctheta0;//mD[BW::Q::ictheta][0]; //cthetas[0];
 
                 size_t ia=0, ib=0;
                 bool is_in_time = bw->getFsEATS()->evalEATSindexes(ia,ib,time,theta_obs, ctheta_cell,cphi,obsAngle);

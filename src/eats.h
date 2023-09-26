@@ -271,12 +271,12 @@ class EATS{
         Vector & m_r; Vector & m_theta; Vector & m_gam; Vector & m_bet;
         Vector & m_freq_arr; Vector & m_synch_em; Vector & m_synch_abs;
         Vector m_mu{};
-//        VecVector & m_data;
+//        VecVector & mD;
 //        Vector & tb_arr;
         double ctheta0 = -1.;
-        size_t n_sublayers_image_adaptive = 10;
-//        inline Vector & operator[](BW::Q ivn){ return this->m_data[ivn]; }
-//        inline double & operator()(BW::Q ivn, size_t ir){ return this->m_data[ivn][ir]; }
+//        size_t n_sublayers_image_adaptive = 10;
+//        inline Vector & operator[](BW::Q ivn){ return this->mD[ivn]; }
+//        inline double & operator()(BW::Q ivn, size_t ir){ return this->mD[ivn][ir]; }
 //        Vector getTbGrid(size_t every_it) {
 //            if ((every_it == 1)||(every_it==0)) return  m_tburst;
 //            Vector tmp{};
@@ -289,7 +289,7 @@ class EATS{
         void parsPars(double t_obs_, double nu_obs_,
                       double theta_cone_low, double theta_cone_hi, double phi_low, double phi_hi,
                       double (*obs_angle)( const double &, const double &, const double & )){
-//        auto & m_data = p_eats->m_data;
+//        auto & mD = p_eats->mD;
             nu_obs = nu_obs_;
             t_obs = t_obs_;
             // -- settings
@@ -472,11 +472,11 @@ class EATS{
         double cos_theta_obs=-1.;
         double sin_theta_obs=-1.;
         double phi = -1.;
-        double cos_phi = -1.;
+//        double cos_phi = -1.;
         double theta=-1.;
-        double o_phi=-1, o_theta=-1., o_gam=-1, o_mu=-1, o_r=-1, o_flux=-1, o_theta_j=-1; // for map
-        double freq1=-1.0, freq2=-1.0;
-        size_t nfreq=0;
+//        double o_phi=-1, o_theta=-1., o_gam=-1, o_mu=-1, o_r=-1, o_flux=-1, o_theta_j=-1; // for map
+//        double freq1=-1.0, freq2=-1.0;
+//        size_t nfreq=0;
         METHODS_QUADRATURES method_quad{};
 
 //        METHOD_TAU method_tau{};
@@ -630,7 +630,7 @@ public:
             return false;
         }
 
-//        double ctheta_cell = p_pars->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
+//        double ctheta_cell = p_pars->ctheta0;//mD[BW::Q::ictheta][0]; //cthetas[0];
         double mu = obs_angle_func(ctheta_cell, phi_cell, obs_angle);
         for (size_t i_ = 0; i_ < p_pars->m_i_end_r; i_++) {
             p_pars->ttobs[i_] = p_pars->m_tt[i_] + p_pars->m_r[i_] / CGS::c * (1.0 - mu);
@@ -750,7 +750,7 @@ public:
             tb[i] = p_pars->ttobs[ib[i]];
             /// interpolate the exact radial position of the blast that corresponds to the req. obs time
             r[i] = interpSegLog(ia[i], ib[i], obs_time, p_pars->ttobs, p_pars->m_r);
-            //  double r = ( Interp1d(ttobs, m_data[BW::Q::iR] ) ).Interpolate(t_obs, mth );
+            //  double r = ( Interp1d(ttobs, mD[BW::Q::iR] ) ).Interpolate(t_obs, mth );
             if ((r[i] <= 0.0) || (!std::isfinite(r[i]))) {
                 nskipped_r++;
                 mu[i] = std::numeric_limits<double>::max();
@@ -858,7 +858,7 @@ public:
             /// check what the extend of theta
             // if jet is spreading, compute the upper boundary of the jet
             double th_b = find_jet_edge(cphi, p_pars->theta_obs, //p_pars->cos_theta_obs, p_pars->sin_theta_obs,
-                                        p_pars->theta_c_h, p_pars->m_mu, p_pars->m_theta,//m_data[BW::Q::itheta],
+                                        p_pars->theta_c_h, p_pars->m_mu, p_pars->m_theta,//mD[BW::Q::itheta],
                                         (int)p_pars->m_i_end_r, p_pars->obsangle);
 //            /// check the theta extend for this phi
             double th_a = ( p_pars->theta_c_l / p_pars->theta_c_h ) * th_b; // ???
@@ -938,7 +938,7 @@ public:
 
             // if jet is spreading, compute the upper boundary of the jet
             th_b = find_jet_edge(cphi, p_pars->theta_obs, //p_pars->cos_theta_obs, p_pars->sin_theta_obs,
-                                        p_pars->theta_c_h, p_pars->m_mu, p_pars->m_theta,//m_data[BW::Q::itheta],
+                                        p_pars->theta_c_h, p_pars->m_mu, p_pars->m_theta,//mD[BW::Q::itheta],
                                         (int) p_pars->m_i_end_r, p_pars->obsangle);
             th_a = (p_pars->theta_c_l / p_pars->theta_c_h) * th_b; // ???
             if (cth < th_a || cth > th_b)
@@ -992,7 +992,7 @@ public:
             double cphi = phi0 + (double) iphi * dphi;
             /// if jet is spreading, compute the upper boundary of the jet
             double th_b = find_jet_edge(cphi, p_pars->theta_obs, //p_pars->cos_theta_obs, p_pars->sin_theta_obs,
-                                        p_pars->theta_c_h, p_pars->m_mu, p_pars->m_theta,//m_data[BW::Q::itheta],
+                                        p_pars->theta_c_h, p_pars->m_mu, p_pars->m_theta,//mD[BW::Q::itheta],
                                         (int) p_pars->m_i_end_r, p_pars->obsangle);
             if (th_b > th_b_max) th_b_max = th_b;
             double th_a = ( p_pars->theta_c_l / p_pars->theta_c_h ) * th_b;
@@ -1032,7 +1032,7 @@ public:
             double cphi = phi0 + (double) iphi * dphi;
             /// if jet is spreading, compute the upper boundary of the jet
             double th_b = find_jet_edge(cphi, p_pars->theta_obs, //p_pars->cos_theta_obs, p_pars->sin_theta_obs,
-                                        p_pars->theta_c_h, p_pars->m_mu, p_pars->m_theta,//m_data[BW::Q::itheta],
+                                        p_pars->theta_c_h, p_pars->m_mu, p_pars->m_theta,//mD[BW::Q::itheta],
                                         (int) p_pars->m_i_end_r, p_pars->obsangle);
             if (th_b > th_b_max)
                 th_b_max = th_b;
@@ -1121,7 +1121,7 @@ public:
             /// check what the extend of theta
             // if jet is spreading, compute the upper boundary of the jet
             double th_b = find_jet_edge(cphi, p_pars->theta_obs, //p_pars->cos_theta_obs, p_pars->sin_theta_obs,
-                                        p_pars->theta_c_h, p_pars->m_mu, p_pars->m_theta,//m_data[BW::Q::itheta],
+                                        p_pars->theta_c_h, p_pars->m_mu, p_pars->m_theta,//mD[BW::Q::itheta],
                                         (int)p_pars->m_i_end_r, p_pars->obsangle);
 //            /// check the theta extend for this phi
             double th_a = ( p_pars->theta_c_l / p_pars->theta_c_h ) * th_b; // ???
@@ -1272,10 +1272,10 @@ private:
         auto * p_pars = (struct Pars *) params; // removing EATS_pars for simplicity
 //        auto & p_syna = p_pars->p_syna;//->getAnSynch();
 //        auto * p_log = p_ params;
-//        auto & m_data = p_pars->m_data;
-        auto & tburst = p_pars->m_tburst;//m_data[BW::Q::itburst];
-        auto & r_arr = p_pars->m_r;//m_data[BW::Q::itburst];
-        auto & mu_arr = p_pars->m_mu;//m_data[BW::Q::itburst];
+//        auto & mD = p_pars->mD;
+        auto & tburst = p_pars->m_tburst;//mD[BW::Q::itburst];
+        auto & r_arr = p_pars->m_r;//mD[BW::Q::itburst];
+        auto & mu_arr = p_pars->m_mu;//mD[BW::Q::itburst];
 
         if (r_arr[0] == 0.0 && r_arr[p_pars->m_i_end_r - 1] == 0.0){
             (*p_pars->p_log)(LOG_WARN, AT)
@@ -1287,9 +1287,9 @@ private:
         mu = p_pars->obsangle(a_theta, i_phi, p_pars->theta_obs);
 
         p_pars->theta = a_theta;
-        p_pars->o_phi = i_phi;
-        p_pars->o_theta = a_theta;
-        p_pars->o_mu = mu;
+//        p_pars->o_phi = i_phi;
+//        p_pars->o_theta = a_theta;
+//        p_pars->o_mu = mu;
 
 //        double dFnu = 0.;
         size_t ia = findIndex(mu, mu_arr, p_pars->m_i_end_r);
@@ -1318,7 +1318,7 @@ private:
             Interp2d int_abs(p_pars->m_freq_arr, r, p_pars->m_synch_abs);
             Interp1d::METHODS mth = Interp1d::iLagrangeLinear;
             ///----
-//            auto & mu_arr = m_data[BW::Q::imu];
+//            auto & mu_arr = mD[BW::Q::imu];
             size_t ia = findIndex(mu, mu_arr, p_pars->nr);
             size_t ib = ia + 1;
             /// interpolate the time in comobing frame that corresponds to the t_obs in observer frame
@@ -1337,7 +1337,7 @@ private:
 
             /// interpolate the exact radial position of the blast that corresponds to the req. obs time
             double r = interpSegLog(ia, ib, t_e, tburst, r_arr);
-            //  double r = ( Interp1d(ttobs, m_data[BW::Q::iR] ) ).Interpolate(t_obs, mth );
+            //  double r = ( Interp1d(ttobs, mD[BW::Q::iR] ) ).Interpolate(t_obs, mth );
             if ((r <= 0.0) || !std::isfinite(r)) {
                 (*p_pars->p_log)(LOG_ERR,AT) << " R <= 0. Extend R grid (increasing R0, R1). "
                                              << " Current R grid us ["
@@ -1352,7 +1352,7 @@ private:
             }
             double Gamma = interpSegLog(ia, ib, t_e, tburst, p_pars->m_gam);
             double beta = interpSegLog(ia, ib, t_e, tburst, p_pars->m_bet);
-            // double GammaSh = ( Interp1d(m_data[BW::Q::iR], m_data[BW::Q::iGammaFsh] ) ).Interpolate(r, mth );
+            // double GammaSh = ( Interp1d(mD[BW::Q::iR], mD[BW::Q::iGammaFsh] ) ).Interpolate(r, mth );
             /// evaluateShycnhrotronSpectrum Doppler factor
             double a = 1.0 - beta * mu; // beaming factor
             double delta_D = Gamma * a; // doppler factor
@@ -1371,8 +1371,8 @@ private:
             double abs_lab = abs_prime * delta_D; // conversion of absorption (see vanEerten+2010)
 
             /// evaluateShycnhrotronSpectrum optical depth (for this shock radius and thickness are needed)
-            double GammaShock = interpSegLog(ia, ib, t_e, tburst, m_data[BW::Q::iGammaFsh]);
-            double dr = interpSegLog(ia, ib, t_e, tburst, m_data[BW::Q::ithickness]);
+            double GammaShock = interpSegLog(ia, ib, t_e, tburst, mD[BW::Q::iGammaFsh]);
+            double dr = interpSegLog(ia, ib, t_e, tburst, mD[BW::Q::ithickness]);
             double dr_tau = EQS::shock_delta(r, GammaShock); // TODO this is added becasue in Johanneson Eq. I use ncells
 
             double beta_shock;
@@ -1396,8 +1396,8 @@ private:
             double flux_dens = (intensity * r * r * dr); //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
             dFnu+=flux_dens;
             /// save the result in image
-            double ctheta = interpSegLin(ia, ib, t_e, tburst, m_data[BW::Q::ictheta]);
-            double theta = interpSegLin(ia, ib, t_e, tburst, m_data[BW::Q::itheta]);
+            double ctheta = interpSegLin(ia, ib, t_e, tburst, mD[BW::Q::ictheta]);
+            double theta = interpSegLin(ia, ib, t_e, tburst, mD[BW::Q::itheta]);
 
 
 
@@ -1411,11 +1411,11 @@ private:
             double t_e = interpSegLin(ia, ib, mu, p_pars->m_mu, p_pars->m_tburst);
             t_e = check_emission_time(t_e, mu, p_pars->t_obs, p_pars->m_mu, (int) p_pars->nr);
             if (t_e < 0.0) {
-//                auto & _r = m_data[BW::Q::iR];
-//                auto & _mu = m_data[BW::Q::imu];
-//                auto & _tt = m_data[BW::Q::itt];
-//                auto & _tburst = m_data[BW::Q::itburst];
-//                auto & _beta = m_data[BW::Q::ibeta];
+//                auto & _r = mD[BW::Q::iR];
+//                auto & _mu = mD[BW::Q::imu];
+//                auto & _tt = mD[BW::Q::itt];
+//                auto & _tburst = mD[BW::Q::itburst];
+//                auto & _beta = mD[BW::Q::ibeta];
 //                (*p_pars->p_log)(LOG_ERR,AT) << "R      " << _r << "\n";
 //                (*p_log)(LOG_ERR,AT) << "Mu     " << _mu << "\n";
 //                (*p_log)(LOG_ERR,AT) << "tt     " << _tt << "\n";
@@ -1434,41 +1434,41 @@ private:
 
 
 //        double R = interpSegLog(ia, ib, t_e, p_pars->t_arr_burst, p_pars->r_arr, p_pars->nr);
-            double R = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::iR]);
+            double R = interpSegLog(ia, ib, t_e, mD[BW::Q::itburst], mD[BW::Q::iR]);
             if (!std::isfinite(R)) {
                 (*p_pars->p_log)(LOG_ERR,AT) << " R is NAN in integrand for radiation" << "\n";
                 // REMOVING LOGGER
 //            std::cerr  << "R = " << R << "\n";
-//            std::cout << " R = " << m_data[BW::Q::iR] << "\n";
-//            std::cout << " Gamma= " << m_data[BW::Q::iGamma] << "\n";
+//            std::cout << " R = " << mD[BW::Q::iR] << "\n";
+//            std::cout << " Gamma= " << mD[BW::Q::iGamma] << "\n";
 //            std::cerr << AT << "\n";
                 return 0.;
             }
 
-            double rho = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::irho]);
-            double Gamma = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst],
-                                        m_data[BW::Q::iGamma]);
-            double GammaSh = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst],
-                                          m_data[BW::Q::iGammaFsh]);
-            double beta = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::ibeta]);
-            double U_p = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::iU_p]);
+            double rho = interpSegLog(ia, ib, t_e, mD[BW::Q::itburst], mD[BW::Q::irho]);
+            double Gamma = interpSegLog(ia, ib, t_e, mD[BW::Q::itburst],
+                                        mD[BW::Q::iGamma]);
+            double GammaSh = interpSegLog(ia, ib, t_e, mD[BW::Q::itburst],
+                                          mD[BW::Q::iGammaFsh]);
+            double beta = interpSegLog(ia, ib, t_e, mD[BW::Q::itburst], mD[BW::Q::ibeta]);
+            double U_p = interpSegLog(ia, ib, t_e, mD[BW::Q::itburst], mD[BW::Q::iU_p]);
 //        double M2    = interpSegLog(ia, ib, t_e, p_pars->t_arr_burst, p_pars->dyn(BWDyn::iM2));
-            double theta = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst],
-                                        m_data[BW::Q::itheta]);
-            double rho2 = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::irho2]);
-            double m2 = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::iM2]);
-            double frac = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst],
-                                       m_data[BW::Q::iacc_frac]);
-            double thick = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst],
-                                        m_data[BW::Q::ithickness]);
-            double gm = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::igm]);
-            double gM = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::igM]);
-            double gc = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::igc]);
-            double B = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::iB]);
-            double Theta = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst],
-                                        m_data[BW::Q::iTheta]);
-            double z_cool = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst],
-                                         m_data[BW::Q::iz_cool]);
+            double theta = interpSegLog(ia, ib, t_e, mD[BW::Q::itburst],
+                                        mD[BW::Q::itheta]);
+            double rho2 = interpSegLog(ia, ib, t_e, mD[BW::Q::itburst], mD[BW::Q::irho2]);
+            double m2 = interpSegLog(ia, ib, t_e, mD[BW::Q::itburst], mD[BW::Q::iM2]);
+            double frac = interpSegLog(ia, ib, t_e, mD[BW::Q::itburst],
+                                       mD[BW::Q::iacc_frac]);
+            double thick = interpSegLog(ia, ib, t_e, mD[BW::Q::itburst],
+                                        mD[BW::Q::ithickness]);
+            double gm = interpSegLog(ia, ib, t_e, mD[BW::Q::itburst], mD[BW::Q::igm]);
+            double gM = interpSegLog(ia, ib, t_e, mD[BW::Q::itburst], mD[BW::Q::igM]);
+            double gc = interpSegLog(ia, ib, t_e, mD[BW::Q::itburst], mD[BW::Q::igc]);
+            double B = interpSegLog(ia, ib, t_e, mD[BW::Q::itburst], mD[BW::Q::iB]);
+            double Theta = interpSegLog(ia, ib, t_e, mD[BW::Q::itburst],
+                                        mD[BW::Q::iTheta]);
+            double z_cool = interpSegLog(ia, ib, t_e, mD[BW::Q::itburst],
+                                         mD[BW::Q::iz_cool]);
 
             if (rho < 0. || Gamma < 1. || U_p < 0. || theta <= 0. || rho2 < 0. || thick <= 0.) {
                 (*p_pars->p_log)(LOG_ERR,AT) << " wrong value in interpolation to EATS surface  \n"
@@ -1521,10 +1521,10 @@ private:
 
         }
 #endif
-        p_pars->o_gam = gam;
-        p_pars->o_r = r;
-        p_pars->o_flux = flux_dens;
-        p_pars->o_theta_j = ctheta;
+//        p_pars->o_gam = gam;
+//        p_pars->o_r = r;
+//        p_pars->o_flux = flux_dens;
+//        p_pars->o_theta_j = ctheta;
         return flux_dens;
     }
     static double costheta_integrand( double aomct, void* params ){
@@ -1540,10 +1540,10 @@ private:
     static double phi_integrand( double a_phi, void* params ){
         double result;
         auto * p_eats = (struct Pars *) params; // removing EATS_pars for simplicity
-//        auto & m_data = p_eats->m_data;
+//        auto & mD = p_eats->mD;
 //        std::cout <<  p_eats->mu_arr[0]  << ' ' << p_eats->mu_arr[100] << "\n";
         p_eats->phi = a_phi;
-        p_eats->cos_phi = cos(a_phi);
+//        p_eats->cos_phi = cos(a_phi);
         // INITIAL GUESSES FOR BOUNDARIES :: TO BE REFINED (based on spreading model)
         double theta_1 = p_eats->current_theta_cone_hi;  // shel upper theta boudnary
         double theta_0 = p_eats->current_theta_cone_low; // shel lower theta boundary
@@ -1552,7 +1552,7 @@ private:
         double th_0, th_1;
         if (p_eats->spread_method == 1){
             th_1 = find_jet_edge(a_phi, p_eats->theta_obs,// p_eats->cos_theta_obs, p_eats->sin_theta_obs,
-                                 theta_1, p_eats->m_mu, p_eats->m_theta,//m_data[BW::Q::itheta],
+                                 theta_1, p_eats->m_mu, p_eats->m_theta,//mD[BW::Q::itheta],
                                  p_eats->m_i_end_r,
                                  p_eats->obsangle);
             double frac = theta_0 / theta_1;

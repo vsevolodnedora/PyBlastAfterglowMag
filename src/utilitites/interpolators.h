@@ -712,10 +712,10 @@ public:
         return result;
     }
 
-
-    inline double InterpolateBilinear(const double &x, const double &y,
+    template<class T>
+    inline double InterpolateBilinear(const T &x, const T &y,
                                const int & ix1, const int &ix2, const int & iy1, const int & iy2){
-        double z = BilinearInterpolation(
+        double z = BilinearInterpolation<T>(
                 m_Z[Idx(ix1, iy1)],
                 m_Z[Idx(ix1, iy2)],
                 m_Z[Idx(ix2, iy1)],
@@ -728,8 +728,8 @@ public:
     }
 
 
-
-    double InterpolateBilinear(const double &x, const double &y){
+    template<class T>
+    double InterpolateBilinear(const T &x, const T &y){
         double z = 0.0;
 
         // check if in-bounds
@@ -773,7 +773,7 @@ public:
         }
         int iy2 = iy1+1;
 
-        z = BilinearInterpolation(
+        z = BilinearInterpolation<T>(
                 m_Z[Idx(ix1, iy1)],
                 m_Z[Idx(ix1, iy2)],
                 m_Z[Idx(ix2, iy1)],
@@ -792,6 +792,23 @@ private:
 
     static inline double BilinearInterpolation(double &q11, double &q12, double &q21, double &q22, double &x1,
                                                double &x2, double &y1, double &y2, const double &x, const double &y) {
+        double x2x1, y2y1, x2x, y2y, yy1, xx1;
+        x2x1 = x2 - x1;
+        y2y1 = y2 - y1;
+        x2x = x2 - x;
+        y2y = y2 - y;
+        yy1 = y - y1;
+        xx1 = x - x1;
+        return 1.0 / (x2x1 * y2y1) * (
+                q11 * x2x * y2y +
+                q21 * xx1 * y2y +
+                q12 * x2x * yy1 +
+                q22 * xx1 * yy1
+        );
+    }
+    template<class T>
+    static inline T BilinearInterpolation(T &q11, T &q12, T &q21, T &q22, T &x1,
+                                               T &x2, T &y1, T &y2, const T &x, const T &y) {
         double x2x1, y2y1, x2x, y2y, yy1, xx1;
         x2x1 = x2 - x1;
         y2y1 = y2 - y1;

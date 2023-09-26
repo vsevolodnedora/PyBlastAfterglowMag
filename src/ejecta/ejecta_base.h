@@ -20,6 +20,38 @@
 //#include "../blastwave/blastwave_collision.h"
 #include "ejecta_cumshell.h"
 
+/// select type for the BW (controls which RHS to use)
+BW_TYPES select_bw_type(StrStrMap opts, std::unique_ptr<logger> & p_log){
+
+    std::string opt = "bw_type";
+    BW_TYPES rhs_type;
+    if ( opts.find(opt) == opts.end() ) {
+        (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. No default option set\n";
+        exit(1);
+//            rhs_type = RHS_TYPES::iGRG_FS;
+    }
+    else{
+        if(opts.at(opt) == "fs")
+            rhs_type = BW_TYPES::iFS;
+        else if(opts.at(opt) == "fsrs")
+            rhs_type = BW_TYPES::iFSRS;
+        else if(opts.at(opt) == "fs_dense")
+            rhs_type = BW_TYPES::iFS_DENSE;
+        else if(opts.at(opt) == "fs_dense_pwn")
+            rhs_type = BW_TYPES::iFS_PWN_DENSE;
+        else{
+            (*p_log)(LOG_ERR,AT) << " option for: " << opt
+                                 <<" given: " << opts.at(opt)
+                                 << " is not recognized. "
+                                 << "Possible options: "
+                                 << " grb_fs "<< " grb_fsrs " << " ej " << " ej_pwn " << "\n";
+//                std::cerr << AT << "\n";
+            exit(1);
+        }
+    }
+    return rhs_type;
+}
+
 
 /// Radially/Angular structured Blastwave collection
 class EjectaBase{
@@ -172,9 +204,11 @@ public:
         if ((!run_bws) && (load_dyn)){
             is_ejecta_obs_pars_set = true;
             for(size_t il = 0; il < nlayers(); il++) {
-                p_cumShells.push_back(
-                        std::make_unique<CumulativeShell>(Vector {}, nshells(), il, n_substeps,
-                                                          p_log->getLogLevel()));
+                BW_TYPES m_type = select_bw_type(opts,p_log);
+                p_cumShells.push_back( std::make_unique<CumulativeShell>(
+                        Vector {}, nshells(), il, n_substeps,
+                        m_type, p_log->getLogLevel())
+                        );
                 p_cumShells[il]->setPars(pars, opts);
                 for (size_t ish = 0; ish < nshells(); ish++){
                     auto & bw = p_cumShells[il]->getBW(ish);
@@ -223,9 +257,10 @@ public:
         std::vector<std::string> empty_bws{};
         size_t n_unitinitilized_shells=0;
         for(size_t il = 0; il < n_layers_ej_; il++){
+            BW_TYPES type = select_bw_type(opts, p_log);
             p_cumShells.push_back(
                     std::make_unique<CumulativeShell>(t_arr, nshells_, il, n_substeps,
-                                                      p_log->getLogLevel()) );
+                                                      type, p_log->getLogLevel()) );
             p_cumShells[il]->setPars(pars, opts);
             empty_bws.emplace_back("il="+std::to_string(il)+" | shells ");
             for (size_t ish = 0; ish < nshells_; ish++){

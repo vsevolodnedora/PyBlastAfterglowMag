@@ -228,12 +228,12 @@ int main(int argc, char** argv) {
 //        working_dir = "../tst/magnetar_bw/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_tophat_wind/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-//        working_dir = "../tst/kn/knafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../tst/kn/knafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../projects/grbtophat_parallel/"; parfilename="tophat_EisoC500_Gamma0c1000_thetaC50_thetaW50_theta00_nism10_p22_epse05_epsb05_parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../../projects/grbgauss_mcmc/working/"; parfilename="tophat_7549a8d74ce86fc502b087d8eb0e341656ee536a.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/problems/"; parfilename="tst.par"; loglevel=LOG_INFO;
 //        working_dir = "../../tst/problems/"; parfilename="failed_tophat_4d4f9670289d90ea734b93aeb3ba05795defeca9.par"; loglevel=LOG_INFO;
-        working_dir="/media/vsevolod/T7/work/afterglowKentaProject/run1/afg/";parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir="/media/vsevolod/T7/work/afterglowKentaProject/run1/afg/";parfilename = "parfile.par"; loglevel=LOG_INFO;
         std::cerr << " working directory and parfile are not given. Using default: "
                   << " workdir=" << working_dir << " parfile="<<parfilename << " loglevel="<< loglevel<<"\n";
     }
@@ -273,10 +273,6 @@ int main(int argc, char** argv) {
     std::unique_ptr<logger>(p_log);
     p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "main");
     Timer timer;
-    if ( BW::m_vnames[BW::Q::iM3] != "M3"){
-        (*p_log)(LOG_ERR,AT) << " static assert BW v_ns failed BW::m_vnames[BW::Q::iM3]="<<BW::m_vnames[BW::Q::iM3]<<" != M3"<<"\n";
-        exit(1);
-    }
     /// ------------------------------------------------------
     PyBlastAfterglow pba(loglevel);
     /// read main parameters of the model

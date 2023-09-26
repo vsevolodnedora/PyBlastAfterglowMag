@@ -726,27 +726,6 @@ private:
 
     }
     bool isThereReverseShockTermiantion(){
-//        auto & jet_bws = p_pars->p_bws_jet;
-//        auto & ej_bws = p_pars->p_bws;
-#if 0
-        size_t ii = 0; bool is_ok = true;
-        if (p_pars->p_grb->run_bws) {
-            if (p_pars->p_grb->nshells() > 1){
-                (*p_log)(LOG_ERR,AT)<<"not implemented\n";
-                exit(1);
-            }
-            auto & jet_bws = p_pars->p_grb->getShells()[0]->getBWs();
-//            auto & jet_bws = p_pars->p_grb->getBWs();
-            for (size_t i = 0; i < jet_bws.size(); i++) {
-                if (jet_bws[i]->isToStopLateralExpansion(m_CurSol, ii)) {
-                    is_ok = false;
-                    jet_bws[i]->getPars()->end_spreading = true; // SET TO END
-                }
-                ii += jet_bws[i]->getNeq();
-            }
-        }
-        return is_ok;
-#endif
         size_t ii = 0; bool is_ok = true;
         auto & ej_bws = p_pars->p_grb->getShells();
         for (size_t il=0; il<ej_bws.size(); il++){
@@ -762,9 +741,6 @@ private:
         return is_ok;
     }
     bool isSolutionOk(double x, size_t ix){
-//        auto & magnetar = p_pars->p_magnetar;
-//        auto & jet_bws = p_pars->p_bws_jet;
-//        auto & ej_bws = p_pars->p_cumShells;
         size_t ii = 0; bool is_ok = true;
         if (p_pars->p_magnetar->run_magnetar) {
             auto & magnetar = p_pars->p_magnetar;
@@ -1620,7 +1596,7 @@ private:
                 for (size_t ish = 0; ish < ej_layers[il]->nBWs(); ish++) {
                     auto &ej_bw = ej_layers[il]->getBW(ish);
                     if (ej_bw->getPars()->end_evolution) { ii += SOL::neq; continue; }
-                    ej_bw->evaluateGRBRhs(out_Y, ii, x, Y);
+                    ej_bw->rhs_dispatcher(out_Y, ii, x, Y);
                     ii += SOL::neq;//ii += ej_bw->getNeq();
                 }
             }
@@ -1642,12 +1618,12 @@ private:
                         if (p_pars->p_grb->nshells() > 1){ std::cerr <<AT << " not implemented\n"; exit(1); }
                         auto &jet_bws = p_pars->p_grb->getShells()[0]->getBWs();
                         ej_bw->prepareDensProfileFromJet(out_Y, ii, x, Y, jet_bws); // updates p_dens()
-                        ej_bw->evaluateEjectaRhsDens(out_Y, ii, x, Y);
+                        ej_bw->rhs_fs_dense(out_Y, ii, x, Y);
                     }
                     else {
                         /// Run ejecta without GRB presence
                         ej_bw->setStandardISM(out_Y, ii, x, Y); // updates p_dens()
-                        ej_bw->evaluateEjectaRhsDens(out_Y, ii, x, Y);
+                        ej_bw->rhs_fs_dense(out_Y, ii, x, Y);
                     }
                     ii += SOL::neq;//ii += ej_bw->getNeq();
                 }
@@ -1677,7 +1653,7 @@ private:
                     ej_bw->evalDensProfileInsideBWset(out_Y, ii, x, Y, others); // update p_dens()
                     ej_bw->updateNucAtomic(Y,x);
                     ej_bw->updateCurrentBpwn(Y);
-                    ej_bw->evaluateRhsDensPWN(out_Y, ii, x, Y);
+                    ej_bw->rhs_fs_dense_pwn(out_Y, ii, x, Y);
                     ii += SOL::neq;//ii += ej_bw->getNeq();
                 }
             }

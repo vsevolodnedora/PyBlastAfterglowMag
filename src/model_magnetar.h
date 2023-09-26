@@ -318,7 +318,7 @@ public:
         size_t ia = findIndex(tb, m_tb_arr, m_tb_arr.size());
         size_t ib = ia + 1;
         /// interpolate the time in comobing frame that corresponds to the t_obs in observer frame
-//        double val = interpSegLin(ia, ib, tb, m_data[vname], m_mag_time);
+//        double val = interpSegLin(ia, ib, tb, mD[vname], m_mag_time);
         double val = interpSegLog(ia, ib, tb, m_data[vname], m_tb_arr);
         return val;
     }
@@ -468,7 +468,7 @@ public:
             (*p_log)(LOG_ERR,AT)<<" nan in tb!"<<"\n";
             exit(1);
         }
-//        std::cerr << m_data[0][0] << " " << m_data[1][0] << " " << m_data[2][0] << " " << m_data[3][0] << "\n";
+//        std::cerr << mD[0][0] << " " << mD[1][0] << " " << mD[2][0] << " " << mD[3][0] << "\n";
         if (!is_mag_pars_set || !load_magnetar){
             (*p_log)(LOG_ERR,AT) << " magnetar is not set/loaded\n";
             exit(1);
@@ -483,15 +483,15 @@ public:
         size_t ia = findIndex(tb, m_mag_time, m_mag_time.size());
         size_t ib = ia + 1;
         /// interpolate the time in comobing frame that corresponds to the t_obs in observer frame
-//        double val = interpSegLin(ia, ib, tb, m_data[vname], m_mag_time);
+//        double val = interpSegLin(ia, ib, tb, mD[vname], m_mag_time);
         if ((m_data[vname][ia] == 0.) || (m_data[vname][ib]==0.))
             return 0.;
         double val = interpSegLog(ia, ib, tb, m_mag_time, m_data[vname]);
         if (!std::isfinite(val)){
             (*p_log)(LOG_ERR,AT)
                 << " nan in interpolated value; vname="<<vname<<" tb="<<tb
-                << " ia="<<ia<<" ib="<<ib<<" m_data["<<MAG::m_vnames[vname]<<"]["<<ia<<"]="<<m_data[vname][ia]
-                << " m_data["<<MAG::m_vnames[vname]<<"]["<<ib<<"]="<<m_data[vname][ib]
+                << " ia="<<ia<<" ib="<<ib<<" mD["<<MAG::m_vnames[vname]<<"]["<<ia<<"]="<<m_data[vname][ia]
+                << " mD["<<MAG::m_vnames[vname]<<"]["<<ib<<"]="<<m_data[vname][ib]
                 << "\n";
             std::cout << m_mag_time << "\n";
             std::cout << m_data[vname] << "\n";
@@ -521,9 +521,9 @@ public:
 //            vecToArr(values, m_mag_time);
         else
             m_data[vname] = values;
-//            vecToArr(values,m_data[vname]);
+//            vecToArr(values,mD[vname]);
         is_mag_pars_set = true;
-//        std::cerr << m_data[0][0] << " " << m_data[1][0] << " " << m_data[2][0] << " " << m_data[3][0] << "\n";
+//        std::cerr << mD[0][0] << " " << mD[1][0] << " " << mD[2][0] << " " << mD[3][0] << "\n";
     }
 
     /// ------- EVOLVE MAGNETAR -------------
@@ -579,8 +579,8 @@ public:
             return;
         m_mag_time = t_arr; // TODO May Not Work. But mangetar needs its own time array...
         // *************************************
-        m_data.resize(m_vnames.size());
-        for (auto & arr : m_data)
+        mD.resize(m_vnames.size());
+        for (auto & arr : mD)
             arr.resizeEachImage( m_mag_time.size() );
         // **************************************
         double ns_mass = getDoublePar("NS_mass0",pars,AT,p_log,-1,true);
@@ -1498,16 +1498,16 @@ public:
                 dt = times[it] - times[it - 1];
 
                 if(true) {
-                    size_t ia = findIndex(t, m_data[PWN::Q::itburst], m_data[PWN::Q::itburst].size());
+                    size_t ia = findIndex(t, mD[PWN::Q::itburst], mD[PWN::Q::itburst].size());
                     size_t ib = ia + 1;
-                    Bnb = interpSegLog(ia, ib, t, m_data[PWN::Q::itburst], m_data[PWN::Q::iB]);
-                    rnb = interpSegLog(ia, ib, t, m_data[PWN::Q::itburst], m_data[PWN::Q::iR]);
-                    rnb_m1 = interpSegLog(ia, ib, times[it-1], m_data[PWN::Q::itburst], m_data[PWN::Q::iR]);
+                    Bnb = interpSegLog(ia, ib, t, mD[PWN::Q::itburst], mD[PWN::Q::iB]);
+                    rnb = interpSegLog(ia, ib, t, mD[PWN::Q::itburst], mD[PWN::Q::iR]);
+                    rnb_m1 = interpSegLog(ia, ib, times[it-1], mD[PWN::Q::itburst], mD[PWN::Q::iR]);
                 }
                 else{
-                    Bnb = m_data[PWN::Q::iB][it];
-                    rnb = m_data[PWN::Q::iR][it];
-                    rnb_m1 = m_data[PWN::Q::iR][it-1];
+                    Bnb = mD[PWN::Q::iB][it];
+                    rnb = mD[PWN::Q::iR][it];
+                    rnb_m1 = mD[PWN::Q::iR][it-1];
                 }
 
                 dr = rnb-rnb_m1;
@@ -1556,13 +1556,13 @@ public:
                 dt = times[it] - times[it - 1];
 
                 if (true) {
-                    size_t ia = findIndex(times[it], m_data[PWN::Q::itburst], m_data[PWN::Q::itburst].size());
+                    size_t ia = findIndex(times[it], mD[PWN::Q::itburst], mD[PWN::Q::itburst].size());
                     size_t ib = ia + 1;
-                    Bnb = interpSegLog(ia, ib, times[it], m_data[PWN::Q::itburst], m_data[PWN::Q::iB]);
-                    rnb = interpSegLog(ia, ib, times[it], m_data[PWN::Q::itburst], m_data[PWN::Q::iR]);
+                    Bnb = interpSegLog(ia, ib, times[it], mD[PWN::Q::itburst], mD[PWN::Q::iB]);
+                    rnb = interpSegLog(ia, ib, times[it], mD[PWN::Q::itburst], mD[PWN::Q::iR]);
                 } else {
-                    Bnb = m_data[PWN::Q::iB][it];
-                    rnb = m_data[PWN::Q::iR][it];
+                    Bnb = mD[PWN::Q::iB][it];
+                    rnb = mD[PWN::Q::iR][it];
                 }
                 Lpsr = p_mag->getMagValInt(MAG::Q::ildip, times[it]) / (double)ncells() ; // TODO correct for cells earlier!
 
@@ -1650,14 +1650,14 @@ public:
         auto & p_ej = p_pars->p_ej;
         auto & p_bw = p_ej->getShells()[p_pars->ilayer]->getBWs()[p_pars->ishell];
         auto & p_mag = p_pars->p_mag;
-        auto & m_data = p_pars->m_data;
+        auto & mD = p_pars->mD;
 //        if (p_pars->i_end_r==0)
 //            return;
-        ctheta = p_pars->ctheta0;//interpSegLin(ia, ib, t_obs, ttobs, m_data[BW::Q::ictheta]);
-        double Gamma = interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::iGamma]);
-        double b_pwn = interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::iB]);
+        ctheta = p_pars->ctheta0;//interpSegLin(ia, ib, t_obs, ttobs, mD[BW::Q::ictheta]);
+        double Gamma = interpSegLog(ia, ib, ta, tb, t_obs, mD[PWN::Q::iGamma]);
+        double b_pwn = interpSegLog(ia, ib, ta, tb, t_obs, mD[PWN::Q::iB]);
         double temp  = interpSegLog(ia, ib, ta, tb, t_obs, p_bw->getData(BW::Q::iEJtemp));
-        double tburst= interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::itburst]);
+        double tburst= interpSegLog(ia, ib, ta, tb, t_obs, mD[PWN::Q::itburst]);
         double l_dip = p_mag->getMagValInt(MAG::Q::ildip, tburst) / (double)p_pars->ncells; // TODO this has to be done before Radiation Calcs.
         double l_acc = p_mag->getMagValInt(MAG::Q::ilacc, tburst) / (double)p_pars->ncells;
 
@@ -1710,16 +1710,16 @@ public:
             exit(1);
         }
 #if 1
-        Interp2d int_em(p_pars->m_freq_arr, p_pars->m_r_arr, p_pars->m_synch_em); // m_data[PWN::Q::iR]
+        Interp2d int_em(p_pars->m_freq_arr, p_pars->m_r_arr, p_pars->m_synch_em); // mD[PWN::Q::iR]
         Interp2d int_abs(p_pars->m_freq_arr, p_pars->m_r_arr, p_pars->m_synch_abs);
         Interp1d::METHODS mth = Interp1d::iLagrangeLinear;
 
-//        ctheta = interpSegLin(ia, ib, ta, tb, t_obs, m_data[PWN::Q::ictheta]);
+//        ctheta = interpSegLin(ia, ib, ta, tb, t_obs, mD[PWN::Q::ictheta]);
         double Gamma = interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::iGamma]);
         double beta  = interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::ibeta]);
         double tburst= interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::itburst]);
         ctheta = p_pars->ctheta0;
-        // double GammaSh = ( Interp1d(m_data[BW::Q::iR], m_data[BW::Q::iGammaFsh] ) ).Interpolate(r, mth );
+        // double GammaSh = ( Interp1d(mD[BW::Q::iR], mD[BW::Q::iGammaFsh] ) ).Interpolate(r, mth );
         /// evaluateShycnhrotronSpectrum Doppler factor
         double a = 1.0 - beta * mu; // beaming factor
         double delta_D = Gamma * a; // doppler factor
@@ -2344,7 +2344,7 @@ private:
                 computeSkyMapPieceWise( images, times[it], freqs[ifreq] );
                 for (size_t i_vn = 0; i_vn < IMG::m_names.size(); i_vn++) {
                     for (size_t ish = 0; ish < nshells_; ish++) {
-                        out[ii][i_vn][ish] = images.getReferenceToTheImage(ish).m_data[i_vn];//arrToVec(images[ish].m_data[i_vn]);
+                        out[ii][i_vn][ish] = images.getReferenceToTheImage(ish).mD[i_vn];//arrToVec(images[ish].mD[i_vn]);
                     }
                 }
                 for (size_t ish = 0; ish < nshells_; ish++) {
