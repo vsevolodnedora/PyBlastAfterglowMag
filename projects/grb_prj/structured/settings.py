@@ -17,7 +17,7 @@ class SettingsGaussian:
         "z": 0.028,         "p": 2.2,
         "theta_obs": 0.9,#1.57,#0.785,
 
-        "ntb": 4000
+        "ntb": 5000
     }
     pars_fsrs = {
         "obs_freq":3e9,
@@ -70,7 +70,7 @@ class SettingsGRB170917A:
         "d_l":1.27e+26,     "eps_b": 0.0052,
         "z": 0.0099,        "p":2.16,
         "theta_obs": 0.3752,
-        "ntb": 4000, "iout": 4
+        "ntb": 5000, "iout": 5
     }
     opts_a = {"method_eats":"adaptive", "method_spread":"AFGPY"}
     opts_pw = {"method_eats":"piece-wise", "method_spread":"AA"}

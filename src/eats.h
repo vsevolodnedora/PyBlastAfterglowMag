@@ -800,11 +800,20 @@ public:
 
         ///
         if (nskipped_h > 0){
-            (*p_log)(LOG_WARN, AT) << "nskipped_h="<<nskipped_h
-                << " NOTE time grid was shorten to i=" << p_pars->m_i_end_r
-                                   << " from nr=" << p_pars->m_i_end_r
-                                   << " and now ends at t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
-                                   << " while t_obs=" << obs_time << "\n";
+            if (p_pars->m_i_end_r < p_pars->m_tburst.size()){
+                (*p_log)(LOG_WARN, AT) << "nskipped_h="<<nskipped_h
+                                       << " NOTE time grid was shorten to i=" << p_pars->m_i_end_r
+                                       << " from nr=" << p_pars->m_i_end_r
+                                       << " and now ends at t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
+                                       << " while t_obs=" << obs_time << "\n";
+            }
+            else{
+                (*p_log)(LOG_WARN, AT) << "nskipped_h="<<nskipped_h
+                                       << " while t_obs=" << obs_time
+                                       << " ABOVE tobs max="<<p_pars->ttobs[p_pars->m_i_end_r-1]
+                                       << " Extend tb1 or shorten tobs"
+                                       << "\n";
+            }
         }
         //
         if (nskipped_r > 0){

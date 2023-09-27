@@ -1488,7 +1488,7 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
     double M2     = Y[i+ SOL::QS::iM2];
     // ****************************************
     if (Gamma < 1) {
-        (*p_log)(LOG_ERR, AT) << " Gamma < 1 \n";
+        (*p_log)(LOG_ERR, AT) << " Gamma="<<Gamma<<" Gammas"<<p_pars->m_data_tmp[BW::Q::iGamma][0]<<"\n";
         exit(1);
     }
 //        double Gamma = EQS::GamFromMom(mom);

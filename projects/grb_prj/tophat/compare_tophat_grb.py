@@ -50,10 +50,10 @@ def main():
     tsk = SettingsTopHat()
     tsk.pars["theta_obs"] = 0
 
-    # grb.plot_generic(struct=tsk.structure, pars=tsk.pars, opts_a=tsk.opts_a, title=tsk.figname,
-    #                  ref_lc_fname="reference_lc_0deg_layer.h5",ref_dyn_fname="reference_afgpy_dyn.h5",
-    #                  figpath=curdir+"figs/"+"abstract_tophat_ref_lcs_dyn",
-    #                  save_pdf=True,show_fig=True)
+    grb.plot_generic(struct=tsk.structure, pars=tsk.pars, opts_a=tsk.opts_a, title=tsk.figname,
+                     ref_lc_fname="reference_lc_0deg_layer.h5",ref_dyn_fname="reference_afgpy_dyn.h5",
+                     figpath=curdir+"figs/"+"abstract_tophat_ref_lcs_dyn",
+                     save_pdf=True,show_fig=True)
     #
     grb.paper_plot_compare_spreading(struct=tsk.structure, pars=tsk.pars, opts_a=tsk.opts_a, title=tsk.figname,
                                      figpath=curdir+"figs/"+"abstract_tophat_spread_methods_lcs_dyn",

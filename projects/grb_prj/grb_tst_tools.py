@@ -41,21 +41,13 @@ except:
     afterglowpy = False
     print("Error! could not import afteglowpy")
 
-# from PyBlastAfterglowMag.skymap_plotting_tools import *
-# from PyBlastAfterglowMag.skymap_tools import *
-
-# from package.src.PyBlastAfterglowMag.skymap_plotting_tools import *
-# from package.src.PyBlastAfterglowMag.interface import *
-# from package.src.PyBlastAfterglowMag.skymap_tools import *
-# from package.src.PyBlastAfterglowMag.utils import *
-# from package.src.PyBlastAfterglowMag.id_maker_analytic import *
-
-import package.src.PyBlastAfterglowMag as PBA
-
-# curdir = os.getcwd() + '/' #"/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglow_dev/PyBlastAfterglow/src/PyBlastAfterglow/tests/dyn/"
-# parfiledir = os.getcwd().replace("tophat","")
-# parfiledir = os.getcwd().replace("structured","")
-# paperfigdir = "/home/vsevolod/Work/GIT/overleaf/grb_afg/figs/"
+try:
+    import package.src.PyBlastAfterglowMag as PBA
+except ImportError:
+    try:
+        import PyBlastAfterglowMag as PBA
+    except:
+        raise ImportError("Cannot import PyBlastAfterglowMag")
 
 def plot_skymaps_3d(ax : plt.axes, skymaps : list[PBA.interface.Skymap]):
 
@@ -179,7 +171,6 @@ def plot_skymaps_3d(ax : plt.axes, skymaps : list[PBA.interface.Skymap]):
     # ax.annotate(r'Gaussian jet with $\texttt{PW}$ method', xy=(2, 1), xytext=(-200, 200), textcoords='offset points', ha='left', bbox=dict(boxstyle='circle', fc='green', alpha=0.7),
     #          arrowprops=dict(arrowstyle='->'))
 
-
 class RefData():
     ''' Load .h5 files with data dynamics data from afterglowpy  '''
     def __init__(self,workdir:str,fname:str):
@@ -267,6 +258,10 @@ class RefDataLC():
 class TestBases():
     ''' change parfile and run PyBlastAfterglow for piece-wise [pw] or adaptive [a] eats itegration  '''
 
+    conf = {"nx":128, "ny":64, "extend_grid":1, "fwhm_fac":0.5, "lat_dist_method":"integ",
+            "intp_filter":{ "type":None, "sigma":2, "mode":'reflect' }, # "gaussian"
+            "hist_filter":{ "type":None, "sigma":2, "mode":'reflect' }}
+
     def __init__(self, default_parfile_fpath, workingdir):
         if not os.path.isdir(workingdir):
             raise IOError(f"Workingdir dir does not exists: {workingdir}")
@@ -304,10 +299,7 @@ class TestBases():
                    loglevel="info")
         # postprocess skymaps
         if (pba_pw.GRB.opts["do_skymap"]=="yes"):
-            conf = {"nx":48, "ny":32, "extend_grid":1, "fwhm_fac":0.5, "lat_dist_method":"integ",
-                    "intp_filter":{ "type":None, "sigma":2, "mode":'reflect' }, # "gaussian"
-                    "hist_filter":{ "type":None, "sigma":2, "mode":'reflect' }}
-            prep = PBA.skymap_process.ProcessRawSkymap(conf=conf, verbose=False)
+            prep = PBA.skymap_process.ProcessRawSkymap(conf=self.conf, verbose=False)
             prep.process_singles(infpaths=self.workingdir+"raw_skymap_*.h5",
                                  outfpath=pba_pw.GRB.fpath_sky_map,
                                  remove_input=False)
@@ -343,10 +335,7 @@ class TestBases():
                   loglevel="info")
         # postprocess skymaps
         if (pba_a.GRB.opts["do_skymap"]=="yes"):
-            conf = {"nx":48, "ny":32, "extend_grid":1, "fwhm_fac":0.5, "lat_dist_method":"integ",
-                    "intp_filter":{ "type":None, "sigma":2, "mode":'reflect' }, # "gaussian"
-                    "hist_filter":{ "type":None, "sigma":2, "mode":'reflect' }}
-            prep = PBA.skymap_process.ProcessRawSkymap(conf=conf, verbose=True)
+            prep = PBA.skymap_process.ProcessRawSkymap(conf=self.conf, verbose=True)
             prep.process_singles(infpaths=self.workingdir+"raw_skymap_*.h5",
                                  outfpath=pba_a.GRB.fpath_sky_map,
                                  remove_input=False)
