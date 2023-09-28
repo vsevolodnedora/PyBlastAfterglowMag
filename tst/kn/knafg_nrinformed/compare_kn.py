@@ -13,27 +13,12 @@ from matplotlib import cm
 import os
 
 try:
-    from PyBlastAfterglowMag.interface import modify_parfile_par_opt
-    from PyBlastAfterglowMag.interface import PyBlastAfterglow
-    from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
-    from PyBlastAfterglowMag.utils import latex_float, cgs, get_beta, get_Gamma
-    from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
-    from PyBlastAfterglowMag.id_maker_from_thc_ourflow import prepare_kn_ej_id_2d
-    from PyBlastAfterglowMag.skymap_tools import \
-        (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
+    import package.src.PyBlastAfterglowMag as PBA
 except ImportError:
     try:
-        from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
-        from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
-        from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
-        from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma)
-        from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
-        from package.src.PyBlastAfterglowMag.id_maker_from_thc_ourflow import prepare_kn_ej_id_2d
-        from package.src.PyBlastAfterglowMag.skymap_tools import \
-            (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
-    except ImportError:
+        import PyBlastAfterglowMag as PBA
+    except:
         raise ImportError("Cannot import PyBlastAfterglowMag")
-
 
 def main():
     # prepare ejecta ID from NR output
@@ -41,13 +26,13 @@ def main():
     shutil.copyfile(os.getcwd()+"/default_parfile.par",os.getcwd()+"/parfile.par")
     fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(4.6, 3.2))
     ax = axes
-    pba = PyBlastAfterglow(workingdir=os.getcwd()+'/',readparfileforpaths=True)
+    pba = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+'/',readparfileforpaths=True)
 
     tasks = [
         {"corr_fpath":"corr_vel_inf_theta_DD2_M135135_M0.h5",
          "hist_fpath":"hist_vel_inf_DD2_M135135_M0.dat",
          "outfpath":os.getcwd()+'/'+"ejecta_id_DD2_M135135_M0.h5",
-         "new_main_pars":{"n_ism":1e-1,"d_l":100e6 * cgs.pc,"z":0.001},
+         "new_main_pars":{"n_ism":1e-1,"d_l":100e6 * PBA.utils.cgs.pc,"z":0.001},
          "new_kn_pars":{"p":2.5,"eps_e":1.e-1,"eps_b":1e-1,"theta_obs":0.0},
          "fname_light_curve":"lc_DD2_M135135_M0.h5",
          "fname_ejecta_id":"ejecta_id_DD2_M135135_M0.h5",
@@ -82,15 +67,15 @@ def main():
         ax.plot(kenta_t[1:-1], kenta_f[1:-1], **{"color": task["color"], "ls": ":", "lw": 0.8, "label": task["label"]})
 
         # prepare_kn_ej_id_1d(nlayers=30,hist_fpath=task["hist_fpath"],outfpath=task["outfpath"])
-        prepare_kn_ej_id_2d(nlayers=None,corr_fpath=task["corr_fpath"],outfpath=task["outfpath"], dist="pw")
+        PBA.id_david.prepare_kn_ej_id_2d(nlayers=None,corr_fpath=task["corr_fpath"],outfpath=task["outfpath"], dist="pw")
         # prepare_kn_ej_id_1d(nlayers=30,hist_fpath=task["hist_fpath"],outfpath=task["outfpath"])
 
 
-        modify_parfile_par_opt(workingdir=workdir, part="main",
+        PBA.parfile_tools.modify_parfile_par_opt(workingdir=workdir, part="main",
                                newpars=task["new_main_pars"],newopts={},
                                parfile="parfile.par",newparfile="parfile.par",keep_old=False)
-        modify_parfile_par_opt(workingdir=workdir, part="kn", newpars=task["new_kn_pars"],
-                                   newopts={"method_eos":"Nava13","method_GammaSh":"useJKwithGammaRel",
+        PBA.parfile_tools.modify_parfile_par_opt(workingdir=workdir, part="kn", newpars=task["new_kn_pars"],
+                                   newopts={"method_eos":"Nava13","method_GammaSh":"useGammaShock",#"useJKwithGammaRel",
                                             "method_Delta":"useJoh06","method_Rsh":"useGammaSh",
                                             "method_dmdr":"usingdthdr","method_Up":"useGamma",
                                             "method_dgdr":"peer","method_shock_vel":"sameAsBW",
@@ -102,17 +87,18 @@ def main():
                                parfile="parfile.par",newparfile="parfile.par",keep_old=False
                               )
         pba.reload_parfile()
-        pba.run()
-        ax.plot(pba.KN.get_lc_times() / cgs.day, pba.KN.get_lc_totalflux(freq=3.e9) * 1e3,
+        pba.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out", loglevel="info")
+        ax.plot(pba.KN.get_lc_times() / PBA.utils.cgs.day, pba.KN.get_lc_totalflux(freq=3.e9) * 1e3,
                 **{"color": task["color"], "ls": "--", "lw": 0.8, "label": task["label"]})
         pba.clear()
 
         shutil.copyfile(os.getcwd()+"/default_parfile.par",os.getcwd()+"/parfile.par")
 
-        modify_parfile_par_opt(workingdir=workdir, part="main",newpars=task["new_main_pars"],newopts={},
+        PBA.parfile_tools.modify_parfile_par_opt(workingdir=workdir, part="main",newpars=task["new_main_pars"],newopts={},
                                parfile="parfile.par",newparfile="parfile.par",keep_old=False)
-        modify_parfile_par_opt(workingdir=workdir, part="kn", newpars=task["new_kn_pars"],
-                                   newopts={"method_GammaSh":"useJKwithGammaRel","method_Delta":"useJoh06",
+        PBA.parfile_tools.modify_parfile_par_opt(workingdir=workdir, part="kn", newpars=task["new_kn_pars"],
+                                   newopts={"method_GammaSh":"useGammaShock",#"useJKwithGammaRel",
+                                            "method_Delta":"useJoh06",
                                             "method_Rsh":"useGammaSh","method_dmdr":"usingdthdr",
                                             "method_Up":"useEint2","method_dgdr":"our",
                                             "method_shock_vel":"shockVel","method_synchrotron":"Joh06",
@@ -122,8 +108,8 @@ def main():
                                             "fname_ejecta_id":task["fname_ejecta_id"]},
                                parfile="parfile.par",newparfile="parfile.par",keep_old=False)
         pba.reload_parfile()
-        pba.run()
-        ax.plot(pba.KN.get_lc_times() / cgs.day, pba.KN.get_lc_totalflux(freq=3.e9) * 1e3,
+        pba.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out", loglevel="info")
+        ax.plot(pba.KN.get_lc_times() / PBA.utils.cgs.day, pba.KN.get_lc_totalflux(freq=3.e9) * 1e3,
                 **{"color": task["color"], "ls": "-", "lw": 0.8, "label": task["label"]})
         pba.clear()
 

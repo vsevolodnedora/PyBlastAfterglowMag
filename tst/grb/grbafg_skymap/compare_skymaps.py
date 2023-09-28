@@ -15,7 +15,9 @@ import os
 # import PyBlastAfterglowMag as PBA
 import package.src.PyBlastAfterglowMag as PBA
 # plt.style.use('seaborn-v0_8')
-plt.style.use('dark_background')
+
+# plt.style.use('dark_background')
+
 # try:
 #     from PyBlastAfterglowMag.interface import modify_parfile_par_opt
 #     from PyBlastAfterglowMag.interface import PyBlastAfterglow
@@ -188,31 +190,33 @@ def plot_skymaps_3d(skymaps : list[PBA.interface.Skymap]):
     g_min = g_gmax * 1e-3
     print(f"g_min={g_min} g_gmax={g_gmax}")
 
-    fig = plt.figure() # figsize=(4.2,4)
-    ax = fig.add_subplot(211,projection='3d')
+    fig, ax = plt.subplots(subplot_kw={'projection': '3d'},figsize=(5.2,4),
+                     gridspec_kw=dict(top=1.2, bottom=-.2, left=-.2, right=1)) # figsize=(4.2,4)figsize=(5,4)
 
-
-    for skymap in skymaps:
-        ax.plot(skymap.grid_x, np.log10(skymap.dist_x), zs=np.log10(skymap.time), zdir='x', color="white")
-    # ax.set_zscale('log')
-
-
-    ax.set_ylabel(r"$X$ [mas]")
-    ax.set_zlabel(r"$Z$ [mas]")
-    ax.set_xlabel(r"time [s]")
-    ax.set_facecolor("black")
-    ax.grid(False)
-    ax.w_xaxis.pane.fill = False
-    ax.w_yaxis.pane.fill = False
-    ax.w_zaxis.pane.fill = False
-    ax.set_box_aspect(aspect = (4,2,2))
-    ax.view_init(elev=5, azim=150, roll=0)
+    # ax = fig.add_subplot(211,projection='3d')
+    #
+    #
+    # for skymap in skymaps:
+    #     ax.plot(skymap.grid_x, np.log10(skymap.dist_x), zs=np.log10(skymap.time), zdir='x', color="white")
+    # # ax.set_zscale('log')
+    #
+    #
+    # ax.set_ylabel(r"$X$ [mas]")
+    # ax.set_zlabel(r"$Z$ [mas]")
+    # ax.set_xlabel(r"time [s]")
+    # ax.set_facecolor("black")
+    # ax.grid(False)
+    # ax.w_xaxis.pane.fill = False
+    # ax.w_yaxis.pane.fill = False
+    # ax.w_zaxis.pane.fill = False
+    # ax.set_box_aspect(aspect = (4,2,2))
+    # ax.view_init(elev=5, azim=150, roll=0)
 
     # ---------------
 
     # Create the 4th color-rendered dimension
-    cmap = cm.get_cmap('inferno')
-    # cmap.set_under("white")
+    cmap = cm.get_cmap('Greys')
+    cmap.set_under("white")
     # cmap.set_over("red")
     scam = plt.cm.ScalarMappable(
         norm=cm.colors.LogNorm(g_min, g_gmax),
@@ -220,18 +224,23 @@ def plot_skymaps_3d(skymaps : list[PBA.interface.Skymap]):
     )
 
 
-    ax = fig.add_subplot(212,projection='3d')
+    # ax = fig.add_subplot(projection='3d')
     zmin = 0.
+    xmin, xmax, ymin,ymax = 0,0,0,0
     for skymap in skymaps:
         X, Y = np.meshgrid(skymap.grid_x, skymap.grid_y)
-        if (zmin > np.min(Y)):
-            zmin = np.min(Y)
-        Z = np.full_like(X,fill_value=np.log10(skymap.time))
+        if (zmin > np.min(Y)): zmin = np.min(Y)
+        if (xmin > np.min(X)): xmin = np.min(X)
+        if (ymin > np.min(Y)): ymin = np.min(Y)
+        if (xmax < np.max(X)): xmax = np.max(X)
+        if (ymax < np.max(Y)): ymax = np.max(Y)
+
+        Z = np.full_like(X,fill_value=np.log10(skymap.time / PBA.utils.cgs.day))
         G = skymap.im_hist.T
         # X = X[G > g_min]
         # Y = Y[G > g_min]
         Z[G < g_min] = np.nan
-        G[G < g_min] = np.nan
+        G[G < g_min] = g_min
         scam.set_array([])
         facecolors = scam.to_rgba(G)
         # ax.scatter(Z, X, Y, color=facecolors)
@@ -239,24 +248,42 @@ def plot_skymaps_3d(skymaps : list[PBA.interface.Skymap]):
             Z, X, Y,
             facecolors  = facecolors,
             antialiased = True,
-            rstride=1, cstride=1, alpha=.8, shade=False
+            rstride=1, cstride=1, alpha=.6, shade=False,
+
         )
-    # for skymap in skymaps:
-        # ax.plot(skymap.xc, zmin, zs=np.log10(skymap.time), zdir='x', marker="o", color="white")
-        # ax.plot(skymap.grid_x, skymap.dist_y, zs=np.log10(skymaps[-1].time), zdir='x', label='curve in (x, y)')
+    for skymap in skymaps:
+        ax.plot(skymap.xc, zmin, zs=np.log10(skymap.time/PBA.utils.cgs.day), zdir='x', marker="o", ms=1, color="black")
+        ax.plot([skymap.x1,skymap.x2], [zmin,zmin], zs=np.log10(skymap.time/PBA.utils.cgs.day),
+                zdir='x', ls="--", lw=.6, color="black")
+
+        zmin_ = -.5
+        ax.plot(np.log10(skymap.time/PBA.utils.cgs.day), zmin_, zs=skymap.yc, zdir='z', marker="o", ms=1, color="black")
+        ax.plot([np.log10(skymap.time/PBA.utils.cgs.day),np.log10(skymap.time/PBA.utils.cgs.day)],
+                [zmin_,zmin_], zs=[skymap.y1,skymap.y2],
+                zdir='z', ls="--", lw=.6, color="black")
+
+        # ax.plot(skymap.grid_x, skymap.dist_x, zs=np.log10(skymap.time), zdir='x', label='curve in (x, y)')
         # ax.plot(skymap.grid_y, skymap.dist_y, zs=np.log10(skymap.time), zdir='z', label='curve in (x, y)')
-
-
-    ax.set_ylabel(r"$X$ [mas]")
-    ax.set_zlabel(r"$Z$ [mas]")
-    ax.set_xlabel(r"time [s]")
-    ax.set_facecolor("black")
+    times = [np.log10(skymap.time/PBA.utils.cgs.day) for skymap in skymaps]
+    # xmin = times.min(),
+    # xmax = times.max()
+    # n = len(times)
+    # for t
+    ax.set_ylim(0,11)
+    ax.set_ylabel(r"$X$ [mas]",fontsize=12,labelpad=10)
+    ax.set_zlabel(r"$Z$ [mas]",fontsize=12,labelpad=5)
+    ax.set_xlabel(r"$\log(t_{\rm obs})$ [day]",fontsize=12,labelpad=18)
+    ax.minorticks_on()
+    # ax.set_facecolor("black")
     ax.grid(False)
     ax.w_xaxis.pane.fill = False
     ax.w_yaxis.pane.fill = False
     ax.w_zaxis.pane.fill = False
-    ax.set_box_aspect(aspect = (4,2,2))
-    ax.view_init(elev=5, azim=150, roll=0)
+    # ax.w_zaxis.line.set_visible(False)
+    ax.set_box_aspect(aspect = (6,2,2))
+    ax.view_init(elev=10, azim=150, roll=0)
+    ax.tick_params(direction='in', length=10, width=2, colors='black',
+                   grid_color='gray', grid_alpha=0.1,which="both", axis="both",labelsize=12)
     # x_scale=4
     # y_scale=1
     # z_scale=1
@@ -266,11 +293,19 @@ def plot_skymaps_3d(skymaps : list[PBA.interface.Skymap]):
     # scale[3,3]=1.0
     # def short_proj():
     #     return np.dot(Axes3D.get_proj(ax), scale)
-    fig.set_facecolor('black')
-    fig.subplots_adjust(left=-.1,top=1.1)  # plot outside the normal area
-    fig.tight_layout()
+    # fig.set_facecolor('black')
+    # fig.subplots_adjust(left=-.2,top=.2)  # plot outside the normal area
+    # fig.tight_layout()
 
     # ax.get_proj=short_proj
+    # ax.set_title(r"Gaussian jet with $\texttt{PW}$ method",loc='center',color="black")
+    # plt.title(r"Gaussian jet with $\texttt{PW}$ method",loc='center',color="black")
+    # ax.text(x=.8, y=.1, z=.6, s=r'Gaussian jet with $\texttt{PW}$ method', horizontalalignment='center',
+    #      verticalalignment='center', transform=ax.transAxes)
+    # ax.annotate(r'Gaussian jet with $\texttt{PW}$ method', xy=(2, 1), xytext=(-200, 200), textcoords='offset points', ha='left', bbox=dict(boxstyle='circle', fc='green', alpha=0.7),
+    #          arrowprops=dict(arrowstyle='->'))
+    fig.suptitle(r"Gaussian jet with $\texttt{PW}$ method", y=0.90, fontsize=16)
+
     plt.savefig(os.getcwd()+'/'+"3d_example.png",dpi=256)
     plt.show()
 
@@ -296,14 +331,14 @@ def task_kn_skymap_with_dist_one_time():
     pba.reload_parfile()
 
     # run
-    # pba.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out", loglevel="info")
+    pba.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out", loglevel="info")
 
     # process skymap
     conf = {"nx":64, "ny":32, "extend_grid":1.1, "fwhm_fac":0.5, "lat_dist_method":"integ",
             "intp_filter":{ "type":None, "sigma":2, "mode":'reflect' }, # "gaussian"
             "hist_filter":{ "type":None, "sigma":2, "mode":'reflect' }}
     prep = PBA.skymap_process.ProcessRawSkymap(conf=conf, verbose=True)
-    # prep.process_singles(infpaths=workdir+"raw_skymap_*.h5", outfpath=pba.GRB.fpath_sky_map, remove_input=True)
+    prep.process_singles(infpaths=workdir+"raw_skymap_*.h5", outfpath=pba.GRB.fpath_sky_map, remove_input=True)
 
     # plot skymap
     config = {
@@ -330,7 +365,7 @@ def task_kn_skymap_with_dist_one_time():
             "histx_lim":(1e-2, 1e1),
             "histy_lim":(1e-2, 1e1)
         }
-    # PBA.skymap_plotting_tools.full_plot_skymap_with_hists(skymap=pba.GRB.get_skymap(time=time, freq=freq), conf=config)
+    PBA.skymap_plotting_tools.full_plot_skymap_with_hists(skymap=pba.GRB.get_skymap(time=time, freq=freq), conf=config)
 
     skymaps = [pba.GRB.get_skymap(time, freq=freq) for time in pba.GRB.get_skymap_times()[:-4]]
     # times = pba.GRB.get_skymap_times()

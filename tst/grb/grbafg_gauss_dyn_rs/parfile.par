@@ -107,7 +107,6 @@ type = numeric
 fname_ejecta_id = tophat_grb_id.h5
 load_r0 = no
 
-tprompt = 0.
 epsilon_rad_rs = 0.
 rs_shutOff_criterion_rho = 1e-50 # criterion when to shut down the reverse shock
 

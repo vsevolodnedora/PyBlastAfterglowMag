@@ -47,6 +47,7 @@ do_average_solution = no
 * Parameters
 
 n_store_substeps = 10
+im_max_theta = 1.57
 
 eps_e = 0.1
 eps_b = 0.1
@@ -76,10 +77,12 @@ save_dynamics = yes
 load_dynamics = no
 do_ele = yes
 do_spec = no
+save_spec = no
 do_lc = yes
 do_skymap = no
 
-rhs_type = ej
+bw_type = fs
+do_rs = no
 method_collision = none # none
 method_eats = piece-wise # piece-wise
 
@@ -100,7 +103,7 @@ allow_termination = no
 
 method_spread = None
 method_eos = Nava13
-method_GammaSh = useJKwithGammaRel # small effect
+method_GammaSh = useGammaShock
 method_Up = useEint2 # !
 method_Delta = useJoh06
 use_adiabLoss = yes
@@ -123,5 +126,7 @@ method_quad = CADRE
 method_comp_mode = observFlux # "comovSpec",#"observFlux"
 emissivity = em
 absorption = abs
+
+skymap_remove_mu = yes
 
 # --------------------------- END ---------------------------

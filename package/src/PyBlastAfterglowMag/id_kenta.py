@@ -59,12 +59,18 @@ class ProcessRawFiles:
             dfile = h5py.File(fl, "r")
             if self.verb:
                 print("\t Keys in the dfile: {}".format(dfile.keys()))
+
+            if (len(dfile.keys()) == 0):
+                print(f"\t\t SKIPPING FILE (no keys in it) {fl}")
+                continue
+
+            if self.verb:
                 print("\t theta              = {} [{}, {}]".format(np.array(dfile["theta"]).shape,
                                                                    np.array(dfile["theta"])[0],
-                                                                          np.array(dfile["theta"])[-1]))
+                                                                   np.array(dfile["theta"])[-1]))
                 print("\t v_asymptotic       = {} [{}, {}]".format(np.array(dfile["v_asymptotic"]).shape,
-                                                                          np.array(dfile["v_asymptotic"])[0],
-                                                                          np.array(dfile["v_asymptotic"])[-1]))
+                                                                   np.array(dfile["v_asymptotic"])[0],
+                                                                   np.array(dfile["v_asymptotic"])[-1]))
                 print("\t dfile['data1'].keys= {}".format(dfile["data1"].keys()))
 
             # sort the keys in the file (data groups for different extraction times)
@@ -200,23 +206,34 @@ class EjectaData:
             raise KeyError()
         return mass
 
+    def getText(self) -> np.ndarray:
+        return np.array(self.dfile["text"])
+
 class Data():
     def __init__(self, fpath_rhomax:str, fpath_mdot:str):
         self.fpath_rhomax = fpath_rhomax
         self.fpath_mdot = fpath_mdot
 
     def get_rhomax(self):
+        if not (os.path.isfile(self.fpath_rhomax)):
+            return (np.zeros(0,), np.zeros(0,))
+
         rho_nuc = 2.7e14
         ut = 1.607e-6
+
         t_rho_max, rho_max = np.loadtxt(self.fpath_rhomax, unpack=True, usecols=(0,1))
         return (t_rho_max * ut * 1e3, rho_max / rho_nuc) # [s,rho/rho_nuc]
 
     def get_mdot(self, r_ext=1000):
+        if not (os.path.isfile(self.fpath_mdot)):
+            return (np.zeros(0,), np.zeros(0,))
+
         # convert the units from what Kenta was using to CGS + Msun
         ul = 0.4816 # km
         ut = 1.607e-6
         um = 0.326
         umdot = um / ut
+
         table = np.loadtxt(self.fpath_mdot, unpack=True).T
         names = None
         with open(self.fpath_mdot, "r") as file:
@@ -306,6 +323,9 @@ class EjStruct(EjectaData):
                           title=None, figpath=None):
 
         fontsize=12
+        mom = mom.copy()
+        ctheta = ctheta.copy()
+        mass = mass.copy()
 
         # moms = data["mom"]
         # ctheta = data["ctheta"] * 180 / cgs.pi

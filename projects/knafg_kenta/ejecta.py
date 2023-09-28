@@ -9,6 +9,7 @@ import copy
 
 import numpy as np
 import h5py
+import pandas as pd
 from scipy.integrate import ode
 import matplotlib.pyplot as plt
 from scipy import interpolate
@@ -41,9 +42,10 @@ except ImportError:
 
 from settings import *
 
-class Ejecta():
+class ProcessRaw():
     def __init__(self, simumlation : dict):
         self.sim = simumlation
+        self.dfile = None
 
     def process_raw_ejecta_files(self, infiles : str = "ejecta_*.h5", fname_output : str = "ej_collated.h5"):
         # dir = "/media/vsevolod/T7/work/KentaData/"
@@ -59,9 +61,50 @@ class Ejecta():
         collated_ej_data_fpath = datadir + fname_output
         id.process_save(collated_ej_data_fpath)
 
-def process_data(sim : str):
-    ej = Ejecta(simumlation = sim)
+    def getProcessed(self, fname_output : str = "ej_collated.h5") -> h5py.File:
+        if (self.dfile is None):
+            self.dfile = h5py.File(self.sim["datadir"] + fname_output,"r")
+        return self.dfile
+
+    def getText(self) -> np.ndarray:
+        return np.array(self.dfile["text"])
+
+    def getData(self, v_n : str, text : int or None):
+        if not ("time={}".format(text) in self.dfile.keys()):
+            print(self.dfile.keys())
+            raise KeyError("time={} is not found in dfile.keys() See above")
+        if text == None:
+            data = np.stack([self.dfile["time={}".format(time)][v_n] for time in self.getText()],axis=2)
+        else:
+            np.array(self.dfile["time={}".format(text)][v_n])
+def process(sim : dict) -> None:
+    ej = ProcessRaw(simumlation = sim)
     ej.process_raw_ejecta_files()
+
+
+
+
+
+def main():
+    # for sim in SIMULATIONS:
+        # process_data( sim )
+
+    df = pd.DataFrame(SIMULATIONS).T
+    # df["n"] = {"SFHo_q1_res150":1,"SFHo_q111_res150":1,"SFHo_q116_res150":1,"SFHo_q116_res200":1,"SFHo_q125_res150":1}
+
+    df["tmin"],df["tmax"] = {}, {}
+    for sim, sim_dic in df.iterrows():
+        data = ProcessRaw(sim_dic)
+        dfile = data.getProcessed()
+        # print(dfile.keys())
+        # print(dfile.attrs.keys())
+        df["tmin"][sim] = np.array(dfile["text"]).min()
+        df["tmax"][sim] = np.array(dfile["text"]).max()
+
+    print(df[["tmin","tmax"]])
+
+if __name__ == '__main__':
+    main()
 
 def save_data_for_gilad():
     workdir = os.getcwd()+'/'
@@ -103,9 +146,5 @@ def save_data_for_gilad():
     np.savetxt(os.getcwd()+f"/ejecta_layer{idx}.dat",X=np.column_stack((mom_[:,idx],mass_[:,idx],rho_[:,idx],eps_[:,idx],press_[:,idx])),
                header="GammaBeta Mass rho eps pres")
 
-def main():
-    process_data( SIMULATIONS[0] )
 
 
-if __name__ == '__main__':
-    main()

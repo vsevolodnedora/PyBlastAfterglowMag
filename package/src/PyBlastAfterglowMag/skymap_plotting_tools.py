@@ -15,10 +15,13 @@ from mpl_toolkits.axes_grid1 import ImageGrid
 from mpl_toolkits.axisartist.grid_finder import MaxNLocator
 from matplotlib.colors import BoundaryNorm
 from matplotlib.ticker import MaxNLocator
+import matplotlib.gridspec as gridspec
+
 
 rc('text', usetex=True) # $ sudo apt-get install cm-super
 rc('font', family='serif')
 rcParams['font.size'] = 8
+# plt.style.use('fivethirtyeight')
 
 from .interface import Skymap
 
@@ -465,6 +468,4 @@ def full_plot_skymap_with_hists(skymap : Skymap, conf : dict) -> None:
         print(r"Saving:\n{}".format(figname + ".pdf"))
         plt.savefig(figname + ".pdf")
     if settings["show_figs"]: plt.show()
-
-
 

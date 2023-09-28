@@ -80,7 +80,7 @@ do_lc = yes
 do_skymap = no
 
 do_rs = no
-rhs_type = grb_fs
+bw_type = fs
 method_collision = none # none
 method_eats = piece-wise # adaptive # piece-wise
 allow_termination = no
@@ -106,7 +106,7 @@ rs_shutOff_criterion_rho = 1e-50 # criterion when to shut down the reverse shock
 method_spread = None
 method_dgdr = our
 method_eos = Nava13
-method_GammaSh = useJKwithGammaRel  # default -- "useGamma"
+method_GammaSh = useGammaShock
 method_Up = useEint2
 method_Delta = useJoh06
 use_adiabLoss = yes

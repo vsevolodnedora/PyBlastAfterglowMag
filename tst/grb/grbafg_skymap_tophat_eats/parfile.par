@@ -49,7 +49,9 @@ do_average_solution = no
 n_store_substeps = 10
 
 a = 1.0
-fraction_of_Gamma0_when_spread = 0.1
+fraction_of_Gamma0_when_spread = 0.95
+nphi = 200
+ntheta = 400
 
 eps_e = 0.0708
 eps_b = 0.0052
@@ -65,8 +67,8 @@ save_dyn_every_it = 1
 rtol_adapt = 1e-5
 fnu_min_frac = 1e-4
 
-nsublayers = 201
-im_max_theta = 1.57 # 0. for use theta_wing
+nsublayers = 221
+im_max_theta = 0.2 # 0. for use theta_wing
 
 * Settings
 

@@ -12,33 +12,34 @@
 
 * Parameters
 
-tb0 = 1.e3
-tb1 = 1.e13
-ntb = 10000
-iout = 10
-rtol = 3e-14
+tb0 = 3335.64
+tb1 = 7.03823e+17
+ntb = 5000
+iout = 1
+rtol = 1e-6
 nmax = 1000
 
 A0 = -1
 s = -1
 r_ej = -1
 r_ism = -1
-n_ism = 0.00031
-d_l = 1.27e+26
-z = 0.0099
-theta_obs = 0. # 1.57
+n_ism = 1e-2
+d_l = 3.09e26
+z = 0.028
+theta_obs = 0.0
 
 * Settings
 
-lc_freqs = array 1e9
-lc_times = array 86400 864000 3.456e6 8.64e6 1.728e7 3.456e+7 6.912e+7 1.3824e+8
+do_average_solution = no
+
+lc_freqs = array 1e9 1e18
+lc_times = array logspace 1.e4 1.e10 100
 lc_use_freq_to_time = no
 
-skymap_freqs = array 1e9
-skymap_times = array 86400 864000 3.456e6 8.64e6 1.728e7 3.456e+7 6.912e+7 1.3824e+8
+skymap_freqs = array 1e9 1e18
+skymap_times = array logspace 8.e5 2e9 50
 
-integrator = DOP853
-do_average_solution = no
+integrator = DOP853E
 
 # --------------------------- END ---------------------------
 #
@@ -48,56 +49,68 @@ do_average_solution = no
 
 n_store_substeps = 10
 
+tprompt = 1.e3
 a = 1.0
 fraction_of_Gamma0_when_spread = 0.1
+im_max_theta = 1.57
+rs_Gamma0_frac_no_exceed = .92
+min_Gamma0_for_rs = 0.
 
-eps_e = 0.0708
-eps_b = 0.0052
+eps_e = 0.1
+eps_b = 0.01
 eps_t = 0.
-p = 2.16
+p = 2.2
 ksi_n = 1.
+
+eps_e_rs = 0.1
+eps_b_rs = 0.01
+eps_t_rs = 0.
+p_rs = 2.2
+ksi_n_rs = 1.
 
 freq1 = 1.e5
 freq2 = 1.e22
 nfreq = 200
 
-save_dyn_every_it = 1
+save_dyn_every_it = 10
 rtol_adapt = 1e-5
-fnu_min_frac = 1e-4
-
-nsublayers = 1
-im_max_theta = 1.57
+fnu_min_frac = 1e-5
 
 * Settings
 
 run_bws = yes
-allow_termination = no
 save_dynamics = yes
 load_dynamics = no
 do_ele = yes
 do_spec = no
 save_spec = no
 do_lc = yes
-do_skymap = yes
+do_skymap = no
 
 do_rs = no
 rhs_type = grb_fs
 method_collision = none # none
-method_eats = piece-wise # piece-wise
+method_eats = adaptive # piece-wise
+allow_termination = no
 
 do_thermrad_loss = no
 
 use_1d_id = yes
-fname_dyn = dyn_grb_tophat.h5
-fname_light_curve = lc_gauss_pw.h5
-fname_light_curve_layers = none
-fname_sky_map = skymap_gauss_pw.h5
+fname_dyn = dyn_bw_fs.h5
+fname_spectrum = spec_grb_layers.h5
+fname_spectrum_layers = spec_grb.h5
+fname_light_curve = lc_grb_fs.h5
+fname_light_curve_layers = lc_grb_fs_layers.h5
+fname_sky_map = skymap_grb_gauss.h5
 
 do_nucinj = no
 type = numeric
-fname_ejecta_id = gauss_grb_id_pw.h5
+fname_ejecta_id = gauss_grb_id.h5
 load_r0 = no
 
+tprompt = 0.
+epsilon_rad_rs = 0.
+rs_shutOff_criterion_rho = 1e-50 # criterion when to shut down the reverse shock
 
 method_spread = None
 method_dgdr = our
@@ -112,12 +125,15 @@ method_shock_vel = sameAsBW
 use_dens_prof_behind_jet_for_ejecta = no
 method_synchrotron = Joh06
 method_lf_min = useU_e
-method_ne = usenprime
+method_ne = usenprime # usenprime
 method_tau = smooth
 use_ssa = yes
 emissivity = em
 absorption = abs
-method_comp_mode = observFlux # observFlux   # "comovSpec"
+method_comp_mode = observFlux #  observFlux   # "comovSpec"
 method_quad = CADRE
+
+method_synchrotron_rs = Joh06
+use_ssa_rs = no
 
 # --------------------------- END ---------------------------

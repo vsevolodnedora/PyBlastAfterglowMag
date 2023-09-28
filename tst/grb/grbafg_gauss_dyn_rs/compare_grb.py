@@ -10,23 +10,8 @@ from matplotlib.colors import Normalize, LogNorm
 from matplotlib import cm
 import os
 
-try:
-    from PyBlastAfterglowMag.interface import modify_parfile_par_opt
-    from PyBlastAfterglowMag.interface import PyBlastAfterglow
-    from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
-    from PyBlastAfterglowMag.utils import latex_float, cgs, get_beta, get_Gamma
-    from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
-except ImportError:
-    try:
-        from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
-        from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
-        from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
-        from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma)
-        from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
-    except ImportError:
-        raise ImportError("Cannot import PyBlastAfterglowMag")
 
-
+import package.src.PyBlastAfterglowMag as PBA
 try:
     import afterglowpy as grb
 except:
@@ -140,7 +125,7 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
     if (method_spread=="None"):
         ref = RefData(workdir,"reference_dyn.h5")
     elif (method_spread=="AA"):
-        ref = RefData(workdir,"reference_aa_dyn.h5")
+        ref = RefData(workdir,"reference_afgpy_dyn.h5")
     elif (method_spread=="Adi"):
         ref = RefData(workdir,"reference_adi_dyn.h5")
     elif (method_spread=="AA"):

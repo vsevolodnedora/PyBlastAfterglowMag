@@ -26,7 +26,13 @@ import os
 #     except ImportError:
 #         raise ImportError("Cannot import PyBlastAfterglowMag")
 
-import package.src.PyBlastAfterglowMag as PBA
+try:
+    import package.src.PyBlastAfterglowMag as PBA
+except ImportError:
+    try:
+        import PyBlastAfterglowMag as PBA
+    except:
+        raise ImportError("Cannot import PyBlastAfterglowMag")
 
 afterglowpy = True
 
@@ -50,8 +56,16 @@ def tst_against_afgpy(withSpread = False,
     # pba_0 = PBA(os.getcwd()+"/", readparfileforpaths=True)
     # pba_016 = PBA(os.getcwd()+"/", readparfileforpaths=True)
 
-    prepare_grb_ej_id_1d({"Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.1,
-                          "nlayers_pw": 50, "nlayers_a": 1, "struct":"tophat"},type="pw",outfpath="tophat_grb_id.h5")
+    id = PBA.id_analytic.JetStruct(n_layers_pw=50,n_layers_a=1)
+    id.get_1D_id({"Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.1},type="pw")
+
+    struct = {"Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.1,
+              "nlayers_pw": 50, "nlayers_a": 1, "struct":"tophat"}
+    pba_id = PBA.id_analytic.JetStruct(n_layers_pw=struct["nlayers_pw"], n_layers_a=struct["nlayers_a"])
+    id_dict = pba_id.get_1D_id(pars=struct,type="piece-wise")
+    with h5py.File(curdir+"tophat_grb_id.h5", "w") as dfile:
+        for key, data in id_dict.items():
+            dfile.create_dataset(name=key, data=data)
 
     lls, lbls = [], []
     for (i_thetaobs, i_freq, i_color) in [
@@ -62,34 +76,36 @@ def tst_against_afgpy(withSpread = False,
         (0, 1e9, "gray"),
     ]:
 
-        modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main", newpars={"theta_obs":i_thetaobs},newopts={},
+        PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main", newpars={"theta_obs":i_thetaobs},newopts={},
                                parfile="default_parfile.par", newparfile="parfile2.par", keep_old=True)
-        modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb", newpars={},
+        PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb", newpars={},
                                newopts={"method_synchrotron":"Joh06", "fname_light_curve":"tophat_{}_joh06.h5"
                                .format( str(i_thetaobs).replace(".",""))},
                                parfile="parfile2.par", newparfile="parfile.par",keep_old=False)
-        pba = PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
+        pba = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", readparfileforpaths=True, parfile="parfile.par")
         # pba.reload_parfile()
 
 
-        pba.run()
+        pba.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",
+                loglevel="info")
 
-        ax.plot(pba.GRB.get_lc_times() / cgs.day,
+        ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
                 pba.GRB.get_lc_totalflux(freq=i_freq), color=i_color, ls='-',
                 label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
 
         pba.clear()
-        modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main",newpars={"theta_obs":i_thetaobs},newopts={},
+        PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main",newpars={"theta_obs":i_thetaobs},newopts={},
                                parfile="default_parfile.par", newparfile="parfile2.par", keep_old=True)
-        modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",newpars={},
+        PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",newpars={},
                                newopts={"method_synchrotron":"WSPN99", "fname_light_curve":"tophat_{}_WSPN99.h5"
                                .format( str(i_thetaobs).replace(".",""))},
                                parfile="parfile2.par", newparfile="parfile.par",keep_old=False)
         pba.reload_parfile()
 
-        pba.run()
+        pba.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",
+                loglevel="info")
 
-        ax.plot(pba.GRB.get_lc_times() / cgs.day,
+        ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
                 pba.GRB.get_lc_totalflux(freq=i_freq), color=i_color, ls=':',
                 label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
 
@@ -103,9 +119,9 @@ def tst_against_afgpy(withSpread = False,
                 fname = "afterglowpy_theta{:d}_lognu{:d}.txt".format(int(i_thetaobs * 180 / np.pi),
                                                                      int(np.log10(i_freq)))
             _t, _ref_F_afgpy, _ref_F = np.loadtxt(os.getcwd() + '/' + fname, unpack=True)
-            _ll, = ax.plot(_t / cgs.day, _ref_F_afgpy, color=i_color, ls='--')
+            _ll, = ax.plot(_t / PBA.utils.cgs.day, _ref_F_afgpy, color=i_color, ls='--')
             lls.append(_ll)
-            lbls.append(r"$\nu=$" + r"${}$ Hz ".format(latex_float(i_freq))
+            lbls.append(r"$\nu=$" + r"${}$ Hz ".format(PBA.utils.latex_float(i_freq))
                         + r"$\theta_{\rm obs}=$" + r"{:.1f} deg".format(i_thetaobs * 180 / np.pi))
 
         # break
@@ -162,7 +178,7 @@ def tst_against_afgpy_methods(withSpread = False,
     # prepare initial data (piecewise and adaptive)
     struct = {"struct":"tophat",
               "Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.1}
-    pba_id = PBA.id_maker_analytic.JetStruct(n_layers_pw=80, n_layers_a=1)
+    pba_id = PBA.id_analytic.JetStruct(n_layers_pw=80, n_layers_a=1)
     # save piece-wise EATS ID
     id_dict = pba_id.get_1D_id(pars=struct, type="piece-wise")
     with h5py.File(workdir+"tophat_grb_id_pw.h5", "w") as dfile:
@@ -194,7 +210,8 @@ def tst_against_afgpy_methods(withSpread = False,
         # pba.reload_parfile()
 
 
-        pba_pw.run()
+        pba_pw.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",
+                   loglevel="info")
 
         ax.plot(pba_pw.GRB.get_lc_times() / PBA.utils.cgs.day,
                 pba_pw.GRB.get_lc_totalflux(freq=i_freq), color=i_color, ls='--', lw=1,
@@ -213,7 +230,8 @@ def tst_against_afgpy_methods(withSpread = False,
                                parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         pba_a = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
 
-        pba_a.run()
+        pba_a.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",
+                  loglevel="info")
 
         ax.plot(pba_a.GRB.get_lc_times() / PBA.utils.cgs.day,
                 pba_a.GRB.get_lc_totalflux(freq=i_freq), color=i_color, ls=':', lw=2,
@@ -229,7 +247,7 @@ def tst_against_afgpy_methods(withSpread = False,
                 fname = "afterglowpy_theta{:d}_lognu{:d}.txt".format(int(i_thetaobs * 180 / np.pi),
                                                                      int(np.log10(i_freq)))
             _t, _ref_F_afgpy, _ref_F = np.loadtxt(os.getcwd() + '/' + fname, unpack=True)
-            _ll, = ax.plot(_t / PBA.utils.cgs.day, _ref_F_afgpy, color=i_color, ls='--')
+            _ll, = ax.plot(_t / PBA.utils.cgs.day, _ref_F_afgpy, color=i_color, ls='-')
             lls.append(_ll)
             lbls.append(r"$\nu=$" + r"${}$ Hz ".format(PBA.utils.latex_float(i_freq))
                         + r"$\theta_{\rm obs}=$" + r"{:.1f} deg".format(i_thetaobs * 180 / np.pi))

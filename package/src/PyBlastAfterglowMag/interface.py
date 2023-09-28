@@ -91,6 +91,8 @@ class Skymap:
         self.dist_y = np.array(dfile["dist_y"])
         self.im_intp = np.array(dfile["image_intp"])
         self.im_hist = np.array(dfile["image_hist"])
+        self.time = dfile.attrs["time"]
+        self.freq = dfile.attrs["freq"]
 
 
 class Ejecta(Base):
@@ -180,13 +182,16 @@ class Ejecta(Base):
                 print(f"Warning np.sum(arr)=0 for ishell={ishell} ilayer={ilayer}")
             return arr
         elif ((not ishell is None) and (not ilayer is None)):
-            layer = "shell={} layer={} key={}".format(ishell, ilayer, v_n)
+            # group = dfile["shell={} layer={}".format(ishell, ilayer)]
+            layer = "shell={} layer={}".format(ishell, ilayer)
             if (not layer in list(dfile.keys())):
                 raise NameError(f"Layer {ilayer} (key '{layer}') is not in the ejecta dyn. file nlayer={nlayers} nshells={nshells}")
             # if (not v_n in dfile[layer].keys()):
             #     raise NameError("v_n {} is not in the ejecta dyn. dfile[{}].keys() \n Avaialble: {}"
             #                     .format(v_n, layer, dfile[layer].keys()))
-            arr = np.array(dfile[layer])
+            if not (v_n in dfile[layer].keys()):
+                raise KeyError(f"key {v_n} is not in the list: {dfile[layer].keys()}")
+            arr = np.array(dfile[layer][v_n])
             if (np.sum(arr) == 0):
                 print(f"Warning np.sum(arr)=0 for ishell={ishell} ilayer={ilayer}")
             return arr

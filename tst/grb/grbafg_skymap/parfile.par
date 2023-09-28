@@ -14,8 +14,8 @@
 
 tb0 = 1.e3
 tb1 = 1.e13
-ntb = 10000
-iout = 10
+ntb = 1000
+iout = 1
 rtol = 3e-14
 nmax = 1000
 
@@ -35,7 +35,7 @@ lc_times = array logspace 1.e4 1.e10 50
 lc_use_freq_to_time = no
 
 skymap_freqs = array 1e9
-skymap_times = array 20736000
+skymap_times = array 86400 864000 3.456e6 8.64e6 1.728e7 2.592e+7 3.456e+7 5.184e+7 6.912e+7 8.64e+7 1.1232e+8 1.3824e+8 1.728e+8 2.16e+8 2.592e+8 3.456e+8 4.32e+8 6.048e+8 8.64e+8
 
 integrator = DOP853
 do_average_solution = no
@@ -72,6 +72,9 @@ tprompt = 0.
 epsilon_rad_rs = 0.
 rs_shutOff_criterion_rho = 1e-50 # criterion when to shut down the reverse shock
 
+skymap_nx = 128
+skymap_ny = 128
+
 * Settings
 
 run_bws = yes
@@ -83,9 +86,10 @@ do_spec = no
 save_spec = no
 do_lc = no
 do_skymap = yes
+save_raw_skymap = yes
 
 do_rs = no
-rhs_type = grb_fs
+bw_type = fs
 method_collision = none # none
 method_eats = piece-wise # adaptive # piece-wise
 use_rs = no
@@ -107,7 +111,7 @@ load_r0 = no
 method_spread = AA
 method_dgdr = our
 method_eos = Nava13
-method_GammaSh = useJKwithGammaRel  # default -- "useGamma"
+method_GammaSh = useGammaShock
 method_Up = useEint2
 method_Delta = useJoh06
 use_adiabLoss = yes
@@ -124,5 +128,7 @@ emissivity = em
 absorption = abs
 method_comp_mode = observFlux # observFlux   # "comovSpec"
 method_quad = CADRE
+
+skymap_remove_mu = yes
 
 # --------------------------- END ---------------------------

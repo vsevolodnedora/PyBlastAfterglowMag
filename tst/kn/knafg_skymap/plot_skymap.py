@@ -10,29 +10,46 @@ from matplotlib.colors import Normalize, LogNorm
 from matplotlib import cm
 import os
 
+# try:
+#     from PyBlastAfterglowMag.interface import modify_parfile_par_opt
+#     from PyBlastAfterglowMag.interface import PyBlastAfterglow
+#     from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
+#     from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma,
+#                                                        BetFromMom, GamFromMom, MomFromGam)
+#     from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+#     from PyBlastAfterglowMag.id_maker_from_thc_ourflow import prepare_kn_ej_id_2d
+#     from PyBlastAfterglowMag.skymap_tools import \
+#         (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
+# except ImportError:
+#     try:
+#         from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
+#         from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
+#         from package.src.PyBlastAfterglowMag.interface import (distribute_and_parallel_run, get_str_val, set_parlists_for_pars)
+#         from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma,
+#                                                            BetFromMom, GamFromMom, MomFromGam)
+#         from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+#         from package.src.PyBlastAfterglowMag.id_maker_from_thc_ourflow import prepare_kn_ej_id_2d
+#         from package.src.PyBlastAfterglowMag.skymap_plotting_tools import \
+#             (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
+#     except ImportError:
+#         raise ImportError("Cannot import PyBlastAfterglowMag")
+
+# from package.src.PyBlastAfterglowMag.interface import *
+# from package.src.PyBlastAfterglowMag.utils import *
+# from package.src.PyBlastAfterglowMag.id_maker_analytic import *
+# from package.src.PyBlastAfterglowMag.id_maker_from_thc_ourflow import *
+# from package.src.PyBlastAfterglowMag.skymap_plotting_tools import *
+# from package.src.PyBlastAfterglowMag.parfile_tools import *
+
 try:
-    from PyBlastAfterglowMag.interface import modify_parfile_par_opt
-    from PyBlastAfterglowMag.interface import PyBlastAfterglow
-    from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
-    from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma,
-                                                       BetFromMom, GamFromMom, MomFromGam)
-    from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
-    from PyBlastAfterglowMag.id_maker_from_thc_ourflow import prepare_kn_ej_id_2d
-    from PyBlastAfterglowMag.skymap_tools import \
-        (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
+    import package.src.PyBlastAfterglowMag as PBA
 except ImportError:
     try:
-        from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
-        from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
-        from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
-        from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma,
-                                                           BetFromMom, GamFromMom, MomFromGam)
-        from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
-        from package.src.PyBlastAfterglowMag.id_maker_from_thc_ourflow import prepare_kn_ej_id_2d
-        from package.src.PyBlastAfterglowMag.skymap_tools import \
-            (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps)
-    except ImportError:
+        import PyBlastAfterglowMag as PBA
+    except:
         raise ImportError("Cannot import PyBlastAfterglowMag")
+
+day = 86400
 
 def id_dyn_test():
     workdir = os.getcwd()+'/'
@@ -96,7 +113,64 @@ def skymap_test():
     # exit(1)
 
 
+def plot_skymap_with_dists():
+    workdir = os.getcwd()+'/'
+    # Pre-process the intput data
+    fpath_2d_table = "corr_vel_inf_theta_BLh_M13641364_M0_LK_SR.h5"
+    outfpath_2d_id = "ejecta_2d_id_BLh_M13641364_M0_LK_SR.h5"
+    PBA.id_david.prepare_kn_ej_id_2d(nlayers=100,corr_fpath=workdir+fpath_2d_table,outfpath=workdir+outfpath_2d_id, dist="pw")
+
+    dfile = h5py.File(workdir+outfpath_2d_id,"r")
+    mom=np.array(dfile["mom"])
+    ctheta=np.array(dfile["ctheta"])
+    mass=np.array(dfile["mass"])
+    ek=np.array(dfile["ek"])
+
+    PBA.id_kenta.EjStruct.plot_init_profile(mom=mom[:,0],ctheta=ctheta[0,:],mass=mass)
+    # raise ValueError()
+
+    pba = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+'/',readparfileforpaths=True,parfile="parfile.par")
+    pba.reload_parfile()
+
+    pba.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out", loglevel="info")
+
+    conf = {"nx":256, "ny":128, "extend_grid":1, "fwhm_fac":0.5, "lat_dist_method":"integ",
+            "intp_filter":{ "type":"gaussian", "sigma":3, "mode":'reflect' }, # "gaussian"
+            "hist_filter":{ "type":"gaussian", "sigma":3, "mode":'reflect' }}
+    prep = PBA.skymap_process.ProcessRawSkymap(conf=conf, verbose=True)
+    prep.process_singles(infpaths=workdir+"raw_skymap_*.h5", outfpath=pba.KN.fpath_sky_map, remove_input=False)
+
+    config = {
+        "gridspec": {
+            "width_ratios": (4, 2), "height_ratios": (2, 4),
+            "left": 0.14, "right": 0.95, "bottom": 0.1, "top": 0.96, "wspace": 0.05, "hspace": 0.05
+        },
+        "figname": "out", "paperpath": os.getcwd()+'/', "figfpath": os.getcwd()+'/', "save_pdf": False, "save_figs": True,
+        "show_figs": True,
+        "grid": False,
+        "figsize": (4.8, 4.8),
+        "type":"hist",
+        "cm": {"color": 'yellow', "marker": "o"},
+        "ysize": {"capsize": 2, "color": "yellow", "lw": 0.5},
+        "xsize": {"capsize": 2, "color": "yellow", "lw": 0.5},
+        "pcolormesh": {"cmap": 'inferno', "set_under": None, "set_over": None, "set_rasterized": True,
+                       "norm": ("linear", "0.1max", "1max"), "facecolor": 0, "alpha": 1.0, "isnan": np.nan},
+        "xlim": (-1., 1.0), "ylim": (-1.0, 1.0),
+        "title": {"title": "time_fluxratio"},  # "time_fluxratio"
+        "cbar_title": r'$I_{\nu}^{\rm w}/I_{\nu}^{\rm w/o}$',
+        "xlabel": "x [mas]", "ylabel": "z [mas]",
+        "histx_backgound_color": "black",
+        "histy_backgound_color": "black",
+        "plot_grids":True,
+        "histx_lim":(1e-4,1e-2),
+        "histy_lim":(1e-4,1e-2)
+    }
+    time= 120*day; freq= 1e9
+    PBA.skymap_plotting_tools.full_plot_skymap_with_hists(skymap=pba.KN.get_skymap(time=time, freq=freq), conf=config)
+
 def main():
+    plot_skymap_with_dists()
+
     # skymap_test()
     # id_dyn_test()
 
@@ -104,19 +178,19 @@ def main():
     # Pre-process the intput data
     fpath_2d_table = "corr_vel_inf_theta_BLh_M13641364_M0_LK_SR.h5"
     outfpath_2d_id = "ejecta_2d_id_BLh_M13641364_M0_LK_SR.h5"
-    prepare_kn_ej_id_2d(nlayers=100,corr_fpath=workdir+fpath_2d_table,outfpath=workdir+outfpath_2d_id, dist="pw")
+    PBA.id_david.prepare_kn_ej_id_2d(nlayers=100,corr_fpath=workdir+fpath_2d_table,outfpath=workdir+outfpath_2d_id, dist="pw")
 
     # fpath_1d_table = "hist_vel_inf_BLh_M13641364_M0_LK_SR.dat"
     # outfpath_1d_id = "ejecta_1d_id_BLh_M13641364_M0_LK_SR.h5"
     # prepare_kn_ej_id_1d(nlayers=30, hist_fpath=workdir+fpath_1d_table, outfpath=workdir+outfpath_1d_id)
 
-    pba = PyBlastAfterglow(workingdir=os.getcwd()+'/',readparfileforpaths=True,parfile="parfile.par")
+    pba = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+'/',readparfileforpaths=True,parfile="parfile.par")
 
-    modify_parfile_par_opt(workingdir=workdir,part="kn",newpars={}, newopts={ "fname_ejecta_id":outfpath_2d_id},
+    PBA.parfile_tools.modify_parfile_par_opt(workingdir=workdir,part="kn",newpars={}, newopts={ "fname_ejecta_id":outfpath_2d_id},
                            parfile="parfile.par",newparfile="parfile.par",keep_old=False)
 
     pba.reload_parfile()
-    pba.run()
+    pba.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out", loglevel="info")
 
 
 

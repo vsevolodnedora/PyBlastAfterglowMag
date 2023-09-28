@@ -43,13 +43,16 @@ import os
 
 from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
 from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
-from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
+from package.src.PyBlastAfterglowMag.interface import (distribute_and_parallel_run, get_str_val, set_parlists_for_pars)
 from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma,
                                                    BetFromMom, GamFromMom, MomFromGam)
-from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
-from package.src.PyBlastAfterglowMag.skymap_tools import \
-    (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps,
-     combine_images,get_skymap_lat_dist,_plot_skymap_with_hists,get_skymap_fwhm)
+from package.src.PyBlastAfterglowMag.id_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+from package.src.PyBlastAfterglowMag.skymap_plotting_tools import \
+    (plot_skymaps, plot_skymap_properties_evolution, plot_one_skymap_with_dists, precompute_skymaps,
+     combine_images, get_skymap_lat_dist, plot_skymap_with_hists, get_skymap_fwhm)
+
+
+
 def task_kn_skymap_with_dist_one_time(method_eats="piece-wise",type="pw"):
 
     workdir = os.getcwd()+'/'
@@ -232,8 +235,8 @@ def compare_skymaps(resolutions=((80,100,120),
                 ax_main = axes[i+1][0]; ax_histx=axes[0,0]; ax_histy=None
             else:
                 ax_main = axes[i+1]; ax_histx=axes[0]; ax_histy=None
-            im = _plot_skymap_with_hists(ax_main, ax_histx, ax_histy, _, tmp,
-                 grid_x_j, grid_y_j, int_x_j, int_y_j, i_zz_x_j, i_zz_y_j, int_zz_j, xc_m_j, yc_m_j)
+            im = plot_skymap_with_hists(ax_main, ax_histx, ax_histy, _, tmp,
+                                        grid_x_j, grid_y_j, int_x_j, int_y_j, i_zz_x_j, i_zz_y_j, int_zz_j, xc_m_j, yc_m_j)
             # ax_cbar = axes[i+1][0]
             # divider = make_axes_locatable(ax_cbar)
             # cax = divider.append_axes('left', size='99%', pad=0.9)
@@ -273,8 +276,8 @@ def compare_skymaps(resolutions=((80,100,120),
                 ax_main = axes[i+1][1]; ax_histx=axes[0,1]; ax_histy=None
             else:
                 ax_main = axes[i+1]; ax_histx=axes[0]; ax_histy=None
-            im = _plot_skymap_with_hists(ax_main, ax_histx, ax_histy, _, tmp,
-                  grid_x_j, grid_y_j, int_x_j, int_y_j, i_zz_x_j, i_zz_y_j, int_zz_j, xc_m_j, yc_m_j)
+            im = plot_skymap_with_hists(ax_main, ax_histx, ax_histy, _, tmp,
+                                        grid_x_j, grid_y_j, int_x_j, int_y_j, i_zz_x_j, i_zz_y_j, int_zz_j, xc_m_j, yc_m_j)
 
         # tot_fluxes[f"nlayer_a={nlayer_a} nlayer_pw={nlayer_pw}"] = f" A={pba_a.GRB.get_skymap_totfluxes(freq=freq,time=time_* cgs.day)}" + \
         #                                                  f" lc:({pba_a.GRB.get_lc(freq=freq,time=time_* cgs.day)})"
@@ -429,8 +432,8 @@ def compare_skymaps_theta_im_max(nlayer_a = 321, theta_maxs=((0.2, 0.4, .9, 1.2,
                                                                collapse_axis="y", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
         xc_m_j, yc_m_j = pba_a.GRB.get_skymap_cm(all_x_jet, all_y_jet, all_fluxes_jet)
         ax_main = axes[i+1]; ax_histx=axes[0]; ax_histy=None
-        im = _plot_skymap_with_hists(ax_main, ax_histx, ax_histy, _, tmp,
-                                     grid_x_j, grid_y_j, int_x_j, int_y_j, i_zz_x_j, i_zz_y_j, int_zz_j, xc_m_j, yc_m_j)
+        im = plot_skymap_with_hists(ax_main, ax_histx, ax_histy, _, tmp,
+                                    grid_x_j, grid_y_j, int_x_j, int_y_j, i_zz_x_j, i_zz_y_j, int_zz_j, xc_m_j, yc_m_j)
 
         tot_fluxes[f"nlayer_a={nlayer_a} theta_max={theta_max}"] = f" A={pba_a.GRB.get_skymap_totfluxes(freq=freq,time=times[3]* cgs.day)}"
         # --- COLOBAR
@@ -795,7 +798,7 @@ def main():
     # task_kn_skymap_with_dist_one_time(method_eats="adaptive",type="a")
     compare_skymaps(resolutions=(#s(80,100,120,140,160),
                                  # (11,17,21,27,37),
-                                 (150,200,250,300),
+                                 (120,160,200,340),
                                  # ((20,11),(30,11),(40,11)),
                                  # ((11,41),(21,11),(41,11),(61,2)),
                                  ((81,1),(61,2),(41,3),(31,5)),

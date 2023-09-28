@@ -74,15 +74,16 @@ rtol_adapt = 1e-5
 
 run_bws = yes
 load_dynamics = no
-save_dynamics = yes
+save_dynamics = no
 do_ele = yes
 do_spec = no
 save_spec = no
 do_lc = no
 do_skymap = yes
+save_raw_skymap = yes
 
 do_rs = no
-rhs_type = ej
+bw_type = fs
 method_eats = piece-wise # piece-wise
 method_collision = none
 
@@ -101,7 +102,7 @@ do_nucinj = no
 
 method_spread = None
 method_eos = Nava13
-method_GammaSh = useJKwithGammaRel # small effect
+method_GammaSh = useGammaShock
 method_Up = useEint2 # !
 method_Delta = useJoh06
 use_adiabLoss = yes
@@ -124,5 +125,7 @@ method_quad = CADRE
 method_comp_mode = observFlux # "comovSpec",#"observFlux"
 emissivity = em
 absorption = abs
+
+skymap_remove_mu = yes
 
 # --------------------------- END ---------------------------

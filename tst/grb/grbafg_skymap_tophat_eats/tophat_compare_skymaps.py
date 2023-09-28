@@ -43,13 +43,13 @@ import os
 
 from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt, combine_images_old
 from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
-from package.src.PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
+from package.src.PyBlastAfterglowMag.interface import (distribute_and_parallel_run, get_str_val, set_parlists_for_pars)
 from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma,
                                                    BetFromMom, GamFromMom, MomFromGam)
-from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
-from package.src.PyBlastAfterglowMag.skymap_tools import \
-    (plot_skymaps,plot_skymap_properties_evolution,plot_one_skymap_with_dists,precompute_skymaps,
-     combine_images,get_skymap_lat_dist,_plot_skymap_with_hists,get_skymap_fwhm)
+from package.src.PyBlastAfterglowMag.id_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
+from package.src.PyBlastAfterglowMag.skymap_plotting_tools import \
+    (plot_skymaps, plot_skymap_properties_evolution, plot_one_skymap_with_dists, precompute_skymaps,
+     combine_images, get_skymap_lat_dist, plot_skymap_with_hists, get_skymap_fwhm)
 
 
 
@@ -127,8 +127,8 @@ def compare_skymaps(resolutions=((80,100,120),
                 ax_main = axes[i+1][0]; ax_histx=axes[0,0]; ax_histy=None
             else:
                 ax_main = axes[i+1]; ax_histx=axes[0]; ax_histy=None
-            im = _plot_skymap_with_hists(ax_main, ax_histx, ax_histy, _, tmp,
-                 grid_x_j, grid_y_j, int_x_j, int_y_j, i_zz_x_j, i_zz_y_j, int_zz_j, xc_m_j, yc_m_j)
+            im = plot_skymap_with_hists(ax_main, ax_histx, ax_histy, _, tmp,
+                                        grid_x_j, grid_y_j, int_x_j, int_y_j, i_zz_x_j, i_zz_y_j, int_zz_j, xc_m_j, yc_m_j)
             # ax_cbar = axes[i+1][0]
             # divider = make_axes_locatable(ax_cbar)
             # cax = divider.append_axes('left', size='99%', pad=0.9)
@@ -166,8 +166,8 @@ def compare_skymaps(resolutions=((80,100,120),
                 ax_main = axes[i+1][1]; ax_histx=axes[0,1]; ax_histy=None
             else:
                 ax_main = axes[i+1]; ax_histx=axes[0]; ax_histy=None
-            im = _plot_skymap_with_hists(ax_main, ax_histx, ax_histy, _, tmp,
-                  grid_x_j, grid_y_j, int_x_j, int_y_j, i_zz_x_j, i_zz_y_j, int_zz_j, xc_m_j, yc_m_j)
+            im = plot_skymap_with_hists(ax_main, ax_histx, ax_histy, _, tmp,
+                                        grid_x_j, grid_y_j, int_x_j, int_y_j, i_zz_x_j, i_zz_y_j, int_zz_j, xc_m_j, yc_m_j)
 
         tot_fluxes[f"nlayer_a={nlayer_a} nlayer_pw={nlayer_pw}"] = f" PW={pba_pw.GRB.get_skymap_totfluxes(freq=freq,time=time_* cgs.day)}" + \
                                                                        f" lc:({pba_pw.GRB.get_lc(freq=freq,time=time_* cgs.day)})" + \
@@ -319,8 +319,8 @@ def compare_skymaps_theta_im_max(nlayer_a = 321, theta_maxs=((0.2, 0.4, .9, 1.2,
                                                                collapse_axis="y", nx=tmp["hist_nx"], ny=tmp["hist_ny"])
         xc_m_j, yc_m_j = pba_a.GRB.get_skymap_cm(all_x_jet, all_y_jet, all_fluxes_jet)
         ax_main = axes[i+1]; ax_histx=axes[0]; ax_histy=None
-        im = _plot_skymap_with_hists(ax_main, ax_histx, ax_histy, _, tmp,
-                                     grid_x_j, grid_y_j, int_x_j, int_y_j, i_zz_x_j, i_zz_y_j, int_zz_j, xc_m_j, yc_m_j)
+        im = plot_skymap_with_hists(ax_main, ax_histx, ax_histy, _, tmp,
+                                    grid_x_j, grid_y_j, int_x_j, int_y_j, i_zz_x_j, i_zz_y_j, int_zz_j, xc_m_j, yc_m_j)
 
         tot_fluxes[f"nlayer_a={nlayer_a} theta_max={theta_max}"] = f" A={pba_a.GRB.get_skymap_totfluxes(freq=freq,time=times[3]* cgs.day)}"
         # --- COLOBAR
@@ -444,7 +444,10 @@ def compare_skymaps_3d(resolutions=((20,40,80,100,120),
         all_x_jet_a, all_y_jet_a, all_fluxes_jet_a \
             = pba_a.GRB.get_skymap(time=time * cgs.day, freq=freq, verbose=False, remove_mu=True, renormalize=False, normtype='pw', remove_zeros=True)
 
+
+
         ax_b = fig.add_subplot(1, 2, 2, projection='3d')
+        xc_m_j, yc_m_j = pba_a.GRB.get_skymap_cm(all_x_jet_a, all_y_jet_a, all_fluxes_jet_a)
 
         my_norm_a = None
         for (x_jet_a, y_jet_a, fluxes_jet_a) in zip(all_x_jet_a, all_y_jet_a, all_fluxes_jet_a):
@@ -470,7 +473,9 @@ def compare_skymaps_3d(resolutions=((20,40,80,100,120),
             ax_b.set_xlabel('X Label')
             ax_b.set_ylabel('Y Label')
             ax_b.set_zlabel('I Label')
-            # ax_b.set_zlim(np.log10(fluxes_jet_a.flatten()).max()*1e-2,np.log10(fluxes_jet_a.flatten()).max())
+            ax_b.scatter(np.full_like(fluxes_jet_a,xc_m_j), np.full_like(fluxes_jet_a,yc_m_j), fluxes_jet_a.flatten())
+
+        # ax_b.set_zlim(np.log10(fluxes_jet_a.flatten()).max()*1e-2,np.log10(fluxes_jet_a.flatten()).max())
         ax_b.set_title(f"Tot.Flux={pba_a.GRB.get_skymap_totfluxes(freq=freq,time=time * cgs.day)}")
 
 
@@ -481,7 +486,8 @@ def compare_skymaps_3d(resolutions=((20,40,80,100,120),
     plt.show()
 def compare_skymaps_3d_theta_im_max(theta_maxs=((0.2, 0.4, .9, 1.2,  1.57),
                                                  (121,321,521,621,721),
-                                                 ('red','orange','yellow', 'cyan', 'lime')), extend=2, nx = 41, ny = 31):
+                                                 ('red','orange','yellow', 'cyan', 'lime')),
+                                    extend=2, nx = 41, ny = 31):
 
     theta_w = 0.2# np.pi/2.
     times = np.array([1.,10.,40.,100.,200.,400.,800.,1600.])
@@ -696,13 +702,13 @@ def compare_skymap_evolution(resolutions=((21,81,121,161,201),
 def main():
     # task_kn_skymap_with_dist_one_time(method_eats="piece-wise",type="pw")
     # task_kn_skymap_with_dist_one_time(method_eats="adaptive",type="a")
-    # compare_skymaps(resolutions=((80,100,120,140),
-    #                              # (21,41,81,101,121),
-    #                              # (81,),
-    #                              # (220,),
-    #                              (101,141,181,221),
-    #                              # (121,),
-    #                              ('red','orange','yellow', 'cyan', 'lime')))
+    compare_skymaps(resolutions=((80,100,120,140),
+                                 # (21,41,81,101,121),
+                                 # (81,),
+                                 # (220,),
+                                 (101,141,181,221),
+                                 # (121,),
+                                 ('red','orange','yellow', 'cyan', 'lime')))
     # compare_skymaps_3d(resolutions=((80,),
     #                              (701,),
     #                              # (21,81,121,161,201),
@@ -713,11 +719,11 @@ def main():
     #                              (121,),
     #                              # (121,241,381,401,521),
     #                              ('orange')))
-    # compare_skymaps_theta_im_max(nlayer_a = 21, theta_maxs=((0.2, 0.4, .9, 1.2,  1.57),
-    #                              ('red','orange','yellow', 'cyan', 'lime')))
+    compare_skymaps_theta_im_max(nlayer_a = 21, theta_maxs=((0.2, 0.4, .9, 1.2,  1.57),
+                                 ('red','orange','yellow', 'cyan', 'lime')))
 
     # compare_skymaps_3d(resolutions=((21,),
-    #                              (121,),
+    #                              (31,),
     #                              # (21,81,121,161,201),
     #                              # (121,241,381,401,521),
     #                              ('red','orange','yellow', 'cyan', 'lime')))
