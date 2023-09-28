@@ -117,7 +117,7 @@ std::vector<double> smoothInterpolation(const std::vector<double>& inputFunction
     return interpolatedFunction;
 }
 
-static inline double interpSegLin( size_t & a, size_t & b, const double & x, Vector & X, Vector & Y) {
+static inline double interpSegLin( size_t & a, size_t & b, const double & x, const Vector & X, const Vector & Y) {
     // take two indexis, 'a' 'b' and two arrays 'X' and 'Y' and interpolate
     // between them 'Y' for at 'x" of "X'
     double xa = X[a];
@@ -126,7 +126,7 @@ static inline double interpSegLin( size_t & a, size_t & b, const double & x, Vec
     double yb = Y[b];
     return ya + (yb-ya) * (x-xa)/(xb-xa);
 }
-static inline double interpSegLin( size_t ia, size_t ib, double xa, double xb, const double & x, Vector & Y) {
+static inline double interpSegLin( size_t ia, size_t ib, const double xa, const double xb, const double & x, const Vector & Y) {
     // take two indexis, 'a' 'b' and two arrays 'X' and 'Y' and interpolate
     // between them 'Y' for at 'x" of "X'
     double ya = Y[ia];
@@ -197,7 +197,7 @@ public:
 class Interp1d : public InterpBase{
 public:
 
-    Interp1d(Vector & x, Vector & y) : m_X(x), m_Y(y)
+    Interp1d(const Vector & x, const Vector & y) : m_X(x), m_Y(y)
     {
         m_nX = x.size();
         m_nY = y.size();
@@ -277,7 +277,7 @@ public:
     }
 
 private:
-    Vector & m_X, & m_Y;
+    const Vector & m_X, & m_Y;
     size_t m_nX, m_nY;
 
 protected:

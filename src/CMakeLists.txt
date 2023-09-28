@@ -20,7 +20,7 @@ include_directories ( ${HDF5_INCLUDE_DIR} )
 #set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -O2 -std=c++17 -Wall -g -lstdc++fs -lpthread -fopenmp -lhdf5_hl -lhdf5 -lhdf5_cpp")
 
 #SET(MY_VARIABLE "option_value" CACHE STRING "../tst/dynamics/parfile.par")
-set_target_properties(${TARGET_NAME} PROPERTIES VS_DEBUGGER_COMMAND_ARGUMENTS "../tst/dynamics/parfile.par" )
+set_target_properties(${TARGET_NAME} PROPERTIES VS_DEBUGGER_COMMAND_ARGUMENTS "../tst/blastwave/dynamics/parfile.par" )
 
 add_executable(src main.cpp model_magnetar.h ssc.h)
 

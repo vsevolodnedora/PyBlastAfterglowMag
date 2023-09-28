@@ -36,7 +36,9 @@ except ImportError:
         import PyBlastAfterglowMag as PBA
     except:
         raise ImportError("Cannot import PyBlastAfterglowMag")
+
 from settings import SIMULATIONS
+from paths import *
 
 class ParallelRuns():
     def __init__(self,
@@ -162,7 +164,7 @@ class ParallelRuns():
         """
 
         pba_parallel = PBA.parallel_runs.ParallelRunDispatcher(
-            path_to_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",
+            path_to_executable=EXECUTABLE,
             loglevel=loglevel,
             working_dirs=self.working_dirs,
             parfile_name="parfile.par",
@@ -185,7 +187,7 @@ class ParallelRuns():
 
 def example_run(sim, text : int):
     pr = ParallelRuns(
-        afg_data_dir="/media/vsevolod/T7/work/afterglowKentaProject/",
+        afg_data_dir=AFGRUNDIR,
         dir_for_run=sim["name"]+"/")
     iter_pars_dict = {
         "n_ism": [1.0, 0.1, 0.01, 0.001]
@@ -201,7 +203,7 @@ def example_run(sim, text : int):
     pr.setup_3_id(text=text, fpath_collated_ejecta=sim["datadir"] + "ej_collated.h5")
 
     skymap_postprocess_conf = {
-        "nx":48, "ny":32, "extend_grid":1, "fwhm_fac":0.5, "lat_dist_method":"integ",
+        "nx":256, "ny":128, "extend_grid":1, "fwhm_fac":0.5, "lat_dist_method":"integ",
         "intp_filter":{ "type":None, "sigma":2, "mode":'reflect' }, # "gaussian"
         "hist_filter":{ "type":None, "sigma":2, "mode":'reflect' }
     }

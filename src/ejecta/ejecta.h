@@ -24,12 +24,14 @@
 class Ejecta : public EjectaBase{
     std::unique_ptr<Output> p_out = nullptr;
     std::unique_ptr<logger> p_log = nullptr;
+
 public:
     Ejecta(Vector & t_arr, int loglevel) : EjectaBase(t_arr, loglevel) {
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "Ejecta");
         p_out = std::make_unique<Output>(loglevel);
     }
 
+    /// dispatch tasks
     void processEvolved(StrDbMap & main_pars, StrStrMap & main_opts){
         /// work on GRB afterglow
         if (run_bws || load_dyn){
@@ -80,6 +82,70 @@ public:
         }
     }
 
+    /// compute optical depth along the line of sight in ejecta
+    bool evalOptDepthsAlongLineOfSight(double & frac, double & tau_comp, double & tau_BH, double tau_bf,
+                                       double ctheta, double rpwn, double phi, double theta,
+                                       double phi_obs, double theta_obs, double r_obs, size_t il,
+                                       double time,  //size_t ia, size_t ib, double ta, double tb,
+                                       double freq, double z, size_t info_ilpwn,
+                                       void * params) {
+        auto * p_pars = (struct PWNPars *) params;
+        std::vector<std::string> lightpath {};
+        for (size_t ish = 0; ish < nshells(); ish++){
+            auto & cumshell = p_cumShells[il];
+            auto & bw = cumshell->getBW(ish);
+            /// skip if this shells was not initialized or evolved
+            if (bw->getPars()->i_end_r==0) { status[il][ish] = 'N'; continue; }
+            size_t ia=0, ib=0;
+            bool res = false;
+            res = bw->evalEATSindexes(ia,ib,time,z,ctheta,phi,theta_obs,obsAngle);\
+            /// skip if there is no EATS surface for the time 'time'
+            if (!res){ status[il][ish] = 'T'; continue; }
+            Vector & ttobs = bw->getPars()->ttobs;
+            /// skip if at EATS times there the BW is no loger evolved (collided)
+            if ((bw->getData()[BW::Q::iEJr][ia] == 0)||(bw->getData()[BW::Q::iEJr][ib] == 0)) { status[il][ish] = 'n'; continue;  }
+            double rej = interpSegLog(ia, ib, time, ttobs, bw->getData()[BW::Q::iR]);
+            /// skip if at time the PWN outruns the ejecta shell (should never occure)
+            if ( rpwn > rej){ status[il][ish] = 'R'; continue; }
+            /// if this is the first entry, change the value to 0
+            if (tau_comp < 0){tau_comp = 0.;}
+            if (tau_BH < 0){tau_BH = 0.;}
+            if (tau_bf < 0){tau_bf = 0.;}
+            /// evaluate the optical depths at this time and this freq.
+            double _tau_comp, _tau_BH, _tau_bf;
+            bw->evalOpticalDepths(_tau_comp,_tau_BH,_tau_bf,ia,ib,time,freq);
+            tau_comp+=_tau_comp; tau_BH+=_tau_BH; tau_bf+=_tau_bf;
+            /// save for debugging
+            lightpath.push_back("il="+std::to_string(il)
+                                +" ish="+std::to_string(ish)
+                                + " comp="+std::to_string(_tau_comp)
+                                + " BH="+std::to_string(_tau_BH)
+                                + " bf="+std::to_string(_tau_bf));
+            status[il][ish] = '+';
+        }
+        /// Combine individual optical depths into fraction
+        double power_Compton=0.0;
+        if (tau_comp > 1.0)
+            power_Compton = tau_comp*tau_comp;
+        else
+            power_Compton = tau_comp;
+
+        double e_gamma = freq * 6.62606957030463E-27;// Hz -> erg  *4.1356655385381E-15*CGS::EV_TO_ERG; // TODO this has to be red-shifted!
+//        double e_gamma = freq * 4.1356655385381E-15;
+        frac = exp(-(tau_BH+tau_bf))
+               * (exp(-(tau_comp)) + (1.0 - exp(-(tau_comp))) * pow(1.0 - PWNradiationMurase::gamma_inelas_Compton(e_gamma),power_Compton));
+//        (*p_log)(LOG_INFO,AT) << "[ilpw="<<info_ilpwn<<", ctheta="<<ctheta<<", rpwn="<<rpwn<<", "<<"t="<<time<<"] "
+//                              << " tau_comp="<<tau_comp<<" tau_BH="<<tau_BH<<" tau_bf="<<tau_bf<<" -> frac="<<frac<<"\n";
+        if ((frac<0)||(frac>1)||!std::isfinite(frac)){
+            (*p_log)(LOG_ERR,AT) << "[ilpw=" << info_ilpwn << ", ctheta=" << ctheta << ", rpwn=" << rpwn << ", " << "t=" << time << "] "
+                                 <<" tau_comp="<<tau_comp<<" tau_BH="<<tau_BH<<" tau_bf="<<tau_bf<<" -> frac="<<frac<<"\n";
+//            exit(1);
+            return false;
+        }
+        return true;
+    }
+
+private:
     /// COMPUTE electrons
     void setPreComputeEjectaAnalyticElectronsPars(){//(StrDbMap pars, StrStrMap opts){
         (*p_log)(LOG_INFO,AT) << "Computing Ejecta analytic electron pars...\n";
@@ -876,67 +942,7 @@ public:
         return true;
     }
 #endif
-    bool evalOptDepthsAlongLineOfSight(double & frac, double & tau_comp, double & tau_BH, double tau_bf,
-                                       double ctheta, double rpwn, double phi, double theta,
-                                       double phi_obs, double theta_obs, double r_obs, size_t il,
-                                       double time,  //size_t ia, size_t ib, double ta, double tb,
-                                       double freq, double z, size_t info_ilpwn,
-                                       void * params) {
-        auto * p_pars = (struct PWNPars *) params;
-        std::vector<std::string> lightpath {};
-        for (size_t ish = 0; ish < nshells(); ish++){
-            auto & cumshell = p_cumShells[il];
-            auto & bw = cumshell->getBW(ish);
-            /// skip if this shells was not initialized or evolved
-            if (bw->getPars()->i_end_r==0) { status[il][ish] = 'N'; continue; }
-            size_t ia=0, ib=0;
-            bool res = false;
-            res = bw->evalEATSindexes(ia,ib,time,z,ctheta,phi,theta_obs,obsAngle);\
-            /// skip if there is no EATS surface for the time 'time'
-            if (!res){ status[il][ish] = 'T'; continue; }
-            Vector & ttobs = bw->getPars()->ttobs;
-            /// skip if at EATS times there the BW is no loger evolved (collided)
-            if ((bw->getData()[BW::Q::iEJr][ia] == 0)||(bw->getData()[BW::Q::iEJr][ib] == 0)) { status[il][ish] = 'n'; continue;  }
-            double rej = interpSegLog(ia, ib, time, ttobs, bw->getData()[BW::Q::iR]);
-            /// skip if at time the PWN outruns the ejecta shell (should never occure)
-            if ( rpwn > rej){ status[il][ish] = 'R'; continue; }
-            /// if this is the first entry, change the value to 0
-            if (tau_comp < 0){tau_comp = 0.;}
-            if (tau_BH < 0){tau_BH = 0.;}
-            if (tau_bf < 0){tau_bf = 0.;}
-            /// evaluate the optical depths at this time and this freq.
-            double _tau_comp, _tau_BH, _tau_bf;
-            bw->evalOpticalDepths(_tau_comp,_tau_BH,_tau_bf,ia,ib,time,freq);
-            tau_comp+=_tau_comp; tau_BH+=_tau_BH; tau_bf+=_tau_bf;
-            /// save for debugging
-            lightpath.push_back("il="+std::to_string(il)
-                                +" ish="+std::to_string(ish)
-                                + " comp="+std::to_string(_tau_comp)
-                                + " BH="+std::to_string(_tau_BH)
-                                + " bf="+std::to_string(_tau_bf));
-            status[il][ish] = '+';
-        }
-        /// Combine individual optical depths into fraction
-        double power_Compton=0.0;
-        if (tau_comp > 1.0)
-            power_Compton = tau_comp*tau_comp;
-        else
-            power_Compton = tau_comp;
 
-        double e_gamma = freq * 6.62606957030463E-27;// Hz -> erg  *4.1356655385381E-15*CGS::EV_TO_ERG; // TODO this has to be red-shifted!
-//        double e_gamma = freq * 4.1356655385381E-15;
-        frac = exp(-(tau_BH+tau_bf))
-               * (exp(-(tau_comp)) + (1.0 - exp(-(tau_comp))) * pow(1.0 - PWNradiationMurase::gamma_inelas_Compton(e_gamma),power_Compton));
-//        (*p_log)(LOG_INFO,AT) << "[ilpw="<<info_ilpwn<<", ctheta="<<ctheta<<", rpwn="<<rpwn<<", "<<"t="<<time<<"] "
-//                              << " tau_comp="<<tau_comp<<" tau_BH="<<tau_BH<<" tau_bf="<<tau_bf<<" -> frac="<<frac<<"\n";
-        if ((frac<0)||(frac>1)||!std::isfinite(frac)){
-            (*p_log)(LOG_ERR,AT) << "[ilpw=" << info_ilpwn << ", ctheta=" << ctheta << ", rpwn=" << rpwn << ", " << "t=" << time << "] "
-                                 <<" tau_comp="<<tau_comp<<" tau_BH="<<tau_BH<<" tau_bf="<<tau_bf<<" -> frac="<<frac<<"\n";
-//            exit(1);
-            return false;
-        }
-        return true;
-    }
 #if 0 // uses t_obs
     bool evalOptDepthsAlongLineOfSight(double & frac, double & tau_comp, double & tau_BH, double tau_bf,
                                        double ctheta, double r, double phi, double theta,

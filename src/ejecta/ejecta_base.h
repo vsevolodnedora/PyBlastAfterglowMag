@@ -142,8 +142,6 @@ public:
         m_pars = pars;
         m_opts = opts;
         /// read GRB afterglow parameters
-//        StrDbMap m_pars; StrStrMap m_opts;
-//        run_bws=false; bool save_dyn=false, do_ele=false, do_spec=false, do_lc=false, do_skymap=false;
         if ((!m_pars.empty()) || (!m_opts.empty())) {
             run_bws   = getBoolOpt("run_bws", m_opts, AT, p_log, false, true);
             save_dyn  = getBoolOpt("save_dynamics", m_opts, AT, p_log, false, true);
@@ -153,6 +151,7 @@ public:
             save_spec = getBoolOpt("save_spec", m_opts, AT, p_log, false, true);
             do_lc     = getBoolOpt("do_lc", m_opts, AT, p_log, false, true);
             do_skymap = getBoolOpt("do_skymap", m_opts, AT, p_log, false, true);
+            /// copy parameters from the main to ejecta (same for all ejecta types)
             for (auto &key: {"n_ism", "d_l", "z", "theta_obs", "A0", "s", "r_ej", "r_ism"}) {
                 if (main_pars.find(key) == main_pars.end()) {
                     (*p_log)(LOG_ERR, AT) << " keyword '" << key << "' is not found in main parameters. \n";
@@ -375,7 +374,7 @@ public:
 //            }
 //        }
 
-        ej_rtol = getDoublePar("rtol_adapt",pars,AT,p_log,-1, true);
+//        ej_rtol = getDoublePar("rtol_adapt",pars,AT,p_log,-1, true);
 
         std::string method_collision = getStrOpt("method_collision", opts, AT,p_log, "none", true);
         if (method_collision != "none") {
@@ -389,8 +388,6 @@ public:
         (*p_log)(LOG_INFO,AT) << "finished initializing ejecta. "
                                  "nshells="<<nshells()<<" nlayers="<<nlayers()<<"\n";
     }
-
-    double ej_rtol = 1e-5;
 
     void infoFastestShell(size_t it, const double * Ym1, const double * Y, logger sstream){
         size_t n_active_min = std::numeric_limits<size_t>::max(); int il_with_min_nact = -1;

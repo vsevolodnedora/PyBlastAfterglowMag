@@ -16,7 +16,8 @@ enum BW_TYPES { iFS, iFSRS, iFS_DENSE, iFS_PWN_DENSE };
 
 enum METHODS_Up { iuseEint2, iuseGamma }; // energy density behind the shock
 enum METHOD_Delta { iuseJoh06, iuseVE12, iNoDelta }; // thickness of the shock
-enum METHOD_GammaSh { iuseJK, isameAsGamma, iuseGammaRel, iuseJKwithGammaRel };
+//enum METHOD_GammaSh { iuseJK, isameAsGamma, iuseGammaRel, iuseJKwithGammaRel };
+enum METHOD_GammaSh { iuseGammaShock, iuseJustGamma, iuseJustGammaRel, iuseGammaRelShock };
 enum METHOD_RSh { isameAsR, iuseGammaSh };
 enum METHOD_dmdr{ iusingA, iusingdthdR, iNodmdr };
 enum METHOD_dgdr{ iour, ipeer };

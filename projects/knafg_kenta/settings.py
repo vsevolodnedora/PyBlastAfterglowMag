@@ -1,7 +1,4 @@
-DATADIR = "/media/vsevolod/T7/work/KentaData/"
-OUTDIR = "/media/vsevolod/T7/work/afterglowKentaProject/"
-
-
+from paths import *
 
 SIMULATIONS = [
     {

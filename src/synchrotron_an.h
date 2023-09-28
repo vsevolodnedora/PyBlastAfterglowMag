@@ -17,7 +17,14 @@ class RadiationBase{
 public:
     enum METHOD_TAU { iAPPROX, iTHICK, iSMOOTH, iSHARP };
 
-
+    /**
+     * Evaluate optical depth
+     * @param abs_lab
+     * @param dr
+     * @param mu
+     * @param beta_shock
+     * @return
+     */
     static inline double optical_depth(const double abs_lab, const double dr,
                                        const double mu, const double beta_shock){
         if (abs_lab <= 0.)
@@ -40,7 +47,7 @@ public:
     * @param beta_shock : shock velocity
     * @return
     */
-    static inline double computeIntensity(const double em_lab, double dtau, METHOD_TAU m_tau){
+    static double computeIntensity(const double em_lab, double dtau, METHOD_TAU m_tau){
 
         if ( dtau == 0 )
             return em_lab;
@@ -131,7 +138,7 @@ struct Margalit21 {
             value of a(Theta)
     */
     static inline double
-    a_fun(const double &Theta) {
+    a_fun(const double Theta) {
         double val = (6.0 + 15.0 * Theta) / (4.0 + 5.0 * Theta);
         return val;
     }
@@ -158,7 +165,7 @@ struct Margalit21 {
         Theta : float
             Dimensionless electron temperature = kb*Te/me*c**2
      */
-    static inline double
+    static double
     Theta_fun(const double beta, const double mu, const double mu_e, const double epsilon_T) {
 
         ///  eq. (3) of MQ21:
@@ -204,6 +211,11 @@ struct Margalit21 {
     f_fun(const double Theta) {
         //  Computes the irregular modified cylindrical Bessel function
         // (also known as modified Bessel function of the second kind) of ν and x.
+
+        /// TODO add assymptotic expansion for small Theta
+        if (Theta < 1.e-7)
+            return 0.;
+
         double tmp = 0;
         try {
             tmp = 2.0 * Theta * Theta / std::cyl_bessel_k(2, 1.0 / Theta);
@@ -233,8 +245,7 @@ struct Margalit21 {
     g_fun(const double Theta, double gamma_m, const double p) {
 //            const double gamma_m = gamma_m_fun(Theta);
         const double val = ((p - 1.0) * gamma_m / ((p - 1.0) * gamma_m - p + 2.0))
-                           * std::pow(gamma_m / (3.0 * Theta), (p - 1.0))
-        ;
+                           * std::pow(gamma_m / (3.0 * Theta), (p - 1.0));
 //                    * pow(1./3./Theta, (p - 1.0));
         return val;
     }
@@ -252,15 +263,15 @@ struct Margalit21 {
     I : float
             Spectral energy distribution function (eq. 13, MQ21)
     */
-    static inline double
+    static double
     I_of_x(const double x, const double Theta) {
 
         /// Mahadevan+95 "Harmony in Electrons"
         const size_t n = 7;
-        Vector temps = { 5e8, 1e9, 2e9, 4e9, 8e9, 1.6e10, 3.2e10 };
-        Vector alphas = { 0.0431, 1.121, 1.180, 1.045, 0.9774, 0.9768, 0.9788 };
-        Vector betas = {10.44, -10.65, -4.008, -0.1897, 1.160, 1.095, 1.021};
-        Vector gammas = {16.61, 9.169, 1.559, 0.0595, 0.2641, 0.8332, 1.031};
+        const Vector temps = { 5e8, 1e9, 2e9, 4e9, 8e9, 1.6e10, 3.2e10 };
+        const Vector alphas = { 0.0431, 1.121, 1.180, 1.045, 0.9774, 0.9768, 0.9788 };
+        const Vector betas = {10.44, -10.65, -4.008, -0.1897, 1.160, 1.095, 1.021};
+        const Vector gammas = {16.61, 9.169, 1.559, 0.0595, 0.2641, 0.8332, 1.031};
 
         Vector Thetas (temps.size());
         for (size_t i = 0; i < temps.size(); i++)
@@ -285,7 +296,7 @@ struct Margalit21 {
         const double i = 4.0505 * alpha * std::pow(x, -1.0 / 6.0)
                          * (1.0 + 0.40 * beta * std::pow(x, -0.25)
                             + 0.5316 * gamma * std::pow(x, -0.5))
-                         * exp(-1.8899 * std::pow(x, 1.0 / 3.0));
+                         * std::exp(-1.8899 * std::pow(x, 1.0 / 3.0));
         return i;
 
 
@@ -307,7 +318,7 @@ struct Margalit21 {
             Cj : float
             Synchrotron constant
     */
-    static inline double
+    static double
     C_j(const double p) {
         double tmp = 0;
         try {
@@ -316,7 +327,7 @@ struct Margalit21 {
                   ((p - 2.0) / (p + 1.0)) * std::pow(3.0, (2.0 * p - 1.0) / 2.0)
                   * std::pow(2.0, -(7.0 - p) / 2.0) * std::pow(M_PI, -0.5);
         } catch (const std::runtime_error& error) {
-            std::cout << AT << error.what() << "\n";
+            std::cout << AT << error.what() << " p = "<<p<<"\n";
         }
         return tmp;
     }
@@ -334,7 +345,7 @@ struct Margalit21 {
             Calpha : float
             Synchrotron constant
     */
-    static inline double
+    static double
     C_alpha(const double p) {
         double tmp = 0;
         try {
@@ -371,7 +382,7 @@ struct Margalit21 {
             val : float
             Correction term
     */
-    static inline double
+    static double
     low_freq_jpl_correction(double gamma_m, const double x, const double Theta, const double p) {
 //            double gamma_m = gamma_m_fun(Theta);
         /// synchrotron constant in x<<x_m limit
@@ -417,7 +428,7 @@ struct Margalit21 {
             val : float
             Correction term
     */
-    static inline double
+    static double
     low_freq_apl_correction(const double x, const double Theta, const double p) {
 
         double gamma_m = gamma_m_fun(Theta);
@@ -428,7 +439,7 @@ struct Margalit21 {
                          (std::pow(3.0, 19.0 / 6.0) * (3.0 * p + 2) * tgamma(1.0 / 3.0) * tgamma(-1.0 / 3.0) *
                           tgamma(11.0 / 6.0));
         } catch (const std::runtime_error& error) {
-            std::cout << AT << error.what() << "\n";
+            std::cout << AT << error.what() << " x="<<x<<" Theta="<<Theta<<" p="<<p<< "\n";
         }
         /// multiplicative correction term
         double corr = (Calpha_low / C_alpha(p)) * std::pow(gamma_m / (3.0 * Theta), -(3.0 * p + 2.0) / 3.0) *
@@ -464,7 +475,7 @@ struct Margalit21 {
     val : float
             Synchrotron emissivity
     */
-    static inline double
+    static double
     jnu_pl(const double x, const double n, const double B, const double Theta, const double gamma_m,
            const double delta, const double p, const double z_cool) {
 
@@ -508,7 +519,7 @@ struct Margalit21 {
     val : float
             Synchrotron absorption coefficient
     */
-    static inline double
+    static double
     alphanu_pl(const double x, const double n, const double B,
                const double Theta, const double gamma_m, const double delta, const double p,
                const double z_cool) {
@@ -549,11 +560,12 @@ struct Margalit21 {
     val : float
             Synchrotron emissivity
     */
-    static inline double
+    static double
     jnu_th(const double x, const double n, const double B, const double Theta, const double z_cool){
 
-        double val = (sqrt(3.0) / (8.0 * M_PI)) * (CGS::qe*CGS::qe*CGS::qe / (CGS::me * CGS::c * CGS::c))
-                     * f_fun(Theta) * n * B * x * I_of_x(x, Theta);
+        double val = (sqrt(3.0) / (8.0 * M_PI))
+                    * (CGS::qe*CGS::qe*CGS::qe / (CGS::me * CGS::c * CGS::c))
+                    * f_fun(Theta) * n * B * x * I_of_x(x, Theta);
         /// fast-cooling correction:
         double z0 = std::pow(2.0 * x, 1.0 / 3.0);
         val *= std::min( 1e0, 1./(z0/z_cool));
@@ -769,9 +781,9 @@ struct Margalit21 {
 };
 
 /// from Lamb+2818 model (from Fernandez GitHub repo)
-double interpolated_xi(const double &p){
+double interpolated_xi(const double p){
 
-    Vector p_xi = {
+    const Vector p_xi = {
             1.44449807, 1.48206417, 1.48206417, 1.49279734, 1.50353051,
             1.51963027, 1.54109661, 1.55361864, 1.58402929, 1.61944876,
             1.60012905, 1.64842832, 1.66989466, 1.70746076, 1.71282735,
@@ -791,7 +803,7 @@ double interpolated_xi(const double &p){
             5.86656455, 5.95242991, 5.9577965
     };
 
-    Vector Xi = {
+    const Vector Xi = {
             0.99441363, 0.99511912, 0.97241493, 0.95724356, 0.94207218,
             0.92309915, 0.90708165, 0.89361622, 0.8763981 , 0.84773936,
             0.86391198, 0.8286159 , 0.81232812, 0.7972488 , 0.78083371,
@@ -811,12 +823,12 @@ double interpolated_xi(const double &p){
             0.30824122, 0.68419991, 0.30534679
     };
 
-    return ( Interp1d(p_xi, Xi) ).Interpolate(p, Interp1d::iLagrangeLinear);
+    return ( Interp1d( p_xi, Xi) ).Interpolate(p, Interp1d::iLagrangeLinear);
     //return LinInterp(m_Xp.p_xi, m_Xp.Xi, p_xi,  false);
 }
-double interpolated_phi(const double &p){
+double interpolated_phi(const double p){
 
-    Vector p_phi = {
+    const Vector p_phi = {
             1.00621662, 1.04516293, 1.13098906, 1.21681519, 1.25720396,
             1.35312728, 1.46419639, 1.58608392, 1.62070287, 1.69643181,
             1.81759811, 1.85798688, 1.9589588 , 2.09022229, 2.23158298,
@@ -831,7 +843,7 @@ double interpolated_phi(const double &p){
             5.39200406, 5.44249002, 5.51821896, 5.57375351, 5.60909369,
             5.7151142 , 5.7726682 , 5.87666927, 5.93725242
     };
-    Vector phi = {
+    const Vector phi = {
             0.41141367, 0.41748522, 0.43521089, 0.45395245, 0.46103901,
             0.48129824, 0.50341068, 0.52512949, 0.53192933, 0.5467828 ,
             0.56618001, 0.5703882 , 0.58454897, 0.60117452, 0.61418181,
@@ -916,7 +928,7 @@ struct Dermer09{
      * @param x = ratio of the frequency to the critical synchrotron frequency
      * @return
      */
-    static double R(const double &x){
+    static double R(const double x){
 
         double term_1_num = 1.808 * std::pow(x, 1.0 / 3.0);
         double term_1_denom = sqrt(1 + 3.4 * std::pow(x, 2.0 / 3.0));
@@ -933,7 +945,7 @@ struct Dermer09{
      * @param epsilon = nuprim * h / (m_e * c^2) where nuprim is the freq. in comoving frame
      * @param gamma_arr = electron energy distribution in terms of lorentz factors
      */
-    static double single_electron_synch_power(const double &B, const double &epsilon, const double &gamma){
+    static double single_electron_synch_power(const double B, const double epsilon, const double gamma){
         double result = 0.;
         double prefactor = sqrt(3.0) * (CGS::qe * CGS::qe * CGS::qe) * B / CGS::h;
         double x = calc_x(B, epsilon, gamma);
@@ -1130,22 +1142,24 @@ public:
     std::unique_ptr<Pars> & getPars(){ return p_pars; }
     /// set model parameters
     void setPars(StrDbMap & pars, StrStrMap & opts){
+
         // set parameters
-        std::string _ss = "";
+        std::string fs_or_rs;
         if (is_rs)
-            _ss += "_rs";
-        p_pars->ksi_n = getDoublePar("ksi_n"+_ss,pars,AT,p_log,1.,false);//pars.at("ksi_n");
-        p_pars->eps_e = getDoublePar("eps_e"+_ss,pars,AT,p_log,-1,true);//pars.at("eps_e");
-        p_pars->eps_b = getDoublePar("eps_b"+_ss,pars,AT,p_log,-1,true);//pars.at("eps_b");
-        p_pars->eps_t = getDoublePar("eps_t"+_ss,pars,AT,p_log,0.,true);//pars.at("eps_t");
-        p_pars->p = getDoublePar("p"+_ss,pars,AT,p_log,-1,true);//pars.at("p");
-        p_pars->mu = getDoublePar("mu"+_ss,pars,AT,p_log,0.62,false);//pars.at("mu");
-        p_pars->mu_e = getDoublePar("mu_e"+_ss,pars,AT,p_log,1.18,false);//pars.at("mu_e");
-        p_pars->beta_min = getDoublePar("beta_min"+_ss,pars,AT,p_log,1.e-5,false);//pars.at("beta_min");
+            fs_or_rs += "_rs";
+
+        p_pars->ksi_n = getDoublePar("ksi_n" + fs_or_rs, pars, AT, p_log, 1., false);//pars.at("ksi_n");
+        p_pars->eps_e = getDoublePar("eps_e" + fs_or_rs, pars, AT, p_log, -1, true);//pars.at("eps_e");
+        p_pars->eps_b = getDoublePar("eps_b" + fs_or_rs, pars, AT, p_log, -1, true);//pars.at("eps_b");
+        p_pars->eps_t = getDoublePar("eps_t" + fs_or_rs, pars, AT, p_log, 0., true);//pars.at("eps_t");
+        p_pars->p = getDoublePar("p" + fs_or_rs, pars, AT, p_log, -1, true);//pars.at("p");
+        p_pars->mu = getDoublePar("mu" + fs_or_rs, pars, AT, p_log, 0.62, false);//pars.at("mu");
+        p_pars->mu_e = getDoublePar("mu_e" + fs_or_rs, pars, AT, p_log, 1.18, false);//pars.at("mu_e");
+        p_pars->beta_min = getDoublePar("beta_min" + fs_or_rs, pars, AT, p_log, 1.e-5, false);//pars.at("beta_min");
 
         // set options
         std::string opt;
-        opt = "method_synchrotron"+_ss;
+        opt = "method_synchrotron" + fs_or_rs;
         METHODS val_synch;
         if ( opts.find(opt) == opts.end() ) {
             (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
@@ -1173,7 +1187,7 @@ public:
         }
         p_pars->m_sychMethod = val_synch;
 
-        opt = "method_nonreldist"+_ss;
+        opt = "method_nonreldist" + fs_or_rs;
         SynchrotronAnalytic::METHOD_NONRELDIST val_monreldist;
         if ( opts.find(opt) == opts.end() ) {
             (*p_log)(LOG_WARN,AT) << " Option for " << opt << " is not set. Using default value.\n";
@@ -1195,7 +1209,7 @@ public:
         }
         p_pars->m_method_nonreldist = val_monreldist;
 
-        opt = "method_lf_min"+_ss;
+        opt = "method_lf_min" + fs_or_rs;
         SynchrotronAnalytic::METHODS_LFMIN val_lfmin;
         if ( opts.find(opt) == opts.end() ) {
             (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
@@ -1221,7 +1235,7 @@ public:
         }
         p_pars->m_methodsLfmin = val_lfmin;
 
-        bool tmp = getBoolOpt("use_ssa"+_ss, opts, AT,p_log, false, true);
+        bool tmp = getBoolOpt("use_ssa" + fs_or_rs, opts, AT, p_log, false, true);
         if (tmp) p_pars->m_methods_ssa = SynchrotronAnalytic::METHODS_SSA::iSSAon;
         else p_pars->m_methods_ssa = SynchrotronAnalytic::METHODS_SSA::iSSAoff;
 
@@ -1275,7 +1289,7 @@ public:
         p_pars->m_marg21opt_abs = val_abs;
         // ---
 #endif
-        opt = "method_tau"+_ss;
+        opt = "method_tau" + fs_or_rs;
         METHOD_TAU methodTau;
         if ( opts.find(opt) == opts.end() ) {
             (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";

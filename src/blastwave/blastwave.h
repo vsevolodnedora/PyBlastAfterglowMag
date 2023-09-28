@@ -554,16 +554,16 @@ public:
         /// shock front velocity
         switch (p_pars->m_method_gamma_sh) {
 
-            case iuseJK:
+            case iuseGammaShock:
                 Dat[BW::Q::iGammaFsh][it] = EQS::GammaSh(Dat[BW::Q::iGamma][it], Dat[BW::Q::iadi][it]);
                 break;
-            case isameAsGamma:
+            case iuseJustGamma:
                 Dat[BW::Q::iGammaFsh][it] = Dat[BW::Q::iGamma][it];
                 break;
-            case iuseGammaRel:
+            case iuseJustGammaRel:
                 Dat[BW::Q::iGammaFsh][it] = Dat[BW::Q::iGammaREL][it];
                 break;
-            case iuseJKwithGammaRel:
+            case iuseGammaRelShock:
                 Dat[BW::Q::iGammaFsh][it] = EQS::GammaSh(Dat[BW::Q::iGammaREL][it], Dat[BW::Q::iadi][it]);
                 break;
         }
@@ -1457,6 +1457,7 @@ public:
     }
 };
 
+
 /// select an appropriate RHS
 void BlastWave::rhs_dispatcher(double * out_Y, size_t i, double x, double const * Y ){
     switch (p_pars->m_type) {
@@ -1474,6 +1475,7 @@ void BlastWave::rhs_dispatcher(double * out_Y, size_t i, double x, double const 
             break;
     }
 }
+
 
 /// right hand side of the blast wave evolution equation (ODE)
 void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {

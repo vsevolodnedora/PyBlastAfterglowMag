@@ -259,33 +259,33 @@ public:
         METHOD_GammaSh m_method_gamma_sh;
         if ( opts.find(opt) == opts.end() ) {
             (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            m_method_gamma_sh = METHOD_GammaSh::isameAsGamma;
+            m_method_gamma_sh = METHOD_GammaSh::iuseGammaShock;
         }
         else{
-            if(opts.at(opt) == "useGamma")
-                m_method_gamma_sh = METHOD_GammaSh::isameAsGamma;
-            else if(opts.at(opt) == "useGammaRel")
-                m_method_gamma_sh = METHOD_GammaSh::iuseGammaRel;
-            else if(opts.at(opt) == "useJK") {
-                if (!(p_pars->m_type == BW_TYPES::iFS_DENSE || p_pars->m_type == BW_TYPES::iFS_DENSE)){
-                    (*p_log)(LOG_ERR,AT)<<" Cannot use this GammaSh option for this bw_type\n";
+            if(opts.at(opt) == "useJustGamma")
+                m_method_gamma_sh = METHOD_GammaSh::iuseJustGamma;
+            else if(opts.at(opt) == "useGammaShock")
+                m_method_gamma_sh = METHOD_GammaSh::iuseGammaShock;
+            else if(opts.at(opt) == "useJustGammaRel") {
+                if (!(p_pars->m_type == BW_TYPES::iFS_DENSE || p_pars->m_type == BW_TYPES::iFS_PWN_DENSE)){
+                    (*p_log)(LOG_ERR,AT)<<" Cannot use "<<opt<<" = useJustGammaRel "<< " if bw_type ="<<p_pars->m_type<<"\n";
                     exit(1);
                 }
-                m_method_gamma_sh = METHOD_GammaSh::iuseJK;
+                m_method_gamma_sh = METHOD_GammaSh::iuseJustGammaRel;
             }
-            else if(opts.at(opt) == "useJKwithGammaRel") {
-                if (!(p_pars->m_type == BW_TYPES::iFS_DENSE || p_pars->m_type == BW_TYPES::iFS_DENSE)){
-                    (*p_log)(LOG_ERR,AT)<<" Cannot use this GammaSh option for this bw_type\n";
+            else if(opts.at(opt) == "useGammaRelShock") {
+                if (!(p_pars->m_type == BW_TYPES::iFS_DENSE || p_pars->m_type == BW_TYPES::iFS_PWN_DENSE)){
+                    (*p_log)(LOG_ERR,AT)<<" Cannot use "<<opt<<" = useGammaRelShock "<< " if bw_type ="<<p_pars->m_type<<"\n";
                     exit(1);
                 }
-                m_method_gamma_sh = METHOD_GammaSh::iuseJKwithGammaRel;
+                m_method_gamma_sh = METHOD_GammaSh::iuseGammaRelShock;
             }
             else{
                 (*p_log)(LOG_WARN,AT) << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized "
                                       << " Possible options: "
-                                      << " useGamma " << " useGammaRel " << " useJK "<< " useJKwithGammaRel "
+                                      << " useGammaShock " << " useJustGammaRel " << " useJustGammaRel "<< " useGammaRelShock "
                                       << " Exiting...\n";
 //                std::cerr << AT << "\n";
                 exit(1);
