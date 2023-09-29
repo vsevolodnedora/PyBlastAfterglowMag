@@ -213,7 +213,7 @@ struct Margalit21 {
         // (also known as modified Bessel function of the second kind) of ν and x.
 
         /// TODO add assymptotic expansion for small Theta
-        if (Theta < 1.e-7)
+        if (Theta < 2.e-7)
             return 0.;
 
         double tmp = 0;
@@ -1670,13 +1670,21 @@ public:
             }
             /// calculate total emissivity & optical depth:
             em_th = Margalit21::jnu_th(x, ne_, B, Theta, z_cool);
-            em_pl = Margalit21::jnu_pl(x, ne_*acc_frac, B, Theta, gm, delta, p, z_cool); //TODO added 'accel_frac'
+            em_pl = Margalit21::jnu_pl(x, ne_ * acc_frac, B, Theta, gm, delta, p, z_cool); //TODO added 'accel_frac'
             if ((!std::isfinite(em_th))||(em_th < 0.)) em_th = 0.;
             if ((!std::isfinite(em_pl))||(em_pl < 0.)) em_pl = 0.;
+            if ((em_pl==0.) && (em_th==0.)){
+                (*p_log)(LOG_ERR,AT) << " em_pl=em_th=0 for"
+                << " ndens_e="<<ndens_e<<" n_e="<<n_e<<" acc_frac"<<acc_frac
+                << " B="<<B<< " gm="<<gm<< " gM="<<gM<< " gc="<<gc<< " Theta="<<Theta
+                << " z_cool="<<z_cool<< " nuprime="<<nuprime<< " x="<<x
+                <<"\n";
+                exit(1);
+            }
 //            emissivity = em_pl + em_th;
             if (p_pars->m_methods_ssa!=iSSAoff) {
                 abs_th = Margalit21::alphanu_th(x, ne_, B, Theta, z_cool);
-                abs_pl = Margalit21::alphanu_pl(x, ne_*acc_frac, B, Theta, gm, delta, p, z_cool);
+                abs_pl = Margalit21::alphanu_pl(x, ne_ * acc_frac, B, Theta, gm, delta, p, z_cool);
                 if (!std::isfinite(abs_th)) abs_th = 0.;
                 if (!std::isfinite(abs_pl)) abs_pl = 0.;
 //                abs = abs_th + abs_pl;

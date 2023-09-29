@@ -545,8 +545,18 @@ public:
                 offset += cil;
             }
             if ((im.fluxes_shells[ishell] <=0) || (!std::isfinite(im.fluxes_shells[ishell]))){
-                (*p_log)(LOG_ERR,AT)<<" im.fluxes_shells[ishell]="<<im.fluxes_shells[ishell]<<"\n";
-                exit(1);
+
+                for (size_t il = 0; il < nlayers_; il++){
+                    auto & pars = p_cumShells[il]->getBW(ishell)->getPars();
+                    auto & bw = p_cumShells[il]->getBW(ishell);
+                    (*p_log)(LOG_WARN,AT)<<"\t il="<<il<<" G0="<<pars->Gamma0<<" E0="<<pars->E0<<" i_end="
+                            <<pars->i_end_r<<" tb[iend]="<<bw->getData(BW::itburst, pars->i_end_r-1)<<"\n";
+                }
+
+                (*p_log)(LOG_WARN,AT)<<" im.fluxes_shells[ishell]="<<im.fluxes_shells[ishell]
+                    <<" ish="<<ishell<< " obs_time="<<obs_time<<"  obs_freq="<<obs_freq<<""<<"\n";
+                im.total_flux += im.fluxes_shells[ishell];
+                return;
             }
 
             /// find the image extend for this shell
@@ -736,7 +746,7 @@ public:
     }
 
     /// Compute Skymap for adaptive EATS
-    void computeEjectaSkyMapA_new(ImageExtend & im, double obs_time, double obs_freq, size_t nsublayers_, size_t nphi ){
+    void computeEjectaSkyMapA(ImageExtend & im, double obs_time, double obs_freq, size_t nsublayers_, size_t nphi ){
 
         /// out is [i_vn][ish][itheta_iphi]
         size_t nlayers_ = nlayers();
@@ -1170,7 +1180,7 @@ public:
     }
 
     /// Compute lightcurve for piece-wise EATS
-    void evalEjectaLightCurves_new(VecVector & out, Vector & obs_times, Vector & obs_freqs) {
+    void evalEjectaLightCurves(VecVector & out, Vector & obs_times, Vector & obs_freqs) {
         /// out // [ish*il][it*inu]
         (*p_log)(LOG_INFO, AT) << " starting ejecta light curve calculation\n";
         size_t ii = 0;

@@ -370,7 +370,7 @@ private:
         (*p_log)(LOG_INFO,AT) << "Initial data loaded with nshells="<<nshells<<" m_nlayers="<<nlayers<<"\n";
         /// ---------------------------
         for (size_t ish = 0; ish < nshells; ish++){
-            (*p_log)(LOG_ERR,AT)<<" theta_core is NOT given in new ID. Fix it by evaluating it FROM profile!\n";
+            (*p_log)(LOG_WARN,AT)<<" theta_core is NOT given in new ID. Fix it by evaluating it FROM profile!\n";
             theta_wing = m_data[Q::itheta][ish][nlayers-1];
             theta_core = m_data[Q::itheta][ish][nlayers-1]/4.;
 //            double mom_max = std::numeric_limits<double>::max();

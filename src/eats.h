@@ -176,9 +176,13 @@ void saveRawImage(ImageExtend & im, size_t itinu, std::string workdir,
     H5::H5File file(fpath, H5F_ACC_TRUNC); // "/home/m/Desktop/tryout/file.h5"
 
     /// add data for each shell
+    size_t nshells_ = 0;
     for (size_t ish = 0; ish < im.nshells; ish++){
         std::string group_name = "shell=" + std::to_string(ish);
-        Output::addGroupWith1Ddata(im.raw_data[ish], group_name,IMG::m_names,file);
+        if ((!im.raw_data[ish].empty()) && (!im.raw_data[ish][0].empty())) {
+            Output::addGroupWith1Ddata(im.raw_data[ish], group_name, IMG::m_names, file);
+            nshells_++;
+        }
     }
     /// add fluxes for from shell
     std::string fname = "fluxs";
@@ -187,7 +191,7 @@ void saveRawImage(ImageExtend & im, size_t itinu, std::string workdir,
     /// add attributes from model parameters
     std::unordered_map<std::string,double> attrs{
             {"flux", im.total_flux},
-            {"nshells", im.nshells},
+            {"nshells", nshells_},
             {"nlayers", im.nlayers},
             {"time", im.time},
             {"freq", im.freq},
@@ -526,7 +530,6 @@ public:
         for (size_t it = 0; it < times.size(); it++) {
             if (m_method_eats == EjectaID2::STUCT_TYPE::ipiecewise)
                 out[it] = evalSkyMapPW(empty, times[it], freqs[it], 0);
-
             else{
                 double atol = out[it] * rtol / (double)p_pars->nlayers;
                 out[it] += evalFluxDensA(times[it], freqs[it], atol);
@@ -696,7 +699,7 @@ private:
 
         /// out is [i_vn][ish][itheta_iphi]
         bool save_im = true;
-        if (out.empty())
+        if ( out.empty() )
             save_im = false;
 
         if ((p_pars->m_r[0] == 0.) && (p_pars->m_gam[0] == 0.)){
@@ -717,7 +720,6 @@ private:
         check_pars();
         size_t cil = EjectaID2::CellsInLayer(p_pars->ilayer);
 
-
         /// allocate memory for quantities that help
         Vector mu (p_pars->m_i_end_r, std::numeric_limits<double>::max());
         std::vector<size_t> ia(p_pars->m_i_end_r, 0);
@@ -726,10 +728,11 @@ private:
         Vector tb(p_pars->m_i_end_r, 0);
         Vector r(p_pars->m_i_end_r, 0);
         Vector fluxes(p_pars->m_i_end_r, 0);
-        /// Find the region for EATS interpoaltion
 
+        /// Find the region for EATS interpoaltion
         size_t nskipped_h = 0;
         size_t nskipped_r = 0;
+        size_t nskipped_p = 0;
         for (size_t i = 0; i < cil; i++) {
             double cphi = (double)i * 2.0 * M_PI / (double)cil;
             double ctheta_cell = p_pars->ctheta0;
@@ -755,6 +758,7 @@ private:
             int guess = i > 0 ? (int)ia[i-1] : (int)(p_pars->ttobs.size()/2);
             ia[i] = findClosestIndex(obs_time, p_pars->ttobs, guess);
             if (ia[i] >= p_pars->m_i_end_r - 1) {
+                nskipped_p++;
                 mu[i] = std::numeric_limits<double>::max();
                 continue; // ??
             }
@@ -811,34 +815,13 @@ private:
             tot_flux += flux_dens;
         }
 
-        ///
-        if (nskipped_h > 0){
-            if (p_pars->m_i_end_r < p_pars->m_tburst.size()){
-                (*p_log)(LOG_WARN, AT) << "nskipped_h="<<nskipped_h
-                                       << " NOTE time grid was shorten to i=" << p_pars->m_i_end_r
-                                       << " from nr=" << p_pars->m_i_end_r
-                                       << " and now ends at t_grid[i_end_r-1]=" << p_pars->ttobs[p_pars->m_i_end_r - 1]
-                                       << " while t_obs=" << obs_time << "\n";
-            }
-            else{
-                (*p_log)(LOG_WARN, AT) << "nskipped_h="<<nskipped_h
-                                       << " while t_obs=" << obs_time
-                                       << " ABOVE tobs max="<<p_pars->ttobs[p_pars->m_i_end_r-1]
-                                       << " Extend tb1 or shorten tobs"
-                                       << "\n";
-            }
-        }
-        //
-        if (nskipped_r > 0){
-            (*p_log)(LOG_ERR, AT) << "nskipped_r="<<nskipped_r
-                << " NOTE R <= 0. Extend R grid (increasing R0, R1). "
-                                  << " Current R grid us ["
-                                  << p_pars->m_r[0] << ", "
-                                  << p_pars->m_r[p_pars->m_i_end_r - 1] << "] "
-                                  << "and tobs arr ["
-                                  << p_pars->ttobs[0] << ", " << p_pars->ttobs[p_pars->m_i_end_r - 1]
-                                  << "] while the requried obs_time=" << p_pars->t_obs
-                                  << "\n";
+        if (nskipped_h == cil || nskipped_p == cil || nskipped_r == cil || (nskipped_p+nskipped_r+nskipped_h) == cil){
+            (*p_log)(LOG_WARN,AT)
+                << " N(obs_time > p_pars->ttobs[p_pars->m_i_end_r - 1]) = "<<nskipped_h<<"/"<<cil
+                << " N(ia[i] >= p_pars->m_i_end_r - 1) = "<<nskipped_p<<"/"<<cil
+                << " N((r[i] <= 0.0)||(isnan(r[i]))) = "<<nskipped_r<<"/"<<cil
+                << " \n";
+//            (*p_log)(LOG_WARN,AT)<<" try extending tburst() grid\n";
         }
 
         return (tot_flux * CGS::cgs2mJy);

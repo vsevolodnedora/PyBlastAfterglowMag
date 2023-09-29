@@ -130,7 +130,7 @@ public:
             else if(opts.at(opt) == "usingdthdr")
                 method_dmdr = METHOD_dmdr::iusingdthdR;
             else{
-                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
                                       << " given: " << opts.at(opt)
                                       << " is not recognized "
                                       << " Possible options: "
@@ -158,7 +158,7 @@ public:
             else if(opts.at(opt) == "peer")
                 method_dgdr = METHOD_dgdr::ipeer;
             else{
-                (*p_log)(LOG_WARN,AT) << AT << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << AT << " option for: " << opt
                                       << " given: " << opts.at(opt)
                                       << " is not recognized "
                                       << " Possible options: "
@@ -187,7 +187,7 @@ public:
             else if(opts.at(opt) == "AA")
                 method_spread = LatSpread::iAA;
             else{
-                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized "
                                       << " Possible options: "
@@ -214,7 +214,7 @@ public:
             else if(opts.at(opt) == "Peer12")
                 method_eos = EOSadi::iPeer12;
             else{
-                (*p_log)(LOG_WARN,AT)<< " option for: " << opt
+                (*p_log)(LOG_ERR,AT)<< " option for: " << opt
                                      <<" given: " << opts.at(opt)
                                      << " is not recognized "
                                      << " Possible options: "
@@ -242,7 +242,7 @@ public:
             else if(opts.at(opt) == "useGammaSh")
                 m_method_r_sh = METHOD_RSh::iuseGammaSh;
             else{
-                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized "
                                       << " Possible options: "
@@ -281,7 +281,7 @@ public:
                 m_method_gamma_sh = METHOD_GammaSh::iuseGammaRelShock;
             }
             else{
-                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized "
                                       << " Possible options: "
@@ -306,7 +306,7 @@ public:
             else if(opts.at(opt) == "useGamma")
                 m_method_up = METHODS_Up::iuseGamma;
             else{
-                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized "
                                       << " Possible options: "
@@ -333,7 +333,7 @@ public:
             else if(opts.at(opt) == "None")
                 m_method_delta = METHOD_Delta::iNoDelta;
             else{
-                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized "
                                       << " Possible options: "
@@ -356,7 +356,7 @@ public:
             if(opts.at(opt) == "bw_radius")
                 m_method_thick_for_rho = METHOD_THICK_FOR_RHO::iFromRadius;
             else{
-                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized "
                                       << " Possible options: "
@@ -393,7 +393,7 @@ public:
                 method_limit_spread = METHOD_LIMIT_SPREAD::iRd;
             }
             else{
-                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized "
                                       << " Possible options: "
@@ -830,17 +830,7 @@ public:
     std::unique_ptr<BlandfordMcKee2> & getBM(){ return p_bm; }
     std::unique_ptr<LinearRegression> & getLRforDelta(){ return p_lr_delta; }
     std::unique_ptr<LinearRegression> & getLRforVol(){ return p_lr_vol; }
-//    size_t ntb() const { return m_tb_arr.size(); }
-//    Vector & getTbGrid() {return m_tb_arr;}
-//    Vector getTbGrid(size_t every_it) {
-//        if ((every_it == 1)||(every_it==0)) return m_tb_arr;
-//        Vector tmp{};
-//        for (size_t it = 0; it < m_tb_arr.size(); it = it + every_it){
-//            tmp.push_back(m_tb_arr[it]);
-//        }
-////        Vector tmp2 (tmp.data(), tmp.size());
-//        return std::move(tmp);
-//    }
+    /// --------------------------------------------------------
     inline Vector & operator[](unsigned ll){ return this->mD[ll]; }
     inline double & operator()(size_t ivn, size_t ir){ return this->mD[ivn][ir]; }
     inline double ctheta(double theta){
@@ -880,6 +870,7 @@ public:
     }
     inline VecVector & getData(){ return mD; }
     inline Vector & getData(BW::Q var){ return mD[ var ]; }
+    inline double & getData(BW::Q var, size_t i){ return mD[ var ][i]; }
     inline Vector & get_tburst(){return m_tb_arr;}
     ~BlastWaveBase(){ delete p_pars; }
 };

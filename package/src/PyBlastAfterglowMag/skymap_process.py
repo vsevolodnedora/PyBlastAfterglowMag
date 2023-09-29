@@ -248,9 +248,9 @@ class ProcessRawSkymap():
             all_yrs_pjcj.append(_yrs_pj[ _zz_pj > 0 ] if (remove_zeros) else _yrs_pj )
             all_zz_pjcj.append(  _zz_pj[ _zz_pj > 0 ] if (remove_zeros) else _zz_pj )
 
-            if (len(all_xrs_pjcj[-1]) < 3):
-                raise ValueError(f"Empty shell {ish} ncells[ii]={ncells[ii]} "
-                                 f"len(all_xrs[ii][:ncells[ii]]={all_xrs[ii][:ncells[ii]]}); after 'remove_zeros' {len(all_zz_pjcj[-1])}")
+            # if (len(all_xrs_pjcj[-1]) < 3):
+            #     raise ValueError(f"Empty shell {ish} ncells[ii]={ncells[ii]} "
+            #                      f"len(all_xrs[ii][:ncells[ii]]={all_xrs[ii][:ncells[ii]]}); after 'remove_zeros' {len(all_zz_pjcj[-1])}")
 
             if (return_sph_coords):
                 _ctheta_pj  = all_theta[ii][:ncells[ii]]
@@ -291,15 +291,22 @@ class ProcessRawSkymap():
 
         if (self.verb):
             print("Given Data From SkyMap file:")
-            for ish in range(nshells):
-                print(f"\tSHELL={ish} Principle: extend "
-                      f"X=[{np.min(all_xrs_pjcj[ish])}, {np.max(all_xrs_pjcj[ish])}] "
-                      f"Y=[{np.min(all_yrs_pjcj[ish])}, {np.max(all_yrs_pjcj[ish])}] "
-                      f"Z=[{np.min(all_zz_pjcj[ish])}, {np.max(all_zz_pjcj[ish])}]")
-                print(f"\tSHELL={ish} Counter: extend "
-                      f"X=[{np.min(all_xrs_pjcj[nshells+ish])}, {np.max(all_xrs_pjcj[nshells+ish])}] "
-                      f"Y=[{np.min(all_yrs_pjcj[nshells+ish])}, {np.max(all_yrs_pjcj[nshells+ish])}] "
-                      f"Z=[{np.min(all_zz_pjcj[nshells+ish])}, {np.max(all_zz_pjcj[nshells+ish])}]")
+            for ii, ish in enumerate(i_shells):
+                if len(all_xrs_pjcj[ii]) > 0:
+                    print(f"\tSHELL={ish} Principle: extend "
+                          f"X=[{np.min(all_xrs_pjcj[ii])}, {np.max(all_xrs_pjcj[ii])}] "
+                          f"Y=[{np.min(all_yrs_pjcj[ii])}, {np.max(all_yrs_pjcj[ii])}] "
+                          f"Z=[{np.min(all_zz_pjcj[ii])}, {np.max(all_zz_pjcj[ii])}]")
+                    nshells_ = int(len(all_xrs_pjcj) / 2)
+                    # if (nshells+ii > len(all_xrs_pjcj)-1):
+                    #     raise ValueError()
+
+                    print(f"\tSHELL={ish} Counter: extend "
+                          f"X=[{np.min(all_xrs_pjcj[nshells_+ii])}, {np.max(all_xrs_pjcj[nshells_+ii])}] "
+                          f"Y=[{np.min(all_yrs_pjcj[nshells_+ii])}, {np.max(all_yrs_pjcj[nshells_+ii])}] "
+                          f"Z=[{np.min(all_zz_pjcj[nshells_+ii])}, {np.max(all_zz_pjcj[nshells_+ii])}]")
+                else:
+                    print(f"\tSHELL={ish} EMPTY SHELL")
 
 
         if (return_sph_coords):
@@ -354,8 +361,12 @@ class ProcessRawSkymap():
         for i, (x_i, y_i, data_i) in enumerate(zip(xs, ys, datas)):
             if self.verb: print(f"Histogram processing: shell={i} [{i}/{len(xs)}]")
             # binn the shell data onto a uniform grid
-            i_zz, _ = np.histogramdd(tuple([x_i, y_i]), bins=tuple([edges_x, edges_y]), weights=data_i)
-            zz_hist += i_zz
+            if len(data_i) > 0:
+                i_zz, _ = np.histogramdd(tuple([x_i, y_i]), bins=tuple([edges_x, edges_y]), weights=data_i)
+                zz_hist += i_zz
+            else:
+                if self.verb:
+                    print(f"Skipping shell i={i} in computing histogram. It is empty.")
         return zz_hist
 
     def _total_intep_skymap(self, xs, ys, datas, centers_X, centers_Y, method='linear') -> np.ndarray:
@@ -365,9 +376,12 @@ class ProcessRawSkymap():
         for i, (x_i, y_i, data_i) in enumerate(zip(xs, ys, datas)):
             if self.verb: print(f"Re-interpolating: shell={i} [{i}/{len(xs)}]")
             # interpolate the shell data onto uniform grid
-            i_zz = ProcessRawSkymap._interp(x_i, y_i, data_i, centers_X, centers_Y, method)
-            # i_zz *= (len(x_i)*len(y_i)) / (len(centers_x)*len(centers_y))
-            zz_int += i_zz
+            if len(data_i) > 0:
+                i_zz = ProcessRawSkymap._interp(x_i, y_i, data_i, centers_X, centers_Y, method)
+                # i_zz *= (len(x_i)*len(y_i)) / (len(centers_x)*len(centers_y))
+                zz_int += i_zz
+            if self.verb:
+                print(f"Skipping shell i={i} in computing interpolation. It is empty.")
         return zz_int
 
 
@@ -387,12 +401,15 @@ class ProcessRawSkymap():
         if (self.verb):
             print("Given Data From SkyMap file:")
             for ish in range(nshells):
-                print(f"\tSHELL={ish} Principle: extend X=[{np.min(xs[ish])}, {np.max(xs[ish])}] "
-                      f"Y=[{np.min(ys[ish])}, {np.max(ys[ish])}] "
-                      f"Z=[{np.min(datas[ish])}, {np.max(datas[ish])}]")
-                print(f"\tSHELL={ish} Counter: extend X=[{np.min(xs[nshells+ish])}, {np.max(xs[nshells+ish])}] "
-                      f"Y=[{np.min(ys[nshells+ish])}, {np.max(ys[nshells+ish])}] "
-                      f"Z=[{np.min(datas[nshells+ish])}, {np.max(datas[nshells+ish])}]")
+                if len(datas[ish]) > 0:
+                    print(f"\tSHELL={ish} Principle: extend X=[{np.min(xs[ish])}, {np.max(xs[ish])}] "
+                          f"Y=[{np.min(ys[ish])}, {np.max(ys[ish])}] "
+                          f"Z=[{np.min(datas[ish])}, {np.max(datas[ish])}]")
+                    print(f"\tSHELL={ish} Counter: extend X=[{np.min(xs[nshells+ish])}, {np.max(xs[nshells+ish])}] "
+                          f"Y=[{np.min(ys[nshells+ish])}, {np.max(ys[nshells+ish])}] "
+                          f"Z=[{np.min(datas[nshells+ish])}, {np.max(datas[nshells+ish])}]")
+                else:
+                    print(f"\tSHELL={ish} EMPTY SHELL")
 
         centers_X, centers_Y = np.meshgrid(centers_x, centers_y)
         # centers_X, centers_Y = centers_X.flatten(), centers_Y.flatten()
@@ -487,6 +504,8 @@ class ProcessRawSkymap():
         for key in in_f.attrs.keys():
             group.attrs.create(key, data=in_f.attrs[key])
 
+        # in case there was a removal of a shell (empty)
+        group.attrs["nshells"] = len(datas) / 2
 
     def process_singles(self, infpaths="raw_skymap_*.h5", outfpath="skymap.h5",remove_input=False,
                         edges_x = None, edges_y = None):
@@ -538,7 +557,7 @@ class ProcessRawSkymap():
 
         # remove input files (save space)
         if remove_input:
-            if self.verb:
-                print(f"Deleting file {fl}")
             for fl in files:
+                if self.verb:
+                    print(f"Deleting file... {fl}")
                 os.remove(fl)

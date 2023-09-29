@@ -33,6 +33,7 @@ public:
 
     /// dispatch tasks
     void processEvolved(StrDbMap & main_pars, StrStrMap & main_opts){
+
         /// work on GRB afterglow
         if (run_bws || load_dyn){
             bool lc_freq_to_time = getBoolOpt("lc_use_freq_to_time",main_opts,AT,p_log,false,true);
@@ -40,6 +41,10 @@ public:
             Vector lc_times = makeVecFromString(getStrOpt("lc_times",main_opts,AT,p_log,"",true), p_log);
             Vector skymap_freqs = makeVecFromString(getStrOpt("skymap_freqs",main_opts,AT,p_log,"",true), p_log);
             Vector skymap_times = makeVecFromString(getStrOpt("skymap_times",main_opts,AT,p_log,"",true), p_log);
+
+            if (load_dyn)
+                loadEjectaBWDynamics(working_dir,
+                                     getStrOpt("fname_dyn", m_opts, AT, p_log, "", true));
 
             if (do_ele)
                 setPreComputeEjectaAnalyticElectronsPars();
@@ -53,9 +58,6 @@ public:
                         getStrOpt("fname_dyn", m_opts, AT, p_log, "", true),
                         (int)getDoublePar("save_dyn_every_it", m_pars, AT, p_log, 1, true),
                         main_pars, m_pars);
-            if (load_dyn)
-                loadEjectaBWDynamics(working_dir,
-                                     getStrOpt("fname_dyn", m_opts, AT, p_log, "", true));
 
             if (do_spec && save_spec)
                 computeSaveEjectaSpectrum(
@@ -271,15 +273,15 @@ private:
                 if (id->method_eats == EjectaID2::STUCT_TYPE::ipiecewise) {
                     computeEjectaSkyMapPW(ims[itinu], times[it], freqs[ifreq]);
                 } else if (id->method_eats == EjectaID2::STUCT_TYPE::iadaptive) {
-                    computeEjectaSkyMapA_new(ims[itinu], times[it], freqs[ifreq],
-                                             (size_t) getDoublePar("ntheta", ej_pars, AT, p_log, 100, true),
-                                             (size_t) getDoublePar("nphi", ej_pars, AT, p_log, 200, true));
+                    computeEjectaSkyMapA(ims[itinu], times[it], freqs[ifreq],
+                                         (size_t) getDoublePar("ntheta", ej_pars, AT, p_log, 100, true),
+                                         (size_t) getDoublePar("nphi", ej_pars, AT, p_log, 200, true));
                 }
 
                 if (getBoolOpt("save_raw_skymap", ej_opts, AT, p_log, false, false))
-                    saveRawImage(ims[itinu],itinu,workingdir, main_pars,ej_pars,p_log);
+                    saveRawImage(ims[itinu], itinu,workingdir, main_pars,ej_pars,p_log);
                 else {
-                    (*p_log)(LOG_ERR, AT) << " Cannot save final image. Only raw images can now be saved...\n";
+                    (*p_log)(LOG_ERR , AT) << " Cannot save final image. Only raw images can now be saved...\n";
                     exit(1);
                 }
 
@@ -480,7 +482,7 @@ private:
         out.resize(nshells() * nlayers());
         for (auto & arr : out)
             arr.resize(_times.size(), 0.);
-        evalEjectaLightCurves_new( out, _times, _freqs );
+        evalEjectaLightCurves(out, _times, _freqs);
 
         /// Collect total flux at a given time/freq from all shells/layers
         Vector total_fluxes (_times.size(), 0.0);
@@ -536,17 +538,10 @@ private:
         size_t ntimes_ = (size_t)getDoubleAttr(file, "ntimes");
         if (nshells_ != nshells()){
             (*p_log)(LOG_ERR,AT) << "Wring attribute: nshells_="<<nshells_<<" expected nshells="<<nshells()<<"\n";
-//            exit(1);
         }
         if (nlayers_ != nlayers()){
             (*p_log)(LOG_ERR,AT) << "Wring attribute: nlayers_="<<nlayers_<<" expected nlayers_="<<nlayers()<<"\n";
-//            exit(1);
         }
-//        if (ntimes_ != ()){
-//            (*p_log)(LOG_ERR,AT) << "Wring attribute: nlayers_="<<nlayers_<<" expected nlayers_="<<m_nlayers()<<"\n";
-//            exit(1);
-//        }
-        //        double ntimes = getDoubleAttr(file, "ntimes");
 
         auto & models = getShells();
         for (size_t il = 0; il < nlayers(); il++) {
@@ -578,7 +573,7 @@ private:
                 bw->checkEvolution();
                 bw->getPars()->nr = bw->getData()[BW::iR].size();
             }
-            (*p_log)(LOG_INFO,AT) << "Loaded [il="<<il<<"] N isEmpty shells ="<<n_empty_shells<<"\n";
+            (*p_log)(LOG_INFO,AT) << "Loaded [il="<<il<<"] empty shells "<<n_empty_shells<<"\n";
         }
         file.close();
 //        if ( p_cumShells[0]->getBW(0)->getData()[BW::iR][0] == 0 ){
