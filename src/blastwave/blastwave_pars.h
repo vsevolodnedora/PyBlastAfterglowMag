@@ -52,7 +52,8 @@ struct Pars{
     BW_TYPES m_type{};
     METHODS_Up m_method_up{};
     METHOD_Delta m_method_Delta{};
-    METHOD_GammaSh m_method_gamma_sh{};
+    METHOD_GammaSh m_method_gamma_fsh{};
+    METHOD_GammaSh m_method_gamma_rsh{};
     METHOD_RSh m_method_r_sh{};
     METHOD_dmdr m_method_dmdr{};
 //    bool only_last_shell_dmdr= false;
@@ -158,6 +159,7 @@ struct Pars{
     double theta_obs=-1.;
     double z=-1.;
     METHODS_SHOCK_VEL method_shock_vel{};
+    METHODS_SHOCK_VEL method_shock_vel_rs{};
     METHOD_NE m_method_ne{};
     METHODS_RAD m_method_rad{};
     /// ---------------------------
@@ -209,7 +211,7 @@ namespace BW{
         itcomov, itburst, itt, ithickness, iadi, irho2, iGammaFsh,
         igm, igc, igM, iB, iTheta, iz_cool, ix, inprime, iacc_frac,
         /// additional quantities for RS
-        iEint3, iErad3, iEad3, iEsh3, iM3, ideltaR4, iGamma43, iadi3, irho4, irho3,
+        iEint3, iErad3, iEad3, iEsh3, iM3, ideltaR4, iGamma43, iadi3, irho4, irho3, iGammaRsh,
         ithichness_rs, iU_p3,
         igm_rs, igc_rs, igM_rs, iB3, iTheta_rs, iz_cool_rs, ix_rs,
         inprime_rs, iacc_frac_rs,
@@ -230,7 +232,7 @@ namespace BW{
             "gamma_min", "gamma_c", "gamma_max", "B", "ThetaTherm", "z_cool", "x",
             "nprime", "accel_frac",
             /// additional quantities for RS
-            "Eint3", "Erad3", "iEad3", "Esh3", "M3", "deltaR4", "Gamma43", "adi3", "rho4", "rho3",
+            "Eint3", "Erad3", "iEad3", "Esh3", "M3", "deltaR4", "Gamma43", "adi3", "rho4", "rho3","GammaRsh",
             "thichness_rs", "U_p3",
             "gamma_min_rs", "gamma_c_rs", "gamma_max_rs", "B_rs", "ThetaTherm_rs", "z_cool_rs", "x_rs",
             "nprime_rs", "accel_frac_rs",
@@ -258,7 +260,7 @@ namespace BW{
              {
                      iR, iRsh, irho, idrhodr, iGammaREL,
                      iGamma, ibeta, imom, iEint2, iU_p, itheta, ictheta, iErad2, iEsh2, iEad2, iM2,
-                     itcomov, itburst, itt, ithickness, iadi, irho2, iGammaFsh,
+                     itcomov, itburst, itt, ithickness, iadi, irho2, iGammaFsh, iGammaRsh,
                      igm, igc, igM, iB, iTheta, iz_cool, ix, inprime, iacc_frac,
                      iEint3, iErad3, iEad3, iEsh3, iM3, ideltaR4, iGamma43, iadi3, irho4, irho3,
                      ithichness_rs, iU_p3,

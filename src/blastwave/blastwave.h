@@ -551,8 +551,8 @@ public:
                                             Dat[BW::Q::iadi][it],
                                             Dat[BW::Q::irho][it]);
 
-        /// shock front velocity
-        switch (p_pars->m_method_gamma_sh) {
+        /// FS: shock front velocity
+        switch (p_pars->m_method_gamma_fsh) {
 
             case iuseGammaShock:
                 Dat[BW::Q::iGammaFsh][it] = EQS::GammaSh(Dat[BW::Q::iGamma][it], Dat[BW::Q::iadi][it]);
@@ -626,6 +626,18 @@ public:
             Dat[BW::Q::irho3][it]    = EQS::rho2t(Dat[BW::Q::iGamma][it],
                                                   Dat[BW::Q::iadi3][it],
                                                   Dat[BW::Q::irho4][it]); // TODO Check if here Gamma and adi3 are used
+
+            /// shock front velocity
+            switch (p_pars->m_method_gamma_rsh) {
+
+                case iuseGammaShock:
+                    Dat[BW::Q::iGammaRsh][it] = EQS::GammaSh(Dat[BW::Q::iGamma43][it], Dat[BW::Q::iadi3][it]);
+                    break;
+                case iuseJustGamma:
+                    Dat[BW::Q::iGammaRsh][it] = Dat[BW::Q::iGamma43][it];
+                    break;
+            }
+
             switch(p_pars->m_method_Delta) {
 
                 case iuseJoh06:
@@ -656,6 +668,7 @@ public:
                     break;
             }
         }
+
         /// check values
         if ((Dat[BW::Q::iadi][it] < 1.) || (Dat[BW::Q::iR][it] < 1.) || (Dat[BW::Q::irho2][it] < 0.) ||
             (Dat[BW::Q::iU_p][it] < 0) || (Dat[BW::Q::iGammaFsh][it] < 1.) ) {

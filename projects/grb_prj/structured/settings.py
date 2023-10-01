@@ -19,9 +19,12 @@ class SettingsGaussian:
 
         "ntb": 5000
     }
+
+
     pars_fsrs = {
+        "skymap_times" : np.array([1.,10.,40.,100.,200.,300.,400.,600.,800.,1000.,1300.,1600.,2000.,2500.,3000.,4000.,5000.,7000,10000]),
         "obs_freq":3e9,
-        "n_ism": 1e-2,      "eps_e": 0.1,   "eps_e_rs": 0.2,
+        "n_ism": 1e-5,      "eps_e": 0.1,   "eps_e_rs": 0.2,
         "d_l": 3.09e26,     "eps_b": 0.01,  "eps_b_rs": 0.02,
         "z": 0.028,         "p": 2.2,       "p_rs": 2.4,
         "theta_obs": 0.9,
@@ -30,9 +33,8 @@ class SettingsGaussian:
     opts_a = {"method_eats":"adaptive", "method_spread":"AFGPY"}
     opts_pw = {"method_eats":"piece-wise", "method_spread":"AA"}
 
-    opts_1 = {"rtol": 1e-6, "ntb":10000, "iout": 10}
-
-    opts_a_1 = {"method_eats":"adaptive", "method_spread":"AFGPY", "rhs_type":"grb_fs", "do_rs": "no"}
+    # opts_1 = {"rtol": 1e-6, "ntb":10000, "iout": 10}
+    # opts_a_1 = {"method_eats":"adaptive", "method_spread":"AFGPY", "rhs_type":"grb_fs", "do_rs": "no"}
 
     resolutions_compare_plot = \
         ((50,100,150,250), # pw

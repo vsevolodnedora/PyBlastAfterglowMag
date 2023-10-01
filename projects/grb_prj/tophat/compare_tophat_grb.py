@@ -38,8 +38,6 @@ except:
 
 
 curdir = os.getcwd() + '/' #"/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglow_dev/PyBlastAfterglow/src/PyBlastAfterglow/tests/dyn/"
-# parfiledir = os.getcwd().replace("tophat","")
-# paperfigdir = "/home/vsevolod/Work/GIT/overleaf/grb_afg/figs/"
 
 from projects.grb_prj.grb_tst_tools import *
 

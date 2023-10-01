@@ -1949,26 +1949,26 @@ class TestCasesFS(TestBases):
 
 
 class TestCasesRS(TestBases):
-    name_1 = "Tophat off-axis"
-    struct_1 = {
-        "struct":"tophat",
-        "Eiso_c":1.e53, "Gamma0c": 1000., "M0c": -1.,
-        "theta_c": 0.1, "theta_w": 0.1, "nlayers_pw": 150, "nlayers_a": 1
-    }
-    pars_1 = {
-        "obs_freq":3e9,
-        "n_ism": 1e-2,      "eps_e": 0.1,   "eps_e_rs": 0.2,
-        "d_l": 3.09e26,     "eps_b": 0.01,  "eps_b_rs": 0.02,
-        "z": 0.028,         "p": 2.2,       "p_rs": 2.4,
-        "theta_obs": 0.2,
-    }
-    opts_1 = {"rtol": 1e-6, "ntb":10000, "iout": 10}
-    opts_a_1 = {"method_eats":"adaptive", "method_spread":"AFGPY", "rhs_type":"grb_fs", "do_rs": "no"}
+    # name_1 = "Tophat off-axis"
+    # struct_1 = {
+    #     "struct":"tophat",
+    #     "Eiso_c":1.e53, "Gamma0c": 1000., "M0c": -1.,
+    #     "theta_c": 0.1, "theta_w": 0.1, "nlayers_pw": 150, "nlayers_a": 1
+    # }
+    # pars_1 = {
+    #     "obs_freq":3e9,
+    #     "n_ism": 1e-2,      "eps_e": 0.1,   "eps_e_rs": 0.2,
+    #     "d_l": 3.09e26,     "eps_b": 0.01,  "eps_b_rs": 0.02,
+    #     "z": 0.028,         "p": 2.2,       "p_rs": 2.4,
+    #     "theta_obs": 0.2,
+    # }
+    # opts_1 = {"rtol": 1e-6, "ntb":10000, "iout": 10}
+    # opts_a_1 = {"method_eats":"adaptive", "method_spread":"AFGPY", "rhs_type":"bw_fs", "do_rs": "no"}
 
-    def __init__(self, parfiledir):
-        super().__init__(parfiledir)
+    def __init__(self, default_parfile_fpath, workingdir):
+        super().__init__(default_parfile_fpath, workingdir)
 
-    def paper_plot_compare_fsrs(self, pars : dict, struct : dict, title : str, figfpath : str, save_pdf : bool, show_fig : bool):
+    def paper_plot_compare_fsrs(self, pars : dict, struct : dict, layers : tuple, figfpath : str, save_pdf : bool, show_fig : bool):
         # run the code for given pars
 
         # ref = RefData(workdir=curdir, fname="reference_afgpy_dyn.h5")
@@ -1976,9 +1976,14 @@ class TestCasesRS(TestBases):
 
         fig, axes = plt.subplots(figsize=(6,6.5), ncols=1, nrows=3)
 
-        layers=()
-
-        pba_a = self.run_a(struct=struct, pars=pars, opts=self.opts_1, opts_grb=self.opts_a_1)
+        opts_ = copy.deepcopy(self.opts_a_1)
+        opts_["bw_type"] = "fs"
+        opts_["do_rs"] = "no"
+        opts_["fname_dyn"] = f"dyn_a_fs.h5"
+        opts_["fname_sky_map"] = f"skymap_a_fs.h5"
+        opts_["fname_light_curve"] = f"lc_a_fs.h5"
+        opts_["fname_light_curve_layers"] = f"lc_a_fs_layers.h5"
+        pba_a = self.run_a(struct=struct, pars=pars, opts=self.opts_1, opts_grb=opts_)
         self.plot_lcs(ax=axes[0], pars=pars, pba=pba_a, layers = layers,
                       plot={"ls":'-', "color":"red", "label":r"R19"},
                       plot_layer={"ls":'-.', "cmap":"Reds", "alpha":.9, "vmin":-50, "vmax":60})
@@ -1988,9 +1993,14 @@ class TestCasesRS(TestBases):
                       plot_layer={"ls":'-', "cmap":"Reds", "alpha":.9, "vmin":-50, "vmax":60})
 
         # ---------------------------------------------
-        self.opts_a_1["rhs_type"] = "grb_fsrs"
-        self.opts_a_1["do_rs"] = "yes"
-        pba_a = self.run_a(struct=struct, pars=pars, opts=self.opts_1, opts_grb=self.opts_a_1)
+        opts_ = copy.deepcopy(self.opts_a_1)
+        opts_["bw_type"] = "fsrs"
+        opts_["do_rs"] = "yes"
+        opts_["fname_dyn"] = f"dyn_a_fsrs.h5"
+        opts_["fname_sky_map"] = f"skymap_a_fsrs.h5"
+        opts_["fname_light_curve"] = f"lc_a_fsrs.h5"
+        opts_["fname_light_curve_layers"] = f"lc_a_fsrs_layers.h5"
+        pba_a = self.run_a(struct=struct, pars=pars, opts=self.opts_1, opts_grb=opts_)
         # ---------------------------------------------
 
         self.plot_lcs(ax=axes[0], pars=pars, pba=pba_a, layers = layers,
@@ -2095,7 +2105,181 @@ class TestCasesRS(TestBases):
             plt.savefig(figfpath+".png", dpi=256)
         if show_fig: plt.show()
 
+    def paper_plot_resolution_rs(self, pars : dict, opts_a : dict, struct : dict, layers : tuple, resolutions_a : tuple[tuple],
+                                 figfpath : str, save_pdf : bool, show_fig : bool):
+        # run the code for given pars
 
+        # ref = RefData(workdir=curdir, fname="reference_afgpy_dyn.h5")
+        # ref_lc = RefDataLC(workdir=curdir, fname="reference_lc_0deg_layer.h5")
+
+        fig, ax = plt.subplots(figsize=(6,6.5), ncols=1, nrows=1)
+
+        # ---------------------------------------------
+        pba_a = []
+        for ir, nll in enumerate(resolutions_a[0]):
+            struct["nlayers_a"] = nll[0]
+            _pars = copy.deepcopy(pars)
+            _opts_a = copy.deepcopy(opts_a)
+            _pars["ntb"] = 3000
+            _pars["ntheta"] = nll[1]
+            _pars["nphi"] = nll[2]
+            _pars["mom0_frac_when_start_spread"] = 0.95
+            _opts_a["do_rs"] = "yes"
+            _opts_a["bw_type"] = "fsrs"
+            _opts_a["fname_dyn"]=f"dyn_fsrs_res{nll[0]}-{nll[1]}-{nll[2]}.h5"
+            _opts_a["fname_light_curve"]=f"lc_fsrs_res{nll[0]}-{nll[1]}-{nll[2]}.h5"
+            _opts_a["fname_light_curve_layers"]=f"lc_dense_fsrs{nll[0]}-{nll[1]}-{nll[2]}.h5"
+            pba_a.append(
+                self.run_a(struct=struct, pars=_pars, opts={}, opts_grb=_opts_a)
+            )
+            color = resolutions_a[1][ir]
+            self.plot_lcs(ax=ax, pars=pars, pba=pba_a[ir], layers = layers,
+                          plot={"ls":'-', "color":color, "label":f"{int(nll[0])}-{int(nll[1])}-{int(nll[2])}"},
+                          plot_layer={"ls":'-.', "color":color, "alpha":.9, "vmin":-50, "vmax":60})
+
+
+        ax.legend(fancybox=True, loc='upper left',
+                  # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                  shadow=False, ncol=1, fontsize=12,
+                  framealpha=0., borderaxespad=0.)
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xlabel("time [s]", fontsize=12)
+        ax.set_ylabel("Flux density [mJy]", fontsize=12)
+        # ax.set_title(title)
+        ax.set_xlim(1e5,1e8)
+        ax.set_ylim(1e-2,2e2)
+        # ax.grid()
+        ax.minorticks_on()
+        ax.tick_params(axis='both', which='both', labelleft=True,
+                       labelright=False, tick1On=True, tick2On=True,
+                       labelsize=12,
+                       direction='in',
+                       bottom=True, top=True, left=True, right=True)
+        ax.minorticks_on()
+        # ax.set_facecolor("pink")
+
+        plt.tight_layout()
+        # print("Saving:\n {}".format(paperfigdir+"abstract_spread_lcs_dyn.pdf"))
+        # plt.savefig(paperfigdir+"abstract_spread_lcs_dyn.pdf")
+        # plt.savefig(paperfigdir+"abstract_gaus_spread_lcs_dyn.png", dpi=256)
+        # plt.show()
+        if not figfpath is None:
+            print("Saving:\n {}".format(figfpath))
+            if save_pdf: plt.savefig(figfpath+".pdf")
+            plt.savefig(figfpath+".png", dpi=256)
+        if show_fig: plt.show()
+
+    def compare_grbs(self, pars : dict, opts_a : dict, struct : dict, layers:tuple,
+                     setups : tuple[dict], figfpath : str, save_pdf : bool, show_fig : bool):
+        """
+        ({"n_ism":1e-4,"color":"blue","label":r"$n_{\rm ISM}=$"+"$10^{-4}$ cm$^{-3}$"},
+         {"n_ism":1e0,"color":"red","label":r"$n_{\rm ISM}=$"+"$1$ cm$^{-3}$"})
+        :param pars:
+        :param opts_a:
+        :param struct:
+        :param vary:
+        :param figfpath:
+        :param save_pdf:
+        :param show_fig:
+        :return:
+        """
+        fig, axes = plt.subplots(figsize=(6,6.5), ncols=1, nrows=3)
+        pba_a = []
+        for isetup, setup in enumerate(setups):
+            _pars = copy.deepcopy(pars)
+            _opts_a = copy.deepcopy(opts_a)
+            _pars["ntb"] = 3000
+            _pars["mom0_frac_when_start_spread"] = 0.95
+            _opts_a["do_rs"] = "yes"
+            _opts_a["bw_type"] = "fsrs"
+            _opts_a["fname_dyn"]=f"dyn_fsrs_setup{isetup}.h5"
+            _opts_a["fname_light_curve"]=f"lc_fsrs_setup{isetup}.h5"
+            _opts_a["fname_light_curve_layers"]=f"lc_dense_fsrs_setup{isetup}.h5"
+            for __par in setup.keys():
+                if __par in struct.keys(): struct[__par] = setup[__par]
+                if __par in pars.keys(): pars[__par] = setup[__par]
+            pba_a.append(
+                self.run_a(struct=struct, pars=_pars, opts={}, opts_grb=_opts_a)
+            )
+            color = setup["color"]
+            label = setup["label"]
+            cmap = setup["cmap"]
+            self.plot_lcs(ax=axes[0], pars=pars, pba=pba_a[isetup], layers = layers,
+                          plot={"ls":'-', "color":color, "label":label},
+                          plot_layer={"ls":'-.', "color":color, "alpha":.9, "vmin":-50, "vmax":60})
+            self.plot_dyn(axes[1], pba=pba_a[isetup], v_n_x="tburst", v_n_y="GammaFsh", layers=layers,
+                          plot_layer={"ls":'-', "cmap":cmap, "alpha":.9, "vmin":-50, "vmax":60})
+            self.plot_dyn(axes[2], pba=pba_a[isetup], v_n_x="tburst", v_n_y="GammaRsh", layers=layers,
+                          plot_layer={"ls":'-', "cmap":cmap, "alpha":.9, "vmin":-50, "vmax":60})
+
+        # plot
+        ax = axes[0]
+        # ax.grid()
+        ax.legend(fancybox=True, loc='upper left',
+                  # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                  shadow=False, ncol=1, fontsize=12,
+                  framealpha=0., borderaxespad=0.)
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xlabel("time [s]", fontsize=12)
+        ax.set_ylabel("Flux density [mJy]", fontsize=12)
+        # ax.set_title(title)
+        ax.set_xlim(1e5,1e8)
+        ax.set_ylim(1e-5,1e-1)
+        # ax.grid()
+        ax.minorticks_on()
+        ax.tick_params(axis='both', which='both', labelleft=True,
+                       labelright=False, tick1On=True, tick2On=True,
+                       labelsize=12,
+                       direction='in',
+                       bottom=True, top=True, left=True, right=True)
+        # ax.set_facecolor("pink")
+
+        ax = axes[1]
+        # ax.grid()
+        ax.legend()
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_ylabel(r"$\Gamma_{\rm fsh}$", fontsize=12)
+        ax.set_xlim(1e6,1e11)
+        ax.set_ylim(1e0,1e3)
+        ax.tick_params(axis='both', which='both', labelleft=True,
+                       labelright=False, tick1On=True, tick2On=True,
+                       labelsize=12,
+                       direction='in',
+                       bottom=True, top=True, left=True, right=True)
+        ax.xaxis.set_tick_params(labelbottom=False)
+        ax.minorticks_on()
+        # ax.set_facecolor("pink")
+
+        ax = axes[2]
+        # ax.grid()
+        ax.legend()
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_ylabel(r"$\Gamma_{\rm rsh}$", fontsize=12)
+        ax.set_xlabel(r"$t_{\rm burst}$ [s]", fontsize=12)
+        ax.set_xlim(1.e6,1e11)
+        ax.set_ylim(1.e0,100.)
+        ax.tick_params(axis='both', which='both', labelleft=True,
+                       labelright=False, tick1On=True, tick2On=True,
+                       labelsize=12,
+                       direction='in',
+                       bottom=True, top=True, left=True, right=True)
+        ax.minorticks_on()
+        # ax.set_facecolor("pink")
+
+        plt.tight_layout()
+        # print("Saving:\n {}".format(paperfigdir+"abstract_spread_lcs_dyn.pdf"))
+        # plt.savefig(paperfigdir+"abstract_spread_lcs_dyn.pdf")
+        # plt.savefig(paperfigdir+"abstract_gaus_spread_lcs_dyn.png", dpi=256)
+        # plt.show()
+        if not figfpath is None:
+            print("Saving:\n {}".format(figfpath))
+            if save_pdf: plt.savefig(figfpath+".pdf")
+            plt.savefig(figfpath+".png", dpi=256)
+        if show_fig: plt.show()
 
 # -----------------------------
 

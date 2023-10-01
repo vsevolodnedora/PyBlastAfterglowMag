@@ -211,7 +211,8 @@ int main(int argc, char** argv) {
     std::string working_dir; std::string parfilename;
     /// ------------------------------------------------------
     if (argc<4){
-        working_dir = "../projects/grb_prj/structured/output/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../projects/grb_prj/structured/output/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../projects/grb_prj/structured/output_rs/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 
 //        working_dir = "../tst/grbafg_gauss_dyn_rs/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_gauss_dyn_spread/"; parfilename = "parfile.par"; loglevel=LOG_INFO;

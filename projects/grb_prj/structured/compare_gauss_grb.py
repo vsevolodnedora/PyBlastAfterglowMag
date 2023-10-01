@@ -27,28 +27,39 @@ from settings import SettingsGaussian, SettingsGRB170917A
 from projects.grb_prj.grb_tst_tools import *
 
 def main():
-    tsk = SettingsGRB170917A()
-    grb = TestCasesFS(default_parfile_fpath=curdir+"parfile_def.par",
-                      workingdir=curdir+"output/")
+    # tsk = SettingsGRB170917A()
+    # grb = TestCasesFS(default_parfile_fpath=curdir+"parfile_def.par",
+    #                   workingdir=curdir+"output/")
     # grb.plot_170817_like(struct=tsk.strucure, pars=tsk.pars, opts_a=tsk.opts_a, opts_pw=tsk.opts_pw, title=tsk.figname,
     #                      figpath=curdir+"figs/"+"170817A_lcs_methods", show_fig=True, save_pdf=True)
-
+    #
     tsk = SettingsGaussian()
-    tsk.pars["theta_obs"] = 0.9
-    grb.plot_generic(struct=tsk.structure, pars=tsk.pars, opts_a=tsk.opts_a, title=tsk.figname,
-                     # ref_dyn_fname = "reference_afgpy_dyn.h5", ref_lc_fname="reference_lc_layer.h5",
-                     ref_dyn_fname = "reference_afgpy_dyn_GamInf.h5", ref_lc_fname="reference_lc_layer_GamInf.h5",
-                     figpath=curdir+"figs/"+"generic_lcs_methods", show_fig=True, save_pdf=True)
+    # tsk.pars["theta_obs"] = 0.9
+    # grb.plot_generic(struct=tsk.structure, pars=tsk.pars, opts_a=tsk.opts_a, title=tsk.figname,
+    #                  # ref_dyn_fname = "reference_afgpy_dyn.h5", ref_lc_fname="reference_lc_layer.h5",
+    #                  ref_dyn_fname = "reference_afgpy_dyn_GamInf.h5", ref_lc_fname="reference_lc_layer_GamInf.h5",
+    #                  figpath=curdir+"figs/"+"generic_lcs_methods", show_fig=True, save_pdf=True)
+    #
+    # tsk.pars["theta_obs"] = 0.9
+    # grb.paper_plot_compare_spreading(struct=tsk.structure, pars=tsk.pars, opts_a=tsk.opts_a, title=None,
+    #                                  figpath=curdir+"figs/"+"abstract_gauss_spread_methods_lcs_dyn",
+    #                                  ref_dyn_fname="reference_afgpy_dyn_GamInf.h5",
+    #                                  ref_lc_fname="reference_lc_layer_GamInf.h5",
+    #                                  save_pdf=True, show_fig=True,layers=(0,40))
 
-    tsk.pars["theta_obs"] = 0.9
-    grb.paper_plot_compare_spreading(struct=tsk.structure, pars=tsk.pars, opts_a=tsk.opts_a, title=None,
-                                     figpath=curdir+"figs/"+"abstract_gauss_spread_methods_lcs_dyn",
-                                     ref_dyn_fname="reference_afgpy_dyn_GamInf.h5",
-                                     ref_lc_fname="reference_lc_layer_GamInf.h5",
-                                     save_pdf=True, show_fig=True,layers=(0,40))
+    grb = TestCasesRS(default_parfile_fpath=curdir+"parfile_def.par",
+                      workingdir=curdir+"output_rs/")
+    # grb.paper_plot_compare_fsrs(struct=tsk.structure, pars=tsk.pars_fsrs, layers=(0,10,20,30,40,49),
+    #                             show_fig=True, save_pdf=True,
+    #                             figfpath=curdir+"figs/"+"rs_lightcurves")
+    # grb.paper_plot_resolution_rs(struct=tsk.structure, pars=tsk.pars_fsrs, opts_a=tsk.opts_a, layers=(),
+    #                             show_fig=True, save_pdf=True,resolutions_a=tsk.resolutions_a,
+    #                             figfpath=curdir+"figs/"+"rs_lightcurves")
 
-    grb = TestCasesRS(parfiledir)
-    grb.paper_plot_compare_fsrs(struct=tsk.structure, pars=tsk.pars_fsrs, title=tsk.name_1)
+    grb.compare_grbs(struct=tsk.structure, pars=tsk.pars_fsrs, opts_a=tsk.opts_a, layers=(0,10,20,30,40,49),
+                     setups = ({"n_ism":1e-4,"color":"blue","cmap":"Blues","label":r"$n_{\rm ISM}=$"+"$10^{-4}$ cm$^{-3}$"},
+                               {"n_ism":1e0,"color":"red","cmap":"Reds","label":r"$n_{\rm ISM}=$"+"$1$ cm$^{-3}$"}),
+                     show_fig=True, save_pdf=True, figfpath=curdir+"figs/"+"rs_lc_GammaShock")
 
 if __name__ == '__main__':
     main()

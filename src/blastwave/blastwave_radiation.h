@@ -164,12 +164,12 @@ public:
 
         /// compute electron distribution in reverse shock
         if (p_pars->m_type == BW_TYPES::iFSRS) {
-            if (p_pars->do_rs && (it > 0) && (mD[BW::Q::iGamma43][it] > 0)) {
+            if (p_pars->do_rs && (it > 0) && (mD[BW::Q::iGammaRsh][it] > 0)) {
                 auto &p_syna_rs = p_pars->p_syna_rs;
                 p_syna_rs->evaluateElectronDistribution(mD[BW::Q::iU_p3][it],
                                                         mD[BW::Q::iGamma][it],
 //                               mD[Q::iGamma][it],
-                                                        mD[BW::Q::iGamma43][it],
+                                                        mD[BW::Q::iGammaRsh][it],
                                                         mD[BW::Q::itt][it], // TODO WHICH TIME IS HERE? tbirst? tcomov? observer time (TT)
 //                               mD[Q::itburst][it], // emission time (TT)
                                                         mD[BW::Q::irho3][it] / CGS::mp);
@@ -278,7 +278,7 @@ public:
 
             /// Reverse shock
             if (p_pars->m_type == BW_TYPES::iFSRS) {
-                if (p_pars->do_rs && (it > 0) && (mD[BW::Q::iGamma43][it] > 0) && (mD[BW::Q::iU_p3][it] > 0)) {
+                if (p_pars->do_rs && (it > 0) && (mD[BW::Q::iGammaRsh][it] > 0) && (mD[BW::Q::iU_p3][it] > 0)) {
                     auto &p_syna_rs = p_pars->p_syna_rs;
                     if (mD[BW::Q::igm_rs][it] == 0) {
                         (*p_log)(LOG_ERR, AT) << " gm_rs = 0" << "\n";
@@ -647,18 +647,16 @@ public:
                     Interp2d int_abs_rs(p_pars->m_freq_arr, r_arr, p_pars->m_synch_abs_rs);
                     double em_prime_rs = int_em_rs.InterpolateBilinear(nuprime, r, ia_nu, ib_nu, ia, ib);
                     double abs_prime_rs = int_abs_rs.InterpolateBilinear(nuprime, r, ia_nu, ib_nu, ia, ib);
-                    double em_lab_rs =
-                            em_prime_rs / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
+                    double em_lab_rs = em_prime_rs / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
                     double abs_lab_rs = abs_prime_rs * delta_D; // conversion of absorption (see vanEerten+2010)
 
-                    double GammaShock_rs = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::iGamma43]);
+                    double GammaShock_rs = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::iGammaRsh]);
                     double dr_rs = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::ithichness_rs]);
 
-                    double dr_tau_rs = EQS::shock_delta(r,
-                                                        GammaShock_rs); // TODO this is added becasue in Johanneson Eq. I use ncells
+                    double dr_tau_rs = EQS::shock_delta(r,GammaShock_rs); // TODO this is added becasue in Johanneson Eq. I use ncells
 
                     double beta_shock_rs;
-                    switch (p_pars->method_shock_vel) {
+                    switch (p_pars->method_shock_vel_rs) {
 
                         case isameAsBW:
                             beta_shock_rs = EQS::Beta(Gamma);
