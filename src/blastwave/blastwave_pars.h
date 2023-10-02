@@ -130,6 +130,7 @@ struct Pars{
     double fraction_of_mom0_when_spread_start = 0;
     double value_of_mom_when_spread_start = 0.;
     double min_beta_terminate = 1.e-8;
+    double min_beta_0 = 1.e-6;
     // ---
 
     /// main switch

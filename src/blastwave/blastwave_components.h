@@ -935,6 +935,10 @@ public:
     enum METHODS { iNULL, iAdi, iAA, iAFGPY };
     void setPars(const double aa, const double theta_max, const double thetaC, const double thetaW, METHODS method ){
         m_aa = aa; m_theta_max=theta_max; m_thetaC = thetaC; m_thetaW=thetaW; m_method=method;
+        if ((thetaC < 0) || (thetaW < 0)){
+            std::cerr << AT << " thetaC="<<thetaC<<" thetaW="<<thetaW<<"\n";
+            exit(1);
+        }
     }
     double getDthetaDr(const double &Gamma, const double &R, const double &gammaAdi, const double &theta){
         double dthetadr;

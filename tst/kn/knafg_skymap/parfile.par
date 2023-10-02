@@ -102,7 +102,7 @@ do_nucinj = no
 
 method_spread = None
 method_eos = Nava13
-method_GammaSh = useGammaShock
+method_GammaFsh = useGammaShock
 method_Up = useEint2 # !
 method_Delta = useJoh06
 use_adiabLoss = yes

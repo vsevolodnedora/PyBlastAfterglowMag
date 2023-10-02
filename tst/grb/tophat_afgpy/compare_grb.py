@@ -63,9 +63,8 @@ def tst_against_afgpy(withSpread = False,
               "nlayers_pw": 50, "nlayers_a": 1, "struct":"tophat"}
     pba_id = PBA.id_analytic.JetStruct(n_layers_pw=struct["nlayers_pw"], n_layers_a=struct["nlayers_a"])
     id_dict = pba_id.get_1D_id(pars=struct,type="piece-wise")
-    with h5py.File(curdir+"tophat_grb_id.h5", "w") as dfile:
-        for key, data in id_dict.items():
-            dfile.create_dataset(name=key, data=data)
+    pba_id.save_1d_id(id_dict=id_dict, outfpath=curdir+"tophat_grb_id.h5")
+
 
     lls, lbls = [], []
     for (i_thetaobs, i_freq, i_color) in [
@@ -181,14 +180,12 @@ def tst_against_afgpy_methods(withSpread = False,
     pba_id = PBA.id_analytic.JetStruct(n_layers_pw=80, n_layers_a=1)
     # save piece-wise EATS ID
     id_dict = pba_id.get_1D_id(pars=struct, type="piece-wise")
-    with h5py.File(workdir+"tophat_grb_id_pw.h5", "w") as dfile:
-        for key, data in id_dict.items():
-            dfile.create_dataset(name=key, data=data)
+    pba_id.save_1d_id(id_dict=id_dict, outfpath=curdir+"tophat_grb_id_pw.h5")
+
     # save adaptive EATS ID
     id_dict = pba_id.get_1D_id(pars=struct, type="adaptive")
-    with h5py.File(workdir+"tophat_grb_id_a.h5", "w") as dfile:
-        for key, data in id_dict.items():
-            dfile.create_dataset(name=key, data=data)
+    pba_id.save_1d_id(id_dict=id_dict, outfpath=curdir+"tophat_grb_id_a.h5")
+
 
     lls, lbls = [], []
     for (i_thetaobs, i_freq, i_color) in [

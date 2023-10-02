@@ -153,6 +153,32 @@ class LoadH5
       };
       // Here we use the Proxy class to have a single getData function
       Proxy getData() const {return Proxy(this);}
+      double getAttr(std::string key){
+          Attribute att; double val;
+          try
+          {
+              Exception::dontPrint();
+              H5std_string FILE_NAME(LoadH5::filename);
+              H5File file(FILE_NAME, H5F_ACC_RDONLY);
+              att = file.openAttribute(key);
+              DataType type = att.getDataType();
+              att.read(type,&val);
+
+          }
+          catch (FileIException error)
+          {
+              error.printErrorStack();
+              double err = -1.;
+              return err;
+          }
+          catch (GroupIException error)
+          {
+              error.printErrorStack();
+              double err = -1.;
+              return err;
+          }
+          return val;
+      }
       //
 //      double getDoubleAttr(std::string key){
 //          H5::H5File file{LoadH5::filename, H5F_ACC_RDONLY};

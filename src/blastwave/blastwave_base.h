@@ -178,7 +178,8 @@ public:
                 exit(1);
             }
         }
-        p_spread->setPars(a,theta_max,id->theta_core,
+        p_spread->setPars(a,theta_max,
+                          id->theta_core,
                           id->theta_wing, method_spread);
 
         // set parameters for EOS
@@ -391,6 +392,7 @@ public:
         p_pars->R0        = (double)id->get(ish,il,EjectaID2::Q::ir);//latStruct.dist_M0_pw[ilayer];
         p_pars->mom0      = (double)id->get(ish,il,EjectaID2::Q::imom);//latStruct.dist_Mom0_pw[ilayer];
         p_pars->Gamma0    = GamFromMom(id->get(ish,il,EjectaID2::Q::imom));//latStruct.dist_Mom0_pw[ilayer];
+        p_pars->beta0     = EQS::Beta(p_pars->Gamma0);
         p_pars->s0        = (double)id->get(ish,il,EjectaID2::Q::ientr);//latStruct.dist_s_pw[ilayer];
         p_pars->tb0       = m_tb_arr.empty() ? 0 : m_tb_arr[0];
         p_pars->theta_a   = 0.;
@@ -401,6 +403,17 @@ public:
         p_pars->theta_max = theta_max;
         p_pars->ncells    = ((id->method_eats) == EjectaID2::ipiecewise)
                             ? (double)id->ncells : 1.;//(double) latStruct.ncells;
+
+        /// quick check
+        if (p_pars->beta0 < p_pars->min_beta_0){
+            (*p_log)(LOG_ERR,AT) << "ish="<<ish<<" il="<<il
+                <<" Gamma0="<<p_pars->Gamma0<<" beta0="<<p_pars->beta0<<" < min="<<p_pars->min_beta_0<<"\n";
+            exit(1);
+        }
+        if (p_pars->E0 < 1e10){
+            (*p_log)(LOG_ERR,AT) << "ish="<<ish<<" il="<<il<<" E0="<<p_pars->E0<<" < min="<<1e10<<"\n";
+            exit(1);
+        }
 
         p_spread->m_theta_b0 = p_pars->theta_b0;
         p_pars->prev_x = p_pars->tb0;

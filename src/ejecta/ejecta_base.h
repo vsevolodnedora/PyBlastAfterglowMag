@@ -261,55 +261,30 @@ public:
                     std::make_unique<CumulativeShell>(t_arr, nshells_, il, n_substeps,
                                                       type, p_log->getLogLevel()) );
             p_cumShells[il]->setPars(pars, opts);
-            empty_bws.emplace_back("il="+std::to_string(il)+" | shells ");
+            empty_bws.emplace_back("il="+std::to_string(il)+" | shells:");
             for (size_t ish = 0; ish < nshells_; ish++){
                 auto & bw = p_cumShells[il]->getBW(ish);
 
-                if (id->get(ish,il,EjectaID2::Q::ir)<=0||
-                    id->get(ish,il,EjectaID2::Q::iek)<=0||
-                    id->get(ish,il,EjectaID2::Q::imass)<=0){
-                    empty_bws[il]+=" "+std::to_string(ish) + " ENDING evolution";
+                /// If ID is not correct, skip this blastwave initiialization (will not be evolved)
+                if (id->get(ish,il,EjectaID2::Q::ir) <= 0 ||
+                    id->get(ish,il,EjectaID2::Q::iek) <= 0 ||
+                    EQS::Beta(EQS::GamFromMom(id->get(ish,il,EjectaID2::Q::imom))) <= 1.e-6 ||
+                    id->get(ish,il,EjectaID2::Q::imass) <= 0){
+                    empty_bws[il]+=" "+std::to_string(ish);
                     n_unitinitilized_shells++;
                     bw->getPars()->end_evolution = true;
                     ii_eq += SOL::neq;//bw->getNeq();
                     continue;
                 }
+                /// init parameters for blastwave (incl. initial conditions)
                 else{
                     bw->setParams(id, pars, opts, il, ii_eq);
                     ii_eq += SOL::neq;//bw->getNeq();
                 }
 
-//                auto & struc = ejectaStructs.structs[ish];
-
-#if 0
-                switch (id->method_eats) {
-                    case EjectaID2::iadaptive:
-                        bw->getRad()->setEatsPars(
-                                pars,opts,id->nlayers,id->get(ish,il,EjectaID2::Q::ictheta),
-                                0.,0.,id->theta_wing,
-                                getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false));
-
-                        break;
-                    case EjectaID2::ipiecewise:
-                        bw->getEATS()->setEatsPars(
-                                pars,opts,id->nlayers,id->get(ish,il,EjectaID2::Q::ictheta),
-                                id->get(ish,il,EjectaID2::Q::itheta_c_l),
-                                id->get(ish,il,EjectaID2::Q::itheta_c_h),0.,
-                                getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false));
-
-                        break;
-                }
-#endif
-
-/// Override the layer-to-use
                 if (bw->getPars()->which_jet_layer_to_use == 0){
                     bw->getPars()->which_jet_layer_to_use = 0; // the fastest
                 }
-//                else if(n_layers_ej_ == 0){
-////                    n_ejecta_empty_images += 1;
-////                    n_empty_images_layer_shell[ish].emplace_back(il);
-////                    std::cerr << AT << "\n jet structure was NOT initialized. No layer selected for ejecta to propagate through.\n";
-//                }
                 else if(n_layers_ej_ == 0){
                     // NO jet structure was set, so exiting I guess... :)
                     // TODO THIS MIGHT BE WRONG -- why 'n_layers_i'
@@ -333,12 +308,6 @@ public:
                                          << "\n";
                     exit(1);
                 }
-
-
-//                bw->getEATS()->setEatsPars(pars, opts);
-//                bw->getSynchAnPtr()->setPars( pars, opts );
-
-//                ii++;
             }
         }
 
@@ -348,7 +317,7 @@ public:
         if ((n_unitinitilized_shells > 0)){
             (*p_log)(LOG_WARN,AT)<<"-------------- NO ID FOR ------------"<<"\n";
             for (const auto & empty_bw : empty_bws){
-                (*p_log)(LOG_WARN,AT)<<empty_bw<<"\n";
+                (*p_log)(LOG_WARN,AT)<<"\t NOT EVOLVING: "<<empty_bw<<"\n";
             }
             (*p_log)(LOG_WARN,AT)<<"-------------------------------------"<<"\n";
         }
@@ -1192,7 +1161,11 @@ public:
                         << " theta_layer=" << ilayer << "/" << nlayers()
                         << "\n";
                 auto & model = getShells()[ilayer];//ejectaModels[ishell][ilayer];
-                model->getBW(ishell)->getFsEATS()->evalLightCurve(out[ii], id->method_eats, obs_times, obs_freqs);
+                auto & bw = model->getBW(ishell);
+//                if (bw->getPars()->i_end_r == 0){
+//                    int x = 1;
+//                }
+                bw->getFsEATS()->evalLightCurve(out[ii], id->method_eats, obs_times, obs_freqs);
                 ii++;
             }
         }

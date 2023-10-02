@@ -289,8 +289,8 @@ class JetStruct:
 
         if (type == "pw" or type=="piece-wise"):
             res = {
-                "theta_w":self.m_theta_w,
-                "theta_c":self.m_theta_c,
+                "theta_wing":self.m_theta_w,
+                "theta_core":self.m_theta_c,
                 "r":np.zeros_like(self.theta_pw[1:]),
                 "theta":self.theta_pw[1:],
                 "ctheta":self.cthetas0,
@@ -302,8 +302,8 @@ class JetStruct:
             }
         elif(type=="a" or type=="adaptive"):
             res = {
-                "theta_w":self.m_theta_w,
-                "theta_c":self.m_theta_c,
+                "theta_wing":self.m_theta_w,
+                "theta_core":self.m_theta_c,
                 "r":np.zeros_like(self.thetas_c_h),
                 "theta":self.thetas_c_h,
                 "ctheta":self.thetas_c,
@@ -317,11 +317,18 @@ class JetStruct:
 
         return res
 
+    def save_1d_id(self, id_dict : dict, outfpath : str):
+        with h5py.File(outfpath, "w") as dfile:
+            for key, data in id_dict.items():
+                dfile.create_dataset(name=key, data=data)
+            dfile.attrs.create("theta_core", data=id_dict["theta_core"], dtype=np.float64)
+            dfile.attrs.create("theta_wing", data=id_dict["theta_wing"], dtype=np.float64)
+
     def saveCurrentStructure(self, outfpath, type="pw"):
         if type == "pw":
             dfile = h5py.File(outfpath, "w")
-            dfile.attrs.create(name="theta_w",data=self.m_theta_w)
-            dfile.attrs.create(name="theta_c",data=self.m_theta_c)
+            dfile.attrs.create(name="theta_wing",data=self.m_theta_w)
+            dfile.attrs.create(name="theta_core",data=self.m_theta_c)
             dfile.create_dataset("r", data=np.zeros_like(self.theta_pw[1:]))
             dfile.create_dataset("theta", data=self.theta_pw[1:])
             dfile.create_dataset("ctheta", data=self.cthetas0)
@@ -342,8 +349,8 @@ class JetStruct:
             # dfile.create_dataset("ek", data=np.column_stack((self.dist_E0_a, np.zeros_like(self.thetas_c_h))))
             # dfile.create_dataset("ye", data=np.column_stack((self.dist_Ye_a, np.zeros_like(self.thetas_c_h))))
             # dfile.create_dataset("s", data=np.column_stack((self.dist_s_a, np.zeros_like(self.thetas_c_h))))
-            dfile.attrs.create(name="theta_w",data=self.m_theta_w)
-            dfile.attrs.create(name="theta_c",data=self.m_theta_c)
+            dfile.attrs.create(name="theta_wing",data=self.m_theta_w)
+            dfile.attrs.create(name="theta_core",data=self.m_theta_c)
             dfile.create_dataset("r", data=np.zeros_like(self.thetas_c_h))
             dfile.create_dataset("theta", data=self.thetas_c_h)
             dfile.create_dataset("ctheta", data=self.thetas_c)

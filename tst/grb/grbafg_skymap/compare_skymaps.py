@@ -322,9 +322,7 @@ def task_kn_skymap_with_dist_one_time():
               "theta_c": 0.085, "theta_w": 0.2618}
     pba_id = PBA.id_analytic.JetStruct(n_layers_pw=100, n_layers_a=10)
     id_dict = pba_id.get_1D_id(pars=struct, type="piece-wise")
-    with h5py.File(workdir+"gauss_grb_id.h5", "w") as dfile:
-        for key, data in id_dict.items():
-            dfile.create_dataset(name=key, data=data)
+    pba_id.save_1d_id(id_dict=id_dict, outfpath=workdir+"gauss_grb_id.h5")
 
     # initialize interface
     pba = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+'/',readparfileforpaths=True,parfile="parfile.par")

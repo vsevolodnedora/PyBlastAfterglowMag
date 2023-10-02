@@ -84,11 +84,10 @@ def plot_ejecta_layers(ishells=(0,), ilayers=(0,25,49),
 
     pba_id = PBA.id_maker_analytic.JetStruct(n_layers_pw=50,n_layers_a=10)
     pba_id_dict = pba_id.get_1D_id(type="adaptive",pars=structure)
-    with h5py.File(workdir+"tophat_grb_id.h5", "w") as dfile:
-        for key, data in pba_id_dict.items():
-            dfile.create_dataset(name=key, data=data)
+    pba_id.save_1d_id(id_dict=pba_id_dict, outfpath=workdir+"tophat_grb_id.h5")
 
-    ### run fs-only model
+
+        ### run fs-only model
     if(run_fs_only):
         PBA.parfile_tools.modify_parfile_par_opt(workingdir=workdir, part="grb", newpars={},
                                newopts={"rhs_type":"grb_fs", "outfpath":"grb_fs.h5", "do_rs":"no",
@@ -321,9 +320,8 @@ def plot_tst_total_spec_resolution(freq=1e9, nlayers=(10,20,40,80,120),legend=Fa
 
                 pba_id = PBA.id_maker_analytic.JetStruct(n_layers_pw=i_nlayers,n_layers_a=i_nlayers)
                 pba_id_dict = pba_id.get_1D_id(type=method_eats,pars=structure)
-                with h5py.File(workdir+"gauss_grb_id.h5", "w") as dfile:
-                    for key, data in pba_id_dict.items():
-                        dfile.create_dataset(name=key, data=data)
+                pba_id.save_1d_id(id_dict=pba_id_dict, outfpath=workdir+"gauss_grb_id.h5")
+
 
                 PBA.parfile_tools.modify_parfile_par_opt(workingdir=workdir, part="main", newpars={"theta_obs":theta}, newopts={},
                                        parfile="default_parfile.par", newparfile="default_parfile.par",keep_old=False)

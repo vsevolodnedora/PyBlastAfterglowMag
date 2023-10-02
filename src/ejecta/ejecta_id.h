@@ -33,7 +33,7 @@ public:
     enum STUCT_TYPE { iadaptive, ipiecewise };
     IDTYPE idtype{};  STUCT_TYPE method_eats{};
     size_t nshells=0, nlayers=0, ncells=0;
-    double theta_core{}; double theta_wing{};
+    double theta_core=-1; double theta_wing=-1;
     double theta_max{};
     EjectaID2(std::string path_to_table,
               std::string eats_method,
@@ -319,6 +319,9 @@ private:
                 }
             }
             nlayers = m_data[0][0].size();
+            theta_wing = ldata.getAttr("theta_wing");
+            theta_core = ldata.getAttr("theta_core");
+            (*p_log)(LOG_INFO,AT) << " 1D ID has theta_wing="<<theta_wing<<" theta_core="<<theta_core<<"\n";
         }
         else{
             /// expect N shells with varying properties [nshells; m_nlayers]
@@ -364,15 +367,17 @@ private:
                     }
 
                 }
+                /// we do not expect other values for structured ejecta
+                theta_wing = m_data[Q::itheta][ish][nlayers-1];
             }
         }
         /// ---------------------------
         (*p_log)(LOG_INFO,AT) << "Initial data loaded with nshells="<<nshells<<" m_nlayers="<<nlayers<<"\n";
         /// ---------------------------
         for (size_t ish = 0; ish < nshells; ish++){
-            (*p_log)(LOG_WARN,AT)<<" theta_core is NOT given in new ID. Fix it by evaluating it FROM profile!\n";
-            theta_wing = m_data[Q::itheta][ish][nlayers-1];
-            theta_core = m_data[Q::itheta][ish][nlayers-1]/4.;
+//            (*p_log)(LOG_WARN,AT)<<" theta_core is NOT given in new ID. Fix it by evaluating it FROM profile!\n";
+//            theta_wing = m_data[Q::itheta][ish][nlayers-1];
+//            theta_core = m_data[Q::itheta][ish][nlayers-1]/4.;
 //            double mom_max = std::numeric_limits<double>::max();
 //            double mom_min = 0.;
 //            for (size_t il = 0; il < nlayers; il++){
