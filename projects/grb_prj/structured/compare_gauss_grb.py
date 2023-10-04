@@ -1,17 +1,8 @@
 # import PyBlastAfterglowMag
-
+import copy
 # import pytest
+import h5py
 import os
-
-# from PyBlastAfterglowMag import BPA_METHODS as PBA
-# from package.src.PyBlastAfterglowMag.interface import BPA_METHODS as PBA
-# from package.src.PyBlastAfterglowMag
-
-# from package.src.PyBlastAfterglowMag.skymap_plotting_tools import *
-# from package.src.PyBlastAfterglowMag.interface import *
-# from package.src.PyBlastAfterglowMag.OLD_skymap_tools import *
-# from package.src.PyBlastAfterglowMag.utils import *
-# from package.src.PyBlastAfterglowMag.id_maker_analytic import *
 
 try:
     import afterglowpy as grb
@@ -19,14 +10,111 @@ except:
     afterglowpy = False
     print("Error! could not import afteglowpy")
 
-curdir = os.getcwd() + '/' #"/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglow_dev/PyBlastAfterglow/src/PyBlastAfterglow/tests/dyn/"
-# parfiledir = os.getcwd().replace("structured","") + "output/"
-# paperfigdir = "/home/vsevolod/Work/GIT/overleaf/grb_afg/figs/"
-
+from paths import *
 from settings import SettingsGaussian, SettingsGRB170917A
-from projects.grb_prj.grb_tst_tools import *
 
-def main():
+
+curdir = os.getcwd() + '/'
+
+try:
+    import package.src.PyBlastAfterglowMag as PBA
+except ImportError:
+    try:
+        import PyBlastAfterglowMag as PBA
+    except:
+        raise ImportError("Cannot import PyBlastAfterglowMag")
+
+def grid_explore_runs():
+
+    iter_pars_dict = {
+        "Eiso_c":   [1.e49, 1.e51, 1.e53, 1.e55],
+        # "Gamma0c":  [100., 300., 500., 1000.],
+        # "theta_c":  [.05, .1, .4 ,.6, 1.],
+        # "theta_w":  [.05, .1, .4, .6, 1.],
+        # "nlayers_a":[22, 32, 42, 52],
+        # "n_ism":    [1.0, 0.1, 0.01, 0.001]
+        # "theta_obs": np.array([0., 15., 45.0, 60., 75., 90.]) * np.pi / 180.0,  # [75*np.pi/180]#
+        # "p": [2.2, 2.4, 2.6, 2.8],  # [2.05, 2.1, 2.2, 2.3, 2.4, 2.6, 2.8, 3.0],
+        # "eps_e": [0.5, 0.1, 0.01, 0.001],  # [0.001, 0.005, 0.01, 0.05, 0.1, 0.2, 0.3, 0.5],
+        # "eps_b": [0.5, 0.1, 0.01, 0.001],  # [0.001, 0.005, 0.01, 0.05, 0.1],
+    }
+    iter_pars_dict = {
+        "Eiso_c":   [1.e49],
+        "Gamma0c":  [100.],
+        "theta_c":  [.05],
+        "theta_w":  [.05],
+        "nlayers_a":[22],
+        "n_ism":    [1.0]
+        # "theta_obs": np.array([0., 15., 45.0, 60., 75., 90.]) * np.pi / 180.0,  # [75*np.pi/180]#
+        # "p": [2.2, 2.4, 2.6, 2.8],  # [2.05, 2.1, 2.2, 2.3, 2.4, 2.6, 2.8, 3.0],
+        # "eps_e": [0.5, 0.1, 0.01, 0.001],  # [0.001, 0.005, 0.01, 0.05, 0.1, 0.2, 0.3, 0.5],
+        # "eps_b": [0.5, 0.1, 0.01, 0.001],  # [0.001, 0.005, 0.01, 0.05, 0.1],
+    }
+
+    pr = PBA.parallel_runs.ParallelRuns(
+        afg_data_dir=AFGRUNDIR,
+        dir_for_run="struct_fsrs_resolution/")
+
+    pr.setup_1_working_dirs(iter_pars_dict=iter_pars_dict,dirname_prefix="grb_",dirname_ending=f"gauss")
+
+    pr.setup_2_parfiles(parfilename="parfile_def.par")
+
+    for pars in pr.new_pars:
+        pars["nlayers_pw"] = 100
+        pars["struct"] = "gaussian"
+        pars["M0c"] = -1
+
+    pr.setup_3_id_grbej(type_eats="adaptive")
+
+    skymap_postprocess_conf = {
+        "nx":256, "ny":128, "extend_grid":1, "fwhm_fac":0.5, "lat_dist_method":"integ",
+        "intp_filter":{ "type":None, "sigma":2, "mode":'reflect' }, # "gaussian"
+        "hist_filter":{ "type":None, "sigma":2, "mode":'reflect' }
+    }
+    pr.launch_runs(n_cpu=4,
+                   path_to_executable=EXECUTABLE,
+                   skymap_postprocess_conf={},
+                   loglevel="info")
+
+    print("RUNS FINISHED")
+
+def fsrs_resolution_analysis():
+    tsk = SettingsGaussian()
+    grb = PBA.wrappers.CasesFSRS(default_parfile_fpath=curdir+"parfile_def.par",
+                      workingdir=curdir+"output_rs/")
+    fname = curdir+"output_rs/"+"resolutions.h5"
+    dfile = h5py.File(fname,"w")
+    for eiso in [1.e49,1.e51,1.e53,1.e55]:
+        for gam in [100.,300.,500.,1000.]:
+            for th_c in [.05,.1,.4,.6, 1.]:
+                for th_w in [.05,.1,.4,.6, 1.]:
+                    if (th_c > th_w):
+                        continue
+                    strct = copy.deepcopy(tsk.structure)
+                    strct["Eiso_c"]  = eiso
+                    strct["Gamma0c"] = gam
+                    strct["theta_c"] = th_c
+                    strct["theta_w"] = th_w
+                    label = f"fsrs-{str(eiso).replace('.','')}" + \
+                            f"-{str(int(gam)).replace('.','')}" + \
+                            f"-{str().replace('.','')}" + \
+                            f"-{str(th_w).replace('.','')}"
+
+
+
+                    lightcurves = grb.paper_plot_resolution2_rs(struct=strct, pars=tsk.pars_fsrs, opts_a=tsk.opts_a,
+                                                  show_fig=False, save_pdf=True,resolutions_a=tsk.resolutions_a,
+                                                  figfpath=curdir+label)
+                    grp = dfile.create_group(label)
+                    for key in lightcurves.keys():
+                        grp.create_dataset(key, data=lightcurves[key])
+    dfile.close()
+    print(f"File saved: {fname}")
+
+def main_structured():
+    grid_explore_runs()
+    exit(0)
+
     # tsk = SettingsGRB170917A()
     # grb = TestCasesFS(default_parfile_fpath=curdir+"parfile_def.par",
     #                   workingdir=curdir+"output/")
@@ -47,7 +135,7 @@ def main():
     #                                  ref_lc_fname="reference_lc_layer_GamInf.h5",
     #                                  save_pdf=True, show_fig=True,layers=(0,40))
 
-    grb = TestCasesRS(default_parfile_fpath=curdir+"parfile_def.par",
+    grb = PBA.wrappers.CasesFSRS(default_parfile_fpath=curdir+"parfile_def.par",
                       workingdir=curdir+"output_rs/")
     # grb.paper_plot_compare_fsrs(struct=tsk.structure, pars=tsk.pars_fsrs, layers=(0,10,20,30,40,49),
     #                             show_fig=True, save_pdf=True,
@@ -55,14 +143,15 @@ def main():
     # grb.paper_plot_resolution_rs(struct=tsk.structure, pars=tsk.pars_fsrs, opts_a=tsk.opts_a, layers=(),
     #                             show_fig=True, save_pdf=True,resolutions_a=tsk.resolutions_a,
     #                             figfpath=curdir+"figs/"+"rs_lightcurves")
+    fsrs_resolution_analysis()
 
-    grb.compare_grbs(struct=tsk.structure, pars=tsk.pars_fsrs, opts_a=tsk.opts_a, layers=(0,10,20,30,40,49),
-                     setups = ({"n_ism":1e-4,"color":"blue","cmap":"Blues","label":r"$n_{\rm ISM}=$"+"$10^{-4}$ cm$^{-3}$"},
-                               {"n_ism":1e0,"color":"red","cmap":"Reds","label":r"$n_{\rm ISM}=$"+"$1$ cm$^{-3}$"}),
-                     show_fig=True, save_pdf=True, figfpath=curdir+"figs/"+"rs_lc_GammaShock")
+    # grb.compare_grbs(struct=tsk.structure, pars=tsk.pars_fsrs, opts_a=tsk.opts_a, layers=(0,10,20,30,40,49),
+    #                  setups = ({"n_ism":1e-4,"color":"blue","cmap":"Blues","label":r"$n_{\rm ISM}=$"+"$10^{-4}$ cm$^{-3}$"},
+    #                            {"n_ism":1e0,"color":"red","cmap":"Reds","label":r"$n_{\rm ISM}=$"+"$1$ cm$^{-3}$"}),
+    #                  show_fig=True, save_pdf=True, figfpath=curdir+"figs/"+"rs_lc_GammaShock")
 
 if __name__ == '__main__':
-    main()
+    main_structured()
 
 
 

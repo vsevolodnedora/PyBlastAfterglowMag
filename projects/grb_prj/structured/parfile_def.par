@@ -16,7 +16,7 @@ tb0 = 3335.64
 tb1 = 1.e17
 ntb = 1000
 iout = 1
-rtol = 1e-6
+rtol = 1e-7
 nmax = 1000
 
 A0 = -1
@@ -56,7 +56,7 @@ tprompt = 1.e3
 a = 1.0
 mom0_frac_when_start_spread = 0.95 # 0.1
 rs_Gamma0_frac_no_exceed = .92
-min_Gamma0_for_rs = 0
+min_Gamma0_for_rs = 4.
 
 eps_e = -1
 eps_b = -1
@@ -113,7 +113,8 @@ method_spread = AFGPY
 method_limit_spread = Gamma0Frac # Gamma0Frac`
 method_dgdr = our
 method_eos = Nava13
-method_GammaSh = useGamma # useJKwithGammaRel  # default -- "useGamma"
+method_GammaFsh = useGammaShock
+method_GammaRsh = useGammaShock
 method_Up = useEint2
 method_Delta = useJoh06
 use_adiabLoss = yes
