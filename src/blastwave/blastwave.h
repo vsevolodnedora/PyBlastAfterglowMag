@@ -231,7 +231,7 @@ public:
         // ***************************************
     }
     /// check the evolution result
-    void checkEvolution(){
+    void checkEvolutionEnd(){
         /// limit the evaluation to the latest 'R' that is not 0 (before termination)
         if (p_pars->end_evolution)
             return;
@@ -248,6 +248,11 @@ public:
 //                                            << "] Blastwave was not evolved: i_end_r = " << i_end_r << "\n";
 //            exit(1);
 //        }
+        if (i_end_r == 0){
+            (*p_log)(LOG_ERR,AT) << "[ish="<<p_pars->ishell<<" il="<<p_pars->ilayer<<"] "
+                <<"beta0="<<p_pars->beta0<< " i_end_r = 0"<<"\n";
+            exit(1);
+        }
         p_pars->i_end_r = i_end_r;
     }
     /// add the current solution 'sol' to the 'mD' which is Vector of Arrays (for all variables)

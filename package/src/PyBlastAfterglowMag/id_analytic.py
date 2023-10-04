@@ -252,8 +252,6 @@ class JetStruct:
             self.dist_Ye_pw[i] = Ye
             self.dist_s_pw[i] = s
 
-
-
         # set adaptive
         # self.nlayers_a = n_layers;
         self._setThetaGridA()
@@ -313,7 +311,7 @@ class JetStruct:
                 "ye":self.dist_Ye_a,
                 "s":self.dist_s_a
             }
-        else: raise KeyError()
+        else: raise KeyError(f"type={type} is not recognized. Supported: piece-wise or adaptive")
 
         return res
 
@@ -370,9 +368,20 @@ def OLD_prepare_grb_ej_id_1d(pars, outfpath, type="pw"):
 
     o_jet = JetStruct(pars["nlayers_pw"],pars["nlayers_a"])
     if (pars["struct"] == "gaussian"):
-        o_jet._gaussian(E_iso_c=pars["Eiso_c"], Gamma0c=pars["Gamma0c"], theta_c=pars["theta_c"], theta_w=pars["theta_w"], M0c=pars["M0c"])
+
+        o_jet._gaussian(E_iso_c=pars["Eiso_c"],
+                        Gamma0c=pars["Gamma0c"],
+                        theta_c=pars["theta_c"],
+                        theta_w=pars["theta_w"],
+                        M0c=pars["M0c"])
+
     elif (pars["struct"] == "tophat"):
-        o_jet._tophat(E_iso=pars["Eiso_c"], Gamma0=pars["Gamma0c"], theta_h=pars["theta_c"], M0=pars["M0c"], Ye=0, s=0)
+        o_jet._tophat(E_iso=pars["Eiso_c"],
+                      Gamma0=pars["Gamma0c"],
+                      theta_h=pars["theta_c"],
+                      M0=pars["M0c"],
+                      Ye=0,
+                      s=0)
     else:
         raise KeyError("Not implemented")
 

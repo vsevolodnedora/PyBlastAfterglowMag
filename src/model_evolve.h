@@ -84,7 +84,7 @@ public:
         m_TmpSol   = new double [ p_pars->n_tot_eqs ]; // for shell collision
         /// init all arrays with zeroes
         for (size_t k = 0; k < p_pars->n_tot_eqs; k++){
-            m_InitData[k] = 0.;m_CurSol[k]=0.;m_TmpSol[k]=0.;
+            m_InitData[k] = 0.; m_CurSol[k]=0.; m_TmpSol[k]=0.;
         }
 
         m_CurSols  = new double * [ p_pars->n_substeps ];
@@ -366,7 +366,7 @@ public:
             auto &ej_bws = p_pars->p_grb->getShells();
             for (size_t il = 0; il < ej_bws.size(); il++) {
                 for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
-                    ej_bws[il]->getBW(ish)->checkEvolution();
+                    ej_bws[il]->getBW(ish)->checkEvolutionEnd();
                 }
             }
         }
@@ -374,7 +374,7 @@ public:
             auto &ej_bws = p_pars->p_ej->getShells();
             for (size_t il = 0; il < ej_bws.size(); il++) {
                 for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
-                    ej_bws[il]->getBW(ish)->checkEvolution();
+                    ej_bws[il]->getBW(ish)->checkEvolutionEnd();
                 }
             }
         }
@@ -382,7 +382,7 @@ public:
             auto &ej_pwnbw = p_pars->p_ej_pwn2->getShells();
             for (size_t il = 0; il < ej_pwnbw.size(); il++) {
                 for (size_t ish = 0; ish < ej_pwnbw[il]->nBWs(); ish++) {
-                    ej_pwnbw[il]->getBW(ish)->checkEvolution();
+                    ej_pwnbw[il]->getBW(ish)->checkEvolutionEnd();
                 }
             }
         }
@@ -554,6 +554,10 @@ public:
             (*p_log)(LOG_ERR,AT)  << " Unphysical value in the solution \n";
             exit(1);
         }
+
+        /// check if to end evo
+        checkEvolution();
+
 //        p_pars->ix = ix;// latest solution
 //        p_pars->dx = dx;// latest solution
 //        p_pars->x = t_grid[ix];

@@ -728,6 +728,8 @@ class PyBlastAfterglow:
         self.MAG.clear()
 
 
+
+
 ''' parallel runs TOBE REMOVED '''
 
 class REMOVE_ME:

@@ -91,10 +91,16 @@ public:
         }
 
         auto & p_syna = p_pars->p_syna;
+        /// update the i_end_r with respect to minimum for radiation
         if ((mD[BW::Q::ibeta][it] < p_syna->getPars()->beta_min)){
             if (p_pars->i_end_r > it-1)
                 p_pars->i_end_r = it-1;
             return;
+        }
+        if (p_pars->i_end_r == 0){
+            (*p_log)(LOG_ERR,AT) << "[ish="<<p_pars->ishell<<" il="<<p_pars->ilayer<<"] "
+                                 <<"beta0="<<p_pars->beta0<< " i_end_r = 0"<<"\n";
+            exit(1);
         }
 
         double Gamma_ = mD[BW::Q::iGamma][it]; // TODO should be GammaSh
@@ -188,6 +194,10 @@ public:
     }
 
     void computeForwardShockElectronAnalyticVars(){
+
+        if (p_pars->end_evolution && (p_pars->E0 < 0))
+            return;
+
         for (size_t it = 0; it < p_pars->nr; it++)
             addComputeForwardShockMicrophysics(it);
 

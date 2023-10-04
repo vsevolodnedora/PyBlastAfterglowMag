@@ -1155,17 +1155,23 @@ public:
         size_t ii = 0;
         for (size_t ishell = 0; ishell < nshells(); ishell++) {
             for (size_t ilayer = 0; ilayer < nlayers(); ilayer++) {
-                (*p_log)(LOG_INFO, AT)
-                        << " EJECTA LC ntimes=" << obs_times.size()
-                        << " vel_shell=" << ishell << "/" << nshells() - 1
-                        << " theta_layer=" << ilayer << "/" << nlayers()
-                        << "\n";
                 auto & model = getShells()[ilayer];//ejectaModels[ishell][ilayer];
                 auto & bw = model->getBW(ishell);
-//                if (bw->getPars()->i_end_r == 0){
-//                    int x = 1;
-//                }
-                bw->getFsEATS()->evalLightCurve(out[ii], id->method_eats, obs_times, obs_freqs);
+                if (bw->getPars()->i_end_r == 0)
+                    (*p_log)(LOG_WARN, AT)
+                            << " NOT EVOLVED EJECTA BW"
+                            << " vel_shell=" << ishell << "/" << nshells() - 1
+                            << " theta_layer=" << ilayer << "/" << nlayers()
+                            << " beta0="<<bw->getPars()->beta0
+                            << "\n";
+                else {
+                    (*p_log)(LOG_INFO, AT)
+                            << " EJECTA LC ntimes=" << obs_times.size()
+                            << " vel_shell=" << ishell << "/" << nshells() - 1
+                            << " theta_layer=" << ilayer << "/" << nlayers()
+                            << "\n";
+                    bw->getFsEATS()->evalLightCurve(out[ii], id->method_eats, obs_times, obs_freqs);
+                }
                 ii++;
             }
         }

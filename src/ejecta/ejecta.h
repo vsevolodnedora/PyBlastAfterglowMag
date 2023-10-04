@@ -570,7 +570,7 @@ private:
 //                    (*p_log)(LOG_WARN,AT) << "Loaded not evolved shell [il="<<il<<", "<<"ish="<<ish<<"] \n";
                     n_empty_shells+=1;
                 }
-                bw->checkEvolution();
+                bw->checkEvolutionEnd();
                 bw->getPars()->nr = bw->getData()[BW::iR].size();
             }
             (*p_log)(LOG_INFO,AT) << "Loaded [il="<<il<<"] empty shells "<<n_empty_shells<<"\n";
