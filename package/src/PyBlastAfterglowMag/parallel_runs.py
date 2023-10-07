@@ -183,9 +183,9 @@ class ParallelRuns():
             n_layers_pw = pars["nlayers_pw"]
             nlayers_a = pars["nlayers_a"]
             pba_id = JetStruct(n_layers_pw=n_layers_pw, n_layers_a=nlayers_a)
-            id_dict = pba_id.get_1D_id(pars=pars,type=type_eats)
+            id_dict, id_pars = pba_id.get_1D_id(pars=pars,type=type_eats)
             ejecta_id_fpath = workingdir + self.ejecta_id_fname
-            pba_id.save_1d_id(id_dict=id_dict, outfpath=ejecta_id_fpath)
+            pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=ejecta_id_fpath)
 
     def launch_runs(self, n_cpu : int,
                     skymap_postprocess_conf : dict,

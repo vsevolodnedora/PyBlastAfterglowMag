@@ -262,8 +262,8 @@ class Base():
         shutil.copy(self.default_parfile_fpath, self.workingdir+parfilefname)
         # prepare initial data
         pba_id = JetStruct(n_layers_pw=struct["nlayers_pw"], n_layers_a=struct["nlayers_a"])
-        id_dict = pba_id.get_1D_id(pars=struct,type="piece-wise")
-        pba_id.save_1d_id(id_dict=id_dict, outfpath=self.workingdir+"gauss_grb_id.h5")
+        id_dict, id_pars = pba_id.get_1D_id(pars=struct,type="piece-wise")
+        pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=self.workingdir+"gauss_grb_id.h5")
 
         # modify parfile
         modify_parfile_par_opt(workingdir=self.workingdir, part="main",
@@ -299,8 +299,8 @@ class Base():
         shutil.copy(self.default_parfile_fpath, self.workingdir+parfilefname)
         # prepare initial data
         pba_id = JetStruct(n_layers_pw=struct["nlayers_pw"], n_layers_a=struct["nlayers_a"])
-        id_dict = pba_id.get_1D_id(pars=struct,type="adaptive")
-        pba_id.save_1d_id(id_dict=id_dict, outfpath=self.workingdir+"gauss_grb_id.h5")
+        id_dict, id_pars = pba_id.get_1D_id(pars=struct,type="adaptive")
+        pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=self.workingdir+"gauss_grb_id.h5")
 
         # modify parfile
         modify_parfile_par_opt(workingdir=self.workingdir, part="main",

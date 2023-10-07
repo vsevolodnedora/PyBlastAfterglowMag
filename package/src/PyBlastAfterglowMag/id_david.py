@@ -204,6 +204,8 @@ def prepare_kn_ej_id_2d(nlayers, corr_fpath, outfpath,
 
     print(len(ctheta_corr2), ctheta_corr2)
     dfile = h5py.File(outfpath, "w")
+    dfile.attrs.create("theta_wind", data=np.pi/2, dtype=np.float64)
+    dfile.attrs.create("theta_core", data=np.pi/2, dtype=np.float64)
     dfile.create_dataset("r",data=r)# used for theta_w in PW method
     dfile.create_dataset("theta",data=ctheta_corr3)# used for theta_w in PW method
     dfile.create_dataset("ctheta",data=ctheta_corr3)

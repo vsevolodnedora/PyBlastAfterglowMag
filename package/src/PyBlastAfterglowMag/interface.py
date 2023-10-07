@@ -17,7 +17,7 @@ pip uninstall --no-cache-dir PyBlastAfterglowMag & pip install .
 
 
 class Base:
-    def __init__(self,workingdir,readparfileforpaths,parfile):
+    def __init__(self,workingdir : str,readparfileforpaths : str,parfile : str,verbose : str):
         self.parfile = parfile
         self.workingdir = workingdir
         self.res_dir = workingdir
@@ -31,6 +31,8 @@ class Base:
         self.spec_dfile = None
         self.lc_dfile = None
         self.skymap_dfile = None
+
+        self.verb = verbose
 
 
     def read_grb_part_parfile(self,parfile="parfile.par"):
@@ -96,8 +98,8 @@ class Skymap:
 
 
 class Ejecta(Base):
-    def __init__(self,workingdir, readparfileforpaths, parfile, type):
-        super().__init__(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile)
+    def __init__(self,workingdir : str, readparfileforpaths : str, parfile : str, type : str, verbose : str):
+        super().__init__(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,verbose=verbose)
 
         if not os.path.isdir(workingdir):
             raise IOError("Working directory not found {}".format(workingdir))
@@ -114,7 +116,7 @@ class Ejecta(Base):
             self.fpath_light_curve = self.res_dir + self.prefix + "lightcurves_layers.h5"
             self.fpath_sky_map = self.res_dir + self.prefix + "skymap.h5"
 
-    def reload_parfile(self, type):
+    def reload_parfile(self, type : str) -> None:
         if (type=="kn"):
             self.pars, self.opts = self.read_kn_part_parfile( self.parfile )
         elif(type=="grb"):
@@ -246,7 +248,7 @@ class Ejecta(Base):
         # nshells = int(dfile.attrs["nshells"])
         utimes = self.get_lc_times(spec=spec,unique=True)
         ufreqs = self.get_lc_freqs(spec=spec,unique=True)
-        print(dfile.keys())
+        # print(dfile.keys())
         fluxes =  np.array(dfile["total_power"]) if spec else np.array(dfile["total_fluxes"])
 
         # key = str("totalflux at freq={:.4e}".format(3e9)).replace('.', ',')
@@ -256,7 +258,7 @@ class Ejecta(Base):
         if (not time is None):
             if (not time in utimes):
                 _time = utimes[find_nearest_index(utimes, time)]
-                print(f"Warning: time={time} is not in {utimes} Using time={_time}")
+                if self.verb: print(f"Warning: time={time} is not in {utimes} Using time={_time}")
             else:
                 _time = utimes[int(np.where(utimes==time)[0])]
 
@@ -273,7 +275,7 @@ class Ejecta(Base):
                 raise ValueError(f"requested freq={freq} < dfile freqs.min()={ufreqs.min()}")
             if (not freq in ufreqs):
                 _freq = ufreqs[find_nearest_index(ufreqs, freq)]
-                print(f"Warning: freq={freq} is not in {ufreqs} Using freq={_freq}")
+                if self.verb: print(f"Warning: freq={freq} is not in {ufreqs} Using freq={_freq}")
             else:
                 _freq = ufreqs[int(np.where(ufreqs==freq)[0])]
 
@@ -334,7 +336,7 @@ class Ejecta(Base):
                 raise ValueError(f"requested time={time} < dfile times.min()={utimes.min()}")
             if (not time in utimes):
                 _time = utimes[find_nearest_index(utimes, time)]
-                print(f"Warning: time={time} is not in {utimes} Using time={_time}")
+                if self.verb: print(f"Warning: time={time} is not in {utimes} Using time={_time}")
             else:
                 _time = utimes[int(np.where(utimes==time)[0])]
         else:
@@ -346,7 +348,7 @@ class Ejecta(Base):
                 raise ValueError(f"requested freq={freq} < dfile freqs.min()={ufreqs.min()}")
             if (not freq in ufreqs):
                 _freq = ufreqs[find_nearest_index(ufreqs, freq)]
-                print(f"Warning: freq={freq} is not in {ufreqs} Using freq={_freq}")
+                if self.verb: print(f"Warning: freq={freq} is not in {ufreqs} Using freq={_freq}")
             else:
                 _freq = ufreqs[int(np.where(ufreqs==freq)[0])]
         else:
@@ -368,7 +370,7 @@ class Ejecta(Base):
                 else: return fluxes2d
             elif ((ishell is None) and (not ilayer is None)):
                 fluxes2d = np.zeros((len(freqs), len(times)))
-                print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
+                if self.verb: print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
                 for ish in range(nshells):
                     arr = np.array(dfile["shell={} layer={}".format(ish, ilayer)])
                     arr = np.reshape(arr, (len(times),len(freqs)))
@@ -377,7 +379,7 @@ class Ejecta(Base):
                 else: return fluxes2d
             elif ((not ishell is None) and (ilayer is None)):
                 fluxes2d = np.zeros((len(freqs), len(times)))
-                print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
+                if self.verb: print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
                 for il in range(nlayers):
                     arr = np.array(dfile["shell={} layer={}".format(ishell, il)])
                     arr = np.reshape(arr, (len(times),len(freqs)))
@@ -385,7 +387,7 @@ class Ejecta(Base):
                 if (not time is None): return fluxes2d[tidx,:]
                 else: return fluxes2d
             elif ((not ishell is None) and (not ilayer is None)):
-                print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
+                if self.verb: print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
                 arr = np.array(dfile["shell={} layer={}".format(ishell, ilayer)])
                 if (time is None):
                     data = np.vstack((
@@ -410,7 +412,7 @@ class Ejecta(Base):
             if ((ishell is None) and (ilayer is None)):
                 return self.get_lc_totalflux(freq=_freq,time=_time,spec=spec)
             elif ((ishell is None) and (not ilayer is None)):
-                print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
+                if self.verb: print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
                 if (ilayer > nlayers - 1):
                     raise ValueError("Layer={} is > nlayers={}".format(ilayer, nlayers - 1))
                 # fluxes1d = np.zeros_like(times)
@@ -424,7 +426,7 @@ class Ejecta(Base):
                     fluxes2d.append(arr)  # [freq,time]
                 return np.reshape(fluxes2d, newshape=(nshells, len(times)))
             elif ((not ishell is None) and (ilayer is None)):
-                print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
+                if self.verb: print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
                 if (ishell > nshells - 1):
                     raise ValueError("Shell={} is > nshell={}".format(ishell, nshells - 1))
                 # fluxes1d = np.zeros_like(times)
@@ -438,7 +440,7 @@ class Ejecta(Base):
                     fluxes2d.append(arr)  # [freq,time]
                 return np.reshape(fluxes2d, newshape=(nlayers, len(times)))
             elif ((not ishell is None) and (not ilayer is None)):
-                print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
+                if self.verb: print("UNTESTED PART OF CDOE AFTER NEW LIGHT CURVE OUTPUT")
                 arr = np.array(dfile["shell={} layer={}".format(ishell, ilayer)])
                 arr = arr[np.where(freqs==_freq)]
                 fluxes1d = arr  # [freq,time]
@@ -635,11 +637,12 @@ class Ejecta(Base):
 
 
 class Magnetar:
-    def __init__(self,workingdir,readparfileforpaths,parfile):
+    def __init__(self,workingdir:str,readparfileforpaths:str,parfile:str,verbose:str):
         self.parfile = parfile
         self.workingdir = workingdir
         self.res_dir = workingdir
         self.fpath_mag = None
+        self.verb = verbose
         if readparfileforpaths:
             self.mag_pars, self.mag_opts = self.read_magnetar_part_parfile( self.parfile )
         else:
@@ -679,13 +682,13 @@ class PyBlastAfterglow:
         Process output_uniform_grb files: load, extract for a specific way
     '''
     def __init__(self, workingdir : str, readparfileforpaths : bool = True,
-                 parfile : str = "parfile.par"):
+                 parfile : str = "parfile.par", verbose = False):
         # super().__init__(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile)
 
-        self.KN = Ejecta(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,type="kn")
-        self.GRB = Ejecta(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,type="grb")
-        self.PWN = Ejecta(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,type="pwn")
-        self.MAG = Magnetar(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile)
+        self.KN = Ejecta(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,type="kn",verbose=verbose)
+        self.GRB = Ejecta(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,type="grb",verbose=verbose)
+        self.PWN = Ejecta(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,type="pwn",verbose=verbose)
+        self.MAG = Magnetar(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,verbose=verbose)
 
         self.parfile = parfile
         self.workingdir = workingdir
@@ -868,11 +871,11 @@ class REMOVE_ME:
                     raise ValueError(" x_arr arrays in the image all FULL 0. Cannot re-interpolate!")
 
                 if remove_mu:
-                    print("Removing 'mu' from ejecta skymap")
+                    if self.verb: print("Removing 'mu' from ejecta skymap")
                     int_i *= np.abs( mu_i)  # TODO I was produced as F / (R^2 abs(mu)), where abs(mu)->0 and I->inf. Problem!!!
 
                 if renormalize:
-                    print("Renormalizing ejecta skymap (shell my shell separately)")
+                    if self.verb: print("Renormalizing ejecta skymap (shell my shell separately)")
                     fnus = self.get_skymap_totfluxes(freq=freq, shell=ishell)
                     fnu = fnus[find_nearest_index(self.get_skymap_times(), time)]
                     all_fluxes_arr = np.array(int_i)

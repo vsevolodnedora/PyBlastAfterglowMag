@@ -276,7 +276,7 @@ class JetStruct:
         self.dist_E0_a /= (frac_of_solid_ang / 2.) # TODO Get rid of shis (used in code)
         self.dist_M0_a /= (frac_of_solid_ang / 2.)
 
-    def get_1D_id(self, pars : dict, type : str) -> dict:
+    def get_1D_id(self, pars : dict, type : str) -> tuple[dict,dict]:
 
         if (pars["struct"] == "gaussian"):
             self._gaussian(E_iso_c=pars["Eiso_c"], Gamma0c=pars["Gamma0c"], theta_c=pars["theta_c"], theta_w=pars["theta_w"], M0c=pars["M0c"])
@@ -287,8 +287,6 @@ class JetStruct:
 
         if (type == "pw" or type=="piece-wise"):
             res = {
-                "theta_wing":self.m_theta_w,
-                "theta_core":self.m_theta_c,
                 "r":np.zeros_like(self.theta_pw[1:]),
                 "theta":self.theta_pw[1:],
                 "ctheta":self.cthetas0,
@@ -300,8 +298,6 @@ class JetStruct:
             }
         elif(type=="a" or type=="adaptive"):
             res = {
-                "theta_wing":self.m_theta_w,
-                "theta_core":self.m_theta_c,
                 "r":np.zeros_like(self.thetas_c_h),
                 "theta":self.thetas_c_h,
                 "ctheta":self.thetas_c,
@@ -313,16 +309,19 @@ class JetStruct:
             }
         else: raise KeyError(f"type={type} is not recognized. Supported: piece-wise or adaptive")
 
-        return res
+        pars["eats_type"] = type
+        pars["theta_wing"] = self.m_theta_w
+        pars["theta_core"] = self.m_theta_c
+        return (res, pars)
 
-    def save_1d_id(self, id_dict : dict, outfpath : str):
+    def save_1d_id(self, id_dict : dict, id_pars : dict, outfpath : str):
         with h5py.File(outfpath, "w") as dfile:
             for key, data in id_dict.items():
                 dfile.create_dataset(name=key, data=data)
-            dfile.attrs.create("theta_core", data=id_dict["theta_core"], dtype=np.float64)
-            dfile.attrs.create("theta_wing", data=id_dict["theta_wing"], dtype=np.float64)
+            for key, data in id_pars:
+                dfile.attrs.create(key, data=id_pars[key])
 
-    def saveCurrentStructure(self, outfpath, type="pw"):
+    def OLD_saveCurrentStructure(self, outfpath, type="pw"):
         if type == "pw":
             dfile = h5py.File(outfpath, "w")
             dfile.attrs.create(name="theta_wing",data=self.m_theta_w)
@@ -385,7 +384,7 @@ def OLD_prepare_grb_ej_id_1d(pars, outfpath, type="pw"):
     else:
         raise KeyError("Not implemented")
 
-    o_jet.saveCurrentStructure(outfpath=outfpath,type=type)
+    o_jet.OLD_saveCurrentStructure(outfpath=outfpath,type=type)
 
     #
     # if (type == "a"):
