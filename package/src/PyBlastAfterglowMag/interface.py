@@ -22,11 +22,13 @@ class Base:
         self.workingdir = workingdir
         self.res_dir = workingdir
 
+        self.fpath_id = None
         self.fpath_dyn = None
         self.fpath_spec = None
         self.fpath_light_curve = None
         self.fpath_sky_map = None
 
+        self.id_dfile = None
         self.dyn_dfile = None
         self.spec_dfile = None
         self.lc_dfile = None
@@ -34,11 +36,11 @@ class Base:
 
         self.verb = verbose
 
-
     def read_grb_part_parfile(self,parfile="parfile.par"):
         grb_pars, grb_opts = read_parfile(workingdir=self.workingdir, fname=parfile,comment="#",
                                           sep1="# ---------------------- GRB afterglow ----------------------",
                                           sep2="# --------------------------- END ---------------------------")
+        if "fname_ejecta_id" in grb_opts.keys(): self.fpath_id = self.res_dir + grb_opts["fname_ejecta_id"]
         if "fname_dyn" in grb_opts.keys(): self.fpath_dyn = self.res_dir + grb_opts["fname_dyn"]
         if "fname_spectrum" in grb_opts.keys(): self.fpath_spec = self.res_dir + grb_opts["fname_spectrum"]
         if "fname_light_curve" in grb_opts.keys(): self.fpath_light_curve = self.res_dir + grb_opts["fname_light_curve"]
@@ -48,6 +50,7 @@ class Base:
         kn_pars, kn_opts = read_parfile(workingdir=self.workingdir, fname=parfile,comment="#",
                                         sep1="# ----------------------- kN afterglow ----------------------",
                                         sep2="# --------------------------- END ---------------------------")
+        if "fname_ejecta_id" in kn_opts.keys(): self.fpath_id = self.res_dir + kn_opts["fname_ejecta_id"]
         if "fname_dyn" in kn_opts.keys(): self.fpath_dyn = self.res_dir + kn_opts["fname_dyn"]
         if "fname_spec" in kn_opts.keys(): self.fpath_spec = self.res_dir + kn_opts["fname_spec"]
         if "fname_light_curve" in kn_opts.keys(): self.fpath_light_curve = self.res_dir + kn_opts["fname_light_curve"]
@@ -57,6 +60,7 @@ class Base:
         kn_pars, kn_opts = read_parfile(workingdir=self.workingdir, fname=parfile,comment="#",
                                         sep1="# --------------------------- PWN ---------------------------",
                                         sep2="# --------------------------- END ---------------------------")
+        if "fname_ejecta_id" in kn_opts.keys(): self.fpath_id = self.res_dir + kn_opts["fname_ejecta_id"]
         if "fname_dyn" in kn_opts.keys(): self.fpath_dyn = self.res_dir + kn_opts["fname_dyn"]
         if "fname_spec" in kn_opts.keys(): self.fpath_spec = self.res_dir + kn_opts["fname_spec"]
         if "fname_light_curve" in kn_opts.keys(): self.fpath_light_curve = self.res_dir + kn_opts["fname_light_curve"]
@@ -111,6 +115,7 @@ class Ejecta(Base):
         if readparfileforpaths:
             self.reload_parfile(type=type)
         else:
+            self.fpath_id = self.res_dir + self.prefix + "ejecta_id.h5"
             self.fpath_dyn = self.res_dir + self.prefix + "dynamics_layers.h5"
             self.fpath_spec = self.res_dir + self.prefix + "spectra.h5"
             self.fpath_light_curve = self.res_dir + self.prefix + "lightcurves_layers.h5"
@@ -126,6 +131,12 @@ class Ejecta(Base):
         else:
             raise KeyError("not implemented")
 
+    # ejecta id file
+    def _ckeck_if_loaded_id_obj(self):
+        if (self.fpath_id is None):
+            raise IOError("self.fpath_id is not set")
+        if (self.id_dfile is None):
+            self.id_dfile = h5py.File(self.fpath_id)
     def _ckeck_if_loaded_dyn_obj(self):
         if (self.fpath_dyn is None):
             raise IOError("self.fpath_kn_dyn is not set")
@@ -153,13 +164,26 @@ class Ejecta(Base):
             except OSError:
                 raise OSError("failed to load the file: \n {}".format(self.fpath_sky_map))
 
+    # --------- Initial Data -----------
+
+    def get_id_obj(self):
+        self._ckeck_if_loaded_id_obj()
+        return self.id_dfile
+
+    def get_id_attr(self, v_n : str) -> str or np.float64:
+        dfile = self.get_id_obj()
+        if (not v_n in dfile.attrs.keys()):
+            raise KeyError(f"key={v_n} is not in the list={dfile.attrs.keys()}")
+        return dfile.attrs[v_n]
+
+
     # --------- Dynamics -------------
 
     def get_dyn_obj(self):
         self._ckeck_if_loaded_dyn_obj()
         return self.dyn_dfile
 
-    def get_dyn_arr(self, v_n, ishell=None, ilayer=None):
+    def get_dyn_arr(self, v_n : str, ishell : int or None = None, ilayer : int or None = None) -> np.ndarray:
         self._ckeck_if_loaded_dyn_obj()
         obj_dyn = self.get_dyn_obj()
         nlayers = int(obj_dyn.attrs["nlayers"])
@@ -200,7 +224,7 @@ class Ejecta(Base):
         else:
             raise NameError()
 
-    def get_dyn_1d_arr_layers(self, v_n="em", idx=0, ishell=None, ilayer=None):
+    def OLD_get_dyn_1d_arr_layers(self, v_n="em", idx=0, ishell=None, ilayer=None):
         obj_dyn = self.get_dyn_obj()
         nlayers = int(obj_dyn.attrs["nlayers"])
         nshells = int(obj_dyn.attrs["nshells"])
@@ -215,7 +239,7 @@ class Ejecta(Base):
 
     # --------- Light Curves -------------
 
-    def get_lc_obj(self,spec=False):
+    def get_lc_obj(self,spec : bool = False) -> h5py.File:
         if spec:
             self._check_if_loaded_spec()
             return self.spec_dfile
@@ -223,7 +247,7 @@ class Ejecta(Base):
             self._check_if_loaded_lc()
             return self.lc_dfile
 
-    def get_lc_times(self,unique=True,spec=False):
+    def get_lc_times(self, unique : bool = True, spec : bool = False) -> np.ndarray:
         dfile = self.get_lc_obj(spec=spec)
         arr = np.array(dfile["times"])
         if (not unique):
@@ -233,7 +257,7 @@ class Ejecta(Base):
             raise ValueError("no unique times found in array \n {}".format(arr))
         return arr_u
 
-    def get_lc_freqs(self,unique=True,spec=False):
+    def get_lc_freqs(self,unique : bool = True, spec : bool = False) -> np.ndarray:
         dfile = self.get_lc_obj(spec=spec)
         arr = np.array(dfile["freqs"])
         if (not unique): return arr
@@ -242,7 +266,7 @@ class Ejecta(Base):
             raise ValueError("no unique freqs found in light curve \n {}".format(arr))
         return np.array(arr_u)# np.array(dfile["freqs"])
 
-    def get_lc_totalflux(self, freq=None, time=None, spec=False):
+    def get_lc_totalflux(self, freq : float or None = None, time : float or None = None, spec : bool = False) -> np.ndarray:
         dfile = self.get_lc_obj(spec=spec)
         # nlayers = int(dfile.attrs["nlayers"])
         # nshells = int(dfile.attrs["nshells"])
@@ -317,7 +341,7 @@ class Ejecta(Base):
         # return np.array(dfile[key])
 
 
-    def get_lc(self, freq=None, time=None, ishell=None, ilayer=None, spec=False):
+    def get_lc(self, freq=None, time=None, ishell=None, ilayer=None, spec=False) -> np.ndarray:
         dfile = self.get_lc_obj(spec=spec)
         if not ("nlayers" in dfile.attrs.keys()):
             raise KeyError(f"key= nlayers is not in dfile.attrs.keys()=[{dfile.attrs.keys()}]")
@@ -451,7 +475,7 @@ class Ejecta(Base):
                 raise NameError()
 
 
-    def _alpha(self, freq, freqm1, ishell, ilayer, spec=False):
+    def _alpha(self, freq, freqm1, ishell, ilayer, spec=False) -> np.ndarray:
         values_i = self.get_lc(freq=freq, ishell=ishell, ilayer=ilayer,spec=spec)
         values_im1 = self.get_lc(freq=freqm1, ishell=ishell, ilayer=ilayer,spec=spec)
         ffreq_i = np.full(values_i.shape, freq)

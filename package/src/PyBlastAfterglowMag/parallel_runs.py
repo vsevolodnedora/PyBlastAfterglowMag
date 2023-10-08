@@ -173,7 +173,7 @@ class ParallelRuns():
                 for key, data in id_dict.items():
                     dfile.create_dataset(name=key, data=np.copy(data))
 
-    def setup_3_id_grbej(self, type_eats : str = "adaptive") -> None:
+    def setup_3_id_grbej(self, type_eats : str = "adaptive", overwrite : bool = True) -> None:
 
         if (len(self.working_dirs)==0):
             raise RuntimeError(f"No directories exist for running: {len(self.working_dirs)}")
@@ -185,7 +185,12 @@ class ParallelRuns():
             pba_id = JetStruct(n_layers_pw=n_layers_pw, n_layers_a=nlayers_a)
             id_dict, id_pars = pba_id.get_1D_id(pars=pars,type=type_eats)
             ejecta_id_fpath = workingdir + self.ejecta_id_fname
-            pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=ejecta_id_fpath)
+            if (os.path.isfile(ejecta_id_fpath) and not overwrite):
+                print(f"Skipping creating ID (file already exists) {ejecta_id_fpath}")
+            else:
+                print(f"Creating ID {ejecta_id_fpath}")
+                pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=ejecta_id_fpath)
+
 
     def launch_runs(self, n_cpu : int,
                     skymap_postprocess_conf : dict,

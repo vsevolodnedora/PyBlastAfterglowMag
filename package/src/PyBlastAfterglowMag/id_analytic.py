@@ -318,7 +318,7 @@ class JetStruct:
         with h5py.File(outfpath, "w") as dfile:
             for key, data in id_dict.items():
                 dfile.create_dataset(name=key, data=data)
-            for key, data in id_pars:
+            for key, data in id_pars.items():
                 dfile.attrs.create(key, data=id_pars[key])
 
     def OLD_saveCurrentStructure(self, outfpath, type="pw"):
