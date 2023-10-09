@@ -28,23 +28,11 @@ def grid_explore_runs():
 
     iter_pars_dict = {
         "Eiso_c":   [1.e49, 1.e51, 1.e53, 1.e55],
-        # "Gamma0c":  [100., 300., 500., 1000.],
-        # "theta_c":  [.05, .1, .4 ,.6, 1.],
-        # "theta_w":  [.05, .1, .4, .6, 1.],
-        # "nlayers_a":[22, 32, 42, 52],
-        # "n_ism":    [1.0, 0.1, 0.01, 0.001]
-        # "theta_obs": np.array([0., 15., 45.0, 60., 75., 90.]) * np.pi / 180.0,  # [75*np.pi/180]#
-        # "p": [2.2, 2.4, 2.6, 2.8],  # [2.05, 2.1, 2.2, 2.3, 2.4, 2.6, 2.8, 3.0],
-        # "eps_e": [0.5, 0.1, 0.01, 0.001],  # [0.001, 0.005, 0.01, 0.05, 0.1, 0.2, 0.3, 0.5],
-        # "eps_b": [0.5, 0.1, 0.01, 0.001],  # [0.001, 0.005, 0.01, 0.05, 0.1],
-    }
-    iter_pars_dict = {
-        "Eiso_c":   [1.e49],
-        "Gamma0c":  [100.],
-        "theta_c":  [.05],
-        "theta_w":  [.05],
-        "nlayers_a":[22],
-        "n_ism":    [1.0]
+        "Gamma0c":  [100., 300., 500., 1000.],
+        "theta_c":  [.05, .1, .4 ,.6, 1.],
+        "theta_w":  [.05, .1, .4, .6, 1.],
+        "nlayers_a":[22, 32, 42, 52],
+        "n_ism":    [1.0, 0.1, 0.01, 0.001]
         # "theta_obs": np.array([0., 15., 45.0, 60., 75., 90.]) * np.pi / 180.0,  # [75*np.pi/180]#
         # "p": [2.2, 2.4, 2.6, 2.8],  # [2.05, 2.1, 2.2, 2.3, 2.4, 2.6, 2.8, 3.0],
         # "eps_e": [0.5, 0.1, 0.01, 0.001],  # [0.001, 0.005, 0.01, 0.05, 0.1, 0.2, 0.3, 0.5],
@@ -64,14 +52,14 @@ def grid_explore_runs():
         pars["struct"] = "gaussian"
         pars["M0c"] = -1
 
-    pr.setup_3_id_grbej(type_eats="adaptive")
+    pr.setup_3_id_grbej(type_eats="adaptive", overwrite=True)
 
     skymap_postprocess_conf = {
         "nx":256, "ny":128, "extend_grid":1, "fwhm_fac":0.5, "lat_dist_method":"integ",
         "intp_filter":{ "type":None, "sigma":2, "mode":'reflect' }, # "gaussian"
         "hist_filter":{ "type":None, "sigma":2, "mode":'reflect' }
     }
-    pr.launch_runs(n_cpu=4,
+    pr.launch_runs(n_cpu=20,
                    path_to_executable=EXECUTABLE,
                    skymap_postprocess_conf={},
                    loglevel="info")

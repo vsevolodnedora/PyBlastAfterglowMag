@@ -1,7 +1,7 @@
 ### --- LOCAL ---
-OUTDIR = "/media/vsevolod/T7/work/afterglowGRBProject/"
+OUTDIR = "/media/vsevolod/T7/work/prj_grb_afterglow/"
 EXECUTABLE = "/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out"
-AFGRUNDIR = "/media/vsevolod/T7/work/afterglowGRBProject/"
+AFGRUNDIR = "/media/vsevolod/T7/work/prj_grb_afterglow/"
 
 ### --- SERVER ---
 # OUTDIR = "/work/vnedora/prj_grb_afterglow/"

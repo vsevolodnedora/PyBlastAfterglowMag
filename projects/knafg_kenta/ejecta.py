@@ -86,6 +86,23 @@ def process(sim : dict) -> None:
 
 
 def main():
+    sim_dic = SIMULATIONS["SFHo_q125_res150"]
+    rhofpath = sim_dic["datadir"]+"rhomax_SFHo_125_145_200m.txt"
+    mdotfpath = sim_dic["datadir"]+"Mdot_extraction_SFHo_12_15.txt"
+    ej_data = PBA.id_kenta.EjectaData(fpath=sim_dic["datadir"]+"ej_collated.h5",verbose=True)
+    data = PBA.id_kenta.Data(fpath_rhomax=rhofpath,fpath_mdot=mdotfpath)
+
+    fig, ax = plt.subplots(ncols=1,nrows=1)
+    ax.plot(ej_data.getText(), ej_data.total_mass(), color="gray",label="Total")
+    ax.plot(ej_data.getText(), ej_data.total_mass_fasttail(),color="black",label=r"$\Gamma\beta>1$")
+    ax2 = ax.twinx()
+    ax2.plot(*data.get_rhomax(),color="green",label=r"$\rho_{\rm max}$")
+    ax2.plot(*data.get_mdot(),color="green",label=r"$\dot{M}_{\rm ej}$")
+    ax2.set_yscale("log")
+    plt.legend()
+    ax.set_yscale("log")
+    plt.show()
+
     # for sim in SIMULATIONS:
         # process_data( sim )
 
