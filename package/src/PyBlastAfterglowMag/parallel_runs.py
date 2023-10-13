@@ -151,25 +151,29 @@ class ParallelRuns():
             else:
                 print(f"\tNo pars given, not parfiles are modified")
 
-    def setup_3_id_knej(self, text : float = 25,
-                        fpath_collated_ejecta : str = "/media/vsevolod/T7/work/KentaData/"
-                                                      + "SFHoTim276_12_15_0025_150mstg_B0_HLLC"
-                                                      + "/" + "ej_collated.h5",
-                        show_id : bool = False) -> None:
+    def setup_3_id_knej(self, id_pars : dict, fpath_collated_ejecta : str, show_id : bool) -> None:
+        """
 
+        :param id_pars: {"text":25, "method_r0":"from_beta", "t0":1e3, "new_theta_len":None, "new_vinf_len":None}
+        :param fpath_collated_ejecta: "/media/vsevolod/T7/work/KentaData/"
+                                                      + "SFHoTim276_12_15_0025_150mstg_B0_HLLC"
+                                                      + "/" + "ej_collated.h5"
+        :param show_id: False
+        :return:
+        """
         if (not os.path.isfile(fpath_collated_ejecta)):
             raise FileNotFoundError(f"Collated ejecta file not found: {fpath_collated_ejecta}")
         if (len(self.working_dirs)==0):
             raise RuntimeError(f"No directories exist for running: {len(self.working_dirs)}")
 
         id = EjStruct(fpath=fpath_collated_ejecta, verbose=True)
-        id_dict = id.get_2D_id(text=text, method_r0="from_beta", t0=1e3, new_theta_len=None, new_vinf_len=None)
+        id_dict = id.get_2D_id(**id_pars)
         if show_id:
             id.plot_init_profile(mom=id_dict["mom"][:, 0], ctheta=id_dict["ctheta"][0, :], mass=id_dict["ek"])
         for working_dir_i in self.working_dirs:
             self.ejecta_id_fpath = working_dir_i + self.ejecta_id_fname
             with h5py.File(self.ejecta_id_fpath, "w") as dfile:
-                dfile.attrs.create("text",data=text)
+                dfile.attrs.create("text",data=id_pars["text"])
                 for key, data in id_dict.items():
                     dfile.create_dataset(name=key, data=np.copy(data))
 

@@ -14,6 +14,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import h5py
+import pandas as pd
 from scipy import interpolate
 import copy
 import glob
@@ -210,39 +211,103 @@ class EjectaData:
         return np.array(self.dfile["text"])
 
 class Data():
-    def __init__(self, fpath_rhomax:str, fpath_mdot:str):
+
+    def __init__(self,
+                 fpath_rhomax:str,
+                 fpath_mdot:str):
+        # file names
         self.fpath_rhomax = fpath_rhomax
         self.fpath_mdot = fpath_mdot
 
-    def get_rhomax(self):
-        if not (os.path.isfile(self.fpath_rhomax)):
-            return (np.zeros(0,), np.zeros(0,))
+        # dataframes
+        self.df_rho = pd.DataFrame()
+        self.df_mdot = pd.DataFrame()
 
-        rho_nuc = 2.7e14
-        ut = 1.607e-6
+        self._load_rhomax_df()
+        self._load_mdot_df()
 
-        t_rho_max, rho_max = np.loadtxt(self.fpath_rhomax, unpack=True, usecols=(0,1))
-        return (t_rho_max * ut * 1e3, rho_max / rho_nuc) # [s,rho/rho_nuc]
+    def _load_rhomax_df(self) -> None:
+        if os.path.isfile(self.fpath_rhomax):
+            # units
+            rho_nuc = 2.7e14
+            ut = 1.607e-6
+            # load data
+            t_rho_max, rho_max = np.loadtxt(self.fpath_rhomax, unpack=True, usecols=(0,1))
+            # make dataframe
+            data = {
+                "time" : t_rho_max * ut * 1e3,
+                "rho_max": rho_max / rho_nuc
+            }
+            self.df_rho = pd.DataFrame.from_dict(data=data)
+        else:
+            print("File not found: {}".format(self.fpath_rhomax))
 
-    def get_mdot(self, r_ext=1000):
-        if not (os.path.isfile(self.fpath_mdot)):
-            return (np.zeros(0,), np.zeros(0,))
-
-        # convert the units from what Kenta was using to CGS + Msun
+    def _read_mdot_table2(self) -> np.ndarray:
+        table = []
+        try:
+            table = np.loadtxt(self.fpath_mdot, unpack=True).T
+        except:
+            print("failed to read table. Trying line by line")
+            with open(self.fpath_mdot, "r") as file:
+                lines = file.readlines()
+                for il, line in enumerate(lines):
+                    vals = line.split()
+                    nums = []
+                    for val in vals:
+                        try:
+                            nums.append(np.float64(val))
+                        except:
+                            nums.append(np.nan)
+                    table.append(nums)
+                table = np.reshape(np.array(table),newshape=(il, len(nums)))
+        return (table)
+    def get_rext(self) -> np.ndarray:
         ul = 0.4816 # km
-        ut = 1.607e-6
-        um = 0.326
-        umdot = um / ut
+        rext = np.array([50, 100, 300, 1000, 3000, 4000, 10000, 1229.3])
+        return np.array(rext*ul, dtype=np.int64)
+    def _load_mdot_df(self) -> None:
+        if os.path.isfile(self.fpath_mdot):
+            mdot_table = self._read_mdot_table2()
 
-        table = np.loadtxt(self.fpath_mdot, unpack=True).T
-        names = None
-        with open(self.fpath_mdot, "r") as file:
-            names = file.readline()
-        names = names.split()[1:]
-        iv_n = lambda v_n : int(list(names).index(v_n)) if v_n in names else print("{} not found".format(v_n))
-        get_mdot = lambda r_ext : table[:, iv_n("Mdot(rext={})".format(r_ext))] * umdot# Msun
-        time = table[:, 0] * ut * 1e3 # -> s -> ms
-        return (time, get_mdot(r_ext))
+            # convert the units from what Kenta was using to CGS + Msun
+            ul = 0.4816 # km
+            ut = 1.607e-6
+            um = 0.326
+            umdot = um / ut
+            mdot_table[:,0] *= (ut * 1e3) # -> s -> ms
+            mdot_table[:,1:41] *= umdot # to Msun/s
+            rext = np.array([50, 100, 300, 1000, 3000, 4000, 10000, 1229.3]) # 8 radii  in code unit.
+            rext *= ul # code -> km
+
+            # create dict for data
+            df = {
+                "time":mdot_table[:,0],
+            }
+            i = 1
+            for r in rext:
+                df[f"mdot_r{int(r)}"] = mdot_table[:, i + len(rext) * 0] # [:,1:9] 2-9 Mdot_ext (8 extraction radii in code unit, all contribution)
+                df[f"mdot_vr_r{int(r)}"] = mdot_table[:, i + len(rext) * 1] # [:,9:17] 10-17 Mdot_ext2 (8 extraction radii in code unit, vr > 0.6c)
+                df[f"mdot_slow_r{int(r)}"] = mdot_table[:, i + len(rext) * 2] # 18-25 Mdot_ext3 (8 extraction radii in code unit, \gamma_beta <= 0.1)
+                df[f"mdot_mid_r{int(r)}"] = mdot_table[:, i + len(rext) * 3] # 26-33 Mdot_ext4 (8 extraction radii in code unit, 0.1 <= \gamma_beta < 1))
+                df[f"mdot_fast_r{int(r)}"] = mdot_table[:, i + len(rext) * 4] # 34-41 Mdot_ext5 (8 extraction radii in code unit, \gamma_beta >= 1)
+                i+=1
+            # velocity
+            df["vave_slow"] = mdot_table[:, i] # 42 mass_averaged_velocity (\gamma_beta <= 0.1)
+            df["vave_mid"]  = mdot_table[:, i+1] # 43 mass_averaged_velocity (0.1 <= \gamma_beta < 1)
+            df["vave_fast"] = mdot_table[:, i+2] # 44 mass_averaged_velocity (\gamma_beta >= 1)
+
+            # create dataframe
+            self.df_mdot = pd.DataFrame.from_dict(data=df,orient="columns")
+            self.df_mdot.set_index(keys="time")
+        else:
+            print(f"File not found {self.fpath_mdot}")
+    def ret_time(self, r0 : float, vave_key : str) -> float:
+        """
+            r0 : rm
+            speed : c
+        """
+        t_ret_0 = (r0/1000./self.df_mdot[vave_key].values/cgs.c) # s
+        return self.df_mdot["time"].values - t_ret_0
 
 class EjStruct(EjectaData):
     def __init__(self, fpath : str, verbose : bool):
@@ -576,6 +641,170 @@ class EjStruct(EjectaData):
 
 
 
+
+
+class OLD_DATA():
+    def get_rhomax(self):
+        if not (os.path.isfile(self.fpath_rhomax)):
+            print(f"File not found {self.fpath_rhomax}")
+            return (np.zeros(0,), np.zeros(0,))
+
+        rho_nuc = 2.7e14
+        ut = 1.607e-6
+
+        t_rho_max, rho_max = np.loadtxt(self.fpath_rhomax, unpack=True, usecols=(0,1))
+        return (t_rho_max * ut * 1e3, rho_max / rho_nuc) # [s,rho/rho_nuc]
+
+    def _read_mdot_table(self):
+        names = None
+        table = []
+        try:
+            table = np.loadtxt(self.fpath_mdot, unpack=True).T
+            with open(self.fpath_mdot, "r") as file:
+                names = file.readline()
+        except:
+            print("failed to read table. Trying line by line")
+            names = None
+            table = []
+            n = 0
+            with open(self.fpath_mdot, "r") as file:
+                names = file.readline()
+                lines = file.readlines()
+                for line in lines:
+                    vals = line.split()
+                    # if len(vals) != len(names):
+                    #     print(line)
+                    #     raise ValueError(f"len(vals)={len(vals)} != len(names)={len(names)}")
+                    nums = []
+                    for val in vals:
+                        try:
+                            nums.append(np.float64(val))
+                        except:
+                            nums.append(np.nan)
+                    table.append(nums)
+                    n+=1
+            table = np.reshape(np.array(table),newshape=(n,len(names)))
+        print(table.shape)
+        return (names, table)
+    def get_mdot(self, r_ext=1000):
+        if not (os.path.isfile(self.fpath_mdot)):
+            print(f"File not found {self.fpath_mdot}")
+            return (np.zeros(0,), np.zeros(0,))
+
+        # convert the units from what Kenta was using to CGS + Msun
+        ul = 0.4816 # km
+        ut = 1.607e-6
+        um = 0.326
+        umdot = um / ut
+
+        # table = np.loadtxt(self.fpath_mdot, unpack=True).T
+        names, table = self._read_mdot_table()
+
+        names = names.split()[1:]
+        iv_n = lambda v_n : int(list(names).index(v_n)) if v_n in names else print("{} not found".format(v_n))
+        get_mdot = lambda r_ext : table[:, iv_n("Mdot(rext={})".format(r_ext))] * umdot# Msun
+        time = table[:, 0] * ut * 1e3 # -> s -> ms
+        return (time, get_mdot(r_ext))
+
+    def _read_mdot_table2(self):
+        table = []
+        try:
+            table = np.loadtxt(self.fpath_mdot, unpack=True).T
+        except:
+            print("failed to read table. Trying line by line")
+            with open(self.fpath_mdot, "r") as file:
+                lines = file.readlines()
+                for il, line in enumerate(lines):
+                    vals = line.split()
+                    nums = []
+                    for val in vals:
+                        try:
+                            nums.append(np.float64(val))
+                        except:
+                            nums.append(np.nan)
+                    table.append(nums)
+                table = np.reshape(np.array(table),newshape=(il, len(nums)))
+        return (table)
+
+    def _read_mdot_table(self):
+        if not (os.path.isfile(self.fpath_mdot)):
+            print(f"File not found {self.fpath_mdot}")
+            return (np.zeros(0,), np.zeros(0,))
+
+        mdot_table = self._read_mdot_table2()
+
+        # convert the units from what Kenta was using to CGS + Msun
+        ul = 0.4816 # km
+        ut = 1.607e-6
+        um = 0.326
+        umdot = um / ut
+        mdot_table[:,0] *= (ut * 1e3) # -> s -> ms
+        mdot_table[:,1:41] *= umdot # to Msun/s
+        rext = np.array([50, 100, 300, 1000, 3000, 4000, 10000, 1229.3]) # 8 radii  in code unit.
+        rext *= (ul * 1000) # code -> meters
+
+        # create dict for data
+        df = {
+            "time":mdot_table[:,0],
+        }
+        i = 1
+        for r in rext:
+            df["mdot_r{:.1f}".format(r)] = mdot_table[:, i + len(rext) * 0] # [:,1:9] 2-9 Mdot_ext (8 extraction radii in code unit, all contribution)
+            df["mdot_vr_r{:.1f}".format(r)] = mdot_table[:, i + len(rext) * 1] # [:,9:17] 10-17Mdot_ext2 (8 extraction radii in code unit, vr > 0.6c)
+            df["mdot_slow_r{:.1f}".format(r)] = mdot_table[:, i + len(rext) * 2] # 18-25 Mdot_ext3 (8 extraction radii in code unit, \gamma_beta <= 0.1)
+            df["mdot_mid_r{:.1f}".format(r)] = mdot_table[:, i + len(rext) * 3] # 26-33 Mdot_ext4 (8 extraction radii in code unit, 0.1 <= \gamma_beta < 1))
+            df["mdot_fast_r{:.1f}".format(r)] = mdot_table[:, i + len(rext) * 3] # 34-41 Mdot_ext5 (8 extraction radii in code unit, \gamma_beta >= 1)
+            i+=1
+        # velocity
+        df["vave_slow"] = mdot_table[:, 41] # 42 mass_averaged_velocity (\gamma_beta <= 0.1)
+        df["vave_mid"]  = mdot_table[:, 42] # 43 mass_averaged_velocity (0.1 <= \gamma_beta < 1)
+        df["vave_fast"] = mdot_table[:, 43] # 44 mass_averaged_velocity (\gamma_beta >= 1)
+
+        # create dataframe
+        self.mdot_df = pd.DataFrame.from_dict(data=df,orient="columns")
+        self.mdot_df.set_index(keys="time")
+
+    def get_mdot_at_r(self, r : np.float64, mode : str):
+        if (not r in self.rext_mdot):
+            idx = find_nearest_index(r,self.rext_mdot)
+        else:
+            idx = int(np.where(self.rext_mdot == r)[0])
+        if mode == "vr>0.6":
+            return self.table[:,1:9]    # 2-9 Mdot_ext (8 extraction radii in code unit, all contribution)
+
+    def get_mdot2(self):
+        if not (os.path.isfile(self.fpath_mdot)):
+            print(f"File not found {self.fpath_mdot}")
+            return (np.zeros(0,), np.zeros(0,))
+        names, table = self._read_mdot_table2()
+
+
+
+        print(table.shape)
+        rext = np.array([50, 100, 300, 1000, 3000, 4000, 10000, 1229.3]) #  in code unit.
+        time = table[:,0]           # 1 t (code unit)
+        Mdot_ext  = table[:,1:9]    # 2-9 Mdot_ext (8 extraction radii in code unit, all contribution)
+        Mdot_ext2 = table[:,9:17]   # 10-17Mdot_ext2 (8 extraction radii in code unit, vr > 0.6c)
+        Mdot_ext3 = table[:,17:25]  # 18-25 Mdot_ext3 (8 extraction radii in code unit, \gamma_beta <= 0.1)
+        Mdot_ext4 = table[:,25:33]  # 26-33 Mdot_ext4 (8 extraction radii in code unit, 0.1 <= \gamma_beta < 1))
+        Mdot_ext5 = table[:,33:41]  # 34-41 Mdot_ext5 (8 extraction radii in code unit, \gamma_beta >= 1)
+        vave      = table[:,41]     # 42 mass_averaged_velocity (\gamma_beta <= 0.1)
+        vave1     = table[:,42]     # 43 mass_averaged_velocity (0.1 <= \gamma_beta < 1)
+        vave3     = table[:,43]     # 44 mass_averaged_velocity (\gamma_beta >= 1)
+
+        # convert the units from what Kenta was using to CGS + Msun
+        ul = 0.4816 # km
+        ut = 1.607e-6
+        um = 0.326
+        umdot = um / ut
+
+        time *= (ut * 1e3) # -> s -> ms
+        for arr in [Mdot_ext,Mdot_ext2,Mdot_ext3,Mdot_ext4,Mdot_ext5]:
+            arr *= umdot # to Msun/s
+
+        rext *= (ul * 1000) # code -> meters
+
+        return (names, table)
 
 def OLD_get_ej_data_for_text(files : list[str],
                          req_times=np.array([25]),
@@ -1371,3 +1600,5 @@ def plot2(vals : dict, figpath = None):
     if not figpath is None: plt.savefig(figpath + ".png", dpi=256)
     if not figpath is None: plt.savefig(figpath + ".pdf")
     plt.show()
+
+
