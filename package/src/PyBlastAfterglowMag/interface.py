@@ -268,49 +268,89 @@ class Ejecta(Base):
 
     def get_lc_totalflux(self, freq : float or None = None, time : float or None = None, spec : bool = False) -> np.ndarray:
         dfile = self.get_lc_obj(spec=spec)
-        # nlayers = int(dfile.attrs["nlayers"])
-        # nshells = int(dfile.attrs["nshells"])
         utimes = self.get_lc_times(spec=spec,unique=True)
         ufreqs = self.get_lc_freqs(spec=spec,unique=True)
-        # print(dfile.keys())
         fluxes =  np.array(dfile["total_power"]) if spec else np.array(dfile["total_fluxes"])
 
-        # key = str("totalflux at freq={:.4e}".format(3e9)).replace('.', ',')
-        # key = str("totalflux at freq={:.4e}".format(3e9))
-        # arr = np.array(dfile[key])
-
-        if (not time is None):
+        def _get_time() -> float:
             if (not time in utimes):
+                if (time > utimes.max()):
+                    raise ValueError(f"requested time={time} > dfile times.max()={utimes.max()}")
+                if (time < utimes.min()):
+                    raise ValueError(f"requested time={time} < dfile times.min()={utimes.min()}")
                 _time = utimes[find_nearest_index(utimes, time)]
-                if self.verb: print(f"Warning: time={time} is not in {utimes} Using time={_time}")
+                if self.verb:
+                    print(f"Warning: time={time} is not in {utimes} Using time={_time}")
             else:
                 _time = utimes[int(np.where(utimes==time)[0])]
+            return _time
 
-
-        if (freq is None):
-            arr = np.vstack(( [fluxes[np.where(self.get_lc_freqs(spec=spec,unique=False)==_freq)] for _freq in ufreqs] ))
-            if (not time is None):
-                raise NotImplementedError("method is not implemented")
-            return arr
-        else :
-            if (freq > ufreqs.max()):
-                raise ValueError(f"requested freq={freq} > dfile freqs.max()={ufreqs.max()}")
-            if (freq < ufreqs.min()):
-                raise ValueError(f"requested freq={freq} < dfile freqs.min()={ufreqs.min()}")
+        def _get_freq() -> float:
             if (not freq in ufreqs):
+                if (freq > ufreqs.max()):
+                    raise ValueError(f"requested freq={freq} > dfile freqs.max()={ufreqs.max()}")
+                if (freq < ufreqs.min()):
+                    raise ValueError(f"requested freq={freq} < dfile freqs.min()={ufreqs.min()}")
                 _freq = ufreqs[find_nearest_index(ufreqs, freq)]
                 if self.verb: print(f"Warning: freq={freq} is not in {ufreqs} Using freq={_freq}")
             else:
                 _freq = ufreqs[int(np.where(ufreqs==freq)[0])]
+            return _freq
 
-            if (not time is None):
-                _i = self.get_lc_times(spec=spec,unique=False) == _time
-                _j = self.get_lc_freqs(spec=spec,unique=False) == _freq
-                arr = fluxes[np.where(((self.get_lc_freqs(spec=spec,unique=False) == _freq).astype(int) *
-                                       (self.get_lc_times(spec=spec,unique=False) == _time).astype(int)).astype(bool))]
-            else:
-                arr = fluxes[np.where(self.get_lc_freqs(spec=spec,unique=False) == _freq)]
+        if ((freq is None) and (not time is None)):
+            # light curve mode
+            _time = _get_time()
+            arr = fluxes[np.where(self.get_lc_times(spec=spec,unique=False) == _time)]
             return arr
+        elif ((not freq is None) and (time is None)):
+            # spectrum mode
+            _freq = _get_freq()
+            arr = fluxes[np.where(self.get_lc_freqs(spec=spec,unique=False) == _freq)]
+            return arr
+        elif ((not time is None) and (not freq is None)):
+            _time = _get_time()
+            _freq = _get_freq()
+            # flux at a time and freq mocde
+            arr = fluxes[np.where(((self.get_lc_freqs(spec=spec,unique=False) == _freq).astype(int) *
+                                   (self.get_lc_times(spec=spec,unique=False) == _time).astype(int)).astype(bool))]
+            return arr
+        else:
+            arr = np.vstack(( [fluxes[np.where(self.get_lc_freqs(spec=spec,unique=False)==_freq)] for _freq in ufreqs] ))
+            return arr
+
+
+        # if (not time is None):
+        #     if (not time in utimes):
+        #         _time = utimes[find_nearest_index(utimes, time)]
+        #         if self.verb: print(f"Warning: time={time} is not in {utimes} Using time={_time}")
+        #     else:
+        #         _time = utimes[int(np.where(utimes==time)[0])]
+        #
+        #
+        # if (freq is None):
+        #     arr = np.vstack(( [fluxes[np.where(self.get_lc_freqs(spec=spec,unique=False)==_freq)] for _freq in ufreqs] ))
+        #     if (not time is None):
+        #         raise NotImplementedError("method is not implemented")
+        #     return arr
+        # else :
+        #     if (freq > ufreqs.max()):
+        #         raise ValueError(f"requested freq={freq} > dfile freqs.max()={ufreqs.max()}")
+        #     if (freq < ufreqs.min()):
+        #         raise ValueError(f"requested freq={freq} < dfile freqs.min()={ufreqs.min()}")
+        #     if (not freq in ufreqs):
+        #         _freq = ufreqs[find_nearest_index(ufreqs, freq)]
+        #         if self.verb: print(f"Warning: freq={freq} is not in {ufreqs} Using freq={_freq}")
+        #     else:
+        #         _freq = ufreqs[int(np.where(ufreqs==freq)[0])]
+        #
+        #     if (not time is None):
+        #         _i = self.get_lc_times(spec=spec,unique=False) == _time
+        #         _j = self.get_lc_freqs(spec=spec,unique=False) == _freq
+        #         arr = fluxes[np.where(((self.get_lc_freqs(spec=spec,unique=False) == _freq).astype(int) *
+        #                                (self.get_lc_times(spec=spec,unique=False) == _time).astype(int)).astype(bool))]
+        #     else:
+        #         arr = fluxes[np.where(self.get_lc_freqs(spec=spec,unique=False) == _freq)]
+        #     return arr
 
 
         # if (freq is None):

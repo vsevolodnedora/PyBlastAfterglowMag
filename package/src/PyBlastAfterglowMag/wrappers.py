@@ -254,16 +254,20 @@ class Base():
         if not os.path.isfile(default_parfile_fpath):
             raise IOError(f"default_parfile_fpath not exists: {default_parfile_fpath}")
         self.default_parfile_fpath = default_parfile_fpath
+        self.pba_src = "/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out"
+        self.loglevel= "info"
 
     def run_pw(self, pars : dict, struct : dict, opts : dict, opts_grb : dict) -> PyBlastAfterglow:
         # workdir = os.getcwd()+'/'
         # copy the main parfile into workdir
         parfilefname = self.default_parfile_fpath.split("/")[-1]
-        shutil.copy(self.default_parfile_fpath, self.workingdir+parfilefname)
+        if (self.default_parfile_fpath!=self.workingdir+parfilefname):
+            shutil.copy(self.default_parfile_fpath, self.workingdir+parfilefname)
         # prepare initial data
         pba_id = JetStruct(n_layers_pw=struct["nlayers_pw"], n_layers_a=struct["nlayers_a"])
+        id_fname = "grb_id.h5"
         id_dict, id_pars = pba_id.get_1D_id(pars=struct,type="piece-wise")
-        pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=self.workingdir+"gauss_grb_id.h5")
+        pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=self.workingdir+id_fname)
 
         # modify parfile
         modify_parfile_par_opt(workingdir=self.workingdir, part="main",
@@ -279,8 +283,8 @@ class Base():
         # init model interface
         pba_pw = PyBlastAfterglow(workingdir=self.workingdir,readparfileforpaths=True, parfile="parfile.par")
         # run
-        pba_pw.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",
-                   loglevel="info")
+        pba_pw.run(path_to_cpp_executable=self.pba_src,
+                  loglevel=self.loglevel)
         # postprocess skymaps
         if (pba_pw.GRB.opts["do_skymap"]=="yes"):
             prep = ProcessRawSkymap(conf=self.conf, verbose=False)
@@ -289,18 +293,21 @@ class Base():
                                  remove_input=False)
 
         # remove the default parfile from the working dir
-        os.remove(self.workingdir+parfilefname)
+        if (self.default_parfile_fpath!=self.workingdir+parfilefname):
+            os.remove(self.workingdir+parfilefname)
         return pba_pw
 
     def run_a(self, pars : dict, struct : dict, opts : dict, opts_grb : dict) -> PyBlastAfterglow:
         # workdir = os.getcwd()+'/'
         parfilefname = self.default_parfile_fpath.split("/")[-1]
         # copy the main parfile into workdir
-        shutil.copy(self.default_parfile_fpath, self.workingdir+parfilefname)
+        if (self.default_parfile_fpath!=self.workingdir+parfilefname):
+            shutil.copy(self.default_parfile_fpath, self.workingdir+parfilefname)
         # prepare initial data
         pba_id = JetStruct(n_layers_pw=struct["nlayers_pw"], n_layers_a=struct["nlayers_a"])
         id_dict, id_pars = pba_id.get_1D_id(pars=struct,type="adaptive")
-        pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=self.workingdir+"gauss_grb_id.h5")
+        id_fname = "grb_id.h5"
+        pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=self.workingdir+id_fname)
 
         # modify parfile
         modify_parfile_par_opt(workingdir=self.workingdir, part="main",
@@ -314,8 +321,8 @@ class Base():
         if not os.path.isfile(self.workingdir+"parfile.par"):
             raise FileNotFoundError(f"Parfile not found in {self.workingdir}"+"parfile.par")
         pba_a = PyBlastAfterglow(workingdir=self.workingdir,readparfileforpaths=True, parfile="parfile.par")
-        pba_a.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",
-                  loglevel="info")
+        pba_a.run(path_to_cpp_executable=self.pba_src,
+                  loglevel=self.loglevel)
         # postprocess skymaps
         if (pba_a.GRB.opts["do_skymap"]=="yes"):
             prep = ProcessRawSkymap(conf=self.conf, verbose=True)
@@ -323,7 +330,8 @@ class Base():
                                  outfpath=pba_a.GRB.fpath_sky_map,
                                  remove_input=False)
         # remove the default parfile from the working dir
-        os.remove(self.workingdir+parfilefname)
+        if (self.default_parfile_fpath!=self.workingdir+parfilefname):
+            os.remove(self.workingdir+parfilefname)
         return pba_a
 
     def plot_lcs(self, ax, pars : dict, pba : PyBlastAfterglow, layers = (), plot={}, plot_layer={}):
@@ -347,8 +355,6 @@ class Base():
                 label = plot_layer["label"] if "label" in plot_layer.keys() else None
                 ax.plot(pba.GRB.get_lc_times(), pba.GRB.get_lc(freq=pars["obs_freq"], ishell=0, ilayer=il),
                         ls=ls, color=color, alpha=alpha, label=label)
-
-
 
     def plot_dyn(self, ax, pba : PyBlastAfterglow, v_n_x : str, v_n_y : str, layers=(), plot_layer = {}):
         cmap = plot_layer["cmap"] if "cmap" in plot_layer.keys() else 'viridis'
@@ -404,8 +410,8 @@ class CasesFS(Base):
                 ax.plot(x_arr, ref.get(il, v_n_y), ls=':', color=cmap(norm(il)), lw=1., zorder=-1)
 
     def plot_generic(self, pars : dict, opts_a : dict, struct : dict, title : str,
-                     ref_dyn_fname : str, ref_lc_fname : str,
-                     figpath : str or None, save_pdf = True, show_fig = False):
+                         ref_dyn_fname : str, ref_lc_fname : str,
+                         figpath : str or None, save_pdf = True, show_fig = False):
         # run the code for given pars
         pba_a = self.run_a(struct=struct, pars=pars, opts={}, opts_grb=opts_a)
 
@@ -427,31 +433,31 @@ class CasesFS(Base):
 
 
         # -------- Afterglopy --------------
-        # Z = {'jetType':     grb.jet.TopHat if struct["struct"] == "tophat" else grb.jet.Gaussian,     # Top-Hat jet
-        #      'specType':    0,                  # Basic Synchrotron Spectrum
-        #      'counterjet':  1,
-        #      'spread':      7,
-        #      'thetaObs':    pars["theta_obs"],   # Viewing angle in radians
-        #      'E0':          struct["Eiso_c"], # Isotropic-equivalent energy in erg
-        #      'g0':          struct["Gamma0c"],
-        #      'thetaCore':   struct["theta_c"],    # Half-opening angle in radians
-        #      'thetaWing':   struct["theta_w"],
-        #      'n0':          pars["n_ism"],    # circumburst density in cm^{-3}
-        #      'p':           pars["p"],    # electron energy distribution index
-        #      'epsilon_e':   pars["eps_e"],    # epsilon_e
-        #      'epsilon_B':   pars["eps_b"],   # epsilon_B
-        #      'xi_N':        1.0,    # Fraction of electrons accelerated
-        #      'd_L':         pars["d_l"], # Luminosity distance in cm
-        #      'z':           pars["z"]}   # redshift
-        #
-        # t = np.geomspace(1.0 * 86400.0, 1.0e3 * 86400.0, 100)
-        # nu = np.empty(t.shape)
-        # nu[:] = pars["obs_freq"]
-        # Fnu = grb.fluxDensity(t, nu, **Z)
+        Z = {'jetType':     grb.jet.TopHat if struct["struct"] == "tophat" else grb.jet.Gaussian,     # Top-Hat jet
+             'specType':    0,                  # Basic Synchrotron Spectrum
+             'counterjet':  1,
+             'spread':      7,
+             'thetaObs':    pars["theta_obs"],   # Viewing angle in radians
+             'E0':          struct["Eiso_c"], # Isotropic-equivalent energy in erg
+             'g0':          struct["Gamma0c"],
+             'thetaCore':   struct["theta_c"],    # Half-opening angle in radians
+             'thetaWing':   struct["theta_w"],
+             'n0':          pars["n_ism"],    # circumburst density in cm^{-3}
+             'p':           pars["p"],    # electron energy distribution index
+             'epsilon_e':   pars["eps_e"],    # epsilon_e
+             'epsilon_B':   pars["eps_b"],   # epsilon_B
+             'xi_N':        1.0,    # Fraction of electrons accelerated
+             'd_L':         pars["d_l"], # Luminosity distance in cm
+             'z':           pars["z"]}   # redshift
+
+        t = np.geomspace(1.0 * 86400.0, 1.0e3 * 86400.0, 100)
+        nu = np.empty(t.shape)
+        nu[:] = pars["obs_freq"]
+        Fnu = grb.fluxDensity(t, nu, **Z)
 
         # plot
         ax = axes[0]
-        # ax.plot(t, Fnu, ls='-', color='gray', label='afterglopy')
+        ax.plot(t, Fnu, ls=':', color='gray', label='afterglowpy')
 
         ax.grid()
         ax.legend()
@@ -460,8 +466,8 @@ class CasesFS(Base):
         ax.set_xlabel("time [s]", fontsize=12)
         ax.set_ylabel("Flux density [mJy]", fontsize=12)
         ax.set_title(title)
-        ax.set_xlim(1e5,1e8)
-        ax.set_ylim(1e-4,1e0)
+        ax.set_xlim(1e4,1e8)
+        ax.set_ylim(1e0,1e4)
         ax.grid()
 
         ax = axes[1]
@@ -2372,6 +2378,9 @@ class CasesFSRS(Base):
         if show_fig: plt.show()
 
 # -----------------------------
+class Plots:
+    def __init__(self):
+        pass
 
 def runset_for_skymap(tsk, default_parfile_fpath : str, workingdir : str, figdir : str):
 

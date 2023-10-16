@@ -10,3 +10,4 @@ from .skymap_process import ProcessRawSkymap
 
 # case-depended methods
 from .wrappers import (CasesFS, CasesFSRS, runset_for_skymap)
+from .run_sets import CollateDataForRuns
