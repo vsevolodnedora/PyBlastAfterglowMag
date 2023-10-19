@@ -27,6 +27,8 @@ protected:
     std::unique_ptr<NuclearAtomic> p_nuc = nullptr;
     std::unique_ptr<LinearRegression> p_lr_delta = nullptr;
     std::unique_ptr<LinearRegression> p_lr_vol = nullptr;
+    std::unique_ptr<ShockMicrophysicsNumeric> p_fs;
+    std::unique_ptr<ShockMicrophysicsNumeric> p_rs;
     static constexpr int iters=1000; // for PWN, resolution of frac_psr_dep_
     Vector frac_psr_dep_{}; // for PWN, fraction of rad. absorbed by BW f(opacity)
 public:
@@ -36,8 +38,12 @@ public:
         : m_tb_arr(tb_arr){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BW_Base");
 
-        /// parameters
-        p_pars = new Pars(mD, mDtmp, loglevel); //
+        /// initialize shock microphysics
+        p_fs = std::make_unique<ShockMicrophysicsNumeric>(loglevel);
+        p_rs = std::make_unique<ShockMicrophysicsNumeric>(loglevel);
+
+        /// parameters (pass p_fs, p_rs for later use in EATS()
+        p_pars = new Pars(mD, mDtmp, p_fs, p_rs, loglevel); //
         p_pars->m_type = type;
 
         /// the container for the final solution

@@ -63,8 +63,7 @@ public:
                 computeSaveEjectaSpectrum(
                         working_dir,
                         getStrOpt("fname_spectrum", m_opts, AT, p_log, "", true),
-                        getStrOpt("fname_spectrum_layers", m_opts, AT, p_log, "", true),
-                        main_pars, m_pars, lc_freq_to_time);
+                        main_pars, m_pars);
 
             if (do_lc) {
                 computeSaveEjectaLightCurveAnalytic_new(
@@ -159,7 +158,7 @@ private:
         auto & models = getShells();
         for (auto & model : models)
             for (auto & bw : model->getBWs())
-                bw->computeForwardShockElectronAnalyticVars();
+                bw->computeShockElectrons();
 
         is_ejecta_anal_ele_computed = true;
     }
@@ -172,10 +171,11 @@ private:
             (*p_log)(LOG_ERR,AT) << " ejecta BWs were not evolved. Cannot setPreComputeEjectaAnalyticSynchrotronPars electrons (analytic) exiting...\n";
             exit(1);
         }
+
         auto & models = getShells();
         for (auto & model : models)
             for (auto & bw : model->getBWs())
-                bw->computeForwardShockSynchrotronAnalyticSpectrum();
+                bw->computeShockRadiation();
 
         is_ejecta_anal_synch_computed = true;
     }
@@ -343,9 +343,8 @@ private:
         }
     }
 
-
     /// OUTPUT spectrum
-    void computeSaveEjectaSpectrum(std::string workingdir,std::string fname, std::string fname_shells_layers,
+    void computeSaveEjectaSpectrumOLD(std::string workingdir,std::string fname, std::string fname_shells_layers,
                                    StrDbMap & main_pars, StrDbMap & ej_pars,
                                    bool lc_freq_to_time){
 
@@ -405,7 +404,7 @@ private:
                         total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_abs_rs[itnu];
                     else{
                         (*p_log)(LOG_INFO,AT) << " spec_var_out is not recognized. Possible options: "
-                            << " em "<< " abs "<<" em_rs " <<" abs_rs "<<" Givem="<<var<<"\n";
+                                              << " em "<< " abs "<<" em_rs " <<" abs_rs "<<" Givem="<<var<<"\n";
                         exit(1);
                     }
 //                    auto & spectrum = p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_em;
@@ -469,6 +468,72 @@ private:
         p_out->VectorOfVectorsH5(total_fluxes_shell_layer, group_names, workingdir+fname,  attrs);
     }
 
+    /// OUTPUT spectrum
+    void computeSaveEjectaSpectrum(std::string workingdir,std::string fname, StrDbMap & main_pars, StrDbMap & ej_pars){
+
+        (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta spectrum with analytic synchrotron...\n";
+
+        if (!is_ejecta_anal_synch_computed){
+            (*p_log)(LOG_INFO,AT) << " ejecta analytic electrons were not evolved. Cannot evaluateShycnhrotronSpectrum light curve (analytic) exiting...\n";
+            exit(1);
+        }
+
+        std::string fpath = workingdir+fname;
+        Output::remove_file_if_existis(fname,p_log);
+        H5::H5File file(fpath, H5F_ACC_TRUNC); // "/home/m/Desktop/tryout/file.h5"
+
+        size_t nshells_ = nshells();
+        size_t nlayers_ = nlayers();
+
+        /// for each shell and layer save spectra
+        for (size_t ish = 0; ish < nshells(); ++ish) {
+            for (size_t il = 0; il < nlayers(); ++il) {
+                std::string group_name = "shell=" + std::to_string(ish) + " layer=" + std::to_string(il);
+                H5::Group grp(file.createGroup(group_name));
+                auto &bw = getShells()[il]->getBW(ish);
+                Output::addVectorToGroup(grp,bw->getPars()->m_synch_em, "synch_em_fs");
+                Output::addVectorToGroup(grp,bw->getPars()->m_synch_abs, "synch_abs_fs");
+                if (bw->getPars()->do_rs){
+                    Output::addVectorToGroup(grp,bw->getPars()->m_synch_em, "synch_em_rs");
+                    Output::addVectorToGroup(grp,bw->getPars()->m_synch_abs, "synch_abs_rs");
+                }
+                grp.close();
+            }
+        }
+        /// add time and frequency. Note: specta are 1D and loop is for t in time, { for freq in freqs { } }
+        auto &bw0 = getShells()[0]->getBW(0);
+
+        /// make vectors for time and freq with the same structure as emissivity and absorption
+        Vector _times(bw0->get_tburst().size()*bw0->getPars()->m_freq_arr.size(),0.);
+        Vector _freqs(bw0->get_tburst().size()*bw0->getPars()->m_freq_arr.size(),0.);
+        size_t ii =0;
+        for (size_t it = 0; it < bw0->get_tburst().size(); it++) {
+            for (size_t ifreq = 0; ifreq < bw0->getPars()->m_freq_arr.size(); ifreq++){
+                _times[ii]=bw0->get_tburst()[it];
+                _freqs[ii]=bw0->getPars()->m_freq_arr[ifreq];
+                ii++;
+            }
+        }
+
+        Output::addVector(_times,"tburst",file);
+        Output::addVector(_freqs,"synch_freq",file);
+
+        /// add attributes
+        std::unordered_map<std::string, double> attrs{
+                {"nshells", nshells_ },
+                {"nlayers", nlayers_ },
+                {"ntimes", t_arr.size() },
+                {"ncells", ncells() }
+        };
+
+        /// add attributes read from parfile
+        for (auto& [key, value]: main_pars) { attrs[key] = value; }
+        for (auto& [key, value]: ej_pars) { attrs[key] = value; }
+        Output::addStrDbMap(attrs, file);
+
+        file.close();
+    }
+
     /// OUTPUT light curves
     void computeSaveEjectaLightCurveAnalytic_new(std::string workingdir, std::string fname, std::string fname_shells_layers,
                                              Vector lc_times, Vector lc_freqs, StrDbMap & main_pars, StrDbMap & ej_pars,
@@ -525,6 +590,7 @@ private:
         group_names.emplace_back("total_fluxes");
         p_out->VectorOfVectorsH5(out, group_names, workingdir+fname,  attrs);
     }
+
     /// INPUT dynamics
     void loadEjectaBWDynamics(std::string workingdir, std::string fname){
         if (!std::experimental::filesystem::exists(working_dir+fname))

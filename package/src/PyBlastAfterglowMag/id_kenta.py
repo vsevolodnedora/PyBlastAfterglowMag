@@ -231,12 +231,13 @@ class Data():
             # units
             rho_nuc = 2.7e14
             ut = 1.607e-6
+            urho = 5.807e18
             # load data
             t_rho_max, rho_max = np.loadtxt(self.fpath_rhomax, unpack=True, usecols=(0,1))
             # make dataframe
             data = {
                 "time" : t_rho_max * ut * 1e3,
-                "rho_max": rho_max / rho_nuc
+                "rho_max": rho_max * urho / rho_nuc
             }
             self.df_rho = pd.DataFrame.from_dict(data=data)
         else:
@@ -291,6 +292,7 @@ class Data():
                 df[f"mdot_mid_r{int(r)}"] = mdot_table[:, i + len(rext) * 3] # 26-33 Mdot_ext4 (8 extraction radii in code unit, 0.1 <= \gamma_beta < 1))
                 df[f"mdot_fast_r{int(r)}"] = mdot_table[:, i + len(rext) * 4] # 34-41 Mdot_ext5 (8 extraction radii in code unit, \gamma_beta >= 1)
                 i+=1
+            i+=len(rext)*4
             # velocity
             df["vave_slow"] = mdot_table[:, i] # 42 mass_averaged_velocity (\gamma_beta <= 0.1)
             df["vave_mid"]  = mdot_table[:, i+1] # 43 mass_averaged_velocity (0.1 <= \gamma_beta < 1)
@@ -306,7 +308,10 @@ class Data():
             r0 : rm
             speed : c
         """
-        t_ret_0 = (r0/1000./self.df_mdot[vave_key].values/cgs.c) # s
+        vinf = self.df_mdot[vave_key].values
+        if np.sum(vinf)==0:
+            raise ValueError("All vinf=0")
+        t_ret_0 = (r0/1000./vinf/cgs.c) # s
         return self.df_mdot["time"].values - t_ret_0
 
 class EjStruct(EjectaData):

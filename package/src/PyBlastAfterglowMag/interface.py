@@ -105,6 +105,8 @@ class Ejecta(Base):
     def __init__(self,workingdir : str, readparfileforpaths : str, parfile : str, type : str, verbose : str):
         super().__init__(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,verbose=verbose)
 
+        self.spectral_types = ["synch"]
+
         if not os.path.isdir(workingdir):
             raise IOError("Working directory not found {}".format(workingdir))
         self.parfile = parfile
@@ -164,6 +166,45 @@ class Ejecta(Base):
             except OSError:
                 raise OSError("failed to load the file: \n {}".format(self.fpath_sky_map))
 
+    def _get_1d_or_2d_array(self, dfile : h5py.File, ishell : int, ilayer : int, v_n : str) -> np.ndarray:
+        nlayers = int(dfile.attrs["nlayers"])
+        nshells = int(dfile.attrs["nshells"])
+        if ((ishell is None) and (ilayer is None)):
+            raise ValueError("both ishell and ilayer cannot be None for this data")
+        elif ((not ishell is None) and (ilayer is None)):
+            arr = []
+            for il in range(nlayers):
+                layer = f"shell={ishell} layer={il}"
+                # arr.append(self.get_dyn_arr(v_n, ishell=ishell, ilayer=il))
+                arr = np.array(dfile[layer][v_n])
+            arr = np.reshape(np.array(arr), newshape=(nlayers, len(arr[0])))
+            if (np.sum(arr) == 0):
+                print(f"Warning np.sum(arr)=0 for ishell={ishell} ilayer={ilayer}")
+            return arr
+        elif ((ishell is None) and (not ilayer is None)):
+            arr = []
+            for ish in range(nshells):
+                layer = f"shell={ish} layer={ilayer}"
+                # arr.append(self.get_dyn_arr(v_n, ishell=ish, ilayer=ilayer))
+                arr = np.array(dfile[layer][v_n])
+            arr = np.reshape(np.array(arr), newshape=(nshells, len(arr[0])))
+            if (np.sum(arr) == 0):
+                print(f"Warning np.sum(arr)=0 for ishell={ishell} ilayer={ilayer}")
+            return arr
+        elif ((not ishell is None) and (not ilayer is None)):
+            # group = dfile["shell={} layer={}".format(ishell, ilayer)]
+            layer = f"shell={ishell} layer={ilayer}"
+            if (not layer in list(dfile.keys())):
+                raise NameError(f"Layer {ilayer} (key '{layer}') is not in the ejecta file nlayer={nlayers} nshells={nshells}")
+            if not (v_n in dfile[layer].keys()):
+                raise KeyError(f"key {v_n} is not in the list: {dfile[layer].keys()}")
+            arr = np.array(dfile[layer][v_n])
+            if (np.sum(arr) == 0):
+                print(f"Warning np.sum(arr)=0 for ishell={ishell} ilayer={ilayer}")
+            return arr
+        else:
+            raise NameError()
+
     # --------- Initial Data -----------
 
     def get_id_obj(self):
@@ -176,7 +217,6 @@ class Ejecta(Base):
             raise KeyError(f"key={v_n} is not in the list={dfile.attrs.keys()}")
         return dfile.attrs[v_n]
 
-
     # --------- Dynamics -------------
 
     def get_dyn_obj(self):
@@ -185,44 +225,7 @@ class Ejecta(Base):
 
     def get_dyn_arr(self, v_n : str, ishell : int or None = None, ilayer : int or None = None) -> np.ndarray:
         self._ckeck_if_loaded_dyn_obj()
-        obj_dyn = self.get_dyn_obj()
-        nlayers = int(obj_dyn.attrs["nlayers"])
-        nshells = int(obj_dyn.attrs["nshells"])
-        dfile = self.dyn_dfile
-        if ((ishell is None) and (ilayer is None)):
-            raise ValueError("both ishell and ilayer cannot be None for dynamical data")
-        elif ((not ishell is None) and (ilayer is None)):
-            arr = []
-            for il in range(nlayers):
-                arr.append(self.get_dyn_arr(v_n, ishell=ishell, ilayer=il))
-            arr = np.reshape(np.array(arr), newshape=(nlayers, len(arr[0])))
-            if (np.sum(arr) == 0):
-                print(f"Warning np.sum(arr)=0 for ishell={ishell} ilayer={ilayer}")
-            return arr
-        elif ((ishell is None) and (not ilayer is None)):
-            arr = []
-            for ish in range(nshells):
-                arr.append(self.get_dyn_arr(v_n, ishell=ish, ilayer=ilayer))
-            arr = np.reshape(np.array(arr), newshape=(nshells, len(arr[0])))
-            if (np.sum(arr) == 0):
-                print(f"Warning np.sum(arr)=0 for ishell={ishell} ilayer={ilayer}")
-            return arr
-        elif ((not ishell is None) and (not ilayer is None)):
-            # group = dfile["shell={} layer={}".format(ishell, ilayer)]
-            layer = "shell={} layer={}".format(ishell, ilayer)
-            if (not layer in list(dfile.keys())):
-                raise NameError(f"Layer {ilayer} (key '{layer}') is not in the ejecta dyn. file nlayer={nlayers} nshells={nshells}")
-            # if (not v_n in dfile[layer].keys()):
-            #     raise NameError("v_n {} is not in the ejecta dyn. dfile[{}].keys() \n Avaialble: {}"
-            #                     .format(v_n, layer, dfile[layer].keys()))
-            if not (v_n in dfile[layer].keys()):
-                raise KeyError(f"key {v_n} is not in the list: {dfile[layer].keys()}")
-            arr = np.array(dfile[layer][v_n])
-            if (np.sum(arr) == 0):
-                print(f"Warning np.sum(arr)=0 for ishell={ishell} ilayer={ilayer}")
-            return arr
-        else:
-            raise NameError()
+        return self._get_1d_or_2d_array(self.get_dyn_obj(),v_n=v_n,ishell=ishell,ilayer=ilayer)
 
     def OLD_get_dyn_1d_arr_layers(self, v_n="em", idx=0, ishell=None, ilayer=None):
         obj_dyn = self.get_dyn_obj()
@@ -237,7 +240,81 @@ class Ejecta(Base):
                 x_arr.append(self.get_dyn_arr(v_n, ishell=ish, ilayer=ilayer)[idx])
         return np.array(x_arr)
 
-    # --------- Light Curves -------------
+    # --------- Comov.Spectrum ---------
+
+    def get_spec_obj(self) -> h5py.File:
+        self._check_if_loaded_spec()
+        return self.spec_dfile
+
+    def get_spec_times(self, unique : bool = True)->np.ndarray:
+        dfile = self.get_spec_obj()
+        arr = np.array(dfile["tburst"])
+        if not unique:
+            return arr
+        else:
+            arr_u = np.unique(arr)
+            if len(arr_u) == 0:
+                raise ValueError("no unique times found in array \n {}".format(arr))
+            return arr_u
+
+    def get_spec_freqs(self, type : str, unique : bool = True)->np.ndarray:
+        if (not type in self.spectral_types):
+            raise KeyError(f"type = {type} is not supported. Available spectra_types: {self.spectral_types}")
+        dfile = self.get_spec_obj()
+        arr = np.array(dfile[type+"_freq"])
+        if not unique:
+            return arr
+        else:
+            arr_u = np.unique(arr)
+            if len(arr_u) == 0:
+                raise ValueError("no unique freqs found in array \n {}".format(arr))
+            return arr_u
+
+    def get_spec(self, time : float or None,
+                 type : str, em_or_abs : str, fs_or_rs : str, ishell : int or None, ilayer : int or None)->np.ndarray:
+
+        if (not em_or_abs in ["em","abs"]):
+            raise KeyError(f"em_or_abs must be em or abs. Given {em_or_abs}")
+        if (not fs_or_rs in ["fs","rs"]):
+            raise KeyError(f"fs_or_rs must be fs or rs. Given {fs_or_rs}")
+        if (not type in self.spectral_types):
+            raise KeyError(f"type = {type} is not supported. Available spectra_types: {self.spectral_types}")
+
+        self._ckeck_if_loaded_dyn_obj()
+        v_n = type+'_'+em_or_abs+'_'+fs_or_rs
+        res = self._get_1d_or_2d_array(self.get_spec_obj(),v_n=v_n,ishell=ishell,ilayer=ilayer)
+
+        utimes = self.get_spec_times(unique=True)
+        ufreqs = self.get_spec_freqs(type=type,unique=True)
+
+        def _get_time() -> float:
+            if (not time in utimes):
+                if (time > utimes.max()):
+                    raise ValueError(f"requested time={time} > dfile times.max()={utimes.max()}")
+                if (time < utimes.min()):
+                    raise ValueError(f"requested time={time} < dfile times.min()={utimes.min()}")
+                _time = utimes[find_nearest_index(utimes, time)]
+                if self.verb:
+                    print(f"Warning: time={time} is not in {utimes} Using time={_time}")
+            else:
+                _time = utimes[int(np.where(utimes==time)[0])]
+            return _time
+
+        if res.ndim == 1:
+            if (time is None):
+                arr = np.reshape(res,newshape=(len(utimes),len(ufreqs)))
+                return arr
+            else:
+                _time = _get_time()
+                arr = res[np.where(self.get_spec_times(unique=False) == _time)]
+                return arr
+        elif res.ndim == 2:
+            raise NotImplementedError("Not implemented")
+        else:
+            raise ValueError(f"Incorrect value of ndim={res.ndim}")
+
+
+    # --------- Light Curves ---------
 
     def get_lc_obj(self,spec : bool = False) -> h5py.File:
         if spec:
@@ -271,7 +348,7 @@ class Ejecta(Base):
         utimes = self.get_lc_times(spec=spec,unique=True)
         ufreqs = self.get_lc_freqs(spec=spec,unique=True)
         fluxes =  np.array(dfile["total_power"]) if spec else np.array(dfile["total_fluxes"])
-
+        # return np.zeros(0,)
         def _get_time() -> float:
             if (not time in utimes):
                 if (time > utimes.max()):

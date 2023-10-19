@@ -33,13 +33,19 @@ enum METHOD_LIMIT_SPREAD { iNone, iGamma0Frac, iGammaVal, iRd };
 
 struct Pars{
 
-    Pars(VecVector & data, VecVector & data_tmp, unsigned loglevel) : m_data(data), m_data_tmp(data) {
+    Pars(VecVector & data, VecVector & data_tmp,
+         std::unique_ptr<ShockMicrophysicsNumeric> & p_fs_, std::unique_ptr<ShockMicrophysicsNumeric> & p_rs_,
+         unsigned loglevel) : m_data(data), m_data_tmp(data), p_fs(p_fs_), p_rs(p_rs_) {
         p_log = std::make_unique<logger>(std::cout,std::cerr,loglevel,"PWNPars");
     }
     std::unique_ptr<SynchrotronAnalytic> p_syna = nullptr;
     std::unique_ptr<SynchrotronAnalytic> p_syna_rs = nullptr;
 
+    std::unique_ptr<ShockMicrophysicsNumeric> & p_fs;
+    std::unique_ptr<ShockMicrophysicsNumeric> & p_rs;
+
     std::unique_ptr<logger> p_log;
+    size_t nfreqs{};
     Vector m_freq_arr{}; Vector m_synch_em{}; Vector m_synch_abs{}; Vector m_synch_em_rs{}; Vector m_synch_abs_rs{};
     VecVector & m_data;
     VecVector & m_data_tmp;

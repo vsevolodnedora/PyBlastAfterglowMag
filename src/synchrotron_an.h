@@ -117,6 +117,7 @@ public:
             else if(dtau < -1.0)
                 intensity = 0.0;
         }
+
         return intensity;
     }
 };
@@ -863,13 +864,93 @@ double interpolated_phi(const double p){
 //        return LinInterp(m_Phip.p_xi, m_Phip.phi, p_xi,  false);
 }
 
+namespace SSC{
+    /*
+ * Lanczos approximation of Gamma function
+ * C. Lanczos, 'A Precision Approximation of the Gamma Function', SIAM, 1964, pg. 86-96
+ * Adapted to numerical recipe
+ */
+    static inline double gammln(double xx){
+        const double cof[6] = {
+                76.18009172947146, -86.50532032941677,
+                24.01409824083091, -1.231739572450155,
+                0.1208650973866179e-2, -0.5395239384953e-5};
+        double y = xx, x = xx;
+        double tmp = x + 5.5;
+        tmp -= (x + 0.5) * std::log(tmp);
+        double ser = 1.000000000190015;
+        for (size_t i = 0; i < 6; i++)
+            ser += cof[i]/(1+y);
+        return -tmp+std::log(2.5066282746310005*ser/x);
+    }
+/*
+ * Takes exponential of ln(Gamma) to give Gamma
+ */
+    static inline double Gamma(double x){
+        return std::exp(gammln(x));
+    }
+/*
+ * Returens referenced values(x) from inputed tables(t_x and t_v)
+ */
+    static double get_table(const double * t_x, const double * t_v, size_t numbins, double x){
+        size_t count = 0;
+        if ((x<t_x[0]) or (x>t_x[numbins-1])){
+            printf("Error in get_table : %f %f %f\n", x, t_x[0], t_x[numbins-1]);
+            exit(-1);
+        }
+        for (size_t i = 0; i < numbins; i++){
+            if (x < t_x[i]) {
+                count = i;
+                break;
+            }
+        }
+        double delta =  std::log(t_x[count]) - std::log(t_x[count-1]);
+        double rest  = (std::log(x) - std::log(t_x[count-1])) / delta;
+        double res   = (1.-rest) * t_v[count-1] + rest * t_v[count];
+        return res;
+    }
+/*
+ * V.L. Ginzburg & S.I. Syrovatski, The Origin of Cosmic Rays, 1964, p. 402
+ *  Calculated exactly as given in literature
+ *  x : ratio of the frequency to the critical synchrotron frequency
+ */
+    static double F(double x){
+
+        double t_x[34] = {
+                0.001,0.005,0.01 ,0.025,0.05 ,0.075,0.1  ,0.15 ,0.2  ,0.25 ,
+                0.3  ,0.4  ,0.5  ,0.6  ,0.7  ,0.8  ,0.9  ,   1.,1.2  ,1.4  ,
+                1.6  ,1.8  ,2.   ,2.5  ,3.   ,3.5  ,4.   ,4.5  ,5.   ,6.   ,
+                7.   ,8.   ,9.   ,10.
+        };
+        double t_v[34] = {
+                0.213,0.358,0.445,0.583,0.702,0.722,0.818,0.874,0.904,0.917,
+                0.919,0.901,0.872,0.832,0.788,0.742,0.694,0.655,0.566,0.486,
+                0.414,0.354,0.301,0.200,0.130,0.0845,0.0541,0.0339,0.0214,0.0085,
+                0.0033,0.0013,0.0005,0.00019
+        };
+
+        double res = 0;
+        if (x <= 0.001)
+            res = (4.*M_PI/std::sqrt(3)/Gamma(1./3.)*std::pow(x/2., 1./3.) \
+            * (1.-Gamma(1./3.)/2.*std::pow(x/2.,2./3.)+ 3./4.* std::pow(x/2.,2)));
+        else if (x >= 10)
+            res = ((M_PI/2.)*std::exp(-x) * std::sqrt(x) * ((1.+55./72./x)-(10151./10368./(x*x))));
+        else
+            res = get_table(t_x, t_v,34, x);
+
+        return res;
+    }
+}
+
+
+
 struct Dermer09{
     /// for Dermer+09 model
     static double brokenPowerLaw(const double gamma_e, const double gm, const double gc, const double gM,
                                  const double p1, const double p2){
         double spectrum = 0.;
         double index;
-        if (gm <= gamma_e && gamma_e <= gM){
+        if ((gm <= gamma_e) && (gamma_e <= gM)){
             if (gamma_e <= gc){
                 index = p1; // slow cooling
             } else {
@@ -917,8 +998,7 @@ struct Dermer09{
     * @return
     */
     static double calc_x(const double &B, const double &epsilon, const double &gamma){
-        double x = 4.0 * CGS::pi * epsilon * (CGS::me * CGS::me) * (CGS::c * CGS::c * CGS::c) /
-                   (3.0 * CGS::qe * B * CGS::h * (gamma * gamma));
+        double x = 4.0 * CGS::pi * epsilon * (CGS::me * CGS::me) * (CGS::c * CGS::c * CGS::c) / (3.0 * CGS::qe * B * CGS::h * (gamma * gamma));
         return x;
     }
     /**
@@ -949,7 +1029,7 @@ struct Dermer09{
         double result = 0.;
         double prefactor = sqrt(3.0) * (CGS::qe * CGS::qe * CGS::qe) * B / CGS::h;
         double x = calc_x(B, epsilon, gamma);
-        result = prefactor * R(x);
+        result = prefactor * SSC::F(x);//R(x);
         return result;
     }
     double pprime(const double nuprim, const double p, double gm, const double gc, const double B, double nprim){
@@ -1086,12 +1166,12 @@ public:
 
 /// evaluate comoving emissivity and absorption for synchrotron mech.
 class SynchrotronAnalytic : public RadiationBase{
-/// methods
+    /// methods
     enum METHODS { iWSPN99, iJOH06, iDER06, iMARG21, iBerrettaSynch, iBerettaSynchSSC };
     enum METHODS_LFMIN { igmUprime, igmNakarPiran, igmJoh06, igmMAG21 };
     enum METHODS_SSA { iSSAoff, iSSAon };
     enum METHOD_NONRELDIST{ inone, iuseGm };
-//    enum QQ { i_em_pl, i_em_th, i_abs_pl, i_abs_th, i_em, i_abs, i_tau, i_int };
+
     /// parameter container for the class
     struct Pars{
         // --- in
@@ -1120,7 +1200,6 @@ class SynchrotronAnalytic : public RadiationBase{
     };
     std::unique_ptr<Pars> p_pars = nullptr;
     std::unique_ptr<logger> p_log = nullptr;
-//    Vector mD{};
     Vector m_gamma_arr{};
     Vector m_freq_arr_syn{};
     Vector m_tmp_arr1{};
@@ -1128,7 +1207,7 @@ class SynchrotronAnalytic : public RadiationBase{
     /// -------------------------------------------------------
     bool is_rs = false;
 public:
-    ///
+
     SynchrotronAnalytic( int loglevel, bool _is_rs ){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "SynchrotronAnalytic");
 //        p_pars = new PWNPars();
@@ -1138,8 +1217,9 @@ public:
         is_rs = _is_rs;
     }
     ~SynchrotronAnalytic(){ }
-//    PWNPars *& getPars(){ return p_pars; }
+
     std::unique_ptr<Pars> & getPars(){ return p_pars; }
+
     /// set model parameters
     void setPars(StrDbMap & pars, StrStrMap & opts){
 
@@ -1327,6 +1407,7 @@ public:
 
 
     }
+
     /// evaluate frequency independent quantities (critical LFs, Bfield, etc)
     void evaluateElectronDistribution(const double epime, const double Gamma,
                                       const double Gamma_shock, const double t_e, const double n_prime) {
@@ -1455,6 +1536,7 @@ public:
         p_pars->accel_frac = accel_frac;
 
     }
+
     /// evaluate the comoving emissivity and absorption (frequency dependent)
     void evaluateShycnhrotronSpectrum(double ndens_e, double n_e, double acc_frac,
                                       double B, double gm, double gM, double gc,
@@ -1702,10 +1784,8 @@ public:
             const double k0 = (p+2)/(8*CGS::pi*(CGS::me));
             double r=0., al=0.;
             for (size_t igam=0; igam < m_gamma_arr.size(); igam++){
-                const double asso = Bretta::singleElecSynchroPower(nuprime, m_gamma_arr[igam], nuL)
-                                    * std::pow(m_gamma_arr[igam], -(p+1)); // absorption
-                const double js = Bretta::syncEmissivityKernPL(
-                        m_gamma_arr[igam], nuprime, p, nuL, gc,m_gamma_arr); //
+                const double asso = Bretta::singleElecSynchroPower(nuprime, m_gamma_arr[igam], nuL) * std::pow(m_gamma_arr[igam], -(p+1)); // absorption
+                const double js = Bretta::syncEmissivityKernPL( m_gamma_arr[igam], nuprime, p, nuL, gc,m_gamma_arr ); //
                 r += js; // NOTE! replacing simpson integral with the direct sum!
                 al += asso;  // NOTE! replacing simpson integral with the direct sum!
             }
@@ -1752,8 +1832,10 @@ public:
             exit(1);
         }
     }
-
 };
+
+
+
 
 
 
@@ -1889,7 +1971,8 @@ static void cooling(double t, double B, double *dgam_dt, double *gam, double *ta
     }
 }
 static double dN_dgam_dt_inj(double gam, double Lpsr, double epse, double gam_b, double gam_max, double p1, double p2){
-    double fac_bol = 1./(2.-p1)*(1.-pow(gam_b,-2.+p1)) + 1./(2.-p2)*(pow(gam_max/gam_b,2.-p2)-1.);
+    double fac_bol = 1./(2. - p1) * (1. - pow(gam_b, -2. + p1))
+                   + 1./(2. - p2) * (pow(gam_max/gam_b, 2. - p2) - 1.);
     if (gam < gam_b){
         return epse * Lpsr/(MeC2*gam_b*gam_b) / fac_bol * pow(gam/gam_b,-p1);
     }
@@ -1897,25 +1980,32 @@ static double dN_dgam_dt_inj(double gam, double Lpsr, double epse, double gam_b,
         return epse * Lpsr/(MeC2*gam_b*gam_b) / fac_bol * pow(gam/gam_b,-p2);
     }
 }
-static void time_evolution_e(double dt, double *gam, double *dgam, double *dN_dgam, double *dN_dgam_dt, double *dgam_dt, int Nbin_e)
+static void time_evolution_e(double dt, double *gam, double *dgam, double *dN_dgam,
+                             double *dN_dgam_dt, double *dgam_dt, int Nbin_e)
 {
     int i;
     double dN_dgam_old[Nbin_e];
     double N_cool = 0.0;
     double dN_dgam_cool = 0.0;
 
-    for (i=0;i<Nbin_e;i++){
+    for (i=0; i<Nbin_e; i++){
         dN_dgam_old[i] = dN_dgam[i];
     }
 
-    dN_dgam[Nbin_e-1] = (dN_dgam_old[Nbin_e-1])/(1.0+dt/dgam[Nbin_e-1]*dgam_dt[Nbin_e-1]) + dN_dgam_dt[Nbin_e-1]*dt;
-    for(i=Nbin_e-2;i>0;i--){
-        dN_dgam[i] = (dN_dgam_old[i]+dN_dgam[i+1]*dt/dgam[i]*dgam_dt[i+1]) / (1.0+dt/dgam[i]*dgam_dt[i]) + dN_dgam_dt[i]*dt;
+    dN_dgam[Nbin_e-1] = (dN_dgam_old[Nbin_e-1])
+                      / (1.0+dt/dgam[Nbin_e-1]*dgam_dt[Nbin_e-1])
+                      + dN_dgam_dt[Nbin_e-1]*dt;
+    for(i = Nbin_e-2; i>0; i--){
+        dN_dgam[i] = (dN_dgam_old[i]+dN_dgam[i+1]*dt/dgam[i]*dgam_dt[i+1]) / (1.0+dt/dgam[i]*dgam_dt[i])
+                   + dN_dgam_dt[i] * dt;
     }
-    dN_dgam[0] = dN_dgam_old[0] + dN_dgam_dt[1]*dt/dgam[0]*dgam_dt[1] + dN_dgam_dt[0]*dt;
+    dN_dgam[0] = dN_dgam_old[0]
+               + dN_dgam_dt[1] * dt / dgam[0] * dgam_dt[1]
+               + dN_dgam_dt[0] * dt;
 }
 static void injection(double *gam, double *dgam, double *dN_dgam_dt, double *dgam_dt, double Lpsr, double dt,
-                      double *N_inj_tot, double epse, double gam_b, double gam_max, double p1, double p2, int Nbin_e){
+                      double *N_inj_tot, double epse, double gam_b, double gam_max,
+                      double p1, double p2, int Nbin_e){
     int i,j;
     double tmp=0.0,total_frac_depo=0.0,frac_resi=0.0,frac_depo=0.0;
     double dN_dgam_dt_eff[Nbin_e];
@@ -1926,16 +2016,15 @@ static void injection(double *gam, double *dgam, double *dN_dgam_dt, double *dga
         dN_dgam_dt_eff[i] = 0.0;
         tmp += dN_dgam_dt[i] * dt * dgam[i];
     }
-    tmp -= 0.5*(dN_dgam_dt[0] * dt * dgam[0]
-                + dN_dgam_dt[Nbin_e-1 ]* dt * dgam[Nbin_e-1]);
+    tmp -= 0.5*(dN_dgam_dt[0] * dt * dgam[0] + dN_dgam_dt[Nbin_e-1 ]* dt * dgam[Nbin_e-1]);
     *N_inj_tot += tmp;
 
     /// ???
-    for (i=Nbin_e-1;i>0;i--){
+    for (i=Nbin_e-1; i>0; i--){
         total_frac_depo = 0.0;
         frac_resi = 1.0;
         frac_depo = 0.0;
-        for (j=i;j>0;j--){
+        for (j=i; j>0; j--){
             frac_depo = frac_resi/(1.0 + dt/dgam[i] * dgam_dt[i]);
             dN_dgam_dt_eff[j] += frac_depo * dN_dgam_dt[i] * (dgam[i]/dgam[j]); // eff?
 
