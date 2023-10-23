@@ -15,6 +15,8 @@
 #include "utilitites/rootfinders.h"
 #include "image.h"
 #include "synchrotron_an.h"
+#include "microphysics/analytic.h"
+#include "microphysics/numeric.h"
 //#include "blastwave.h"
 
 

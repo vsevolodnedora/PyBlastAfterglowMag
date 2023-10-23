@@ -200,12 +200,23 @@ class EjectaData:
         mass = np.array([np.sum(self.get(v_n="mass",text=text)) for text in self.texts])
         return mass
 
-    def total_mass_fasttail(self,crit="mom>1") -> np.ndarray:
-        if crit == "mom>1":
-            mass = np.array([np.sum(self.get(v_n="mass",text=text)[:, self.vinf * get_Gamma(self.vinf) > 1]) for text in self.texts])
+    def get_mask(self, crit : str) -> np.ndarray:
+        if (crit == "fast"):
+            mask = self.vinf * get_Gamma(self.vinf) > 1
+        elif (crit == "mid"):
+            mask = (self.vinf * get_Gamma(self.vinf) <= 1) & \
+                   (self.vinf * get_Gamma(self.vinf) > 0.1)
+        elif (crit == "slow"):
+            mask = (self.vinf * get_Gamma(self.vinf) <= 0.1)
         else:
             raise KeyError()
+        return mask
+
+    def total_mass_vs_text(self,crit:str="fast") -> np.ndarray:
+        mask = self.get_mask(crit=crit)
+        mass = np.array([np.sum(self.get(v_n="mass",text=text)[:, mask]) for text in self.texts])
         return mass
+
 
     def getText(self) -> np.ndarray:
         return np.array(self.dfile["text"])

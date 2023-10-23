@@ -77,5 +77,18 @@ SIMULATIONS = {
         "res":200,
         "label":"SFHo q=1.25 (200m)"
     },
-    #### =========== SFHo ================
+    #### =========== BHBlp ================
+    "BHBLp_q1_res150" : {
+        "idx":6,
+        "name":"BHBLpTim326_135_135_45km_150mstg_B0_HLLC",
+        "datadir":DATADIR+"BHBLpTim326_135_135_45km_150mstg_B0_HLLC"+"/",
+        "EOS":"BHBLp",
+        "tmerg":15.5,         # ms
+        # "mdot_extract":"Mdot_extraction_BHBLp_135_135.txt",
+        "mdot_extract":"Mdot_extraction_BHBLp_135_135.txt",
+        "rhomax":"rhomax_BHBLp_135_135.txt",
+        "q":1.,
+        "res":150,
+        "label":"BHBLp q=1 (150m)"
+    },
 }

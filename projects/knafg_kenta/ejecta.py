@@ -61,6 +61,7 @@ class ProcessRaw():
         collated_ej_data_fpath = datadir + fname_output
         id.process_save(collated_ej_data_fpath)
 
+
     def getProcessed(self, fname_output : str = "ej_collated.h5") -> h5py.File:
         if (self.dfile is None):
             self.dfile = h5py.File(self.sim["datadir"] + fname_output,"r")
@@ -80,24 +81,58 @@ class ProcessRaw():
 def process(sim : dict) -> None:
     ej = ProcessRaw(simumlation = sim)
     ej.process_raw_ejecta_files()
-
+    print("Data collation is successful")
 
 
 
 
 def main():
-    sim_dic = SIMULATIONS["SFHo_q125_res150"]
-    rhofpath = sim_dic["datadir"]+"rhomax_SFHo_125_145_200m.txt"
-    mdotfpath = sim_dic["datadir"]+"Mdot_extraction_SFHo_12_15.txt"
+
+    sim_dic = SIMULATIONS["BHBLp_q1_res150"]
+
+    ej_data = PBA.id_kenta.EjectaData(sim_dic["datadir"]+"ej_collated.h5",verbose=True)
+    data = PBA.id_kenta.Data(fpath_rhomax=sim_dic["datadir"]+sim_dic["rhomax"],
+                             fpath_mdot=sim_dic["datadir"]+sim_dic["mdot_extract"])
+    df = pd.merge(data.df_mdot,data.df_rho,on="time")
+    print(df.shape)
+
+    print(data.df_mdot.keys())
+    # print(data.df_mdot.describe())
+    print(data.df_mdot.isnull().sum(axis=0))
+
+    rext = data.get_rext()
+    fig, ax = plt.subplots(ncols=1,nrows=1)
+
+    for i, r in enumerate(rext):
+        try:
+            ax.plot(data.ret_time(r0=r,vave_key="vave_fast"), data.df_mdot[f"mdot_fast_r{r}"].values)
+        except:
+            print(f"failed for r={r}")
+        # df.plot("time",f"mdot_fast_r{r}",ax=ax,color=color_pal[i])
+    ax2 = ax.twinx()
+    data.df_rho.plot("time",f"rho_max",ax=ax2,color="black")
+
+    ax.set_yscale("log")
+    ax2.set_yscale("log")
+    # ax.set_ylim(1e-5,1e1)
+    plt.show()
+
+    sim_dic = SIMULATIONS["BHBLp_q1_res150"]
+    rhofpath = sim_dic["datadir"]+sim_dic["rhomax"]
+    mdotfpath = sim_dic["datadir"]+sim_dic["mdot_extract"]
     ej_data = PBA.id_kenta.EjectaData(fpath=sim_dic["datadir"]+"ej_collated.h5",verbose=True)
     data = PBA.id_kenta.Data(fpath_rhomax=rhofpath,fpath_mdot=mdotfpath)
+    print(data.df_mdot.keys())
 
     fig, ax = plt.subplots(ncols=1,nrows=1)
     ax.plot(ej_data.getText(), ej_data.total_mass(), color="gray",label="Total")
     ax.plot(ej_data.getText(), ej_data.total_mass_fasttail(),color="black",label=r"$\Gamma\beta>1$")
     ax2 = ax.twinx()
-    ax2.plot(*data.get_rhomax(),color="green",label=r"$\rho_{\rm max}$")
-    ax2.plot(*data.get_mdot(),color="green",label=r"$\dot{M}_{\rm ej}$")
+    data.df_rho.plot("time","rho_max",ax=ax2,color="green",label=r"$\rho_{\rm max}$")
+    data.df_mdot.plot("time","mdot_r481",ax=ax2,color="green",label=r"$\dot{M}_{\rm ej}$")
+
+    # ax2.plot(*data.get_rhomax(),color="green",label=r"$\rho_{\rm max}$")
+    # ax2.plot(*data.get_mdot2(),color="green",label=r"$\dot{M}_{\rm ej}$")
     ax2.set_yscale("log")
     plt.legend()
     ax.set_yscale("log")

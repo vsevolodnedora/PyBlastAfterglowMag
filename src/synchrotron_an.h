@@ -12,6 +12,8 @@
 #include "utilitites/quadratures.h"
 #include "blastwave/blastwave_components.h"
 
+#include "microphysics/numeric.h"
+
 
 class RadiationBase{
 public:
@@ -214,7 +216,7 @@ struct Margalit21 {
         // (also known as modified Bessel function of the second kind) of ν and x.
 
         /// TODO add assymptotic expansion for small Theta
-        if (Theta < 2.e-7)
+        if (Theta < 3.e-7)
             return 0.;
 
         double tmp = 0;
@@ -1166,8 +1168,11 @@ public:
 
 /// evaluate comoving emissivity and absorption for synchrotron mech.
 class SynchrotronAnalytic : public RadiationBase{
+
+    int m_loglevel = -1;
+
     /// methods
-    enum METHODS { iWSPN99, iJOH06, iDER06, iMARG21, iBerrettaSynch, iBerettaSynchSSC };
+    enum METHODS { iWSPN99, iJOH06, iDER06, iMARG21, iBerrettaSynch, iBerettaSynchSSC, iNumeric };
     enum METHODS_LFMIN { igmUprime, igmNakarPiran, igmJoh06, igmMAG21 };
     enum METHODS_SSA { iSSAoff, iSSAon };
     enum METHOD_NONRELDIST{ inone, iuseGm };
@@ -1209,6 +1214,7 @@ class SynchrotronAnalytic : public RadiationBase{
 public:
 
     SynchrotronAnalytic( int loglevel, bool _is_rs ){
+        m_loglevel = loglevel;
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "SynchrotronAnalytic");
 //        p_pars = new PWNPars();
         p_pars = std::make_unique<Pars>();
@@ -1254,6 +1260,8 @@ public:
                 val_synch = SynchrotronAnalytic::METHODS::iMARG21;
             else if(opts.at(opt) == "Dermer09")
                 val_synch = SynchrotronAnalytic::METHODS::iDER06;
+            else if(opts.at(opt) == "New")
+                val_synch = SynchrotronAnalytic::METHODS::iNumeric;
 //            else if(opts.at(opt) == "Bretta")
 //                val_synch = SynchrotronAnalytic::METHODS::iBerrettaSynch;
             else{
@@ -1799,6 +1807,31 @@ public:
 
             em_pl = I;
             abs_pl = att;
+        }
+        else if (p_pars->m_sychMethod == METHODS::iNumeric){
+
+            /// initialize the source
+            Source source = Source();
+
+            /// initialize the model
+            ShockMicrophysicsNumeric mod(m_loglevel);
+
+            /// initialize electron spectrum
+            double g1, g2, gb, emin, emax, eb, p1, p2;
+            if (gm < gc){
+                /// slow cooling regime
+                g1=gm; g2=gM; gb=gc, p1=p_pars->p, p2=p_pars->p+1.;
+            }
+            else {
+                /// fast cooling regime
+                g1=gc; g2=gM; gb=gm, p1=2., p2=2.+1.;
+            }
+            source.E_min = g1 * C_me_eV;
+            source.E_max = g2 * C_me_eV;
+            source.E_break = gb * C_me_eV;
+
+            double w_p_soll = 0.;
+
         }
         else{
             (*p_log)(LOG_ERR,AT) << " synchrotoron method = " << p_pars->m_sychMethod << " is not recognized\n";

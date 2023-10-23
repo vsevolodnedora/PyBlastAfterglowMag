@@ -39,32 +39,35 @@ color_pal = sns.color_palette()
 plt.style.use("fivethirtyeight")
 
 class DataSimulationRuns():
-    def __init__(self, runs_dir : str) -> None:
-        self.df = None
+    def __init__(self, runs_dir : str, verbose : bool = False) -> None:
+        self.df = pd.DataFrame()
+        self.verb = verbose
         self.simafgpath = runs_dir
+        self.fname_lc = "lc_kn.h5"
 
-    # process a simulation data into a dataframe
-    def process_runs(self, frame : dict, outfname : str):
+    def collate_kn_lcs(self, frame : dict, outfname : str):
         '''
-            Process all files for a given simuslation
+            1. Locate fi
+
+            process a simulation data into a dataframe (only Kilonova and only Light Curves)
         '''
         if (not os.path.isdir(self.simafgpath)):
             raise FileNotFoundError(f"Folder not fould: {self.simafgpath}")
 
         # collect light curve files
-        files = glob(self.simafgpath + "/*/lc_kn.h5")
-        print(f"Files found: {len(files)}")
-        print(f"Example: {files[0]}")
+        lc_files = glob(self.simafgpath + "/*/" + self.fname_lc)
+        if self.verb: print(f"Files found: {len(lc_files)}")
+        if self.verb: print(f"Example: {lc_files[0]}")
 
         # load 0 file
-        file0 = h5py.File(files[0],mode="r")
-        print(file0.keys())
-        print(file0.attrs.keys())
-        print(f"Times = {len(np.array(file0['times']))}")
-        print(f"Freqs = {len(np.array(file0['freqs']))}")
+        file0 = h5py.File(lc_files[0],mode="r")
+        if self.verb: print(file0.keys())
+        if self.verb: print(file0.attrs.keys())
+        if self.verb: print(f"Times = {len(np.array(file0['times']))}")
+        if self.verb: print(f"Freqs = {len(np.array(file0['freqs']))}")
 
-        for file in tqdm(files):
-            workingdir = file.replace("lc_kn.h5","")
+        for file in tqdm(lc_files):
+            workingdir = file.replace(self.fname_lc,"")
             #print(f"Processing {i}/{len(files)}: {workingdir}")
             if not os.path.isdir(workingdir):
                 raise FileNotFoundError(f"workingdir not found: {workingdir}")
@@ -82,17 +85,19 @@ class DataSimulationRuns():
                     frame["freq"].append(np.float64(freq))
                     frame["flux"].append(np.float64(flux))
 
-                    # convert dictionary to dataframe
-        print(f"Finished processing {len(files)} files")
+        # convert dictionary to dataframe
+        if self.verb: print(f"Finished processing {len(lc_files)} files")
         self.df = pd.DataFrame.from_dict(frame)
         if (not outfname is None):
-            print(f"Saving data into: {self.simafgpath+outfname}")
+            if self.verb: print(f"Saving data into: {self.simafgpath+outfname}")
             self.df.to_csv(self.simafgpath+outfname)
 
     # load processed data
-    def load_processed_data(self, outfname="collated.csv") -> pd.DataFrame:
-        if self.df is None:
-            self.df = pd.read_csv(self.simafgpath+outfname, index_col=0)
+    def get_df(self, outfname : str = "collated.csv", index_col : int = 0) -> pd.DataFrame:
+        if len(self.df.keys()) == 0:
+            if self.verb:
+                print(f"Loading data: {self.simafgpath+outfname}")
+            self.df = pd.read_csv(self.simafgpath+outfname, index_col=index_col)
         return self.df
 
 class StatAnalysis():
