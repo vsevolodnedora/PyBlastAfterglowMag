@@ -47,7 +47,7 @@ class ProcessRaw():
         self.sim = simumlation
         self.dfile = None
 
-    def process_raw_ejecta_files(self, infiles : str = "ejecta_*.h5", fname_output : str = "ej_collated.h5"):
+    def process_raw_ejecta_files(self, infiles : str = "ejecta_*.h5", fname_output : str = "ej_collated.h5", mode:str="mass"):
         # dir = "/media/vsevolod/T7/work/KentaData/"
         # simname = "SFHoTim276_12_15_0025_150mstg_B0_HLLC" + "/"
         name = self.sim["name"]
@@ -57,10 +57,9 @@ class ProcessRaw():
         files = glob(datadir + infiles)
         if (len(files) == 0):
             raise FileNotFoundError(f"Files {infiles} not found in {datadir}")
-        id = PBA.id_kenta.ProcessRawFiles(files=files, verbose=True)
+        id = PBA.id_kenta.ProcessRawFiles(files=files, verbose=True, mode=mode)
         collated_ej_data_fpath = datadir + fname_output
         id.process_save(collated_ej_data_fpath)
-
 
     def getProcessed(self, fname_output : str = "ej_collated.h5") -> h5py.File:
         if (self.dfile is None):
@@ -88,9 +87,25 @@ def process(sim : dict) -> None:
 
 def main():
 
+    for sim_key, sim_dic in SIMULATIONS.items():
+        pr = ProcessRaw(simumlation=sim_dic)
+        pr.process_raw_ejecta_files(infiles= "ejecta_*.h5", fname_output= "ej_collated.h5", mode="mass")
+
+    exit(1);
+
+    ej = ProcessRaw(simumlation = SIMULATIONS["BHBLp_q1_res150"])
+    ej.process_raw_ejecta_files(infiles="Mdot_ejecta_*.h5",
+                                fname_output="mdot_ej_collated.h5",
+                                mode="mdot")
+    print("Data collation is successful")
+    exit(0)
+
     sim_dic = SIMULATIONS["BHBLp_q1_res150"]
 
     ej_data = PBA.id_kenta.EjectaData(sim_dic["datadir"]+"ej_collated.h5",verbose=True)
+
+
+
     data = PBA.id_kenta.Data(fpath_rhomax=sim_dic["datadir"]+sim_dic["rhomax"],
                              fpath_mdot=sim_dic["datadir"]+sim_dic["mdot_extract"])
     df = pd.merge(data.df_mdot,data.df_rho,on="time")

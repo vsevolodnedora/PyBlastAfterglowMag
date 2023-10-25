@@ -31,21 +31,45 @@ from .id_tools import (reinterpolate_hist, reinterpolate_hist2, compute_ek_corr)
 from .utils import (cgs, get_Gamma, get_Beta, find_nearest_index, MomFromGam, GamFromMom, BetFromMom)
 
 class ProcessRawFiles:
+    """
+        Processes files from Kenta Kiuchi BNS merger simulations
+    """
+    def __init__(self, files : list[str], verbose:bool,mode:str="mass"):
 
-    def __init__(self, files : list[str], verbose:bool):
         self.files = files
-        self.expected_keys = ['Mejecta', 'T_ejecta', 'Ye_ejecta', 'entropy_ejecta',
-                              'internal_energy_ejecta', 'pressure_ejecta', 'rho_ejecta', 'time']
-        self.key_to_key = {
-            "T_ejecta":"temp",
-            "Ye_ejecta":"ye",
-            "entropy_ejecta":"entr",
-            "internal_energy_ejecta":"eps",
-            "pressure_ejecta":"press",
-            "rho_ejecta":"rho",
-            "Mejecta":"mass"
 
-        }
+        if (mode == "mass"):
+            self.key_v_asymptotic = "v_asymptotic"
+            self.key_theta = "theta"
+            self.key_Mejecta = "Mejecta"
+            self.expected_keys = ['Mejecta', 'T_ejecta', 'Ye_ejecta', 'entropy_ejecta',
+                                  'internal_energy_ejecta', 'pressure_ejecta', 'rho_ejecta', 'time']
+            self.key_to_key = {
+                "T_ejecta":"temp",
+                "Ye_ejecta":"ye",
+                "entropy_ejecta":"entr",
+                "internal_energy_ejecta":"eps",
+                "pressure_ejecta":"press",
+                "rho_ejecta":"rho",
+                "Mejecta":"mass"
+            }
+
+        elif mode == "mdot":
+            self.key_v_asymptotic = "R_ext"
+            self.key_theta = "theta"
+            self.key_Mejecta = "Mdot"
+            self.expected_keys = ['Mdot', 'Mdot2', 'Mdot3', 'Mdot4', 'Mdot5', 'time']
+            self.key_to_key = {
+                "Mdot":"mdot_total", # Mdot : Total
+                "Mdot2":"mdot_slow", # Mdot2: v^r 0.6c
+                "Mdot3":"mdot_slow", # Mdot3: \beta \Gamma < 0.1
+                "Mdot4":"mdot_mid", # Mdot4: 0.1 < \beta \Gamma < 1
+                "Mdot5":"mdot_fast", # Mdot5: 1 < \beta Gamma
+            }
+
+        else:
+            raise KeyError(f"Only 'mass' or 'mdot' modes are supported. Given = {mode}")
+
         self.verb=verbose
         if len(files) == 0:
             raise ValueError(f"Files list is empty")
@@ -66,12 +90,14 @@ class ProcessRawFiles:
                 continue
 
             if self.verb:
-                print("\t theta              = {} [{}, {}]".format(np.array(dfile["theta"]).shape,
-                                                                   np.array(dfile["theta"])[0],
-                                                                   np.array(dfile["theta"])[-1]))
-                print("\t v_asymptotic       = {} [{}, {}]".format(np.array(dfile["v_asymptotic"]).shape,
-                                                                   np.array(dfile["v_asymptotic"])[0],
-                                                                   np.array(dfile["v_asymptotic"])[-1]))
+                print("\t {}              = {} [{}, {}]".format(self.key_theta,
+                                                                np.array(dfile[self.key_theta]).shape,
+                                                                np.array(dfile[self.key_theta])[0],
+                                                                np.array(dfile[self.key_theta])[-1]))
+                print("\t {}       = {} [{}, {}]".format(self.key_v_asymptotic,
+                                                         np.array(dfile[self.key_v_asymptotic]).shape,
+                                                         np.array(dfile[self.key_v_asymptotic])[0],
+                                                         np.array(dfile[self.key_v_asymptotic])[-1]))
                 print("\t dfile['data1'].keys= {}".format(dfile["data1"].keys()))
 
             # sort the keys in the file (data groups for different extraction times)
@@ -102,22 +128,29 @@ class ProcessRawFiles:
 
             # process data from each group (each timestep)
             for idx in idxs:
+
                 # load 2D histogram axis data (velocity and angle)
-                v_inf = np.array(dfile["v_asymptotic"], dtype=np.float64)
-                thetas = np.array(dfile["theta"], dtype=np.float64)
+                v_inf = np.array(dfile[self.key_v_asymptotic], dtype=np.float64)
+                thetas = np.array(dfile[self.key_theta], dtype=np.float64)
+                if (self.key_v_asymptotic == "R_ext"): v_inf *= 0.4816 # ul = 0.4816 # km code -> km
+
+
                 # load the histogram weights (mass)
-                mass = np.array(dfile[tkeys[idx]]["Mejecta"], dtype=np.float64)
+                mass = np.array(dfile[tkeys[idx]][self.key_Mejecta], dtype=np.float64)
 
                 if self.verb:
-                    print("Processing: time={} key={} tot_mass={}".format(times[idx], tkeys[idx], np.sum(mass)))
+                    print("Processing: time={} key={} {}={}"
+                          .format(times[idx], tkeys[idx], self.key_Mejecta, np.sum(mass)))
 
                 res = {}
                 for key, new_key in self.key_to_key.items():
                     if key in list(dfile[tkeys[idx]].keys()):
                         arr = np.array(dfile[tkeys[idx]][key], dtype=np.float64)
+                        # apply units
                         if self.verb: print(f"\tFound '{key}' sahpe={arr.shape} min={arr.min()} max={arr.max()} sum={arr.sum()}")
                         if key == "T_ejecta": arr *= 11604525006.17 # MeV -> Kelvin
                         if key == "rho_ejecta": arr *= 5.807e18
+                        if key in ["Mdot","Mdot2","Mdot3","Mdot4","Mdot5"]: arr *= (0.326 / 1.607e-6) # (um / ut) um = 0.326 ut = 1.607e-6 -> Msun/s
                         res[new_key] = arr
 
                 # ek = compute_ek_corr(v_inf, res[mass]).T
@@ -147,17 +180,20 @@ class ProcessRawFiles:
         vinf, thetas, (times, datas) = self._get_data()
 
         # save data as a single file
-        with h5py.File(outfnmae,"w") as f:
-            f.create_dataset("vinf",data=vinf)
-            f.create_dataset("theta",data=thetas)
-            f.create_dataset("text",data=times)
-            for t, d in zip(times, datas):
-                group = f.create_group(name="time={:.4f}".format(t))
-                for key, arr in d.items():
-                    group.create_dataset(name=key, data=arr)
+        try:
+            with h5py.File(outfnmae,"w") as f:
+                f.create_dataset(self.key_v_asymptotic,data=vinf)
+                f.create_dataset(self.key_theta,data=thetas)
+                f.create_dataset("text",data=times)
+                for t, d in zip(times, datas):
+                    group = f.create_group(name="time={:.4f}".format(t))
+                    for key, arr in d.items():
+                        group.create_dataset(name=key, data=arr)
+        except BlockingIOError:
+            raise BlockingIOError(f"Cannot open file to write error {outfnmae}")
 
 class EjectaData:
-    def __init__(self, fpath : str, verbose : bool):
+    def __init__(self, fpath : str, verbose : bool, mode : str = "mass"):
         self.verb = verbose
         self.fpath = fpath
         self.dfile = None
@@ -166,22 +202,33 @@ class EjectaData:
         self.theta = np.zeros(0,)
         self.v_ns = ["temp","ye","entr","eps","press","rho","mass"]
 
-        self._load()
+        self._load(mode)
 
-    def _load(self):
+    def _load(self, mode : str):
         if (not os.path.isfile(self.fpath)):
             raise FileNotFoundError(f"Collated ejecta file is not found. {self.fpath}")
         if self.dfile is None:
-            self.dfile = h5py.File(self.fpath, "r")
-            self.texts = np.array(self.dfile["text"])
-            self.vinf = np.array(self.dfile["vinf"])
-            self.theta = np.array(self.dfile["theta"])
+            if (mode == "mass"):
+                self.dfile = h5py.File(self.fpath, "r")
+                self.texts = np.array(self.dfile["text"])
+                self.vinf = np.array(self.dfile["v_asymptotic"])
+                self.theta = np.array(self.dfile["theta"])
+            elif (mode == "mdot"):
+                self.dfile = h5py.File(self.fpath, "r")
+                self.texts = np.array(self.dfile["text"])
+                self.rext = np.array(self.dfile["R_ext"])
+                self.theta = np.array(self.dfile["theta"])
+            else:
+                raise KeyError(f"mode={mode} is not supported")
 
     def get_theta(self):
         return self.theta
 
     def get_vinf(self):
         return self.vinf
+
+    def get_rext(self):
+        return self.rext
 
     def get(self, v_n : str, text : float):
         if (text not in self.texts):
@@ -200,7 +247,7 @@ class EjectaData:
         mass = np.array([np.sum(self.get(v_n="mass",text=text)) for text in self.texts])
         return mass
 
-    def get_mask(self, crit : str) -> np.ndarray:
+    def get_vinf_mask(self, crit : str) -> np.ndarray:
         if (crit == "fast"):
             mask = self.vinf * get_Gamma(self.vinf) > 1
         elif (crit == "mid"):
@@ -213,7 +260,7 @@ class EjectaData:
         return mask
 
     def total_mass_vs_text(self,crit:str="fast") -> np.ndarray:
-        mask = self.get_mask(crit=crit)
+        mask = self.get_vinf_mask(crit=crit)
         mass = np.array([np.sum(self.get(v_n="mass",text=text)[:, mask]) for text in self.texts])
         return mass
 
