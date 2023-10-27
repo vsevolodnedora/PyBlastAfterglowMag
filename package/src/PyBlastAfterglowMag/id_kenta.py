@@ -131,8 +131,13 @@ class ProcessRawFiles:
 
                 # load 2D histogram axis data (velocity and angle)
                 v_inf = np.array(dfile[self.key_v_asymptotic], dtype=np.float64)
+                if not (np.all(v_inf[:-1] <=v_inf[1:])):
+                    sort_index = np.argsort(v_inf)
+                    v_inf = np.sort(v_inf)
+                else:
+                    sort_index = np.argsort(v_inf)
                 thetas = np.array(dfile[self.key_theta], dtype=np.float64)
-                if (self.key_v_asymptotic == "R_ext"): v_inf *= 0.4816 # ul = 0.4816 # km code -> km
+                # if (self.key_v_asymptotic == "R_ext"): v_inf *= 0.4816 # ul = 0.4816 # km code -> km
 
 
                 # load the histogram weights (mass)
@@ -150,8 +155,10 @@ class ProcessRawFiles:
                         if self.verb: print(f"\tFound '{key}' sahpe={arr.shape} min={arr.min()} max={arr.max()} sum={arr.sum()}")
                         if key == "T_ejecta": arr *= 11604525006.17 # MeV -> Kelvin
                         if key == "rho_ejecta": arr *= 5.807e18
-                        if key in ["Mdot","Mdot2","Mdot3","Mdot4","Mdot5"]: arr *= (0.326 / 1.607e-6) # (um / ut) um = 0.326 ut = 1.607e-6 -> Msun/s
-                        res[new_key] = arr
+                        # if key in ["Mdot","Mdot2","Mdot3","Mdot4","Mdot5"]: arr *= (0.326 / 1.607e-6) # (um / ut) um = 0.326 ut = 1.607e-6 -> Msun/s
+
+                        # apply sorting
+                        res[new_key] = arr[:,sort_index]
 
                 # ek = compute_ek_corr(v_inf, res[mass]).T
 

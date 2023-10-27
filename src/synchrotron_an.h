@@ -1647,14 +1647,11 @@ public:
         }
         else if (p_pars->m_sychMethod == METHODS::iWSPN99){
 
-
-
             double nu_m, nu_c, emissivity, scaling, abs=-1., abs_scaling=1.;
 //            double PhiP = interpolated_phi(p);
 //            emissivity = (interpolated_phi(p) * sqrt(3.0) /  4.0 * CGS::pi)
 //                    * n_prime * CGS::qe * CGS::qe * CGS::qe * B / (CGS::me * CGS::c * CGS::c);
-            emissivity = (interpolated_phi(p) * sqrt(3.0) / 4.0 * CGS::pi)
-                         * ndens_e * CGS::qe * CGS::qe * CGS::qe * B / (CGS::me * CGS::c * CGS::c);
+            emissivity = (interpolated_phi(p) * sqrt(3.0) / 4.0 * CGS::pi) * ne * CGS::qe * CGS::qe * CGS::qe * B / (CGS::me * CGS::c * CGS::c);
             double Xp = interpolated_xi(p);
             nu_m = 3.0 / ( 4.0 * CGS::pi ) * Xp * gm * gm * CGS::qe * B / ( CGS::me * CGS::c );
             nu_c = 0.286 * 3. * gc * gc * CGS::qe * B / ( 4.0 * CGS::pi * CGS::me * CGS::c );
