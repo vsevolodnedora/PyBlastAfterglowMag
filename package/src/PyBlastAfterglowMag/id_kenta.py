@@ -79,6 +79,9 @@ class ProcessRawFiles:
         texts = []
         v_inf = np.zeros(0,)
         thetas = np.zeros(0,)
+
+        _total_mass = 0.
+
         for i, fl in enumerate(self.files):
             if self.verb: print("\t Processing File {}".format(fl))
             dfile = h5py.File(fl, "r")
@@ -180,6 +183,20 @@ class ProcessRawFiles:
                     sorted_pars_list.append(pars_list[i])
         assert len(pars_list) == len(sorted_pars_list)
 
+        summed_vals = {}
+        for key in sorted_pars_list[0].keys():
+            summed_vals[key] = 0.
+        for i, _t in enumerate(sorted_texts):
+            for key in sorted_pars_list[i].keys():
+                summed_vals[key] += np.sum(sorted_pars_list[i][key])
+
+        if self.verb:
+            print(" -------------------------------------- ")
+            print(f"Total interations: {len(sorted_pars_list)} [{sorted_texts[0]:.1f}-{sorted_texts[-1]:.1f}]")
+            for key in sorted_pars_list[0].keys():
+                print(f"key={key} sum()={summed_vals[key]}")
+            print(" -------------------------------------- ")
+
         return (v_inf, thetas, (sorted_texts, sorted_pars_list))
 
     def process_save(self, outfnmae : str):
@@ -255,7 +272,9 @@ class EjectaData:
         return mass
 
     def get_vinf_mask(self, crit : str) -> np.ndarray:
-        if (crit == "fast"):
+        if (crit is None):
+            return np.ones_like(self.vinf).astype(bool)
+        elif (crit == "fast"):
             mask = self.vinf * get_Gamma(self.vinf) > 1
         elif (crit == "mid"):
             mask = (self.vinf * get_Gamma(self.vinf) <= 1) & \
@@ -707,6 +726,8 @@ class EjStruct(EjectaData):
     # if (save_figs): plt.savefig(FIGPATH + figname + ".png", dpi=256)
     # # if (save_figs): plt.savefig(PAPERPATH + figname + ".pdf")
     # plt.show()
+
+
 
 
 
