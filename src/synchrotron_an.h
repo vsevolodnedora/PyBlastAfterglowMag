@@ -1805,6 +1805,7 @@ public:
             em_pl = I;
             abs_pl = att;
         }
+#if 0
         else if (p_pars->m_sychMethod == METHODS::iNumeric){
 
             /// initialize the source
@@ -1830,6 +1831,7 @@ public:
             double w_p_soll = 0.;
 
         }
+#endif
         else{
             (*p_log)(LOG_ERR,AT) << " synchrotoron method = " << p_pars->m_sychMethod << " is not recognized\n";
             exit(1);
