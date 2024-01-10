@@ -211,6 +211,10 @@ int main(int argc, char** argv) {
     std::string working_dir; std::string parfilename;
     /// ------------------------------------------------------
     if (argc<4){
+        /// test cases
+        working_dir = "../tst/grb/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO; // gauss, skymap
+
+
         /// From projects
 //        working_dir = "../../PBA_projects/grbafg/tophat_ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 
@@ -222,7 +226,7 @@ int main(int argc, char** argv) {
 //        working_dir = "../tst/grbafg_gauss_spec_rs/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grb/tophat/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/gauss_lcs_rs/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-        working_dir = "../tst/grb/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/grb/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_skymap_tophat_eats/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/grbafg_skymap_gauss_eats/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../tst/tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO;

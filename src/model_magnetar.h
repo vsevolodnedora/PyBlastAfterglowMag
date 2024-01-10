@@ -981,7 +981,8 @@ public:
                                         m_data[PWN::Q::iGamma],m_data[PWN::Q::ibeta],
                                         p_pars->m_freq_arr, p_pars->m_synch_em, p_pars->m_synch_abs,
                                         i_end_r, 0, layer(), m_loglevel, p_pars);
-        p_eats->setFluxFunc(fluxDensPW);
+//        p_eats->setFluxFunc(fluxDensPW);
+        p_eats->fluxFunc = fluxDensPW;
     }
 
     std::unique_ptr<EATS> & getEATS(){ return p_eats; }

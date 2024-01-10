@@ -1432,7 +1432,7 @@ private:
                          double const * Y,
                          void *pars){
 
-        auto * p_pars = (struct Pars *) pars;
+        auto * p_pars = (struct EatsPars *) pars;
         if (!std::isfinite(x)){
             std::cerr << AT <<" nan in tb!"<<"\n";
             exit(1);
