@@ -211,8 +211,9 @@ int main(int argc, char** argv) {
     std::string working_dir; std::string parfilename;
     /// ------------------------------------------------------
     if (argc<4){
-        /// test cases
+        /// test cases || GRG
         working_dir = "../tst/grb/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO; // gauss, skymap
+//        working_dir = "../tst/grb/tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO; // tophat, lcs
 
 
         /// From projects

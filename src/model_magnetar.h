@@ -979,7 +979,7 @@ public:
         p_eats = std::make_unique<EATS>(m_data[PWN::Q::itburst],
                                         m_data[PWN::Q::itt], m_data[PWN::Q::iR], m_data[PWN::Q::itheta],
                                         m_data[PWN::Q::iGamma],m_data[PWN::Q::ibeta],
-                                        p_pars->m_freq_arr, p_pars->m_synch_em, p_pars->m_synch_abs,
+//                                        p_pars->m_freq_arr, p_pars->m_synch_em, p_pars->m_synch_abs,
                                         i_end_r, 0, layer(), m_loglevel, p_pars);
 //        p_eats->setFluxFunc(fluxDensPW);
         p_eats->fluxFunc = fluxDensPW;
@@ -1102,6 +1102,7 @@ public:
         i_end_r = m_data[PWN::Q::itburst].size(); // update for eats
 //        int i = 1;
         p_pars->p_syn->setPars(pars,opts);
+//        p_pars->p_syn->
     }
     /// -----------------------------------------------------------------------------
 

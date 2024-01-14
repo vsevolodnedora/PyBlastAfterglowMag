@@ -260,178 +260,17 @@ void saveImages(std::vector<ImageExtend> & ims, Vector & times, Vector & freqs,
 /// methods to evaluateShycnhrotronSpectrum radiation from a Blastwave
 
 
-struct EATS{
+class EATS {
     void * m_params; /// parameters of the blast wave from which EATS is computed
     Vector & m_tburst; Vector & m_tt;
     Vector & m_r; Vector & m_theta; Vector & m_gam; Vector & m_bet;
-    Vector & m_freq_arr; Vector & m_synch_em; Vector & m_synch_abs;
+
+//    Vector & m_freq_arr; Vector & m_synch_em; Vector & m_synch_abs;
 
 //    VecVector & m_data;
     Vector m_mu{};
     double ctheta0 = -1.;
     std::unique_ptr<logger> p_log = nullptr;
-
-    /// ---------------------------------------------------------------------------
-    EATS(Vector & tburst, Vector & tt, Vector & r, Vector & theta, Vector & m_gam, Vector & m_bet,
-             Vector & freq_arr, Vector & synch_em, Vector & synch_abs,
-             size_t & i_end_r, size_t ish, size_t il, int loglevel, void * params)
-            : m_tburst(tburst), m_tt(tt),  m_r(r), m_theta(theta), m_gam(m_gam), m_bet(m_bet),
-              m_freq_arr(freq_arr), m_synch_em(synch_em), m_synch_abs(synch_abs), m_i_end_r(i_end_r),
-              m_params(params) {
-
-        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "EATS");
-
-        ishell = ish;
-        ilayer= il;
-        m_i_end_r = i_end_r;
-    }
-
-    /// -----------------------------------------------------------------------------
-    void parsPars(double t_obs_, double nu_obs_,
-                  double theta_cone_low, double theta_cone_hi, double phi_low, double phi_hi,
-                  double (*obs_angle)( const double &, const double &, const double & )){
-//        auto & mD = p_eats->mD;
-        nu_obs = nu_obs_;
-        t_obs = t_obs_;
-        // -- settings
-        error = 0;
-        current_phi_hi = phi_hi;
-        current_phi_low = phi_low;
-        current_theta_cone_hi = theta_cone_hi;
-        current_theta_cone_low = theta_cone_low;
-        cos_theta_obs = std::cos(theta_obs);
-        sin_theta_obs = std::sin(theta_obs);
-        obsangle = obs_angle;
-        // ---
-        if (m_tburst.empty()){
-            std::cerr << AT<< " isEmpty array\n";
-            exit(1);
-        }
-//            nr = m_tburst.size();
-
-        m_mu.resize(m_tburst.size());
-//        p_eats->nr = p_pars->nr; // removing EATS_pars for simplicity
-        for (size_t i = 0; i < m_i_end_r; i++) {
-            m_mu[i] = (m_tburst[i] - t_obs / (1.0 + z)) / m_r[i] * CGS::c;
-//                if (m_mu[i] == 0.){
-//                    printf("error");
-//                    exit(1);
-//                }
-        }
-//            std::cout <<AT << ' '<< m_mu[0]<< ", "<<m_mu[1]<<" ... "<<m_mu[N-2]<<", "<<m_mu[N-1]<<"\n";
-
-        if(m_mu[m_i_end_r - 1] < 1. ){
-//                std::cout << " tburst = " << m_tburst << "\n";
-//                std::cout << " r      = "<< m_r << "\n";
-//                std::cout << " mu     = "<<m_mu<<"\n";
-            if (m_i_end_r == m_mu.size()-1)
-                (*p_log)(LOG_WARN,AT) << " mu[-1]=" <<m_mu[m_i_end_r - 1] << " < 1 (expected >1) "
-                                      << " tobs=" << t_obs
-                                      << " tbutst[-1]=" << m_tburst[m_i_end_r - 1]
-                                      << " R[nr-1]=" << m_r[m_i_end_r - 1]
-                                      << "\n";
-            int x = 1;
-        }
-        if(m_mu[0] > 1. ){
-            (*p_log)(LOG_WARN,AT) << " mu[0]=" << m_mu[0] << " > 1 (expected <1) "
-                                  << " tobs=" << t_obs
-                                  << " tbutst[0]=" << m_tburst[0]
-                                  << " R[0]=" << m_r[0]
-                                  << "\n";
-        }
-        if(m_mu[0]==m_mu[m_mu.size()-1] and m_mu[0]==0){
-            (*p_log)(LOG_ERR,AT) << " m_mu[0]=m_mu[-1]=0 for [il="
-                                 <<ilayer<<"] m_i_end_r="<<m_i_end_r<<"\n";
-        }
-        if (ttobs.empty())
-            ttobs.resize( m_r.size(), std::numeric_limits<double>::max() );
-
-        //        std::cerr << AT
-//                  << "Observables for Gamma0=[" << (p_pars->p_dyn)->getData()[(*p_pars->p_dyn).Q::iGamma][0] << ", " << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::iGamma][p_pars->nr - 1] << "] "
-//                  << " R0=[" << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::iR][0] << ", " << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::iR][p_pars->nr - 1] << "] "
-//                  << " time0=[" << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::itburst][0] << ", " << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::itburst][p_pars->nr - 1] << "] "
-//                  << " mu0=[" << p_pars->mu_arr[0] << ", " << p_pars->mu_arr[p_pars->nr-1]<<"] "
-//                  <<"\n";
-
-    }
-    void check_pars() const {
-        if ((nu_obs <= 0.) || (z < 0) || (z > 10) || (d_l < 1) || (t_obs < 1) || (theta_c_h < 0) || (theta_c_l < 0)){
-            (*p_log)(LOG_ERR,AT) << " error in input parameters"
-                                 << " nu_obs="<<nu_obs
-                                 << " z="<<z
-                                 << " d_l="<<d_l
-                                 << " t_obs="<<t_obs
-                                 << " theta_obs="<<theta_obs
-                                 << " theta_cone_low="<<current_theta_cone_low
-                                 << " theta_cone_hi="<<current_theta_cone_hi
-                                 << " phi_low="<<current_phi_low
-                                 << " phi_hi="<<current_phi_hi
-                                 << " theta_c_h="<<theta_c_h
-                                 << " theta_c_l="<<theta_c_l
-                                 << "\n Exiting... \n";
-            exit(1);
-        }
-    }
-    void setEatsPars(StrDbMap & pars, StrStrMap & opts, size_t n_layers, size_t ncells_, double ctheta_0,
-                     double theta_c_l_, double theta_c_h_, double theta_w_, double theta_max_){
-        nlayers=n_layers;
-        ctheta0=ctheta_0;
-        theta_c_l=theta_c_l_;
-        theta_c_h=theta_c_h_;
-        theta_w=theta_w_;
-        theta_max=theta_max_;
-        ncells=ncells_;
-
-        // set parameters
-        nmax_phi = (int)getDoublePar("nmax_phi", pars, AT, p_log,1000, false);//pars.at("nmax_phi");
-        nmax_theta = (int)getDoublePar("nmax_theta", pars, AT, p_log,1000, false);//pars.at("nmax_theta");
-        rtol_theta = getDoublePar("rtol_theta", pars, AT, p_log,1e-2, false);//pars.at("rtol_theta");
-        rtol_phi = getDoublePar("rtol_phi", pars, AT, p_log,1e-2, false);//pars.at("rtol_phi");
-        atol_theta = getDoublePar("atol_theta", pars, AT, p_log,1e-2, false);//pars.at("atol_theta");
-        atol_phi = getDoublePar("atol_phi", pars, AT, p_log,1e-2, false);//pars.at("atol_phi");
-        theta_obs = getDoublePar("theta_obs", pars, AT, p_log,-1, true);//pars.at("theta_obs");
-        d_l = getDoublePar("d_l", pars, AT, p_log,-1, true);//pars.at("d_l");
-        z = getDoublePar("z", pars, AT, p_log,-1, true);//pars.at("z");
-
-        counter_jet = getBoolOpt("counter_jet", opts, AT, p_log,true, false);
-
-        // set options
-        std::string opt;
-
-        opt = "method_quad";
-        METHODS_QUADRATURES methodsQuadratures;
-        if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            methodsQuadratures = METHODS_QUADRATURES::INT_CADRE;
-        }
-        else{
-            if(opts.at(opt) == "CADRE")
-                methodsQuadratures = METHODS_QUADRATURES::INT_CADRE;
-            else if(opts.at(opt) == "TRAP_FIXED")
-                methodsQuadratures = METHODS_QUADRATURES::INT_TRAP_FIXED;
-            else{
-                (*p_log)(LOG_ERR,AT) << " option for: " << opt
-                                     <<" given: " << opts.at(opt)
-                                     << " is not recognized. "
-                                     << "Possible options: "
-                                     << " CADRE " << " TRAP_FIXED " << "\n";
-                exit(1);
-            }
-        }
-        method_quad = methodsQuadratures;
-
-        /// set synchrotron parameters
-//            p_syna->setPars(pars, opts);
-        skymap_remove_mu = getBoolOpt("skymap_remove_mu", opts, AT, p_log,true, true);
-
-    }
-    void updateObsPars(StrDbMap & pars){
-        theta_obs = getDoublePar("theta_obs", pars, AT, p_log,-1, true);//pars.at("theta_obs");
-        d_l = getDoublePar("d_l", pars, AT, p_log,-1, true);//pars.at("d_l");
-        z = getDoublePar("z", pars, AT, p_log,-1, true);//pars.at("z");
-//        check_for_unexpected_par(pars, {"theta_obs","d_l","z"});
-    }
-
     /// -------------------------------------------------------------------------------
     size_t ishell = 0, ilayer = 0;  size_t nlayers = 0; size_t & m_i_end_r; size_t ncells = 0;
     double theta_c_l = -1.;
@@ -445,22 +284,6 @@ struct EATS{
     double (* im_xxs)( const double &, const double &, const double & ) = nullptr;
     double (* im_yys)( const double &, const double &, const double & ) = nullptr;
     Vector ttobs{}; // for PW eats only
-    /// Functions for computing fluxes
-    void (* fluxFunc)(
-            double & flux_dens, double & tau_comp, double & tau_BH, double & tau_bf,
-            double r, double & ctheta, double theta, double phi,
-            size_t ia, size_t ib, double ta, double tb, double mu, double t_obs, double nu_obs, void * params
-    ) = nullptr;
-//        void (* funcOptDepth)(
-//                double & frac, double ctheta, double r,
-//                double phi, double theta,
-//                double phi_obs, double theta_obs, double r_obs,
-//                double mu, double time, double freq, void * params
-//                ) = nullptr;
-    void (* fluxFuncA)(
-            double & flux_dens, double & r, double & ctheta, double theta, double phi,
-            size_t ia, size_t ib, double mu, double t_e, double t_obs, double nu_obs, void * params
-    ) = nullptr;
 
     // --- for adaptive quad. method
     int nmax_phi=-1, nmax_theta=-1;
@@ -482,7 +305,7 @@ struct EATS{
 
     METHODS_QUADRATURES method_quad{};
 
-//        METHOD_TAU method_tau{};
+    //        METHOD_TAU method_tau{};
     bool counter_jet = true;
     int spread_method = 1; // TODO this is the only option!
     long nevals = 0; // counter for how many times the integrand was evaluated
@@ -490,16 +313,13 @@ struct EATS{
     size_t i0_failed_elecctrons = 0;
     long n_fialed_electrons = 0;
 
-
-    /// ---------------------------------------------------
-
     /// check if during the quadrature integration there was an error
     static int check_error(void *params) {
         auto *fp = (struct EATS *) params; // removing EATS_pars for simplicity
         return fp->error;
 //        return 0;
     }
-/// find angle at which currently jet ends (after lateral expansion)
+    /// find angle at which currently jet ends (after lateral expansion)
     static double find_jet_edge(double phi, double theta_obs, //double cos_th_obs, double sin_th_obs,
                                 double th_con_hi, Vector & a_mu, Vector & a_thj, int N,
                                 double (*obs_angle)( const double &, const double &, const double & )) {
@@ -571,7 +391,7 @@ struct EATS{
 
         return theta_a;
     }
-/// function to be integrated for theta and phi
+    /// function to be integrated for theta and phi
     static double integrand( double i_cos_theta, double i_phi, double & r, double & mu, double & gam, double & ctheta,
                              void* params ){
 
@@ -842,7 +662,7 @@ struct EATS{
         return integ;
 
     }
-/// integral of the (costheta_integrand)dtheta
+    /// integral of the (costheta_integrand)dtheta
     static double phi_integrand( double a_phi, void* params ){
         double result;
         auto * p_eats = (struct EATS *) params; // removing EATS_pars for simplicity
@@ -964,7 +784,7 @@ struct EATS{
         return result;
 
     }
-/// integral of the (phi_integrand)dphi
+    /// integral of the (phi_integrand)dphi
     double integrate_theta_phi(){
 
         auto * p_eats = (struct EATS *) this; // this "this" i do not understand myself...
@@ -1064,8 +884,96 @@ struct EATS{
         return result;
     }
 
-    /// ---------------------------------------------------------
 public:
+    /// ---------------------------------------------------------------------------
+
+    EATS(Vector & tburst, Vector & tt, Vector & r, Vector & theta, Vector & m_gam, Vector & m_bet,
+//             Vector & freq_arr, Vector & synch_em, Vector & synch_abs,
+             size_t & i_end_r, size_t ish, size_t il, int loglevel, void * params)
+            : m_tburst(tburst), m_tt(tt),  m_r(r), m_theta(theta), m_gam(m_gam), m_bet(m_bet),
+//              m_freq_arr(freq_arr), m_synch_em(synch_em), m_synch_abs(synch_abs),
+              m_i_end_r(i_end_r),
+              m_params(params) {
+
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "EATS");
+
+        ishell = ish;
+        ilayer= il;
+        m_i_end_r = i_end_r;
+    }
+    void (* fluxFunc)(
+            double & flux_dens, double & tau_comp, double & tau_BH, double & tau_bf,
+            double r, double & ctheta, double theta, double phi,
+            size_t ia, size_t ib, double ta, double tb, double mu, double t_obs, double nu_obs, void * params
+    ) = nullptr;
+//        void (* funcOptDepth)(
+//                double & frac, double ctheta, double r,
+//                double phi, double theta,
+//                double phi_obs, double theta_obs, double r_obs,
+//                double mu, double time, double freq, void * params
+//                ) = nullptr;
+    void (* fluxFuncA)(
+            double & flux_dens, double & r, double & ctheta, double theta, double phi,
+            size_t ia, size_t ib, double mu, double t_e, double t_obs, double nu_obs, void * params
+    ) = nullptr;
+
+    /// -----------------------------------------------------------------------------
+
+    void setEatsPars(StrDbMap & pars, StrStrMap & opts, size_t n_layers, size_t ncells_, double ctheta_0,
+                     double theta_c_l_, double theta_c_h_, double theta_w_, double theta_max_){
+        nlayers=n_layers;
+        ctheta0=ctheta_0;
+        theta_c_l=theta_c_l_;
+        theta_c_h=theta_c_h_;
+        theta_w=theta_w_;
+        theta_max=theta_max_;
+        ncells=ncells_;
+
+        // set parameters
+        nmax_phi = (int)getDoublePar("nmax_phi", pars, AT, p_log,1000, false);//pars.at("nmax_phi");
+        nmax_theta = (int)getDoublePar("nmax_theta", pars, AT, p_log,1000, false);//pars.at("nmax_theta");
+        rtol_theta = getDoublePar("rtol_theta", pars, AT, p_log,1e-2, false);//pars.at("rtol_theta");
+        rtol_phi = getDoublePar("rtol_phi", pars, AT, p_log,1e-2, false);//pars.at("rtol_phi");
+        atol_theta = getDoublePar("atol_theta", pars, AT, p_log,1e-2, false);//pars.at("atol_theta");
+        atol_phi = getDoublePar("atol_phi", pars, AT, p_log,1e-2, false);//pars.at("atol_phi");
+        theta_obs = getDoublePar("theta_obs", pars, AT, p_log,-1, true);//pars.at("theta_obs");
+        d_l = getDoublePar("d_l", pars, AT, p_log,-1, true);//pars.at("d_l");
+        z = getDoublePar("z", pars, AT, p_log,-1, true);//pars.at("z");
+
+        counter_jet = getBoolOpt("counter_jet", opts, AT, p_log,true, false);
+
+        // set options
+        std::string opt;
+
+        opt = "method_quad";
+        METHODS_QUADRATURES methodsQuadratures;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            methodsQuadratures = METHODS_QUADRATURES::INT_CADRE;
+        }
+        else{
+            if(opts.at(opt) == "CADRE")
+                methodsQuadratures = METHODS_QUADRATURES::INT_CADRE;
+            else if(opts.at(opt) == "TRAP_FIXED")
+                methodsQuadratures = METHODS_QUADRATURES::INT_TRAP_FIXED;
+            else{
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
+                                     <<" given: " << opts.at(opt)
+                                     << " is not recognized. "
+                                     << "Possible options: "
+                                     << " CADRE " << " TRAP_FIXED " << "\n";
+                exit(1);
+            }
+        }
+        method_quad = methodsQuadratures;
+
+        /// set synchrotron parameters
+//            p_syna->setPars(pars, opts);
+        skymap_remove_mu = getBoolOpt("skymap_remove_mu", opts, AT, p_log,true, true);
+
+    }
+
+
     /// eval light curve using Adapitve or Piece-Wise EATS method
     void evalLightCurve(Vector & out, EjectaID2::STUCT_TYPE m_method_eats, Vector & times, Vector & freqs ){
         double rtol = 1e-10;
@@ -1162,7 +1070,94 @@ public:
         }
     }
 
+private:
 
+    void parsPars(double t_obs_, double nu_obs_,
+                  double theta_cone_low, double theta_cone_hi, double phi_low, double phi_hi,
+                  double (*obs_angle)( const double &, const double &, const double & )){
+//        auto & mD = p_eats->mD;
+        nu_obs = nu_obs_;
+        t_obs = t_obs_;
+        // -- settings
+        error = 0;
+        current_phi_hi = phi_hi;
+        current_phi_low = phi_low;
+        current_theta_cone_hi = theta_cone_hi;
+        current_theta_cone_low = theta_cone_low;
+        cos_theta_obs = std::cos(theta_obs);
+        sin_theta_obs = std::sin(theta_obs);
+        obsangle = obs_angle;
+        // ---
+        if (m_tburst.empty()){
+            std::cerr << AT<< " isEmpty array\n";
+            exit(1);
+        }
+//            nr = m_tburst.size();
+
+        m_mu.resize(m_tburst.size());
+//        p_eats->nr = p_pars->nr; // removing EATS_pars for simplicity
+        for (size_t i = 0; i < m_i_end_r; i++) {
+            m_mu[i] = (m_tburst[i] - t_obs / (1.0 + z)) / m_r[i] * CGS::c;
+//                if (m_mu[i] == 0.){
+//                    printf("error");
+//                    exit(1);
+//                }
+        }
+//            std::cout <<AT << ' '<< m_mu[0]<< ", "<<m_mu[1]<<" ... "<<m_mu[N-2]<<", "<<m_mu[N-1]<<"\n";
+
+        if(m_mu[m_i_end_r - 1] < 1. ){
+//                std::cout << " tburst = " << m_tburst << "\n";
+//                std::cout << " r      = "<< m_r << "\n";
+//                std::cout << " mu     = "<<m_mu<<"\n";
+            if (m_i_end_r == m_mu.size()-1)
+                (*p_log)(LOG_WARN,AT) << " mu[-1]=" <<m_mu[m_i_end_r - 1] << " < 1 (expected >1) "
+                                      << " tobs=" << t_obs
+                                      << " tbutst[-1]=" << m_tburst[m_i_end_r - 1]
+                                      << " R[nr-1]=" << m_r[m_i_end_r - 1]
+                                      << "\n";
+            int x = 1;
+        }
+        if(m_mu[0] > 1. ){
+            (*p_log)(LOG_WARN,AT) << " mu[0]=" << m_mu[0] << " > 1 (expected <1) "
+                                  << " tobs=" << t_obs
+                                  << " tbutst[0]=" << m_tburst[0]
+                                  << " R[0]=" << m_r[0]
+                                  << "\n";
+        }
+        if(m_mu[0]==m_mu[m_mu.size()-1] and m_mu[0]==0){
+            (*p_log)(LOG_ERR,AT) << " m_mu[0]=m_mu[-1]=0 for [il="
+                                 <<ilayer<<"] m_i_end_r="<<m_i_end_r<<"\n";
+        }
+        if (ttobs.empty())
+            ttobs.resize( m_r.size(), std::numeric_limits<double>::max() );
+
+        //        std::cerr << AT
+//                  << "Observables for Gamma0=[" << (p_pars->p_dyn)->getData()[(*p_pars->p_dyn).Q::iGamma][0] << ", " << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::iGamma][p_pars->nr - 1] << "] "
+//                  << " R0=[" << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::iR][0] << ", " << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::iR][p_pars->nr - 1] << "] "
+//                  << " time0=[" << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::itburst][0] << ", " << (p_pars->p_dyn)->getData()[(p_pars->p_dyn)->Q::itburst][p_pars->nr - 1] << "] "
+//                  << " mu0=[" << p_pars->mu_arr[0] << ", " << p_pars->mu_arr[p_pars->nr-1]<<"] "
+//                  <<"\n";
+
+    }
+
+    void check_pars() const {
+        if ((nu_obs <= 0.) || (z < 0) || (z > 10) || (d_l < 1) || (t_obs < 1) || (theta_c_h < 0) || (theta_c_l < 0)){
+            (*p_log)(LOG_ERR,AT) << " error in input parameters"
+                                 << " nu_obs="<<nu_obs
+                                 << " z="<<z
+                                 << " d_l="<<d_l
+                                 << " t_obs="<<t_obs
+                                 << " theta_obs="<<theta_obs
+                                 << " theta_cone_low="<<current_theta_cone_low
+                                 << " theta_cone_hi="<<current_theta_cone_hi
+                                 << " phi_low="<<current_phi_low
+                                 << " phi_hi="<<current_phi_hi
+                                 << " theta_c_h="<<theta_c_h
+                                 << " theta_c_l="<<theta_c_l
+                                 << "\n Exiting... \n";
+            exit(1);
+        }
+    }
 
     bool evalEATSindexes(size_t & ia, size_t & ib,
                          double t_obs, double obs_angle, double ctheta_cell, double phi_cell,
