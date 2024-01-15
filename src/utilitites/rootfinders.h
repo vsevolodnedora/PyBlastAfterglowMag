@@ -15,22 +15,26 @@
  * Source: https://github.com/scipy/scipy/blob/master/scipy/optimize/Zeros/bisect.c
  */
 double Bisect(double (*f)(const double&, void*), double xa, double xb,
-              double xtol, double rtol, int iter, void *func_data) {
+              double xtol, double rtol, int iter, void *func_data, int & status) {
     int i;
     double dm,xm,fm,fa,fb;
+    status = 0;
 
     fa = f(xa, func_data); //fa = (*f)(xa, func_data);
     fb = f(xb, func_data); //(*f)(xb, func_data);
 
     if (fa*fb > 0) {
+        status = -1;
         std::cerr<< "[ Error ] rootfinder :: fa*fb=0\n";
         return 0.;
     }
     if (fa == 0) {
+        status = -1;
         std::cerr<< "[ Error ] rootfinder :: fa=0\n";
         return xa;
     }
     if (fb == 0) {
+        status = -1;
         std::cerr<< "[ Error ] rootfinder :: fb=0\n";
         return xb;
     }
@@ -48,6 +52,7 @@ double Bisect(double (*f)(const double&, void*), double xa, double xb,
             return xm;
         }
     }
+    status = -1;
     std::cerr << "[ Error ] rootfinder :: Root not found\n";
     return xa;
 }
@@ -951,7 +956,7 @@ int hybrd ( void fcn ( int n, double x[], double fvec[], int &iflag, void * pars
 
     fnorm = enorm ( n, fvec );
 //
-//  Determine the number of calls to FCN needed to evaluateShycnhrotronSpectrum the jacobian matrix.
+//  Determine the number of calls to FCN needed to computeSynchrotronEmissivityAbsorption the jacobian matrix.
 //
     if ( ml + mu + 1 < n )
     {
@@ -1452,7 +1457,7 @@ void qrfac ( int m, int n, double a[], int lda, bool pivot, int ipvt[],
 //  Discussion:
 //
 //    This function uses Householder transformations with optional column
-//    pivoting to evaluateShycnhrotronSpectrum a QR factorization of the M by N matrix A.
+//    pivoting to computeSynchrotronEmissivityAbsorption a QR factorization of the M by N matrix A.
 //
 //    That is, QRFAC determines an orthogonal
 //    matrix Q, a permutation matrix P, and an upper trapezoidal

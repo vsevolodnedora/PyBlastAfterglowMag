@@ -188,9 +188,9 @@ struct BarnsThermalization{
 //        double coeff2 = fd.InterpolateBilinear(xnew, ynew);
 
 
-//        double coeff0 = fa.Interpolate(xnew, ynew, Interp2d::METHODS::iLagrangeLinear);
-//        double coeff1 = fb.Interpolate(xnew, ynew, Interp2d::METHODS::iLagrangeLinear);
-//        double coeff2 = fd.Interpolate(xnew, ynew, Interp2d::METHODS::iLagrangeLinear);
+//        double coeff0 = fa.Interpolate(xnew, ynew, Interp2d::METHODS_SYNCH::iLagrangeLinear);
+//        double coeff1 = fb.Interpolate(xnew, ynew, Interp2d::METHODS_SYNCH::iLagrangeLinear);
+//        double coeff2 = fd.Interpolate(xnew, ynew, Interp2d::METHODS_SYNCH::iLagrangeLinear);
 
         double time_days = time / CGS::day;
         double tmp = 2. * coeff1 * std::pow(time_days, coeff2);

@@ -2,127 +2,129 @@
 // Created by vsevolod on 21/12/22.
 //
 
-#ifndef SRC_SYNCHROTRON_AN_H
-#define SRC_SYNCHROTRON_AN_H
+#ifndef SRC_RADIATION_H
+#define SRC_RADIATION_H
 
-#include "utilitites/pch.h"
-#include "utilitites/logger.h"
-#include "utilitites/utils.h"
-#include "utilitites/interpolators.h"
-#include "utilitites/quadratures.h"
-#include "blastwave/blastwave_components.h"
+#include "../utilitites/pch.h"
+#include "../utilitites/logger.h"
+#include "../utilitites/utils.h"
+#include "../utilitites/interpolators.h"
+#include "../utilitites/quadratures.h"
+#include "../utilitites/rootfinders.h"
 
-#include "microphysics/numeric.h"
+#include "../blastwave/blastwave_components.h"
+
+#include "kernels.h"
 
 
-class RadiationBase{
-public:
-    enum METHOD_TAU { iAPPROX, iTHICK, iSMOOTH, iSHARP };
+enum METHODS_SHOCK_ELE { iShockEleAnalyt, iShockEleNum };
 
-    /**
-     * Evaluate optical depth
-     * @param abs_lab
-     * @param dr
-     * @param mu
-     * @param beta_shock
-     * @return
-     */
-    static inline double optical_depth(const double abs_lab, const double dr,
-                                       const double mu, const double beta_shock){
-        if (abs_lab <= 0.)
-            return 0.;
-        double dtau;
-        if(mu == beta_shock)
-            dtau = 1.0e100; // HUGE VAL, just in case
-        else
-            dtau = abs_lab * dr * (1. - mu * beta_shock) / (mu - beta_shock); // basic dtau = abs_lab * dr;
-        return dtau;
-    }
+enum METHOD_TAU { iAPPROX, iTHICK, iSMOOTH, iSHARP };
 
-    /**
-    * Compute the I = emission/absorption * ( 1 - tau^{-absorption * thickness})
-    * NOTE: adapted from afterglopy library
-    * @param em_lab : emission
-    * @param abs_lab : absorption
-    * @param dr : thickness
-    * @param mu : cos(angle to line of sight)
-    * @param beta_shock : shock velocity
-    * @return
-    */
-    static double computeIntensity(const double em_lab, double dtau, METHOD_TAU m_tau){
+enum METHODS_SYNCH { iWSPN99, iJOH06, iDER06, iMARG21, iNumeric, iGSL };
 
-        if ( dtau == 0 )
-            return em_lab;
+enum METHOD_SSC { inoSSC, iNumSSC };
 
-        double intensity = em_lab;
+enum METHOD_ELE { iEleAnalytic, iEleNumeric };
 
-        // (Signed) Optical depth through this shell.
-        // if negative, face is oriented away from observer.
+enum METHODS_LFMIN { igmNumGamma, igmUprime, igmNakarPiran, igmJoh06, igmMAG21 };
+
+enum METHODS_B { iBuseUb, iBasMAG21, iBuseGammaSh };
+
+enum METHOD_LFMAX { iConst, iuseB };
+
+enum METHODS_SSA { iSSAoff, iSSAon };
+
+enum METHOD_NONRELDIST{ inone, iuseGm };
+
+
+/// Evaluate optical depth
+inline double optical_depth(const double abs_lab, const double dr,
+                            const double mu, const double beta_shock){
+    if (abs_lab <= 0.)
+        return 0.;
+    double dtau;
+    if(mu == beta_shock)
+        dtau = 1.0e100; // HUGE VAL, just in case
+    else
+        dtau = abs_lab * dr * (1. - mu * beta_shock) / (mu - beta_shock); // basic dtau = abs_lab * dr;
+    return dtau;
+}
+
+/// Compute the I = emission/absorption * ( 1 - tau^{-absorption * thickness})
+double computeIntensity(const double em_lab, double dtau, METHOD_TAU m_tau){
+
+    if ( dtau == 0 )
+        return em_lab;
+
+    double intensity = em_lab;
+
+    // (Signed) Optical depth through this shell.
+    // if negative, face is oriented away from observer.
 //        double dtau;
 //        if(mu == beta_shock)
 //            dtau = 1.0e100; // HUGE VAL, just in case
 //        else
 //            dtau = abs_lab * dr * (1. - mu * beta_shock) / (mu - beta_shock); // basic dtau = abs_lab * dr;
 
-        // Now that we know the optical depth, we apply it in a way
-        // according to the given specType
-        if(m_tau == iTHICK) {
-            // Special case: use the optically thick limit *everywhere*
-            if(dtau <= 0.0)
-                intensity = 0.0;
-            else
-                intensity /= dtau;
-        }
-        else if (m_tau == iAPPROX){
-            double u = 1. / 2. + exp(-dtau) / dtau - (1 - exp(-dtau)) / (dtau * dtau);
-            if (dtau < 1e-3) {
-                intensity *= 1.;
-            }
-            else {
-                intensity *= (3. * u / dtau);
-            }
-//            return np.where(tau < 1e-3, 1., 3 * u / tau)
-        }
-        else if(m_tau == iSMOOTH) {
-            // Apply self-absorption "properly"
-            //
-            // correction factor to emissivity from absorption
-            // ( 1 - e^(-tau) ) / tau  (on front face)
-            //
-            // back face has extra factor ~ e^-beta_shock/(mu-beta_shock)
-            //
-            // for now ignoring shadowing by the front face.
-            double abs_fac;
-            if(dtau == 0.0)
-                abs_fac = 1.0;
-            else if(dtau > 0.0)
-                abs_fac = -expm1(-dtau) / dtau;
-            else {
-                abs_fac = expm1(dtau) / dtau; //* exp(
-                //abs * DR * beta_shock*mu / (mu - beta_shock));
-            }
-
-            intensity *= abs_fac;
-        }
-        else if(m_tau == iSHARP){
-            // Apply self-absorption "simply".
-            //
-            // Compute flux in optically thick limit,
-            // use in final result if less than optically thin calculation.
-            //
-            // e.g. use tau->infty limit if tau > 1.0
-
-            // "Forward" face
-            if(dtau > 1.0)
-                intensity /= dtau;
-                // "Back" face --> assume shadowed by front
-            else if(dtau < -1.0)
-                intensity = 0.0;
-        }
-
-        return intensity;
+    // Now that we know the optical depth, we apply it in a way
+    // according to the given specType
+    if(m_tau == iTHICK) {
+        // Special case: use the optically thick limit *everywhere*
+        if(dtau <= 0.0)
+            intensity = 0.0;
+        else
+            intensity /= dtau;
     }
-};
+    else if (m_tau == iAPPROX){
+        double u = 1. / 2. + exp(-dtau) / dtau - (1 - exp(-dtau)) / (dtau * dtau);
+        if (dtau < 1e-3) {
+            intensity *= 1.;
+        }
+        else {
+            intensity *= (3. * u / dtau);
+        }
+//            return np.where(tau < 1e-3, 1., 3 * u / tau)
+    }
+    else if(m_tau == iSMOOTH) {
+        // Apply self-absorption "properly"
+        //
+        // correction factor to emissivity from absorption
+        // ( 1 - e^(-tau) ) / tau  (on front face)
+        //
+        // back face has extra factor ~ e^-beta_shock/(mu-beta_shock)
+        //
+        // for now ignoring shadowing by the front face.
+        double abs_fac;
+        if(dtau == 0.0)
+            abs_fac = 1.0;
+        else if(dtau > 0.0)
+            abs_fac = -expm1(-dtau) / dtau;
+        else {
+            abs_fac = expm1(dtau) / dtau; //* exp(
+            //abs * DR * beta_shock*mu / (mu - beta_shock));
+        }
+
+        intensity *= abs_fac;
+    }
+    else if(m_tau == iSHARP){
+        // Apply self-absorption "simply".
+        //
+        // Compute flux in optically thick limit,
+        // use in final result if less than optically thin calculation.
+        //
+        // e.g. use tau->infty limit if tau > 1.0
+
+        // "Forward" face
+        if(dtau > 1.0)
+            intensity /= dtau;
+            // "Back" face --> assume shadowed by front
+        else if(dtau < -1.0)
+            intensity = 0.0;
+    }
+
+    return intensity;
+}
 
 /// From https://github.com/bmargalit/thermal-synchrotron
 struct Margalit21 {
@@ -969,7 +971,7 @@ struct Dermer09{
             return brokenPowerLaw(gam, gmin, gb, gmax, p1, p2);
         };
 
-        // evaluateShycnhrotronSpectrum electron distribution normalisation
+        // computeSynchrotronEmissivityAbsorption electron distribution normalisation
         double k_e = nprim / Simpson38(gm, gM, 200, integrand_ele); // TODO replace with adative integrals
 
         // convolve the electron distribution with emission spectrum and itegrate
@@ -988,18 +990,1001 @@ struct Dermer09{
     }
 };
 
+
+struct State{
+    /// limits
+    double x1=-1;
+    double x2=-1;
+    size_t numbins=0;
+    /// arrays
+    Vector e{}, de{}, half_e{}, j{}, a{}, n{}, f{};
+    Vector dfde{}; /// For SSA calcualtions
+
+    /// for chang cooper scheme
+    Vector delta_grid{}, delta_grid_bar{};
+
+    State() = default;
+
+    void allocate(double x1_, double x2_, size_t numbins_){
+
+        x1=x1_;
+        x2=x2_;
+        numbins=numbins_;
+
+        e = TOOLS::MakeLogspaceVec(std::log10(x1),std::log10(x2), (int)numbins);
+
+        de.resize(numbins-1);
+        for (size_t i = 0; i < numbins-1; i++) // de = e[1:] - e[:-1]
+            de[i] = e[i+1] - e[i];
+
+        half_e.resize(numbins-1);
+        j.resize(numbins);
+        a.resize(numbins);
+        n.resize(numbins);
+        f.resize(numbins);
+        dfde.resize(numbins);
+    }
+
+    /**
+     * Construct extra grids that are used by Chang Cooper scheme
+     */
+    void build_grid_chang_cooper(){
+
+        if (numbins < 1){
+            std::cout << " state is not initialized, empty \n";
+            exit(1);
+        }
+
+        double step = std::exp((std::log(x2) / (double)numbins));
+        double step_plus_one = step + 1.0;
+
+        /// now build the grid and the half grid points
+        /// we also make squared terms just incase
+        for (size_t i = 0; i < numbins; i++){
+            e[i] = std::pow(step, (double)i);
+            if (i < numbins - 1)
+                half_e[i] = .5 * e[i] * step_plus_one;
+        }
+
+        delta_grid.resize(numbins+1);
+        for (size_t i = 0; i < numbins-1; i++)
+            delta_grid[i+1] = e[i+1]-e[i];
+        ///  we need to add extra end points to the grid
+        ///  so that we can compute the delta at the boundaries
+        delta_grid[0] = e[0] * (1 - 1.0 / step);
+        delta_grid[numbins] = e[numbins-1] * (step - 1);
+
+        delta_grid_bar.resize(numbins);
+        for (size_t i = 0; i < numbins; i++)
+            delta_grid_bar[i] = (delta_grid[i] + delta_grid[i+1])/2.;
+
+        std::cout<<delta_grid_bar<<"\n";
+    }
+
+};
+
+
+class RadiationBase{
+public:
+    Vector out_spectrum{}; Vector out_specturm_ssa{};
+    Vector m_freq_arr{};
+    /// ------------------------------------
+    double B=-1, gamma_min=-1, gamma_max=-1, gamma_c=-1;
+    double n_prime=-1, eprime=-1.,Gamma=-1,GammaSh=-1, beta=-1.,t_e=-1.;
+    double accel_frac=-1.;
+    double Theta=-1, z_cool=-1, x=-1;
+    double em=-1., abs=-1.;
+    METHOD_TAU method_tau{}; double beta_min = -1;
+    METHODS_SHOCK_ELE m_eleMethod{};
+    /// --------------------------------------
+    void setPars( StrDbMap & pars, StrStrMap & opts ){
+
+        // set parameters
+        std::string fs_or_rs;
+        if (is_rs)
+            fs_or_rs += "_rs";
+
+        ksi_n = getDoublePar("ksi_n" + fs_or_rs, pars, AT, p_log, 1., false);//pars.at("ksi_n");
+        eps_e = getDoublePar("eps_e" + fs_or_rs, pars, AT, p_log, -1, true);//pars.at("eps_e");
+        eps_b = getDoublePar("eps_b" + fs_or_rs, pars, AT, p_log, -1, true);//pars.at("eps_b");
+        eps_t = getDoublePar("eps_t" + fs_or_rs, pars, AT, p_log, 0., true);//pars.at("eps_t");
+        p = getDoublePar("p" + fs_or_rs, pars, AT, p_log, -1, true);//pars.at("p");
+        mu = getDoublePar("mu" + fs_or_rs, pars, AT, p_log, 0.62, false);//pars.at("mu");
+        mu_e = getDoublePar("mu_e" + fs_or_rs, pars, AT, p_log, 1.18, false);//pars.at("mu_e");
+        beta_min = getDoublePar("beta_min" + fs_or_rs, pars, AT, p_log, 1.e-5, false);//pars.at("beta_min");
+        gamma_max = getDoublePar("gamma_max" + fs_or_rs, pars, AT, p_log, 1.e7, false);//pars.at("beta_min");
+
+        lim_gm_to_1 = getBoolOpt("limit_lf_min_to1" + fs_or_rs, opts, AT, p_log, false, false);//pars.at("beta_min");
+
+        // set options
+
+        std::string opt;
+        opt = "method_shock_ele" + fs_or_rs;
+        METHODS_SHOCK_ELE val_ele;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            val_ele = METHODS_SHOCK_ELE::iShockEleAnalyt;
+        }
+        else{
+            if(opts.at(opt) == "analytic")
+                val_ele = METHODS_SHOCK_ELE::iShockEleAnalyt;
+            else if(opts.at(opt) == "numeric")
+                val_ele = METHODS_SHOCK_ELE::iShockEleNum;
+            else{
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                                      <<" given: " << opts.at(opt)
+                                      << " is not recognized. "
+                                      << "Possible options: "
+                                      << " analytic " << " numeric " << "\n";
+                exit(1);
+            }
+        }
+        m_eleMethod = val_ele;
+
+        opt = "method_synchrotron" + fs_or_rs;
+        METHODS_SYNCH val_synch;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            val_synch = METHODS_SYNCH::iJOH06;
+        }
+        else{
+            if(opts.at(opt) == "Joh06")
+                val_synch = METHODS_SYNCH::iJOH06;
+            else if(opts.at(opt) == "WSPN99")
+                val_synch = METHODS_SYNCH::iWSPN99;
+            else if(opts.at(opt) == "Marg21")
+                val_synch = METHODS_SYNCH::iMARG21;
+            else if(opts.at(opt) == "Dermer09")
+                val_synch = METHODS_SYNCH::iDER06;
+            else if(opts.at(opt) == "GSL") {
+                if (m_eleMethod != METHODS_SHOCK_ELE::iShockEleNum){
+                    (*p_log)(LOG_ERR,AT) << " options synchrotron GSL and analytic electron evol. are incompatible\n";
+                    exit(1);
+                }
+                val_synch = METHODS_SYNCH::iGSL;
+
+            }
+//            else if(opts.at(opt) == "Bretta")
+//                val_synch = SynchrotronAnalytic::METHODS_SYNCH::iBerrettaSynch;
+            else{
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                                      <<" given: " << opts.at(opt)
+                                      << " is not recognized. "
+                                      << "Possible options: "
+                                      << " Joh06 " << " WSPN99 " << " Marg21 " << " Dermer09 " << " GSL " << "\n";
+                exit(1);
+            }
+        }
+        m_sychMethod = val_synch;
+
+        opt = "method_ssc" + fs_or_rs;
+        METHOD_SSC val_ssc;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            val_ssc = METHOD_SSC::inoSSC;
+        }
+        else{
+            if(opts.at(opt) == "none")
+                val_ssc = METHOD_SSC::inoSSC;
+            else if(opts.at(opt) == "numeric") {
+                if (m_eleMethod != METHODS_SHOCK_ELE::iShockEleNum){
+                    (*p_log)(LOG_ERR,AT) << " SSC is not supported for analytic electron dsitrib. model\n";
+                    exit(1);
+                }
+                val_ssc = METHOD_SSC::iNumSSC;
+            }
+            else{
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                                      <<" given: " << opts.at(opt)
+                                      << " is not recognized. "
+                                      << "Possible options: "
+                                      << " none " << " numeric " << "\n";
+                exit(1);
+            }
+        }
+        m_methods_ssc = val_ssc;
+
+        opt = "method_nonreldist" + fs_or_rs;
+        METHOD_NONRELDIST val_monreldist;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for " << opt << " is not set. Using default value.\n";
+            val_monreldist = METHOD_NONRELDIST::inone;
+        }
+        else{
+            if(opts.at(opt) == "none")
+                val_monreldist = METHOD_NONRELDIST::inone;
+            else if(opts.at(opt) == "useGm")
+                val_monreldist = METHOD_NONRELDIST::iuseGm;
+            else{
+                (*p_log)(LOG_WARN,AT) << AT << " option for: " << opt
+                                      <<" given: " << opts.at(opt)
+                                      << " is not recognized. "
+                                      << "Possible options: "
+                                      << " none " << " useGm " << "\n";
+                exit(1);
+            }
+        }
+        m_method_nonreldist = val_monreldist;
+
+        opt = "method_lf_min" + fs_or_rs;
+        METHODS_LFMIN val_lfmin;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            val_lfmin = METHODS_LFMIN::igmUprime;
+        }
+        else{
+            if(opts.at(opt) == "useU_e")
+                val_lfmin = METHODS_LFMIN::igmUprime;
+            else if(opts.at(opt) == "useNumericGamma")
+                val_lfmin = METHODS_LFMIN::igmNumGamma;
+            else if(opts.at(opt) == "useBeta")
+                val_lfmin = METHODS_LFMIN::igmNakarPiran;
+            else if(opts.at(opt) == "useGamma")
+                val_lfmin = METHODS_LFMIN::igmJoh06;
+            else if(opts.at(opt) == "useTheta")
+                val_lfmin = METHODS_LFMIN::igmMAG21;
+            else{
+                (*p_log)(LOG_WARN,AT) << AT << " option for: " << opt
+                                      <<" given: " << opts.at(opt)
+                                      << " is not recognized. "
+                                      << "Possible options: "
+                                      << " useU_e " << " useTheta "<< " useBeta " << " useGamma " << "\n";
+                exit(1);
+            }
+        }
+        m_methodsLfmin = val_lfmin;
+
+        opt = "method_Bsh" + fs_or_rs;
+        METHODS_B methodsB;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            methodsB = METHODS_B::iBuseUb;
+        }
+        else{
+            if(opts.at(opt) == "useUb")
+                methodsB = METHODS_B::iBuseUb;
+            else if(opts.at(opt) == "useMAG21")
+                methodsB = METHODS_B::iBasMAG21;
+            else if(opts.at(opt) == "useGammaSh")
+                methodsB = METHODS_B::iBuseGammaSh;
+            else{
+                (*p_log)(LOG_WARN,AT) << AT << " option for: " << opt
+                                      <<" given: " << opts.at(opt)
+                                      << " is not recognized. "
+                                      << "Possible options: "
+                                      << " useUb " << " useMAG21 " << " useGammaSh " << "\n";
+                exit(1);
+            }
+        }
+        m_methodsB = methodsB;
+
+        opt = "method_lf_max" + fs_or_rs;
+        METHOD_LFMAX methodLfmax;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            methodLfmax = METHOD_LFMAX::iuseB;
+        }
+        else{
+            if(opts.at(opt) == "useB")
+                methodLfmax = METHOD_LFMAX::iuseB;
+            else if(opts.at(opt) == "useConst") {
+                gamma_max = getDoublePar("gamma_max" + fs_or_rs, pars,
+                                         AT, p_log, 1.e7, true);//pars.at("beta_min");
+                methodLfmax = METHOD_LFMAX::iConst;
+            }
+            else{
+                (*p_log)(LOG_WARN,AT) << AT << " option for: " << opt
+                                      <<" given: " << opts.at(opt)
+                                      << " is not recognized. "
+                                      << "Possible options: "
+                                      << " useB " << " useConst " << "\n";
+                exit(1);
+            }
+        }
+        m_methodsLfmax = methodLfmax;
+
+        bool tmp = getBoolOpt("use_ssa" + fs_or_rs, opts, AT, p_log, false, true);
+        if (tmp) m_methods_ssa = METHODS_SSA::iSSAon;
+        else m_methods_ssa = METHODS_SSA::iSSAoff;
+
+#if 0
+        opt = "emissivity";
+        SynchrotronAnalytic::QQ val_em;
+        if ( opts.find(opt) == opts.end() ) {
+            val_em = SynchrotronAnalytic::QQ::i_em;
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+        }
+        else{
+            if(opts.at(opt) == "em_pl")
+                val_em = SynchrotronAnalytic::QQ::i_em_pl;
+            else if(opts.at(opt) == "em_th")
+                val_em = SynchrotronAnalytic::QQ::i_em_th;
+            else if(opts.at(opt) == "em")
+                val_em = SynchrotronAnalytic::QQ::i_em;
+            else{
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                          <<" given: " << opts.at(opt)
+                          << " is not recognized. "
+                          << "Possible options: "
+                          << " em_pl " << " em_th " << " em " << "\n";
+                exit(1);
+            }
+        }
+        p_pars->m_marg21opt_em = val_em;
+
+        opt = "absorption";
+        SynchrotronAnalytic::QQ val_abs;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            val_abs = SynchrotronAnalytic::QQ::i_abs;
+        }
+        else{
+            if(opts.at(opt) == "abs_pl")
+                val_abs = SynchrotronAnalytic::QQ::i_abs_pl;
+            else if(opts.at(opt) == "abs_th")
+                val_abs = SynchrotronAnalytic::QQ::i_abs_th;
+            else if(opts.at(opt) == "abs")
+                val_abs = SynchrotronAnalytic::QQ::i_abs;
+            else{
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                          <<" given: " << opts.at(opt)
+                          << " is not recognized. "
+                          << "Possible options: "
+                          << " abs_pl " << " abs_th " << " abs " << "\n";
+                exit(1);
+            }
+        }
+        p_pars->m_marg21opt_abs = val_abs;
+        // ---
+#endif
+        opt = "method_tau" + fs_or_rs;
+        METHOD_TAU methodTau;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            methodTau = METHOD_TAU::iSMOOTH;
+        }
+        else{
+            if(opts.at(opt) == "thick")
+                methodTau = METHOD_TAU::iTHICK;
+            else if(opts.at(opt) == "sharp")
+                methodTau = METHOD_TAU::iSHARP;
+            else if(opts.at(opt) == "smooth")
+                methodTau = METHOD_TAU::iSMOOTH;
+            else if(opts.at(opt) == "approx")
+                methodTau = METHOD_TAU::iAPPROX;
+            else{
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                                      <<" given: " << opts.at(opt)
+                                      << " is not recognized. "
+                                      << " Possible options: "
+                                      << " approx " << " thick " << " sharp " << " smooth " << "\n";
+                exit(1);
+            }
+        }
+        method_tau = methodTau;
+
+        // ---
+        (*p_log)(LOG_INFO,AT) << " allocating memory for gamma_arr\n";
+
+    }
+    void allocateSpectrumStorage(size_t nr, StrDbMap & pars, StrStrMap & opts){
+
+        /// get freq. boundaries for calculation of the comoving spectrum
+        double freq1 = getDoublePar("freq1", pars, AT, p_log,1.e7, true);//pars.at("freq1");
+        double freq2 = getDoublePar("freq2", pars, AT, p_log,1.e28, true);//pars.at("freq2");
+        size_t nfreq = (size_t)getDoublePar("nfreq", pars, AT, p_log,200, true);//pars.at("nfreq");
+
+        (*p_log)(LOG_INFO,AT) << " allocating comoving spectrum array (fs) "
+                              << " freqs="<<nfreq << " by radii=" << nr << " Spec. grid="
+                              << nfreq * nr << "\n";
+
+        /// allocate space for the comoving spectrum
+        m_freq_arr = TOOLS::MakeLogspaceVec(log10(freq1), log10(freq2),(int)nfreq);
+
+        out_spectrum.resize(m_freq_arr.size() * nr );
+        out_specturm_ssa.resize(m_freq_arr.size() * nr );
+
+        /// allocate spectrum for evolving electrons numerically
+        if (m_eleMethod == METHODS_SHOCK_ELE::iShockEleNum){
+            double gam1 = getDoublePar("gam1", pars, AT, p_log,1, true);//pars.at("freq1");
+            double gam2 = getDoublePar("gam2", pars, AT, p_log,1.e8, true);//pars.at("freq2");
+            size_t ngams = (size_t)getDoublePar("ngam", pars, AT, p_log,250, true);//pars.at("nfreq");
+
+            ele->allocate(gam1, gam2, ngams);
+            ele->build_grid_chang_cooper(); // build the grid for the implicit solver
+
+            syn = State (freq1*CGS::freqToErg, freq2*CGS::freqToErg, nfreq);
+
+            if (m_methods_ssc == METHOD_SSC::iNumSSC)
+                ssc = State (freq1*CGS::freqToErg, freq2*CGS::freqToErg, nfreq);
+
+            if (m_sychMethod != METHODS_SYNCH::iGSL or m_sychMethod != METHODS_SYNCH::iDER06){
+                (*p_log)(LOG_ERR,AT) << " only GSL or DER06 synchrotron options are "
+                                        "avaialble when evolving electrons numerically. \n";
+                exit(1);
+            }
+
+            /// allocate memory for synchrotron kernel
+//            syn_kernel = std::make_unique<SynKernel>(*ele, *syn, SynKernel::synchGSL);
+            SynKernel sync = SynKernel(ele, syn, SynKernel::synchGSL);
+
+        }
+    }
+protected:
+    int m_loglevel = -1;
+    std::unique_ptr<logger> p_log = nullptr;
+    bool is_rs = false;
+    /// --------------------------------------
+    double eps_e=-1, eps_b=-1, eps_t=-1, p=-1, ksi_n=-1;
+    double mu=-1, mu_e=-1;
+    bool lim_gm_to_1= true;
+    /// --------------------------------------
+    METHODS_SYNCH m_sychMethod{};
+    METHODS_LFMIN m_methodsLfmin{};
+    METHODS_B m_methodsB{};
+    METHOD_LFMAX m_methodsLfmax{};
+    METHOD_NONRELDIST m_method_nonreldist{};
+    METHODS_SSA m_methods_ssa{};
+    METHOD_SSC m_methods_ssc{};
+    /// --------------------------------------
+    std::unique_ptr<State> ele = nullptr;
+    std::unique_ptr<State> syn = nullptr;
+    std::unique_ptr<State> ssc = nullptr;
+    std::unique_ptr<SSCKernel> ssc_kernel = nullptr;
+    std::unique_ptr<SynKernel> syn_kernel = nullptr;
+    /// --------------------------------------
+    RadiationBase(int loglevel, bool _is_rs){
+        m_loglevel = loglevel; is_rs = _is_rs;
+        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "SynchrotronAnalytic");
+    }
+    /// --------------------------------------
+    bool checkParams(){
+
+        /// if velocity is too small shock may not be possible TODO update it with proper sound speed check
+        if (beta < beta_min)
+            return false;
+
+
+        /// in Margalit+21 model thermal electrons are present. Different treatment :: Assert:
+        if (m_sychMethod == METHODS_SYNCH::iMARG21) {
+            /* Margalit+21 arXiv:2111.00012 */
+            if (m_methodsLfmin != igmMAG21) {
+                (*p_log)(LOG_ERR, AT) << "use m_methodsLfmin=gmMAG21 when using m_sychMethod=MARG21\n";
+                exit(1);
+            }
+            if (m_methodsB != iBasMAG21) {
+                (*p_log)(LOG_ERR, AT) << "use m_methodsB=asMAG21 when using m_sychMethod=MARG21\n";
+                exit(1);
+            }
+        }
+
+        // check
+        if (eps_e <= 0){
+            (*p_log)(LOG_ERR,AT) << " eps_e is not set (eps_e="<<eps_e<<")\n";
+            exit(1);
+        }
+        if (eps_b <= 0){
+            (*p_log)(LOG_ERR,AT) << " eps_b is not set (eps_e="<<eps_b<<")\n";
+            exit(1);
+        }
+        if (eps_t < 0){
+            (*p_log)(LOG_ERR,AT) << " eps_e is not set (eps_e="<<eps_t<<") (even through it is only needed in Marg21 model)\n";
+            exit(1);
+        }
+        if (p <= 0){
+            (*p_log)(LOG_ERR,AT) << " eps_e is not set (eps_e="<<p<<")\n";
+            exit(1);
+        }
+        if (ksi_n <= 0){
+            (*p_log)(LOG_ERR,AT)<< " ksi_n is not set (ksi_n="<<ksi_n<<")\n";
+            exit(1);
+        }
+        if (n_prime <= 0){
+            (*p_log)(LOG_ERR,AT) << " n_prime is not set (n_prime="<<n_prime<<")\n";
+            exit(1);
+        }
+        if ((eprime < 0) || !std::isfinite(eprime)){
+            (*p_log)(LOG_ERR,AT) << " eprime is not set (eprime=" << eprime << ")\n";
+            exit(1);
+        }
+
+        return true;
+    }
+    /// --------------------------------------
+    static double gammaMinFunc(const double &x, void * pars){
+        auto * pp = (struct RadiationBase *) pars;
+        return (pp->p - 1) / (pp->p - 2)
+            * (std::pow(pp->gamma_max, -pp->p + 2) - std::pow(x, -pp->p + 2))
+            / (std::pow(pp->gamma_max, -pp->p + 1) - std::pow(x, -pp->p + 1))
+            - pp->eps_e * mp / me * (pp->GammaSh - 1);
+    }
+    /// --------------------------------------
+    void computeMagneticField(){
+        /// fraction of the shock energy density in electrons
+        double U_b_prime;
+        switch (m_methodsB) {
+            case iBuseUb:
+                U_b_prime = eprime * eps_b;
+                B = sqrt(8. * CGS::pi * U_b_prime);
+                break;
+            case iBuseGammaSh:
+                /// See Nava 2013 paper or others; classical equation
+                B = std::sqrt( 32. * M_PI * eps_b * (GammaSh - 1.)
+                  * (GammaSh + 3. / 4) * n_prime * CGS::mp * CGS::c2);
+                break;
+            case iBasMAG21:
+                B = sqrt(9.0 * M_PI * eps_b * n_prime * mu * CGS::mp)
+                  * (beta * CGS::c);
+                break;
+        }
+    }
+    void computeGammaMax(){
+        /// get electron distribution boundaries (has ot be set BEFORE gamma_min)
+        switch (m_methodsLfmax) {
+            case iConst:
+                break;
+            case iuseB:
+                gamma_max = sqrt(6.0 * CGS::pi * CGS::qe / CGS::sigmaT / B); // Kumar+14
+                break;
+        }
+    }
+    void computeGammaMin(){
+        /// compute injection LF (lower bound of source injection gammaMinFunc)
+        int status = 0; double U_e_prime = -1;
+//        void * pars = (struct RadiationBase *) this; // this "this" i do not understand myself...
+        switch (m_methodsLfmin) {
+            case igmUprime:
+                U_e_prime = eprime * eps_e;
+                gamma_min = (p - 2.) / (p - 1.) * U_e_prime / (n_prime * CGS::me * CGS::c * CGS::c); // Eq. A18 vanEarten+10 (and Sironi+13)
+                break;
+            case igmNakarPiran:
+                gamma_min = (p - 2.) / (p - 1.) * (CGS::mp / CGS::me) * eps_e * EQS::Beta2(GammaSh); // Eq.(before 4.) in Nakar&Piran 1102.1020
+                break;
+            case igmJoh06:
+                gamma_min = (p - 2.) / (p - 1.) * (eps_e * CGS::mp / CGS::me * (GammaSh - 1.) + 1.); // Eq. A3 in J+06
+                break;
+            case igmNumGamma:
+                /// solve gamma_min fun numerically; use fixed limits and number of iterations
+                gamma_min = Bisect(RadiationBase::gammaMinFunc,
+                                   1, 1e8, 0, .001, 100, this, status);
+                /// If numerical solution failed, use simple analytical solution
+                if (status < 0)
+                    gamma_min = (p - 2.) / (p - 1.) * (eps_e * CGS::mp / CGS::me * (GammaSh - 1.) + 1.);
+                break;
+            case igmMAG21:
+                /// downstream electron temperature:
+                Theta = Margalit21::Theta_fun(beta, mu, mu_e, eps_t);
+                gamma_min = Margalit21::gamma_m_fun(Theta);
+                break;
+        }
+
+        /// check
+        if (!std::isfinite(gamma_min)){
+            (*p_log)(LOG_ERR,AT) << " error gm nan \n";
+            exit(1);
+        }
+
+        /// limit the min lf to 1
+        if ((lim_gm_to_1) && (gamma_min < 1.))
+            gamma_min = 1.; // Sironi et al 2013 suggestion to limi gm=1. for Deep Newtinoan regime # TODO to be removed. I did no understand it
+
+        /// calculate the (normalized) cooling Lorentz factor (eq. 18, MQ21): NOTE we use mean dynamical time:
+        z_cool = (6.0 * M_PI * CGS::me * CGS::c / (CGS::sigmaT * B * B * t_e)) / Theta;
+
+        if (!std::isfinite(z_cool)){
+            (*p_log)(LOG_ERR,AT) << AT << " Theta = " << Theta << " z_cool="<<z_cool<<"\n";
+            exit(1);
+        }
+    }
+    /// for semi-neutonian regime, where gm ->
+    void computeNonRelativisticFlattening(){
+        switch (m_method_nonreldist) {
+            case inone:
+                break;
+            case iuseGm:
+                if (lim_gm_to_1) {
+                    (*p_log)(LOG_ERR, AT) << " 'method_nonreldist' is incopatible with 'lim_gm_to_1' \n";
+                    exit(1);
+                }
+                accel_frac = (std::pow(gamma_max, 2-p) - std::pow(gamma_min-1, 2-p))
+                           / (std::pow(gamma_max,2-p) - 1.)
+                           * (std::pow(gamma_max,1-p)-1.) / (std::pow(gamma_max,1-p)
+                           - std::pow(gamma_min-1, 1-p));
+                if (accel_frac > 1.)
+                    accel_frac = 1.;
+                break;
+        }
+    }
+};
+
+
+class RadiationAnalytic : public RadiationBase{
+protected:
+    RadiationAnalytic(int loglevel, bool _is_rs) : RadiationBase(loglevel,  _is_rs){
+        ///
+    }
+
+    /// Analytical Synchrotron Sectrum; BPL;
+    void computeAnalyticSynchJOH06(double nuprime){
+//        double gamma_min=p_pars->gamma_min, gamma_c=p_pars->gamma_c, B=p_pars->B, n_prime=p_pars->n_prime;
+//        double p = p_pars->p;
+//        double em=0., abs=0.;
+        // prefactors
+        double gamToNuFactor = (3.0 / (4.0 * CGS::pi)) * (CGS::qe * B) / (CGS::me * CGS::c);
+        double XpF = 0.455 + 0.08 * p;
+        double XpS = 0.06 + 0.28 * p;
+        double phipF = 1.89 - 0.935 * p + 0.17 * (p * p);
+        double phipS = 0.54 + 0.08 * p;
+        double kappa1 = 2.37 - 0.3 * p;
+        double kappa2 = 14.7 - 8.68 * p + 1.4 * (p * p);
+        double kappa3 = 6.94 - 3.844 * p + 0.62 * (p * p);
+        double kappa4 = 3.5 - 0.2 * p;
+        double kappa13 = -kappa1 / 3.0;
+        double kappa12 = kappa1 / 2.0;
+        double kappa11 = -1.0 / kappa1;
+        double kappa2p = kappa2 * (p - 1.0) / 2.0;
+        double kappa12inv = -1.0 / kappa2;
+        double kappa33 = -kappa3 / 3.;
+        double kappa3p = kappa3 * (p - 1.0) / 2.0;
+        double kappa13inv = -1.0 / kappa3;
+        double kappa42 = kappa4 / 2.0;
+        double kappa14 = -1.0 / kappa4;
+        double nu_m, nu_c, emissivity, scaling, abs_scaling=1.;
+
+        double ne = n_prime * ksi_n;
+
+        if (gamma_min < gamma_c){
+            // slow cooling
+            nu_m = XpS * gamma_min * gamma_min * gamToNuFactor;
+            nu_c = XpS * gamma_c * gamma_c * gamToNuFactor;
+//                double _phip = 11.17 * (p - 1.0) / (3.0 * p - 1.0) * phipS;
+            emissivity = 11.17 * (p - 1.0) / (3.0 * p - 1.0) * (0.54 + 0.08 * p)// phipS
+                         * CGS::qe * CGS::qe * CGS::qe * n_prime * B / (CGS::me * CGS::c * CGS::c);
+            scaling = std::pow(std::pow(nuprime / nu_m, kappa33) + std::pow(nuprime / nu_m, kappa3p), kappa13inv)
+                      * std::pow(1. + std::pow(nuprime / nu_c, kappa42), kappa14);
+//                if (nuprime < nu_m) emissivity = 0.;
+            /// -- SSA
+            if (m_methods_ssa!=iSSAoff) {
+                double _alpha = 7.8 * phipS * std::pow(XpS, -(4 + p) / 2.) * (p + 2) * (p - 1)
+                                * CGS::qe / CGS::mp / (p + 2 / 3.);
+                abs = _alpha * ne * CGS::mp * std::pow(gamma_min, -5) / B;
+                if (nuprime <= nu_m)
+                    abs_scaling = std::pow(nuprime / nu_m, -5 / 3.);
+                else if ((nu_m < nuprime) and (nuprime <= nu_c))
+                    abs_scaling = std::pow(nuprime / nu_m, -(p + 4) / 2);
+                else if (nu_c < nuprime)
+                    abs_scaling = std::pow(nu_c / nu_m, -(p + 4) / 2) * std::pow(nuprime / nu_c, -(p + 5) / 2);
+                else {
+                    (*p_log)(LOG_ERR,AT) << "Error! in SSA\n";
+                    exit(1);
+                }
+            }
+        }
+        else {
+            // fast cooling
+            nu_m = XpF * gamma_min * gamma_min * gamToNuFactor;
+            nu_c = XpF * gamma_c * gamma_c * gamToNuFactor;
+            double _phip = 2.234 * phipF;
+            emissivity = _phip * CGS::qe * CGS::qe * CGS::qe * n_prime * B / (CGS::me * CGS::c * CGS::c);
+            scaling = std::pow(std::pow(nuprime / nu_c, kappa13) + std::pow(nuprime / nu_c, kappa12), kappa11)
+                      * std::pow(1. + std::pow(nuprime / nu_m, kappa2p), kappa12inv);
+            /// --- SSA
+            if (m_methods_ssa!=iSSAoff) {
+                double _alpha = 11.7 * phipF * std::pow(XpF, -3) * CGS::qe / CGS::mp;
+                abs = _alpha * (ne * CGS::mp) * std::pow(gamma_c, -5) / B;
+                if (nuprime <= nu_c)
+                    abs_scaling = std::pow(nuprime / nu_c, -5 / 3.);
+                else if ((nu_c < nuprime) and (nuprime <= nu_m))
+                    abs_scaling = std::pow(nuprime / nu_c, -3);
+                else if (nu_m < nuprime)
+                    abs_scaling = std::pow(nu_m / nu_c, -3) * std::pow(nuprime / nu_m, -(p + 5) / 2);
+                else {
+                    (*p_log)(LOG_ERR,AT) << "Error! in SSA\n";
+                    exit(1);
+                }
+            }
+        }
+
+        em = emissivity * scaling;
+        abs = abs * abs_scaling;
+    };
+    /// Analytical Synchrotron Sectrum; BPL;
+    void computeAnalyticSynchWSPN99(double nuprime){
+//        double gamma_min=p_pars->gamma_min, gamma_c=p_pars->gamma_c, B=p_pars->B, n_prime=p_pars->n_prime;
+//        double p = p_pars->p;
+        double nu_m, nu_c, emissivity, scaling, abs_scaling=1.;
+//        double em=0.,abs=0.;
+//            double PhiP = interpolated_phi(p);
+//            emissivity = (interpolated_phi(p) * sqrt(3.0) /  4.0 * CGS::pi)
+//                    * n_prime * CGS::qe * CGS::qe * CGS::qe * B / (CGS::me * CGS::c * CGS::c);
+        double ne = n_prime * ksi_n;
+        emissivity = (interpolated_phi(p) * sqrt(3.0) / 4.0 * CGS::pi) * ne * CGS::qe * CGS::qe * CGS::qe * B / (CGS::me * CGS::c * CGS::c);
+        double Xp = interpolated_xi(p);
+        nu_m = 3.0 / ( 4.0 * CGS::pi ) * Xp * gamma_min * gamma_min * CGS::qe * B / (CGS::me * CGS::c );
+        nu_c = 0.286 * 3. * gamma_c * gamma_c * CGS::qe * B / (4.0 * CGS::pi * CGS::me * CGS::c );
+        if (nu_m <= nu_c){//  # slow cooling
+            if (nuprime < nu_m) {
+                scaling = std::pow(nuprime / nu_m, 1.0 / 3.0);
+            }
+            else if (nuprime >= nu_m && nuprime < nu_c) {
+                scaling = std::pow(nuprime / nu_m, -1.0 * (p - 1.0) / 2.0);
+            }
+            else  { // if (nuprime >= nu_c)
+                scaling = std::pow(nu_c / nu_m, -1.0 * (p - 1.0) / 2.0) * std::pow(nuprime / nu_c, -1.0 * p / 2.0);
+            }
+        }
+        else {//  # fast cooling
+            if (nuprime < nu_c){
+                scaling = std::pow(nuprime / nu_c, 1.0 / 3.0);
+            }
+            else if (nuprime >= nu_c && nuprime < nu_m) {
+                scaling = std::pow(nuprime / nu_c, -1.0 / 2.0);
+            }
+            else { // if (nuprime >= nu_m)
+                scaling = std::pow(nu_m / nu_c, -1.0 / 2.0) * std::pow(nuprime / nu_m, -p / 2.0);
+            }
+        }
+        /// from vanEarten+2010
+        if (m_methods_ssa!=iSSAoff) {
+            abs = sqrt(3) * std::pow(CGS::qe, 3) * (p - 1) * (p + 2) * ne * B
+                  / (16 * M_PI * CGS::me * CGS::me * CGS::c * CGS::c * gamma_min * nuprime * nuprime);
+            if (nuprime < nu_m) // slow cooling
+                abs_scaling = std::pow(nuprime / nu_m, 1.0 / 3.0);
+            else
+                abs_scaling = std::pow(nuprime / nu_m, -0.5 * p);
+        }
+        em = emissivity * scaling;
+        abs = abs * abs_scaling;
+//            std::cout << 11.17 * (p - 1.0) / (3.0 * p - 1.0) * (0.54 + 0.08 * p) << " " << interpolated_phi(p) * sqrt(3.0) /  4.0 * CGS::pi << "\n";
+//            exit(1);
+    }
+    /// Analytical Synchrotron Sectrum; BPL;
+    void computeAnalyticSynchDER06(double nuprime){
+//        double gamma_min=p_pars->gamma_min, gamma_c=p_pars->gamma_c, gamma_max=p_pars->gamma_max, B=p_pars->B, n_prime=p_pars->n_prime;
+        double ne = n_prime * ksi_n;
+//        double p = p_pars->p;
+//        double em=0.,abs=0.;
+        double epsilon = nuprime * CGS::h / CGS::mec2;
+        // electron distribution, broken power law with two regimes depending on the order of gamma_i
+        auto integrand_ele = [&](double gam){
+            double p1 = gamma_min < gamma_c ? p : 2.0;
+            double p2 = p + 1.0;
+            double gmax = gamma_max;
+            double gmin = gamma_min < gamma_c ? gamma_min : gamma_c;
+            double gb = gamma_min < gamma_c ? gamma_c : gamma_min;
+            return Dermer09::brokenPowerLaw(gam, gmin, gb, gmax, p1, p2);
+        };
+        // computeSynchrotronEmissivityAbsorption electron distribution normalisation
+        double k_e = ne / Simpson38(gamma_min, gamma_max, 200, integrand_ele); // TODO replace with adative integrals
+        // convolve the electron distribution with emission spectrum and itegrate
+        auto integrand = [&](double gam){
+            double power_e = Dermer09::single_electron_synch_power( B, epsilon, gam );
+            double n_e = k_e * integrand_ele(gam);
+            return n_e * power_e;
+        };
+        double power = Simpson38(gamma_min, gamma_max, 200, integrand); // TODO replace with adative integrals
+        em = power * (CGS::h / CGS::mec2);
+        /* --- SSA ---
+         * Computes the syncrotron self-absorption opacity for a general set
+         * of model parameters, see
+         * :gammaMinFunc:`~agnpy:sycnhrotron.Synchrotron.evaluate_sed_flux`
+         * for parameters defintion.
+         * Eq. before 7.122 in [DermerMenon2009]_.
+         */
+        if (m_methods_ssa!=iSSAoff) {
+            auto integrand_ele_ssa = [&](double gam) {
+                double p1 = gamma_min < gamma_c ? p : 2.0;
+                double p2 = p + 1.0;
+                double gmax = gamma_max;
+                double gmin = gamma_min < gamma_c ? gamma_min : gamma_c;
+                double gb = gamma_min < gamma_c ? gamma_c : gamma_min;
+                return Dermer09::brokenPowerLawSSA(gam, gmin, gb, gmax, p1, p2);
+            };
+            // computeSynchrotronEmissivityAbsorption electron distribution normalisation
+            double k_e_ssa = ne / Simpson38(gamma_min, gamma_max, 200, integrand_ele_ssa); // TODO replace with adative integrals
+            // convolve the electron distribution with emission spectrum and itegrate
+            auto integrand_ssa = [&](double gam) {
+                double power_e = Dermer09::single_electron_synch_power(B, epsilon, gam);
+                double n_e = k_e * integrand_ele_ssa(gam);
+                return n_e * power_e;
+            };
+            abs = Simpson38(gamma_min, gamma_max, 200, integrand); // TODO replace with adative integrals
+            double coeff = -1 / (8 * CGS::pi * CGS::me * std::pow(epsilon, 2)) * std::pow(CGS::lambda_c / CGS::c, 3);
+            abs *= coeff;
+        }
+        em = em;
+        abs = abs;
+    }
+    /// Analytical Synchrotron Sectrum; BPL;
+    void computeAnalyticSynchMARG21(double nuprime){
+//        double gamma_min=p_pars->gamma_min, gamma_c=p_pars->gamma_c, B=p_pars->B, n_prime=p_pars->n_prime;
+//        double Theta=p_pars->Theta, z_cool = p_pars->z_cool, acc_frac = p_pars->accel_frac;
+//        double p = p_pars->p;
+        double x, em_th=0., em_pl=0., abs_th=0., abs_pl=0.; // for Margalit model
+        /// Margalit+21 arXiv:2111.00012
+        ///
+        double ne = n_prime * ksi_n;
+        double ne_ = mu_e * ne;//4.0 * p_pars->mu_e * p_pars->n_ism;
+        double delta = eps_e / eps_t; // defined in Margalit+21 arXiv:2111.00012
+        /// normalized frequency:
+        x = nuprime / Margalit21::nu_Theta(Theta, B);
+        if (!std::isfinite(x)){
+            (*p_log)(LOG_ERR,AT) << " x = "<< x << "\n";
+            exit(1);
+        }
+        /// calculate total emissivity & optical depth:
+        em_th = Margalit21::jnu_th(x, ne_, B, Theta, z_cool);
+        em_pl = Margalit21::jnu_pl(x, ne_ * accel_frac, B, Theta, gamma_min, delta, p, z_cool); //TODO added 'accel_frac'
+        if ((!std::isfinite(em_th))||(em_th < 0.)) em_th = 0.;
+        if ((!std::isfinite(em_pl))||(em_pl < 0.)) em_pl = 0.;
+        if ((em_pl==0.) && (em_th==0.)){
+            (*p_log)(LOG_ERR,AT) << " em_pl=em_th=0 for"
+                                 << " n_prime=" << n_prime << " accel_frac" << accel_frac
+                                 << " B=" << B << " gamma_min=" << gamma_min << " Theta=" << Theta
+                                 << " z_cool=" << z_cool << " nuprime=" << nuprime << " x=" << x
+                                 << "\n";
+            exit(1);
+        }
+//            emissivity = em_pl + em_th;
+        if (m_methods_ssa!=iSSAoff) {
+            abs_th = Margalit21::alphanu_th(x, ne_, B, Theta, z_cool);
+            abs_pl = Margalit21::alphanu_pl(x, ne_ * accel_frac, B, Theta, gamma_min, delta, p, z_cool);
+            if (!std::isfinite(abs_th)) abs_th = 0.;
+            if (!std::isfinite(abs_pl)) abs_pl = 0.;
+//                abs = abs_th + abs_pl;
+        }
+
+        em=em_pl+em_th;//m_data[i_em] = em_pl + em_th;
+        abs=abs_pl+abs_th;//m_data[i_abs] = abs_th + abs_pl;
+    }
+
+    /// Analytical Synchrotron Sectrum; BPL;
+    void checkEmssivityAbsorption(){
+        if (( em < 0.) || (!std::isfinite( em )) ){
+            (*p_log)(LOG_ERR,AT) << " em_pl_prime < 0 or nan ("<< em<<") or \n";
+            (*p_log)(LOG_ERR,AT) << " abs_pl_prime < 0 or nan ("<< abs<<")\n";
+//            (*p_log)(LOG_ERR,AT) << " Error in data \n"
+//                                 << " eps_e = " << p_pars->eps_e << "\n"
+//                                 << " eps_t = " << p_pars->eps_t << "\n"
+//                                 << " ne = " << p_pars->ne << "\n"
+//                                 << " gm = " << p_pars->gm << "\n"
+//                                 << " gM = " << p_pars->gM << "\n"
+//                                 << " gc = " << p_pars->gc << "\n"
+//                                 << " B = " << p_pars->B << "\n"
+//                                 << " Theta = " << p_pars->Theta << "\n"
+//                                 << " z_cool = " << p_pars->z_cool << "\n"
+//                                 << " nuprime = " << p_pars->nuprime << "\n";
+            exit(1);
+        }
+    }
+
+public:
+
+};
+
+
+class RadiationNumeric : public RadiationAnalytic {
+public:
+    RadiationNumeric(int loglevel, bool _is_rs) : RadiationAnalytic(loglevel, _is_rs) {
+        ///
+    }
+
+
+    /// evaluate frequency independent quantities (critical LFs, Bfield, etc)
+    void evaluateElectronDistributionAnalytic() {
+
+        if (not checkParams())
+            return;
+
+        computeMagneticField();
+
+        computeGammaMax();
+
+        computeGammaMin();
+
+        computeNonRelativisticFlattening();
+
+        /// compute cooling lorentz factor
+        gamma_c = 6. * CGS::pi * CGS::me * CGS::c / (CGS::sigmaT * t_e * B * B) / Gamma; // Eq. A19 in vanEarten+10
+    }
+
+    /// store current shock properties
+    void updateSockProperties(double e_prime, double Gamma_, double Gamma_shock, double t_e_, double n_prime_){
+        /// Store current parameters
+        GammaSh = Gamma_shock; // for bisect solver
+        eprime = e_prime; // for bisect solver
+        Gamma = Gamma_; // for bisect solver
+        beta = EQS::Beta(Gamma_shock); // for bisect solver
+        t_e = t_e_; // for bisect solver
+        n_prime = ksi_n * n_prime_; //  for bisect solver
+    }
+
+    /// In case the electrons were computed elsewhere E.g., if interpolated for EATS plane
+    void setShockElectronParameters(double n_prime_, double acc_frac,
+                                    double B_, double gm, double gM, double gc,
+                                    double Theta_, double z_cool_){
+
+        if (!std::isfinite(gm) || !std::isfinite(gc) || !std::isfinite(n_prime_)) {
+            (*p_log)(LOG_ERR, AT) << " nans is synchrotron spectum\n";
+            exit(1);
+        }
+
+        gamma_min = gm;
+        gamma_max = gM;
+        n_prime = n_prime_;
+        B = B_;
+        accel_frac = acc_frac;
+        gamma_c = gc;
+        z_cool = z_cool_;
+        Theta = Theta_;
+    }
+
+
+    /// evaluate the comoving emissivity and absorption (frequency dependent)
+    void computeSynchrotronEmissivityAbsorption(double nuprime ) {
+
+        // TODO WARNING I did replace n_prime with ne is absorption, but this might not be correct!!!
+
+        if (m_sychMethod == METHODS_SYNCH::iJOH06)
+            computeAnalyticSynchJOH06(nuprime);
+        else if (m_sychMethod == METHODS_SYNCH::iWSPN99)
+            computeAnalyticSynchWSPN99(nuprime);
+        else if (m_sychMethod == METHODS_SYNCH::iDER06)
+            computeAnalyticSynchDER06(nuprime);
+        else if (m_sychMethod == METHODS_SYNCH::iMARG21)
+            computeAnalyticSynchMARG21(nuprime);
+        else{
+            (*p_log)(LOG_ERR,AT)<<" analytic synchrotron method is not supported \n";
+            exit(1);
+        }
+
+        checkEmssivityAbsorption();
+    }
+
+    /// compute spectrum for all freqs and add it to the container
+    void computeSynchrotronSpectrum(size_t it){
+        size_t nfreq = m_freq_arr.size();
+        /// computeSynchrotronEmissivityAbsorption emissivity and absorption for each frequency
+        for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq) {
+            computeSynchrotronEmissivityAbsorption(m_freq_arr[ifreq]);
+            out_spectrum[ifreq + nfreq * it] = em;
+            out_specturm_ssa[ifreq + nfreq * it] = abs;
+        }
+    }
+
+
+    void evaluateElectronDistributionNumeric(double dt, double dm, double r, double dr, double rp1, double drp1){
+        /// for adiabatic cooling of electron distribution
+        double dlnVdt = 1. / dt * (1. - (r * r * dr) / (rp1 * rp1 * drp1));
+        /// number of injected electrons
+        double N = dm / CGS::mp / dt;
+        /// compute substepping to account for electron cooling timescales
+        double dlog_gam = ((ele->e[1]-ele->e[0])/ele->e[0]);
+        double delta_t_syn = CGS::sigmaT * gamma_max * B * B / (6. * M_PI * CGS::me * CGS::c);
+        double delta_t_adi = (1-gamma_max*gamma_max)/(3.*gamma_max*gamma_max)*dlnVdt;
+        double delta_t = dlog_gam / (delta_t_syn + delta_t_adi);
+
+        double n_substeps = dt / delta_t;
+        /// if cooling is too slow, we still need to evolve distribution
+        n_substeps = std::max(int(n_substeps), 1);
+
+        /// if cooling is too fast we need to limit the maximum number of iteration
+        if (delta_t > dt) delta_t = dt;
+        delta_t = std::max(delta_t, dt / 1000);
+
+    }
+
+};
+
+
+#if 0
 /// evaluate comoving emissivity and absorption for synchrotron mech.
-class SynchrotronAnalytic : public RadiationBase{
+class SynchrotronAnalytic : private RadiationBase{
 
     int m_loglevel = -1;
 
     /// methods
-    enum METHODS { iWSPN99, iJOH06, iDER06, iMARG21, iBerrettaSynch, iBerettaSynchSSC, iNumeric };
-    enum METHODS_LFMIN { igmNumGamma, igmUprime, igmNakarPiran, igmJoh06, igmMAG21 };
-    enum METHODS_B { iuseUb, iasMAG21, iuseGammaSh };
-    enum METHOD_LFMAX { iConst, iuseB };
-    enum METHODS_SSA { iSSAoff, iSSAon };
-    enum METHOD_NONRELDIST{ inone, iuseGm };
+
 
     /// parameter container for the class
     struct Pars{
@@ -1009,12 +1994,12 @@ class SynchrotronAnalytic : public RadiationBase{
         bool lim_gm_to_1= true;
         double beta_min = -1;
         // --- methods
-        METHODS m_sychMethod{};
+        METHODS_SYNCH m_sychMethod{};
         METHODS_LFMIN m_methodsLfmin{};
         METHODS_B m_methodsB{};
         METHOD_LFMAX m_methodsLfmax{};
         METHOD_NONRELDIST m_method_nonreldist{};
-        RadiationBase::METHOD_TAU method_tau{};
+        METHOD_TAU method_tau{};
 //        METHODS_RAD method_comp_mode{};
 
         METHODS_SSA m_methods_ssa{};
@@ -1041,7 +2026,7 @@ class SynchrotronAnalytic : public RadiationBase{
 
 public:
 
-    Vector m_freq_arr{}; Vector m_synch_em{}; Vector m_synch_abs{};
+    Vector m_freq_arr{}; Vector out_spectrum{}; Vector out_specturm_ssa{};
 
     SynchrotronAnalytic( int loglevel, bool _is_rs ){
         m_loglevel = loglevel;
@@ -1049,13 +2034,13 @@ public:
         p_pars = new Pars();
 //        p_pars = std::make_unique<Pars>();
         p_pars->lim_gm_to_1 = false;
-//        mD.resizeEachImage( Rad::m_names_.size(), -1. );
+//        m_data.resizeEachImage( Rad::m_names_.size(), -1. );
         is_rs = _is_rs;
     }
     ~SynchrotronAnalytic(){ delete p_pars; }
 
 //    std::unique_ptr<Pars> & getPars(){ return p_pars; }
-    Pars *& getPars(){return p_pars; }
+    Pars *& getPars(){ return p_pars; }
 
     /// set model parameters
     void setPars(StrDbMap & pars, StrStrMap & opts){
@@ -1078,24 +2063,24 @@ public:
         // set options
         std::string opt;
         opt = "method_synchrotron" + fs_or_rs;
-        METHODS val_synch;
+        METHODS_SYNCH val_synch;
         if ( opts.find(opt) == opts.end() ) {
             (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            val_synch = SynchrotronAnalytic::METHODS::iJOH06;
+            val_synch = SynchrotronAnalytic::METHODS_SYNCH::iJOH06;
         }
         else{
             if(opts.at(opt) == "Joh06")
-                val_synch = SynchrotronAnalytic::METHODS::iJOH06;
+                val_synch = SynchrotronAnalytic::METHODS_SYNCH::iJOH06;
             else if(opts.at(opt) == "WSPN99")
-                val_synch = SynchrotronAnalytic::METHODS::iWSPN99;
+                val_synch = SynchrotronAnalytic::METHODS_SYNCH::iWSPN99;
             else if(opts.at(opt) == "Marg21")
-                val_synch = SynchrotronAnalytic::METHODS::iMARG21;
+                val_synch = SynchrotronAnalytic::METHODS_SYNCH::iMARG21;
             else if(opts.at(opt) == "Dermer09")
-                val_synch = SynchrotronAnalytic::METHODS::iDER06;
+                val_synch = SynchrotronAnalytic::METHODS_SYNCH::iDER06;
             else if(opts.at(opt) == "New")
-                val_synch = SynchrotronAnalytic::METHODS::iNumeric;
+                val_synch = SynchrotronAnalytic::METHODS_SYNCH::iNumeric;
 //            else if(opts.at(opt) == "Bretta")
-//                val_synch = SynchrotronAnalytic::METHODS::iBerrettaSynch;
+//                val_synch = SynchrotronAnalytic::METHODS_SYNCH::iBerrettaSynch;
             else{
                 (*p_log)(LOG_WARN,AT) << " option for: " << opt
                           <<" given: " << opts.at(opt)
@@ -1291,12 +2276,16 @@ public:
 
     }
 
-    void allocateSpectrumStorage(size_t nr, StrDbMap & pars){
+    void allocateSpectrumStorage(size_t nr, StrDbMap & pars, StrStrMap & opts){
 
         /// get freq. boundaries for calculation of the comoving spectrum
         double freq1 = getDoublePar("freq1", pars, AT, p_log,1.e7, true);//pars.at("freq1");
         double freq2 = getDoublePar("freq2", pars, AT, p_log,1.e14, true);//pars.at("freq2");
         size_t nfreq = (size_t)getDoublePar("nfreq", pars, AT, p_log,100, true);//pars.at("nfreq");
+
+        /// allocate storage feoe
+
+        ///
 
         (*p_log)(LOG_INFO,AT) << " allocating comoving spectrum array (fs) "
                               << " freqs="<<nfreq << " by radii=" << nr << " Spec. grid="
@@ -1305,12 +2294,12 @@ public:
         /// allocate space for the comoving spectrum
         m_freq_arr = TOOLS::MakeLogspaceVec(log10(freq1), log10(freq2),(int)nfreq);
 
-        m_synch_em.resize( m_freq_arr.size() * nr );
-        m_synch_abs.resize( m_freq_arr.size() * nr );
+        out_spectrum.resize(m_freq_arr.size() * nr );
+        out_specturm_ssa.resize(m_freq_arr.size() * nr );
 
     }
 
-    bool checkParams(double n_prime, double eprime){
+    bool checkParams(){
 
         /// if velocity is too small shock may not be possible TODO update it with proper sound speed check
         if (p_pars->beta < p_pars->beta_min)
@@ -1318,7 +2307,7 @@ public:
 
 
         /// in Margalit+21 model thermal electrons are present. Different treatment :: Assert:
-        if (p_pars->m_sychMethod == METHODS::iMARG21) {
+        if (p_pars->m_sychMethod == METHODS_SYNCH::iMARG21) {
             /* Margalit+21 arXiv:2111.00012 */
             if (p_pars->m_methodsLfmin != igmMAG21) {
                 (*p_log)(LOG_ERR, AT) << "use m_methodsLfmin=gmMAG21 when using m_sychMethod=MARG21\n";
@@ -1357,19 +2346,20 @@ public:
             (*p_log)(LOG_ERR,AT)<< " ksi_n is not set (ksi_n="<<ksi_n<<")\n";
             exit(1);
         }
-        if (n_prime <= 0){
-            (*p_log)(LOG_ERR,AT) << " n_prime is not set (n_prime="<<n_prime<<")\n";
+        if (p_pars->n_prime <= 0){
+            (*p_log)(LOG_ERR,AT) << " n_prime is not set (n_prime="<<p_pars->n_prime<<")\n";
             exit(1);
         }
-        if ((eprime < 0) || !std::isfinite(eprime)){
-            (*p_log)(LOG_ERR,AT) << " eprime is not set (eprime=" << eprime << ")\n";
+        if ((p_pars->eprime < 0) || !std::isfinite(p_pars->eprime)){
+            (*p_log)(LOG_ERR,AT) << " eprime is not set (eprime=" << p_pars->eprime << ")\n";
             exit(1);
         }
 
         return true;
     }
 
-    static double func(const double &x, void * pars){
+
+    static double gammaMinFunc(const double &x, void * pars){
         auto * pp = (struct Pars *) pars;
         return (pp->p - 1) / (pp->p - 2) * (std::pow(pp->gamma_max, -pp->p + 2) - std::pow(x, -pp->p + 2))
                / (std::pow(pp->gamma_max, -pp->p + 1) - std::pow(x, -pp->p + 1)) - pp->eps_e * mp / me * (pp->GammaSh - 1);
@@ -1408,7 +2398,7 @@ public:
     }
 
     void computeGammaMin(){
-        /// compute injection LF (lower bound of source injection func)
+        /// compute injection LF (lower bound of source injection gammaMinFunc)
         double gm = 0, Theta=-1;
         int status = 0; double U_e_prime = -1;
 
@@ -1429,7 +2419,7 @@ public:
                 break;
             case igmNumGamma:
                 /// solve gamma_min fun numerically; use fixed limits and number of iterations
-                gm = Bisect(func,1,1e8,0,.001,100,p_pars,status);
+                gm = Bisect(gammaMinFunc, 1, 1e8, 0, .001, 100, p_pars, status);
                 /// If numerical solution failed, use simple analytical solution
                 if (status < 0)
                     gm = (p - 2.) / (p - 1.) * (eps_e * CGS::mp / CGS::me * (Gamma_shock - 1.) + 1.);
@@ -1463,27 +2453,10 @@ public:
         }
     }
 
-    void computeNonRelativisticFlattening(){
-        /// for semi-neutonian regime, where gm ->
-        double accel_frac = -1;
-        double gM = p_pars->gamma_max;
-        double gm = p_pars->gamma_min;
-        double p = p_pars->p;
-        switch (p_pars->m_method_nonreldist) {
 
-            case inone:
-                break;
-            case iuseGm:
-                accel_frac = (std::pow(gM, 2-p) - std::pow(gm-1, 2-p)) / (std::pow(gM,2-p) - 1.)
-                             * (std::pow(gM,1-p)-1.) / (std::pow(gM,1-p) - std::pow(gm-1, 1-p));
-                if (accel_frac > 1.) accel_frac = 1.;
-                break;
-        }
-        p_pars->accel_frac = accel_frac;
-    }
 
-    /// evaluate frequency independent quantities (critical LFs, Bfield, etc)
-    void evaluateElectronDistribution(double eprime, double Gamma, double Gamma_shock, double t_e, double n_prime) {
+    /// store current shock properties
+    void updateSockProperties(double eprime, double Gamma, double Gamma_shock, double t_e, double n_prime){
         /// Store current parameters
         p_pars->GammaSh = Gamma_shock; // for bisect solver
         p_pars->eprime = eprime; // for bisect solver
@@ -1491,8 +2464,12 @@ public:
         p_pars->beta = EQS::Beta(Gamma_shock); // for bisect solver
         p_pars->t_e = t_e; // for bisect solver
         p_pars->n_prime = p_pars->ksi_n * n_prime; //  for bisect solver
+    }
 
-        if (not checkParams(n_prime, eprime))
+    /// evaluate frequency independent quantities (critical LFs, Bfield, etc)
+    void evaluateElectronDistribution() {
+
+        if (not checkParams())
             return;
 
         computeMagneticField();
@@ -1504,12 +2481,14 @@ public:
         computeNonRelativisticFlattening();
 
         /// compute cooling lorentz factor
-        p_pars->gamma_c = 6. * CGS::pi * CGS::me * CGS::c / (CGS::sigmaT * t_e * p_pars->B * p_pars->B) / Gamma; // Eq. A19 in vanEarten+10
+        p_pars->gamma_c = 6. * CGS::pi * CGS::me * CGS::c
+                        / (CGS::sigmaT * p_pars->t_e * p_pars->B * p_pars->B)
+                        / p_pars->Gamma; // Eq. A19 in vanEarten+10
 
     }
 
 
-
+    /// Analytical Synchrotron Sectrum; BPL;
     void computeAnalyticSynchJOH06(double nuprime){
         double gm=p_pars->gamma_min, gc=p_pars->gamma_c, B=p_pars->B, n_prime=p_pars->n_prime;
         double p = p_pars->p;
@@ -1593,7 +2572,7 @@ public:
         p_pars->em = emissivity * scaling;
         p_pars->abs = abs * abs_scaling;
     };
-
+    /// Analytical Synchrotron Sectrum; BPL;
     void computeAnalyticSynchWSPN99(double nuprime){
         double gm=p_pars->gamma_min, gc=p_pars->gamma_c, B=p_pars->B, n_prime=p_pars->n_prime;
         double p = p_pars->p;
@@ -1643,7 +2622,7 @@ public:
 //            std::cout << 11.17 * (p - 1.0) / (3.0 * p - 1.0) * (0.54 + 0.08 * p) << " " << interpolated_phi(p) * sqrt(3.0) /  4.0 * CGS::pi << "\n";
 //            exit(1);
     }
-
+    /// Analytical Synchrotron Sectrum; BPL;
     void computeAnalyticSynchDER06(double nuprime){
         double gm=p_pars->gamma_min, gc=p_pars->gamma_c, gM=p_pars->gamma_max, B=p_pars->B, n_prime=p_pars->n_prime;
         double ne = n_prime * p_pars->ksi_n;
@@ -1659,7 +2638,7 @@ public:
             double gb = gm < gc ? gc : gm;
             return Dermer09::brokenPowerLaw(gam, gmin, gb, gmax, p1, p2);
         };
-        // evaluateShycnhrotronSpectrum electron distribution normalisation
+        // computeShycnhrotronEmissivityAbsorption electron distribution normalisation
         double k_e = ne / Simpson38(gm, gM, 200, integrand_ele); // TODO replace with adative integrals
         // convolve the electron distribution with emission spectrum and itegrate
         auto integrand = [&](double gam){
@@ -1672,7 +2651,7 @@ public:
         /* --- SSA ---
          * Computes the syncrotron self-absorption opacity for a general set
          * of model parameters, see
-         * :func:`~agnpy:sycnhrotron.Synchrotron.evaluate_sed_flux`
+         * :gammaMinFunc:`~agnpy:sycnhrotron.Synchrotron.evaluate_sed_flux`
          * for parameters defintion.
          * Eq. before 7.122 in [DermerMenon2009]_.
          */
@@ -1685,7 +2664,7 @@ public:
                 double gb = gm < gc ? gc : gm;
                 return Dermer09::brokenPowerLawSSA(gam, gmin, gb, gmax, p1, p2);
             };
-            // evaluateShycnhrotronSpectrum electron distribution normalisation
+            // computeShycnhrotronEmissivityAbsorption electron distribution normalisation
             double k_e_ssa = ne / Simpson38(gm, gM, 200, integrand_ele_ssa); // TODO replace with adative integrals
             // convolve the electron distribution with emission spectrum and itegrate
             auto integrand_ssa = [&](double gam) {
@@ -1700,7 +2679,7 @@ public:
         p_pars->em = em;
         p_pars->abs = abs;
     }
-
+    /// Analytical Synchrotron Sectrum; BPL;
     void computeAnalyticSynchMARG21(double nuprime){
         double gm=p_pars->gamma_min, gc=p_pars->gamma_c, B=p_pars->B, n_prime=p_pars->n_prime;
         double Theta=p_pars->Theta, z_cool = p_pars->z_cool, acc_frac = p_pars->accel_frac;
@@ -1739,11 +2718,11 @@ public:
 //                abs = abs_th + abs_pl;
         }
 
-        p_pars->em=em_pl+em_th;//mD[i_em] = em_pl + em_th;
-        p_pars->abs=abs_pl+abs_th;//mD[i_abs] = abs_th + abs_pl;
+        p_pars->em=em_pl+em_th;//m_data[i_em] = em_pl + em_th;
+        p_pars->abs=abs_pl+abs_th;//m_data[i_abs] = abs_th + abs_pl;
         p_pars->x = x;
     }
-
+    /// Analytical Synchrotron Sectrum; BPL;
     void checkEmssivityAbsorption(){
         if (( p_pars->em < 0.) || (!std::isfinite( p_pars->em )) ){
             (*p_log)(LOG_ERR,AT) << " em_pl_prime < 0 or nan ("<< p_pars->em<<") or \n";
@@ -1764,9 +2743,11 @@ public:
     }
 
 
-    void updateShockProperties(double n_prime, double acc_frac,
-                               double B, double gm, double gM, double gc,
-                               double Theta, double z_cool){
+
+    /// In case the electrons were computed elsewhere E.g., if interpolated for EATS plane
+    void setShockElectronParameters(double n_prime, double acc_frac,
+                                    double B, double gm, double gM, double gc,
+                                    double Theta, double z_cool){
 
         if (!std::isfinite(gm) || !std::isfinite(gc) || !std::isfinite(n_prime)) {
             (*p_log)(LOG_ERR, AT) << " nans is synchrotron spectum\n";
@@ -1784,17 +2765,17 @@ public:
     }
 
     /// evaluate the comoving emissivity and absorption (frequency dependent)
-    void evaluateShycnhrotronSpectrum( double nuprime ) {
+    void computeShycnhrotronEmissivityAbsorption(double nuprime ) {
 
         // TODO WARNING I did replace n_prime with ne is absorption, but this might not be correct!!!
 
-        if (p_pars->m_sychMethod == METHODS::iJOH06)
+        if (p_pars->m_sychMethod == METHODS_SYNCH::iJOH06)
             computeAnalyticSynchJOH06(nuprime);
-        else if (p_pars->m_sychMethod == METHODS::iWSPN99)
+        else if (p_pars->m_sychMethod == METHODS_SYNCH::iWSPN99)
             computeAnalyticSynchWSPN99(nuprime);
-        else if (p_pars->m_sychMethod == METHODS::iDER06)
+        else if (p_pars->m_sychMethod == METHODS_SYNCH::iDER06)
             computeAnalyticSynchDER06(nuprime);
-        else if (p_pars->m_sychMethod == METHODS::iMARG21)
+        else if (p_pars->m_sychMethod == METHODS_SYNCH::iMARG21)
             computeAnalyticSynchMARG21(nuprime);
         else{
             (*p_log)(LOG_ERR,AT)<<" analytic synchrotron method is not supported \n";
@@ -1803,8 +2784,20 @@ public:
 
         checkEmssivityAbsorption();
     }
-};
 
+    /// compute spectrum for all freqs and add it to the container
+    void computeSynchrotronSpectrum(size_t it){
+        size_t nfreq = m_freq_arr.size();
+        /// computeShycnhrotronEmissivityAbsorption emissivity and absorption for each frequency
+        for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq) {
+            computeSynchrotronEmissivityAbsorption( m_freq_arr[ifreq] );
+            out_spectrum[ifreq + nfreq * it] = p_pars->em;
+            out_specturm_ssa[ifreq + nfreq * it] = p_pars->abs;
+        }
+    }
+
+};
+#endif
 
 
 
@@ -2027,7 +3020,7 @@ class MagnetarSynchrotron{
     };
     std::unique_ptr<Pars> p_pars = nullptr;
     std::unique_ptr<logger> p_log = nullptr;
-//    VecVector & mD;
+//    VecVector & m_data;
 //    Vector spectrum{}; Vector spec_gams{}; Vector spec_freqs{};
 //    Vector emissivity{}; Vector absorption{};
 public:
@@ -2155,7 +3148,7 @@ public:
 
 
 //class SynchrotronAnalyticComoving{
-//    enum METHODS { iWSPN99, iJOH06, iDER06, iMARG21 };
+//    enum METHODS_SYNCH { iWSPN99, iJOH06, iDER06, iMARG21 };
 //    enum METHODS_LFMIN { igmUprime, igmNakarPiran, igmJoh06, igmMAG21 };
 //    enum METHODS_SSA { iSSAoff, iSSAon };
 //    enum METHOD_TAU { iTHICK, iSMOOTH, iSHARP };
@@ -2167,7 +3160,7 @@ public:
 //        bool lim_gm_to_1= true;
 //        double beta_min = -1;
 //        // --- methods
-//        METHODS m_sychMethod{};
+//        METHODS_SYNCH m_sychMethod{};
 //        METHODS_LFMIN m_methodsLfmin{};
 //
 //        METHODS_SSA m_methods_ssa{};
@@ -2179,7 +3172,7 @@ public:
 //    static constexpr size_t n_vars = 5;
 //    enum QS { igm, igc };
 //    std::vector<std::string> m_vars{ "gm", "gc", "num", "nuc", "pmax" };
-//    VecArray mD{};// ( n_vars );
+//    VecArray m_data{};// ( n_vars );
 //public:
 //    SynchrotronAnalyticComoving(size_t nt){
 //        p_pars = new PWNPars();
@@ -2187,8 +3180,8 @@ public:
 //    }
 //    ~SynchrotronAnalyticComoving(){ delete p_pars; }
 //    void allocateSpace(size_t nt){
-//        mD.resizeEachImage(n_vars);
-//        for (auto & arr : mD){
+//        m_data.resizeEachImage(n_vars);
+//        for (auto & arr : m_data){
 //            arr.resizeEachImage( nt, 0. );
 //        }
 //    }
@@ -2199,4 +3192,4 @@ public:
 //    }
 //};
 
-#endif //SRC_SYNCHROTRON_AN_H
+#endif //SRC_RADIATION_H

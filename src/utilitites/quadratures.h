@@ -28,7 +28,7 @@ double Trapz(Vector &integrant, Vector &x, size_t last_idx){
  *
  * @param x0 0th value of the coordinates
  * @param x1 Nth value of the coordinates
- * @param func callable func
+ * @param func callable gammaMinFunc
  *
  */
 template <typename T>
@@ -1248,7 +1248,7 @@ int trapNLProcessInterval(double (*f)(double, void *), void *args,
 
     double h = 0.25*(i->b - i->a);
 
-    // First evaluateShycnhrotronSpectrum three trapezoid rule refinements
+    // First computeSynchrotronEmissivityAbsorption three trapezoid rule refinements
     // Assume error ~ epsilon * h^n, if f is smooth
     // then n = 2, but if we are under-resolved the effective n
     // could be less than two.

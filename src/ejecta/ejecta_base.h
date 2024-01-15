@@ -186,10 +186,11 @@ public:
             if (im_max_theta <= 0.)
                 im_max_theta = id->theta_wing;
         }
-        else{
+        else
             (*p_log)(LOG_INFO, AT) << "ejecta is not initialized and will not be considered.\n";
-        }
+
     }
+
 
     void setEjectaBwPars(StrDbMap pars, StrStrMap opts, size_t ii_eq, size_t n_layers_jet){
 
@@ -204,38 +205,24 @@ public:
             is_ejecta_obs_pars_set = true;
             for(size_t il = 0; il < nlayers(); il++) {
                 BW_TYPES m_type = select_bw_type(opts,p_log);
-                p_cumShells.push_back( std::make_unique<CumulativeShell>(
-                        Vector {}, nshells(), il, n_substeps,
-                        m_type, p_log->getLogLevel())
-                        );
+                p_cumShells.push_back(
+                        std::make_unique<CumulativeShell>(Vector {}, nshells(),
+                                                          il, n_substeps,m_type,
+                                                          p_log->getLogLevel())
+                                                          );
+                /// set parameters for the shell (concerns BW interaction, structure)
                 p_cumShells[il]->setPars(pars, opts);
                 for (size_t ish = 0; ish < nshells(); ish++){
                     auto & bw = p_cumShells[il]->getBW(ish);
+                    /// set parameters for each blast wave within the shell
                     bw->setParams(id, pars, opts, il, ii_eq);
-#if 0
-                    switch (id->method_eats) {
-                        case EjectaID2::iadaptive:
-                            bw->getFsEATS()->setEatsPars(
-                                    pars,opts,id->nlayers,id->get(ish,il,EjectaID2::Q::ictheta),
-                                    0.,0.,id->theta_wing,
-                                    getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false));
-
-                            break;
-                        case EjectaID2::ipiecewise:
-                            bw->getFsEATS()->setEatsPars(
-                                    pars,opts,id->nlayers,id->get(ish,il,EjectaID2::Q::ictheta),
-                                    id->get(ish,il,EjectaID2::Q::itheta_c_l),
-                                    id->get(ish,il,EjectaID2::Q::itheta_c_h),0.,
-                                    getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false));
-
-                            break;
-                    }
-#endif
                     ii_eq += SOL::neq;//bw->getNeq();
                 }
             }
             return;
         }
+
+
 
 
         bool is_within = false;
@@ -1126,7 +1113,7 @@ public:
 //                else if (cthetas[ith] > id->getVec(0,EjectaID2::Q::itheta_c_l)[id->nlayers-1])
 //                    flux_ctheta = fluxes[nlayers_-1];
 //                else
-//                    flux_ctheta = interp.Interpolate(cthetas[ith], Interp1d::METHODS::iLinear);
+//                    flux_ctheta = interp.Interpolate(cthetas[ith], Interp1d::METHODS_SYNCH::iLinear);
 //
 //                if (flux_ctheta <= 0){
 //                    std::cerr << AT << "error \n";
@@ -1157,13 +1144,14 @@ public:
             for (size_t ilayer = 0; ilayer < nlayers(); ilayer++) {
                 auto & model = getShells()[ilayer];//ejectaModels[ishell][ilayer];
                 auto & bw = model->getBW(ishell);
-                if (bw->getPars()->i_end_r == 0)
+                if (bw->getPars()->i_end_r == 0) {
                     (*p_log)(LOG_WARN, AT)
                             << " NOT EVOLVED EJECTA BW"
                             << " vel_shell=" << ishell << "/" << nshells() - 1
                             << " theta_layer=" << ilayer << "/" << nlayers()
-                            << " beta0="<<bw->getPars()->beta0
+                            << " beta0=" << bw->getPars()->beta0
                             << "\n";
+                }
                 else {
                     (*p_log)(LOG_INFO, AT)
                             << " EJECTA LC ntimes=" << obs_times.size()

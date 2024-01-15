@@ -12,7 +12,7 @@
 #include "utilitites/quadratures.h"
 #include "utilitites/rootfinders.h"
 #include "image.h"
-#include "synchrotron_an.h"
+#include "radiation/radiation.h"
 #include "blastwave/blastwave_components.h"
 #include "blastwave/blastwave_collision.h"
 #include "model_magnetar.h"

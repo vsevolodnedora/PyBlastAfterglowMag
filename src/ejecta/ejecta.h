@@ -21,7 +21,7 @@
 #include "ejecta_cumshell.h"
 #include "ejecta_base.h"
 
-class Ejecta : public EjectaBase{
+class Ejecta : public EjectaBase {
     std::unique_ptr<Output> p_out = nullptr;
     std::unique_ptr<logger> p_log = nullptr;
 
@@ -46,11 +46,12 @@ public:
                 loadEjectaBWDynamics(working_dir,
                                      getStrOpt("fname_dyn", m_opts, AT, p_log, "", true));
 
-            if (do_ele)
-                setPreComputeEjectaAnalyticElectronsPars();
+//            if (do_ele)
+//                setPreComputeEjectaAnalyticElectronsPars();
 
             if (do_spec || do_lc || do_skymap)
-                setPreComputeEjectaAnalyticSynchrotronPars();
+//                setPreComputeEjectaAnalyticSynchrotronPars();
+                setPreComputeEjectaAnalyticElectronsPars();
 
             if (save_dyn)
                 saveEjectaBWsDynamics(
@@ -147,6 +148,7 @@ public:
     }
 
 private:
+
     /// COMPUTE electrons
     void setPreComputeEjectaAnalyticElectronsPars(){//(StrDbMap pars, StrStrMap opts){
         (*p_log)(LOG_INFO,AT) << "Computing Ejecta analytic electron pars...\n";
@@ -157,12 +159,19 @@ private:
         }
         auto & models = getShells();
         for (auto & model : models)
-            for (auto & bw : model->getBWs())
-                bw->computeShockElectrons();
+            for (auto & bw : model->getBWs()) {
+                auto & pars = bw->getPars();
+                /// skip calulations for not evolved blast waves
+                if (pars->end_evolution && (pars->E0 < 0))
+                    continue;
+                bw->evolveElectronDistAndComputeRadiation();
+            }
 
         is_ejecta_anal_ele_computed = true;
+        is_ejecta_anal_synch_computed = true;
     }
 
+#if 0
     /// COMPUTE synchrotron
     void setPreComputeEjectaAnalyticSynchrotronPars(){//(StrDbMap pars, StrStrMap opts){
         (*p_log)(LOG_INFO,AT) << "Computing Ejecta analytic synchrotron pars...\n";
@@ -179,11 +188,12 @@ private:
 
         is_ejecta_anal_synch_computed = true;
     }
+#endif
 
+private:
     /// OUTPUT dynamics/electrons
-
-    void saveEjectaBWsDynamics(std::string workingdir, std::string fname, size_t every_it,
-                               StrDbMap & main_pars, StrDbMap & ej_pars){
+    void saveEjectaBWsDynamics(
+            std::string workingdir, std::string fname, size_t every_it, StrDbMap & main_pars, StrDbMap & ej_pars){
 
 
         (*p_log)(LOG_INFO,AT) << "Saving Ejecta BW dynamics...\n";
@@ -224,20 +234,21 @@ private:
     }
 
     /// OUTPUT skymap
-    void computeSaveEjectaSkyImagesAnalytic_new(std::string workingdir, std::string fname, Vector times, Vector freqs,
-                                                StrDbMap & main_pars, StrDbMap & ej_pars, StrStrMap & ej_opts){
+    void computeSaveEjectaSkyImagesAnalytic_new(
+            std::string workingdir, std::string fname, Vector times, Vector freqs,
+            StrDbMap & main_pars, StrDbMap & ej_pars, StrStrMap & ej_opts){
         if ((!run_bws)&&(!load_dyn))
             return;
 
         (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta sky image with analytic synchrotron...\n";
 
         if (!is_ejecta_anal_synch_computed){
-            std::cerr  << "ejecta analytic electrons were not evolved. Cannot evaluateShycnhrotronSpectrum images (analytic) exiting...\n";
+            std::cerr  << "ejecta analytic electrons were not evolved. Cannot computeSynchrotronEmissivityAbsorption images (analytic) exiting...\n";
             std::cerr << AT << " \n";
             exit(1);
         }
         if (!is_ejecta_obs_pars_set){
-            std::cerr<< "ejecta observer parameters are not set. Cannot evaluateShycnhrotronSpectrum image (analytic) exiting...\n";
+            std::cerr<< "ejecta observer parameters are not set. Cannot computeSynchrotronEmissivityAbsorption image (analytic) exiting...\n";
             std::cerr << AT << " \n";
             exit(1);
         }
@@ -344,9 +355,9 @@ private:
     }
 
     /// OUTPUT spectrum
-    void computeSaveEjectaSpectrumOLD(std::string workingdir,std::string fname, std::string fname_shells_layers,
-                                   StrDbMap & main_pars, StrDbMap & ej_pars,
-                                   bool lc_freq_to_time){
+    void computeSaveEjectaSpectrumOLD(
+            std::string workingdir,std::string fname, std::string fname_shells_layers,
+            StrDbMap & main_pars, StrDbMap & ej_pars, bool lc_freq_to_time){
 
         (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta spectrum with analytic synchrotron...\n";
 
@@ -355,11 +366,11 @@ private:
 //        size_t ncells =  (int)p_cumShells->ncells();
 
         if (!is_ejecta_anal_synch_computed){
-            (*p_log)(LOG_INFO,AT) << " ejecta analytic electrons were not evolved. Cannot evaluateShycnhrotronSpectrum light curve (analytic) exiting...\n";
+            (*p_log)(LOG_INFO,AT) << " ejecta analytic electrons were not evolved. Cannot computeSynchrotronEmissivityAbsorption light curve (analytic) exiting...\n";
             exit(1);
         }
         if (!is_ejecta_obs_pars_set){
-            (*p_log)(LOG_INFO,AT) << " ejecta observer parameters are not set. Cannot evaluateShycnhrotronSpectrum light curve (analytic) exiting...\n";
+            (*p_log)(LOG_INFO,AT) << " ejecta observer parameters are not set. Cannot computeSynchrotronEmissivityAbsorption light curve (analytic) exiting...\n";
             exit(1);
         }
 
@@ -372,7 +383,7 @@ private:
 
         /// evaluate light curve
 //        auto spectrum = evalEjectaSpectrum();
-        auto & spec_freqs = p_cumShells[0]->getBW(0)->getPars()->m_freq_arr;
+        auto & spec_freqs = p_cumShells[0]->getBW(0)->getPars()->p_syna->m_freq_arr;
         if (spec_freqs.size()<1){
             (*p_log)(LOG_INFO,AT) << " m_freq_arr is not initialized for a BW. Cannot compute comoving spectrum \n ";
             exit(1);
@@ -395,19 +406,19 @@ private:
             for (size_t ishell = 0; ishell < nshells(); ++ishell) {
                 for (size_t ilayer = 0; ilayer < nlayers(); ++ilayer) {
                     if (var == "em")
-                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_em[itnu];
+                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syna->out_spectrum[itnu];
                     else if (var == "abs")
-                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_abs[itnu];
+                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syna->out_specturm_ssa[itnu];
                     else if (var == "em_rs")
-                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_em_rs[itnu];
+                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syna_rs->out_spectrum[itnu];
                     else if (var == "abs_rs")
-                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_abs_rs[itnu];
+                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syna_rs->out_specturm_ssa[itnu];
                     else{
                         (*p_log)(LOG_INFO,AT) << " spec_var_out is not recognized. Possible options: "
                                               << " em "<< " abs "<<" em_rs " <<" abs_rs "<<" Givem="<<var<<"\n";
                         exit(1);
                     }
-//                    auto & spectrum = p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_em;
+//                    auto & spectrum = p_cumShells[ilayer]->getBW(ishell)->getPars()->out_spectrum;
 //                    if (spectrum.size()<1){
 //                        (*p_log)(LOG_INFO,AT) << " spectrum is not initialized for a BW \n ";
 //                        exit(1);
@@ -436,17 +447,17 @@ private:
             for (size_t ilayer = 0; ilayer < nlayers(); ++ilayer) {
                 group_names.emplace_back("shell=" + std::to_string(ishell) + " layer=" + std::to_string(ilayer));
                 total_fluxes_shell_layer[ii].resize(n,0.);
-                auto & spectrum = p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_em;
+                auto & spectrum = p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syna->out_spectrum;
                 for (size_t ifnu = 0; ifnu < n; ifnu++) {
 
                     if (var == "em")
-                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_em[ifnu];
+                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syna->out_spectrum[ifnu];
                     else if (var == "abs")
-                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_abs[ifnu];
+                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syna->out_specturm_ssa[ifnu];
                     else if (var == "em_rs")
-                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_em_rs[ifnu];
+                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syna_rs->out_spectrum[ifnu];
                     else if (var == "abs_rs")
-                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->m_synch_abs_rs[ifnu];
+                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syna_rs->out_specturm_ssa[ifnu];
                     else{
                         (*p_log)(LOG_INFO,AT) << " spec_var_out is not recognized. Possible options: "
                                               << " em "<< " abs "<<" em_rs " <<" abs_rs "<<" Givem="<<var<<"\n";
@@ -469,12 +480,13 @@ private:
     }
 
     /// OUTPUT spectrum
-    void computeSaveEjectaSpectrum(std::string workingdir,std::string fname, StrDbMap & main_pars, StrDbMap & ej_pars){
+    void computeSaveEjectaSpectrum(
+            std::string workingdir,std::string fname, StrDbMap & main_pars, StrDbMap & ej_pars){
 
         (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta spectrum with analytic synchrotron...\n";
 
         if (!is_ejecta_anal_synch_computed){
-            (*p_log)(LOG_INFO,AT) << " ejecta analytic electrons were not evolved. Cannot evaluateShycnhrotronSpectrum light curve (analytic) exiting...\n";
+            (*p_log)(LOG_INFO,AT) << " ejecta analytic electrons were not evolved. Cannot computeSynchrotronEmissivityAbsorption light curve (analytic) exiting...\n";
             exit(1);
         }
 
@@ -491,11 +503,11 @@ private:
                 std::string group_name = "shell=" + std::to_string(ish) + " layer=" + std::to_string(il);
                 H5::Group grp(file.createGroup(group_name));
                 auto &bw = getShells()[il]->getBW(ish);
-                Output::addVectorToGroup(grp,bw->getPars()->m_synch_em, "synch_em_fs");
-                Output::addVectorToGroup(grp,bw->getPars()->m_synch_abs, "synch_abs_fs");
+                Output::addVectorToGroup(grp, bw->getPars()->p_syna->out_spectrum, "synch_em_fs");
+                Output::addVectorToGroup(grp, bw->getPars()->p_syna->out_specturm_ssa, "synch_abs_fs");
                 if (bw->getPars()->do_rs){
-                    Output::addVectorToGroup(grp,bw->getPars()->m_synch_em, "synch_em_rs");
-                    Output::addVectorToGroup(grp,bw->getPars()->m_synch_abs, "synch_abs_rs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_syna_rs->out_spectrum, "synch_em_rs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_syna_rs->out_specturm_ssa, "synch_abs_rs");
                 }
                 grp.close();
             }
@@ -504,13 +516,13 @@ private:
         auto &bw0 = getShells()[0]->getBW(0);
 
         /// make vectors for time and freq with the same structure as emissivity and absorption
-        Vector _times(bw0->get_tburst().size()*bw0->getPars()->m_freq_arr.size(),0.);
-        Vector _freqs(bw0->get_tburst().size()*bw0->getPars()->m_freq_arr.size(),0.);
+        Vector _times(bw0->get_tburst().size()*bw0->getPars()->p_syna->m_freq_arr.size(),0.);
+        Vector _freqs(bw0->get_tburst().size()*bw0->getPars()->p_syna->m_freq_arr.size(),0.);
         size_t ii =0;
         for (size_t it = 0; it < bw0->get_tburst().size(); it++) {
-            for (size_t ifreq = 0; ifreq < bw0->getPars()->m_freq_arr.size(); ifreq++){
+            for (size_t ifreq = 0; ifreq < bw0->getPars()->p_syna->m_freq_arr.size(); ifreq++){
                 _times[ii]=bw0->get_tburst()[it];
-                _freqs[ii]=bw0->getPars()->m_freq_arr[ifreq];
+                _freqs[ii]=bw0->getPars()->p_syna->m_freq_arr[ifreq];
                 ii++;
             }
         }
@@ -535,9 +547,9 @@ private:
     }
 
     /// OUTPUT light curves
-    void computeSaveEjectaLightCurveAnalytic_new(std::string workingdir, std::string fname, std::string fname_shells_layers,
-                                             Vector lc_times, Vector lc_freqs, StrDbMap & main_pars, StrDbMap & ej_pars,
-                                             bool lc_freq_to_time){
+    void computeSaveEjectaLightCurveAnalytic_new(
+            std::string workingdir, std::string fname, std::string fname_shells_layers,
+            Vector lc_times, Vector lc_freqs, StrDbMap & main_pars, StrDbMap & ej_pars, bool lc_freq_to_time){
 
         Vector _times, _freqs;
         cast_times_freqs(lc_times,lc_freqs,_times,_freqs,lc_freq_to_time,p_log);
@@ -547,6 +559,7 @@ private:
         out.resize(nshells() * nlayers());
         for (auto & arr : out)
             arr.resize(_times.size(), 0.);
+
         evalEjectaLightCurves(out, _times, _freqs);
 
         /// Collect total flux at a given time/freq from all shells/layers
@@ -763,7 +776,7 @@ private:
 
                 // get BW (a cell) properties
                 double cphi = 0. ; // We don't care about phi diretion due to symmetry
-                double ctheta_cell = bw->getPars()->ctheta0;//mD[BW::Q::ictheta][0]; //cthetas[0];
+                double ctheta_cell = bw->getPars()->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
 #if 1
                 size_t ia=0, ib=0;
                 bool is_in_time = bw->getFsEATS()->evalEATSindexes(ia,ib,time,theta_obs, ctheta_cell,cphi,obsAngle);
@@ -1071,7 +1084,7 @@ private:
 
                 // get BW (a cell) properties
                 double cphi = 0. ; // We don't care about phi diretion due to symmetry
-                double ctheta_cell = bw->getPars()->ctheta0;//mD[BW::Q::ictheta][0]; //cthetas[0];
+                double ctheta_cell = bw->getPars()->ctheta0;//m_data[BW::Q::ictheta][0]; //cthetas[0];
 
                 size_t ia=0, ib=0;
                 bool is_in_time = bw->getFsEATS()->evalEATSindexes(ia,ib,time,theta_obs, ctheta_cell,cphi,obsAngle);

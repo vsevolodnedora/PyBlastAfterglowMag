@@ -7,6 +7,7 @@
 
 //#include "../synchrotron_an.h"
 #include "../eats.h"
+#include "../microphysics/radiation.h"
 
 /* ------------- EQUATIONS ----------------- */
 
@@ -33,20 +34,19 @@ enum METHOD_LIMIT_SPREAD { iNone, iGamma0Frac, iGammaVal, iRd };
 
 struct Pars{
 
-    Pars(VecVector & data, VecVector & data_tmp,
-         std::unique_ptr<ShockMicrophysicsNumeric> & p_fs_, std::unique_ptr<ShockMicrophysicsNumeric> & p_rs_,
-         unsigned loglevel) : m_data(data), m_data_tmp(data), p_fs(p_fs_), p_rs(p_rs_) {
-        p_log = std::make_unique<logger>(std::cout,std::cerr,loglevel,"PWNPars");
+    Pars(VecVector & data, VecVector & data_tmp, unsigned loglevel) : m_data(data), m_data_tmp(data){
+        p_log = std::make_unique<logger>(std::cout,std::cerr,loglevel,"Pars");
     }
-    std::unique_ptr<SynchrotronAnalytic> p_syna = nullptr;
-    std::unique_ptr<SynchrotronAnalytic> p_syna_rs = nullptr;
 
-    std::unique_ptr<ShockMicrophysicsNumeric> & p_fs;
-    std::unique_ptr<ShockMicrophysicsNumeric> & p_rs;
+    std::unique_ptr<RadiationNumeric> p_syna = nullptr;
+    std::unique_ptr<RadiationNumeric> p_syna_rs = nullptr;
+
+//    std::unique_ptr<ShockMicrophysics> & p_fs;
+//    std::unique_ptr<ShockMicrophysics> & p_rs;
 
     std::unique_ptr<logger> p_log;
-    size_t nfreqs{};
-    Vector m_freq_arr{}; Vector m_synch_em{}; Vector m_synch_abs{}; Vector m_synch_em_rs{}; Vector m_synch_abs_rs{};
+//    size_t nfreqs{};
+//    Vector m_freq_arr{}; Vector out_spectrum{}; Vector out_specturm_ssa{}; Vector m_synch_em_rs{}; Vector m_synch_abs_rs{};
     VecVector & m_data;
     VecVector & m_data_tmp;
 
@@ -69,25 +69,25 @@ struct Pars{
     METHOD_SINGLE_BW_DELTA method_single_bw_delta{};
     METHOD_THICK_FOR_RHO method_thick_for_rho{};
     /// blast wave initial conditions
-    double M0 = -1.;
-    double R0 = -1.;
-    double tb0 = -1.;
-    double Gamma0 = -1.;
-    double beta0 = -1.;
-    double mom0 = -1.;
-    double E0 = -1.;
-    double Eint0 = 0.;
-    double Ye0 = -1.;
-    double s0 = -1.;
-    double theta_a = -1.;
-    double theta_b0 = -1.;
-    double ncells = -1.;
-    double ctheta0 = -1.;
+    double M0 = -1.; // initial wave mass
+    double R0 = -1.; // initial radius
+    double tb0 = -1.; // initial time in a burster frame
+    double Gamma0 = -1.; // initiial lorentz factor
+    double beta0 = -1.; // initial velocity (in [c]_
+    double mom0 = -1.; // initial 4-momentum
+    double E0 = -1.; // initial energy (kinetic)
+    double Eint0 = 0.; // initial energy (internal)
+    double Ye0 = -1.; // initial electron fraction
+    double s0 = -1.; // initial entropy
+    double theta_a = -1.; // initial lower openning angle
+    double theta_b0 = -1.; // initial upper openning angle
+    double ncells = -1.; // number of cells that this blast wave contains (PW discretization)
+    double ctheta0 = -1.; // initial center of the blastwave
 //        double theta_h0 = -1;
-    double theta_c_l = -1.;
-    double theta_c_h = -1.;
-    double theta_w = -1.;
-    double theta_max=-1.;
+    double theta_c_l = -1.; // lower openning angle of the segment (A discretization)
+    double theta_c_h = -1.; // upper openning angle of the segment (A discretization)
+    double theta_w = -1.; // wing angle (jet edge)
+    double theta_max=-1.; // maximum achievable angle in spreading
     /// deceleration radius
     double Rd = -1;
 

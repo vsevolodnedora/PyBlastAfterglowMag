@@ -86,7 +86,7 @@ public:
             }
             auto & bw1 = p_bws[idx];
 //            for (size_t key = 0; key < m_vnames.size(); key++)
-//                bw1->getData(static_cast<BW::Q>(key))[it] = mD[key][i];
+//                bw1->getData(static_cast<BW::Q>(key))[it] = m_data[key][i];
 
             bw1->getData()[BW::Q::iEJr][it]       = m_data[Q::irEj][i];
             bw1->getData()[BW::Q::iEJbeta][it]    = m_data[Q::ibetaEj][i];
@@ -308,8 +308,8 @@ public:
                 (*p_log)(LOG_ERR,AT)<<" dr_i = "<<dr_i<<"\n";
                 exit(1);
             }
-            mD[Q::idelta][idx] = dr_i;
-            mD[Q::ivol][idx] = vol_i;
+            m_data[Q::idelta][idx] = dr_i;
+            m_data[Q::ivol][idx] = vol_i;
         }
         else{
             for (size_t ii=0; ii<p_pars->n_active_shells-1; ii++) {
@@ -337,8 +337,8 @@ public:
                     exit(1);
                 }
                 /// --------------------------- |
-                mD[Q::idelta][idx] = dr_i;
-                mD[Q::ivol][idx] = vol_i;
+                m_data[Q::idelta][idx] = dr_i;
+                m_data[Q::ivol][idx] = vol_i;
             }
             /// for the last shell we have to assume it width
             size_t idx = p_pars->n_active_shells-1;
@@ -351,8 +351,8 @@ public:
                 (*p_log)(LOG_ERR,AT)<<" dr_i = "<<dr_i<<"\n";
                 exit(1);
             }
-            mD[Q::idelta][idx] = dr_i;
-            mD[Q::ivol][idx] = vol_i;
+            m_data[Q::idelta][idx] = dr_i;
+            m_data[Q::ivol][idx] = vol_i;
         }
     }
 #endif
@@ -370,8 +370,8 @@ public:
             (*p_log)(LOG_ERR,AT)<<" dr_i = "<<dr_i<<"\n";
             exit(1);
         }
-        mD[Q::idelta][0] = dr_i;
-        mD[Q::ivol][0] = vol_i;
+        m_data[Q::idelta][0] = dr_i;
+        m_data[Q::ivol][0] = vol_i;
 #endif
         if (p_pars->n_active_shells > 1) {
             size_t idx = m_idxs[0];//p_pars->n_active_shells-1;
@@ -490,8 +490,8 @@ public:
             m_data[Q::ivol][ii] = p_bws[idx]->getPars()->vol;
             _r_i = Y[p_bws[idx]->getPars()->ii_eq + SOL::QS::iR];
             _vol_i = (4./3.) * CGS::pi * (_r_i*_r_i*_r_i);
-            p_bws[idx]->getPars()->_last_frac = _r_i / m_data[Q::idelta][ii];//maxValue(mD[Q::idelta]);//mD[Q::idelta][ii];
-            p_bws[idx]->getPars()->_last_frac_vol = _vol_i / m_data[Q::ivol][ii];//maxValue(mD[Q::ivol]); // mD[Q::ivol][ii];
+            p_bws[idx]->getPars()->_last_frac = _r_i / m_data[Q::idelta][ii];//maxValue(m_data[Q::idelta]);//m_data[Q::idelta][ii];
+            p_bws[idx]->getPars()->_last_frac_vol = _vol_i / m_data[Q::ivol][ii];//maxValue(m_data[Q::ivol]); // m_data[Q::ivol][ii];
         }
             /// if only one shell exists
         else {
@@ -517,8 +517,8 @@ public:
 //            double _vol_i = (4./3.) * CGS::pi * (_r_i*_r_i*_r_i);
 //            p_bws[idx]->getPars()->delta = _r_i * p_bws[idx]->getPars()->_last_frac;
 //            p_bws[idx]->getPars()->vol = _vol_i * p_bws[idx]->getPars()->_last_frac_vol;
-//            mD[Q::idelta][ii] = p_bws[idx]->getPars()->delta;//dr_i;
-//            mD[Q::ivol][ii] = p_bws[idx]->getPars()->vol;
+//            m_data[Q::idelta][ii] = p_bws[idx]->getPars()->delta;//dr_i;
+//            m_data[Q::ivol][ii] = p_bws[idx]->getPars()->vol;
 
             switch (p_bwpars->method_single_bw_delta) {
                 /// keep thickness constant
@@ -535,14 +535,14 @@ public:
                         double max_delta = bw_data[BW::Q::iEJdelta][idx_max];
                         double r_at_max = bw_data[BW::Q::iR][idx_max];
 
-                        p_bws[idx]->getPars()->_last_frac = r_at_max / max_delta;//maxValue(mD[Q::idelta]);//mD[Q::idelta][ii];
+                        p_bws[idx]->getPars()->_last_frac = r_at_max / max_delta;//maxValue(m_data[Q::idelta]);//m_data[Q::idelta][ii];
 
                         auto iter_ = std::max_element(bw_data[BW::Q::iEJvol].rbegin(), bw_data[BW::Q::iEJvol].rend()).base();
                         size_t idx_max_ = std::distance(bw_data[BW::Q::iEJvol].begin(), std::prev(iter));
                         double max_vol_ = bw_data[BW::Q::iEJvol][idx_max];
                         double r_at_max_ = bw_data[BW::Q::iR][idx_max];
                         _vol_i = (4./3.) * CGS::pi * (r_at_max*r_at_max*r_at_max);
-                        p_bws[idx]->getPars()->_last_frac_vol = _vol_i / max_vol_;//maxValue(mD[Q::ivol]); // mD[Q::ivol][ii];
+                        p_bws[idx]->getPars()->_last_frac_vol = _vol_i / max_vol_;//maxValue(m_data[Q::ivol]); // m_data[Q::ivol][ii];
 
                         p_pars->first_entry_as_single_shell = false;
                     }
@@ -627,8 +627,8 @@ public:
 //                exit(1);
 //            }
 //            double vol_i = (4./3.) * CGS::pi * (curbw_r*curbw_r*curbw_r - prev_r*prev_r*prev_r);
-//            mD[Q::idelta][ii] = dr_i;
-//            mD[Q::ivol][ii] = vol_i;
+//            m_data[Q::idelta][ii] = dr_i;
+//            m_data[Q::ivol][ii] = vol_i;
 //            curbw->getPars()->delta = dr_i;
 //            curbw->getPars()->vol = vol_i;
 //        }
@@ -739,8 +739,8 @@ public:
                 if((cur_idx >= idx_photo && p_pars->thermradloss_at_photo) || (!p_pars->thermradloss_at_photo))
                     bw->getPars()->dElum = m_data[Q::ilum][ii];
             }
-//            bw->getPars()->tau_to0 = mD[Q::itaucum][ii];
-//            bw->getPars()->dtau = mD[Q::idtau][ii];
+//            bw->getPars()->tau_to0 = m_data[Q::itaucum][ii];
+//            bw->getPars()->dtau = m_data[Q::idtau][ii];
 //            bw->getPars()->is_above_tau1 = idx_photo > cur_idx ? false : true;
         }
 
@@ -749,7 +749,7 @@ public:
 
     }
     /// Evaluate shell total mass, volume, density
-    /// next three functions evaluateShycnhrotronSpectrum mass, volume and average density of the entire shell
+    /// next three functions computeSynchrotronEmissivityAbsorption mass, volume and average density of the entire shell
     double getShellMass(const double * Y_){
         double mtot = 0.;
         for (size_t ii=0; ii<p_pars->n_active_shells; ++ii){

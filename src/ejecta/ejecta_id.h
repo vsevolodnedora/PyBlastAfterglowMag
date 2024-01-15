@@ -64,7 +64,7 @@ public:
     }
     double get(size_t ish, size_t il, Q iv){
         if (m_data[iv].empty()){
-            (*p_log)(LOG_ERR,AT) << " Out of bound: iv="<<iv<< " > mD.size()="<<m_data.size()<<"\n";
+            (*p_log)(LOG_ERR,AT) << " Out of bound: iv="<<iv<< " > m_data.size()="<<m_data.size()<<"\n";
             exit(1);
         }
         if (ish > nshells-1){
@@ -147,7 +147,7 @@ public:
     }
 
     static size_t _evalTotalNcells(size_t nlayers){
-        /// evaluateShycnhrotronSpectrum the number of phi cells in each 'theta' layer
+        /// computeSynchrotronEmissivityAbsorption the number of phi cells in each 'theta' layer
         std::vector<size_t> cil;
         _evalCellsInLayer(nlayers, cil);
         size_t ncells = std::accumulate(cil.begin(), cil.end(), decltype(cil)::value_type(0));
@@ -214,7 +214,7 @@ private:
             for (auto & arr : m_data)
                 arr.resize(nshells);
 
-            /// mD [iv][ish][il]
+            /// m_data [iv][ish][il]
             for (size_t i_v_n = 0; i_v_n < m_v_ns.size(); i_v_n++) {
                 ldata.setVarName(m_v_ns[i_v_n]);
                 VecVector vec = ldata.getData2Ddouble();
@@ -264,7 +264,7 @@ private:
 //            double mom_max = std::numeric_limits<double>::max();
 //            double mom_min = 0.;
 //            for (size_t il = 0; il < nlayers; il++){
-//                double mom = mD[Q::imom][ish][il];
+//                double mom = m_data[Q::imom][ish][il];
 //                /// find
 //                if (mom_max < mom)
 //                    mom_max = mom;

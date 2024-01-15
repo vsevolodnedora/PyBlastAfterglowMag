@@ -13,7 +13,7 @@ class BlastWaveBase{
     std::unique_ptr<logger> p_log;
 protected:
     Vector m_tb_arr;
-    VecVector mD{}; // container for the solution of the evolution
+    VecVector m_data{}; // container for the solution of the evolution
 //    VecVector m_tmp_data{}; // container for the solution for each evolved step (for derivatives)
     VecVector mDtmp{};
     VecVector m_data_shells{};
@@ -27,8 +27,8 @@ protected:
     std::unique_ptr<NuclearAtomic> p_nuc = nullptr;
     std::unique_ptr<LinearRegression> p_lr_delta = nullptr;
     std::unique_ptr<LinearRegression> p_lr_vol = nullptr;
-    std::unique_ptr<ShockMicrophysicsNumeric> p_fs;
-    std::unique_ptr<ShockMicrophysicsNumeric> p_rs;
+//    std::unique_ptr<ShockMicrophysics> p_fs;
+//    std::unique_ptr<ShockMicrophysics> p_rs;
     static constexpr int iters=1000; // for PWN, resolution of frac_psr_dep_
     Vector frac_psr_dep_{}; // for PWN, fraction of rad. absorbed by BW f(opacity)
 public:
@@ -36,42 +36,42 @@ public:
 
     BlastWaveBase(Vector & tb_arr, size_t ishell, size_t ilayer, size_t n_substeps, BW_TYPES type, int loglevel)
         : m_tb_arr(tb_arr){
+
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BW_Base");
 
-        /// initialize shock microphysics
-        p_fs = std::make_unique<ShockMicrophysicsNumeric>(loglevel);
-        p_rs = std::make_unique<ShockMicrophysicsNumeric>(loglevel);
-
         /// parameters (pass p_fs, p_rs for later use in EATS()
-        p_pars = new Pars(mD, mDtmp, p_fs, p_rs, loglevel); //
+        p_pars = new Pars(m_data, mDtmp, loglevel); //
         p_pars->m_type = type;
 
         /// the container for the final solution
-        if (mD.empty()){
-            mD.resize( BW::TOTAL_VARS );
-        }
-        /// the container for the last N substeps
-        if (mDtmp.empty()){
-            mDtmp.resize( BW::TOTAL_VARS );
-        }
-        /// Check if contener will be filled by evolving or loading
-        if (m_tb_arr.empty()){
-            (*p_log)(LOG_WARN,AT) << " Time grid was not initialized\n";
-        }
-        /// if no evolution required; do not allocate memory for each variable (only for evolved)
-        if (mD[BW::Q::itburst].size() < 1)
-            for (auto & ivn : BW::VARS.at(p_pars->m_type))
-                mD[ivn].resize(tb_arr.size(), 0.0);
+        if (m_data.empty())
+            m_data.resize(BW::TOTAL_VARS );
 
-        // ---------------------- Methods
-        p_lr_delta = std::make_unique<LinearRegression>(mD[BW::Q::iR], mD[BW::Q::iEJdelta]);
-        p_lr_vol = std::make_unique<LinearRegression>(mD[BW::Q::iR], mD[BW::Q::iEJvol]);
+        /// the container for the last N substeps
+        if (mDtmp.empty())
+            mDtmp.resize( BW::TOTAL_VARS );
+
+        /// Check if contener will be filled by evolving or loading
+        if (m_tb_arr.empty())
+            (*p_log)(LOG_WARN,AT) << " Time grid was not initialized\n";
+
+        /// if no evolution required; do not allocate memory for each variable (only for evolved)
+        if (m_data[BW::Q::itburst].size() < 1)
+            for (auto & ivn : BW::VARS.at(p_pars->m_type))
+                m_data[ivn].resize(tb_arr.size(), 0.0);
+
+        // ---------------------- Methods ---------------
+        p_lr_delta = std::make_unique<LinearRegression>(m_data[BW::Q::iR], m_data[BW::Q::iEJdelta]);
+        p_lr_vol = std::make_unique<LinearRegression>(m_data[BW::Q::iR], m_data[BW::Q::iEJvol]);
         p_spread = std::make_unique<LatSpread>();
         p_eos = std::make_unique<EOSadi>();
         p_dens = std::make_unique<RhoISM>(loglevel);
         p_sedov = std::make_unique<SedovTaylor>();
-        p_bm = std::make_unique< BlandfordMcKee2>();
+        p_bm = std::make_unique<BlandfordMcKee2>();
         p_nuc = std::make_unique<NuclearAtomic>(loglevel);
+//        p_fs = std::make_unique<ShockMicrophysics>(m_data, loglevel);
+//        p_rs = std::make_unique<ShockMicrophysics>(m_data, loglevel);
+
         /// if no evolution required; do not allocate memory for each variable
         p_pars->n_substeps = n_substeps;
         if (mDtmp[BW::Q::itburst].size() < 1)
@@ -760,8 +760,8 @@ public:
     std::unique_ptr<LinearRegression> & getLRforDelta(){ return p_lr_delta; }
     std::unique_ptr<LinearRegression> & getLRforVol(){ return p_lr_vol; }
     /// --------------------------------------------------------
-    inline Vector & operator[](unsigned ll){ return this->mD[ll]; }
-    inline double & operator()(size_t ivn, size_t ir){ return this->mD[ivn][ir]; }
+    inline Vector & operator[](unsigned ll){ return this->m_data[ll]; }
+    inline double & operator()(size_t ivn, size_t ir){ return this->m_data[ivn][ir]; }
     inline double ctheta(double theta){
         // cthetas = 0.5*(2.*arcsin(facs[0]*sin(self.joAngles[:,layer-1]/2.)) + 2.*arcsin(facs[1]*sin(self.joAngles[:,layer-1]/2.)))
 //        if (theta > p_pars->theta_max ){
@@ -797,9 +797,9 @@ public:
         }
         return ctheta;
     }
-    inline VecVector & getData(){ return mD; }
-    inline Vector & getData(BW::Q var){ return mD[ var ]; }
-    inline double & getData(BW::Q var, size_t i){ return mD[ var ][i]; }
+    inline VecVector & getData(){ return m_data; }
+    inline Vector & getData(BW::Q var){ return m_data[ var ]; }
+    inline double & getData(BW::Q var, size_t i){ return m_data[ var ][i]; }
     inline Vector & get_tburst(){return m_tb_arr;}
     ~BlastWaveBase(){ delete p_pars; }
 };

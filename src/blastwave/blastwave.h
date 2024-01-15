@@ -17,6 +17,7 @@
 //#include "blastwave_components.h"
 //#include "blastwave_pars.h"
 //#include "blastwave_base.h"
+//#include "blastwave_radiation.h"
 #include "blastwave_radiation.h"
 //#include "eats.h"
 
@@ -235,10 +236,10 @@ public:
         /// limit the evaluation to the latest 'R' that is not 0 (before termination)
         if (p_pars->end_evolution)
             return;
-        size_t nr = mD[BW::Q::iR].size();
+        size_t nr = m_data[BW::Q::iR].size();
         size_t i_end_r = nr;
         for(size_t ir = 0; ir < nr; ++ir){
-            if (mD[BW::Q::iR][ir] == 0.) {
+            if (m_data[BW::Q::iR][ir] == 0.) {
                 i_end_r = ir;
                 break;
             }
@@ -255,7 +256,7 @@ public:
         }
         p_pars->i_end_r = i_end_r;
     }
-    /// add the current solution 'sol' to the 'mD' which is Vector of Arrays (for all variables)
+    /// add the current solution 'sol' to the 'm_data' which is Vector of Arrays (for all variables)
     void insertSolution( const double * sol, double t, size_t it, size_t i, VecVector & Dat ) {
 
         Dat[BW::Q::itburst][it]   = t;
@@ -315,12 +316,12 @@ public:
             exit(1);
         }
     }
-    /// add the current solution 'sol' to the 'mD' which is Vector of Arrays (for all variables)
+    /// add the current solution 'sol' to the 'm_data' which is Vector of Arrays (for all variables)
     void insertSolution( const double * sol, size_t it, size_t i ) {
         if (p_pars->end_evolution)
             return;
         double t = m_tb_arr[it];
-        insertSolution(sol, t, it, i, mD);
+        insertSolution(sol, t, it, i, m_data);
     }
     /// Mass and energy are evolved in units of M0 and M0c2 respectively
     void applyUnits( double * sol, size_t i ) {
@@ -505,13 +506,13 @@ public:
         return no_issues;
     }
     /// compute other quantities for BW and add them to the contaienr
-    void addOtherVars(size_t it){ addOtherVars(it, mD); }
+    void addOtherVars(size_t it){ addOtherVars(it, m_data); }
     void addOtherVars(size_t it, VecVector & Dat){
 
         if (p_pars->end_evolution)
             return;
 
-        Dat[BW::Q::ictheta][it] = ctheta(Dat[BW::Q::itheta][it]);//p_pars->ctheta0 + 0.5 * (2. * mD[Q::itheta][it] - 2. * p_pars->theta_w);
+        Dat[BW::Q::ictheta][it] = ctheta(Dat[BW::Q::itheta][it]);//p_pars->ctheta0 + 0.5 * (2. * m_data[Q::itheta][it] - 2. * p_pars->theta_w);
 
         double rho_prev = Dat[BW::Q::irho][it - 1];
         double rho = Dat[BW::Q::irho][it];
@@ -536,7 +537,7 @@ public:
             Dat[BW::Q::iCSCBM][it] = p_dens->m_CS_CBM;
             if (Dat[BW::Q::iGammaREL][it] < 1.) {
                 Dat[BW::Q::iGammaREL][it] = Dat[BW::Q::iGamma][it];
-                //            std::cerr << AT << "\n GammaRel="<<mD[Q::iGammaREL][it]<<"; Exiting...\n";
+                //            std::cerr << AT << "\n GammaRel="<<m_data[Q::iGammaREL][it]<<"; Exiting...\n";
                 //            exit(1);
             }
         }
@@ -545,7 +546,7 @@ public:
 //        if (p_pars->end_evolution)
 //            return;
 
-        if ((it>1)&&(rho_prev < 1e-10 * mD[BW::Q::irho][it])){
+        if ((it>1)&&(rho_prev < 1e-10 * m_data[BW::Q::irho][it])){
             (*p_log)(LOG_ERR,AT) << " it="<<it<<" density gradient >10 orders of magnitude\n";
 //            exit(1);
         }
@@ -925,7 +926,7 @@ public:
                                       << " GammaCBM_prev=" << GammaCBM_prev
                                       << " Exiting..." << "\n";
 //            std::cerr << "| Gamma evol: \n";
-//            std::cerr << mD[Q::iGamma] << "\n";
+//            std::cerr << m_data[Q::iGamma] << "\n";
 //            std::cerr << AT << "\n";
                 exit(1);
             }
@@ -1141,12 +1142,12 @@ public:
         double r_prev = getVal(BW::Q::iR, prev_ix - 1);
 //        double rho_prev = getVal(Q::irho, evaled_ix - 1);
         if (ej_R == r_prev){ (*p_log)(LOG_ERR,AT) << AT << " R = R_i-1 \n"; exit(1); }
-        mD[BW::Q::irho][prev_ix+1] = rho;
-        mD[BW::Q::iR][prev_ix+1] = ej_R;
-        mD[BW::Q::iPcbm][prev_ix + 1] = P;
-        double dr = mD[BW::Q::iR][prev_ix] - mD[BW::Q::iR][prev_ix-1];
-//            double dr1 = mD[Q::iR][0] - mD[Q::iR][1];
-        drhodr = dydx(mD[BW::Q::iR], mD[BW::Q::irho], mD[BW::Q::idrhodr],
+        m_data[BW::Q::irho][prev_ix+1] = rho;
+        m_data[BW::Q::iR][prev_ix+1] = ej_R;
+        m_data[BW::Q::iPcbm][prev_ix + 1] = P;
+        double dr = m_data[BW::Q::iR][prev_ix] - m_data[BW::Q::iR][prev_ix-1];
+//            double dr1 = m_data[Q::iR][0] - m_data[Q::iR][1];
+        drhodr = dydx(m_data[BW::Q::iR], m_data[BW::Q::irho], m_data[BW::Q::idrhodr],
                       dr, prev_ix+1, ej_R, true);
 //        double drhodr2 = (rho - rho_prev) / (ej_R - r_prev);
         if (rho < p_dens->m_rho_floor_val*rho_def){ rho = p_dens->m_rho_floor_val*rho_def; drhodr = 0.; }
@@ -1162,8 +1163,8 @@ public:
             dGammaRhodR = 0;
         }
         else{
-            mD[BW::Q::iGammaCBM][prev_ix+1] = GammaCMB;
-            dGammaRhodR = dydx(mD[BW::Q::iR], mD[BW::Q::iGammaCBM], mD[BW::Q::idGammaCBMdr],
+            m_data[BW::Q::iGammaCBM][prev_ix+1] = GammaCMB;
+            dGammaRhodR = dydx(m_data[BW::Q::iR], m_data[BW::Q::iGammaCBM], m_data[BW::Q::idGammaCBMdr],
                                dr, prev_ix+1, ej_R, false);
 
 //            double dGammaRhodR1 = (GammaCMB - GammaCBM_prev) / (ej_R - r_prev);
@@ -1177,7 +1178,7 @@ public:
             dGammaRhodR = 0.;
         }
 
-        /// evaluateShycnhrotronSpectrum the relative velocity of the ISM (with respect to ejecta) and its derivative
+        /// computeSynchrotronEmissivityAbsorption the relative velocity of the ISM (with respect to ejecta) and its derivative
 //            double betaREL = EQS::BetaRel(EQS::Beta(ej_Gamma),EQS::Beta(GammaCMB));
 //            GammaREL = EQS::Gamma(betaREL);
         GammaREL = EQS::GammaRel(ej_Gamma,GammaCMB);
@@ -1198,7 +1199,7 @@ public:
                                   << " GammaCBM_prev=" << GammaCBM_prev << "\n"
                                   << " Exiting...";
 //            std::cerr << "| Gamma evol: \n";
-//            std::cerr << mD[Q::iGamma] << "\n";
+//            std::cerr << m_data[Q::iGamma] << "\n";
 //            std::cerr << AT << "\n";
             exit(1);
         }
@@ -1214,11 +1215,11 @@ public:
             dGammaRELdGamma = 1.;
         }
         else{
-            mD[BW::Q::iGammaREL][prev_ix+1] = GammaREL;
-            double dGammaRel = mD[BW::Q::iGammaREL][prev_ix] - mD[BW::Q::iGammaREL][prev_ix-1];
-            dGammaRELdGamma = dydx(mD[BW::Q::iGammaREL], mD[BW::Q::iGamma], mD[BW::Q::idGammaRELdGamma],
+            m_data[BW::Q::iGammaREL][prev_ix+1] = GammaREL;
+            double dGammaRel = m_data[BW::Q::iGammaREL][prev_ix] - m_data[BW::Q::iGammaREL][prev_ix-1];
+            dGammaRELdGamma = dydx(m_data[BW::Q::iGammaREL], m_data[BW::Q::iGamma], m_data[BW::Q::idGammaRELdGamma],
                                    dr, prev_ix+1, GammaREL, false);
-            dPdrho = dydx(mD[BW::Q::iPcbm], mD[BW::Q::irho], mD[BW::Q::idPCBMdrho],
+            dPdrho = dydx(m_data[BW::Q::iPcbm], m_data[BW::Q::irho], m_data[BW::Q::idPCBMdrho],
                           dr, prev_ix+1, P, false);
             double tmp = sqrt(P / rho) / CGS::c;
             int x = 1;
@@ -1613,7 +1614,7 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
     double dtcomov_dR = 1.0 / beta / Gamma / CGS::c;
 #if 0
     double dttdr = 0.;
-        if (p_spread->m_method != LatSpread::METHODS::iNULL)
+        if (p_spread->m_method != LatSpread::METHODS_SYNCH::iNULL)
             dttdr = 1. / (CGS::c * beta) * sqrt(1. + R * R * dthetadr * dthetadr) - (1. / CGS::c);
         else
             dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
@@ -1878,7 +1879,7 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
     double dtcomov_dR = 1.0 / beta / Gamma / CGS::c;
 #if 0
     double dttdr = 0.;
-        if (p_spread->m_method != LatSpread::METHODS::iNULL)
+        if (p_spread->m_method != LatSpread::METHODS_SYNCH::iNULL)
             dttdr = 1. / (CGS::c * beta) * sqrt(1. + R * R * dthetadr * dthetadr) - (1. / CGS::c);
         else
             dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
@@ -2214,7 +2215,7 @@ void BlastWave::rhs_fs_dense(double * out_Y, size_t i, double x, double const * 
 
     double dtcomov_dR = 1.0 / beta / Gamma / CGS::c;
 //        double dttdr;
-//        if (p_spread->m_method != LatSpread::METHODS::iNULL)
+//        if (p_spread->m_method != LatSpread::METHODS_SYNCH::iNULL)
 //            dttdr = 1. / (CGS::c * beta) * sqrt(1. + R * R * dthetadr * dthetadr) - (1. / CGS::c);
 //        else
 //            dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
@@ -2439,7 +2440,7 @@ void BlastWave::rhs_fs_dense_pwn(double * out_Y, size_t i, double x, double cons
     if (v_w > beta*CGS::c){
         v_w = beta*CGS::c; } // velocity should also be bounded by BW TODO see if not
     double mom_wind = EQS::MomFromBeta(v_w/CGS::c);
-    double dEnbdt = 0; // evaluateShycnhrotronSpectrum nebula energy \int(Lem * min(1, tau_T^ej * V_ej / c))dt
+    double dEnbdt = 0; // computeSynchrotronEmissivityAbsorption nebula energy \int(Lem * min(1, tau_T^ej * V_ej / c))dt
     if (bw_tau * (r_w / R) > CGS::c / v_w){ // Eq.[28] in Eq. 28 in Kashiyama+16
         dEnbdt = (p_pars->eps_e_w * ldip + p_pars->epsth_w * lacc);
     }
@@ -2539,7 +2540,7 @@ void BlastWave::rhs_fs_dense_pwn(double * out_Y, size_t i, double x, double cons
     double dEnuc_norm = dEnuc / (p_pars->M0 * CGS::c * CGS::c);
     double dEnucdR = dEnuc_norm / dRdt;
 
-    // Energy loss to thermal radiation
+    // Energy loss to thermal microphysics
     double dElum = p_pars->dElum;
     double dElum_norm = dElum / (p_pars->M0 * CGS::c * CGS::c);
     double dElumdR = dElum_norm / dRdt;

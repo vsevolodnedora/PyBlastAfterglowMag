@@ -17,6 +17,7 @@ typedef std::unordered_map<std::string,std::string> StrStrMap;
 
 inline namespace CGS{
     const double &c  = 2.99792458e10;     // speed of light in cm / s
+    const double &c2  = c * c;     // speed of light in cm / s
     const double &pi = 3.141592653589793; // pi
     const double &mp = 1.6726e-24;        // proton mass
     const double &me = 9.1094e-28;        //electron mass
@@ -36,10 +37,13 @@ inline namespace CGS{
     const double &deg2rad = 0.017453292;
     const double &cgs2mJy = 1.e26;
     const double &gravconst = 6.67259e-8;// # cm^3 g^-1 s^-2
+    const double &freqToErg = 8.093440820813486e-21;
+    const double &ergToFreq = 1./8.093440820813486e-21;
+
     /// --------------------------------
     const double &SI_pc   =3.0856E+16; // m
     const double &RtD = 57.295779513082325;
-    const double &A_RAD = 7.565767e-15; // radiation constant in unit of [erg/cm^3/K^4]
+    const double &A_RAD = 7.565767e-15; // microphysics constant in unit of [erg/cm^3/K^4]
     const double &EV_TO_ERG = 1.602e-12; // [erg/eV]
     const double &M_ELEC = 9.11e-28; // electron mass in unit of [g]
     const double &ELEC = 4.803e-10; // electron charge in unit of [cgs]

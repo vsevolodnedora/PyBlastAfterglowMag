@@ -1668,7 +1668,7 @@ namespace Integrators {
             double* _restrict const k1 = buffer.ptr<double>() + size * 1;
             double* _restrict const k2 = buffer.ptr<double>() + size * 2;
 
-            // evaluateShycnhrotronSpectrum a first guess for explicit euler as:
+            // computeSynchrotronEmissivityAbsorption a first guess for explicit euler as:
             //   h1 = 0.01 * NORM(value) / NORM(k1).
             double dnf = 0.0, dny = 0.0;
             for (std::size_t i = 0; i < size; i++) {
@@ -2029,7 +2029,7 @@ protected:
                          double const * ,  // initial data Y_0
                          void *            // parameters for RHS
     );
-    rhs m_Func      = nullptr; // pointer to the func to be integrated
+    rhs m_Func      = nullptr; // pointer to the gammaMinFunc to be integrated
     double m_X      = 0.0;
     double*  m_Y_i   = nullptr;
     double*  m_Y_o   = nullptr;
@@ -2071,7 +2071,7 @@ protected:
                          double const * ,  // initial data Y_0
                          void *            // parameters for RHS
     );
-    rhs m_Func      = nullptr; // pointer to the func to be integrated
+    rhs m_Func      = nullptr; // pointer to the gammaMinFunc to be integrated
     double m_X      = 0.0;
     double*  m_Y_i   = nullptr;
     double*  m_Y_o   = nullptr;
