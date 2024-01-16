@@ -116,14 +116,14 @@ public:
             eos_i = 0.35 * ns_mass*ns_period*ns_radius; // SHOULD BE GIVEN! IF not: magnetar moment of inertia from Gompertz (2014) norm = 2./5
         }
 
-        /// computeSynchrotronEmissivityAbsorption omega0
+        /// computeSynchrotronEmissivityAbsorptionAnalytic omega0
         double Omega0; // Gompertz et al. 2014, MNRAS 438, 240-250 ; eq. (10)
         if (!std::isfinite(ns_period) or ns_period < 0.)
             Omega0 = std::sqrt( 2. * ns_crit_beta * e_bind / eos_i );
         else
             Omega0 = 2.*CGS::pi/ns_period;
         double P0 = 2*CGS::pi/Omega0;
-        /// computeSynchrotronEmissivityAbsorption Tem (dipole spin-down time) eq. (6) of Zhang & Meszaros (2001) [s]
+        /// computeSynchrotronEmissivityAbsorptionAnalytic Tem (dipole spin-down time) eq. (6) of Zhang & Meszaros (2001) [s]
         double time_spindown = (3.*CGS::c*CGS::c*CGS::c*eos_i) / (ns_b*ns_b*std::pow(ns_radius,6.)*Omega0*Omega0 );
         /// spin-down (plateu) luminocity; eq. (8) of Zhang & Meszaros (2001); [ergs/s]
         double L_em0 = (eos_i*Omega0*Omega0) / (2.*time_spindown);
@@ -131,7 +131,7 @@ public:
         double mu = ns_b * ns_radius*ns_radius*ns_radius;
         /// keplerian angular freq. [s^-1]
         double OmegaKep = std::sqrt(CGS::gravconst * ns_mass / (ns_radius*ns_radius*ns_radius));//**0.5
-        /// computeSynchrotronEmissivityAbsorption viscous timescale (two versions: Gompertz 2014 and Rrayand) [s]
+        /// computeSynchrotronEmissivityAbsorptionAnalytic viscous timescale (two versions: Gompertz 2014 and Rrayand) [s]
         double viscous_time = -1;
         if (useGompertz){
             viscous_time = disk_radius*disk_radius;
@@ -189,7 +189,7 @@ public:
         return mdot;
     }
     inline double radius_magnetospheric(double mdot, double r_lc){
-        /// computeSynchrotronEmissivityAbsorption magnetospheric radius
+        /// computeSynchrotronEmissivityAbsorptionAnalytic magnetospheric radius
         double r_mag = std::pow(p_pars->mu, 4./7.)
                        * std::pow(CGS::gravconst*p_pars->ns_mass, -1./7.)
                        * std::pow(mdot, -2./7.);
@@ -215,7 +215,7 @@ public:
     inline double torque_propeller(double omega, double fastness, double r_mag, double mdot){
         double e_rot = 0.5*p_pars->eos_i*omega*omega; // Rotational energy of the NS
         double beta = e_rot / std::abs(p_pars->e_bind); // beta = T/|W| parameter (Gompertz 2014)
-        /// computeSynchrotronEmissivityAbsorption accretion torque ( Accretion torque, taking into account the propeller model ) Eq (6-7) of Gompertz et al. 2014
+        /// computeSynchrotronEmissivityAbsorptionAnalytic accretion torque ( Accretion torque, taking into account the propeller model ) Eq (6-7) of Gompertz et al. 2014
         double n_acc = 0.;
         if ((omega > p_pars->omega_c) and (beta < p_pars->ns_crit_beta)){
             // if NS hasn't collapsed and bar-mode instability is still present
@@ -227,7 +227,7 @@ public:
         return n_acc ;
     }
     inline double torque_gws(double omega){
-        /// computeSynchrotronEmissivityAbsorption Gravitational wave spindown torque (Zhang and Meszaros 2001)
+        /// computeSynchrotronEmissivityAbsorptionAnalytic Gravitational wave spindown torque (Zhang and Meszaros 2001)
         double n_grav = -32./5. * CGS::gravconst
                         * std::pow(CGS::pi,6.)
                         * p_pars->eos_i*p_pars->eos_i
@@ -249,10 +249,10 @@ public:
         /// Compute light cylinder radius (for a given NS rotation)
         double r_lc = CGS::c/omega;
 
-        /// computeSynchrotronEmissivityAbsorption magnetospheric radius
+        /// computeSynchrotronEmissivityAbsorptionAnalytic magnetospheric radius
         double r_mag = radius_magnetospheric(mdot, r_lc);
 
-        /// computeSynchrotronEmissivityAbsorption corotation radius (for a given NS mass and spin)
+        /// computeSynchrotronEmissivityAbsorptionAnalytic corotation radius (for a given NS mass and spin)
         double r_corot =  std::pow(CGS::gravconst * p_pars->ns_mass / (omega*omega), 1./3.);
 
         double fastness = std::pow(r_mag / r_corot, 1.5);
@@ -264,10 +264,10 @@ public:
         /// Compute Dipole spindown torque. Eq (8) of Zhang and Meszaros 2001
         double n_dip = torque_dipol(omega, r_lc, r_mag);
 
-        /// computeSynchrotronEmissivityAbsorption accretion torque ( Accretion torque, taking into account the propeller model ) Eq (6-7) of Gompertz et al. 2014
+        /// computeSynchrotronEmissivityAbsorptionAnalytic accretion torque ( Accretion torque, taking into account the propeller model ) Eq (6-7) of Gompertz et al. 2014
         double n_acc = torque_propeller(omega, fastness, r_mag, mdot);
 
-        /// computeSynchrotronEmissivityAbsorption Gravitational wave spindown torque (Zhang and Meszaros 2001)
+        /// computeSynchrotronEmissivityAbsorptionAnalytic Gravitational wave spindown torque (Zhang and Meszaros 2001)
         double n_grav = torque_gws(omega);
 
         /// domega/dt
@@ -301,7 +301,7 @@ public:
         double r_mag = radius_magnetospheric(mdot, r_lc);
         double r_corot =  std::pow(CGS::gravconst * p_pars->ns_mass / (omega*omega), 1./3.);
         double fastness = std::pow(r_mag / r_corot, 1.5);
-        /// computeSynchrotronEmissivityAbsorption accretion torque ( Accretion torque, taking into account the propeller model ) Eq (6-7) of Gompertz et al. 2014
+        /// computeSynchrotronEmissivityAbsorptionAnalytic accretion torque ( Accretion torque, taking into account the propeller model ) Eq (6-7) of Gompertz et al. 2014
         double n_acc = torque_propeller(omega, fastness, r_mag, mdot);
         /// propeller luminocity (Gompertz et al. (2014))
         double lprop = - n_acc*omega - CGS::gravconst*p_pars->ns_mass*mdot/r_mag;
@@ -332,9 +332,9 @@ public:
         double fastness = std::pow(r_mag / r_corot, 1.5);
         /// Compute Dipole spindown torque. Eq (8) of Zhang and Meszaros 2001
         double n_dip = torque_dipol(omega, r_lc, r_mag);
-        /// computeSynchrotronEmissivityAbsorption accretion torque ( Accretion torque, taking into account the propeller model ) Eq (6-7) of Gompertz et al. 2014
+        /// computeSynchrotronEmissivityAbsorptionAnalytic accretion torque ( Accretion torque, taking into account the propeller model ) Eq (6-7) of Gompertz et al. 2014
         double n_acc = torque_propeller(omega, fastness, r_mag, mdot);
-        /// computeSynchrotronEmissivityAbsorption Gravitational wave spindown torque (Zhang and Meszaros 2001)
+        /// computeSynchrotronEmissivityAbsorptionAnalytic Gravitational wave spindown torque (Zhang and Meszaros 2001)
         double n_grav = torque_gws(omega);
         /// Dipole spindown luminosity
         double ldip = -n_dip*omega;
@@ -864,7 +864,7 @@ struct PWNPars{
     std::unique_ptr<Ejecta> & p_ej;
     std::unique_ptr<Magnetar> & p_mag;
     std::unique_ptr<MagnetarSynchrotron> p_syn = nullptr;
-//        std::unique_ptr<SynchrotronAnalytic> p_syna = nullptr;
+//        std::unique_ptr<SynchrotronAnalytic> p_syn_a = nullptr;
     std::unique_ptr<logger> p_log;
     Vector m_freq_arr{}; Vector m_time_arr{}; Vector m_r_arr{};
     Vector m_synch_em{}; Vector m_synch_abs{}; Vector m_spectrum{};
@@ -1154,7 +1154,7 @@ public:
 //        v_w = v_ej; // TODO make a proper model...
 
         p_pars->mom=EQS::MomFromBeta(v_w/CGS::c);
-        // computeSynchrotronEmissivityAbsorption nebula energy \int(Lem * min(1, tau_T^ej * V_ej / c))dt Eq.[28] in Eq. 28 in Kashiyama+16
+        // computeSynchrotronEmissivityAbsorptionAnalytic nebula energy \int(Lem * min(1, tau_T^ej * V_ej / c))dt Eq.[28] in Eq. 28 in Kashiyama+16
         double dEnbdt = 0;
         if (tau_ej * (r_w / r_ej) > CGS::c / v_w){
             dEnbdt = (p_pars->eps_e * p_pars->curr_ldip
@@ -1722,10 +1722,10 @@ public:
         double tburst= interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::itburst]);
         ctheta = p_pars->ctheta0;
         // double GammaSh = ( Interp1d(m_data[BW::Q::iR], m_data[BW::Q::iGammaFsh] ) ).Interpolate(r, mth );
-        /// computeSynchrotronEmissivityAbsorption Doppler factor
+        /// computeSynchrotronEmissivityAbsorptionAnalytic Doppler factor
         double a = 1.0 - beta * mu; // beaming factor
         double delta_D = Gamma * a; // doppler factor
-        /// computeSynchrotronEmissivityAbsorption the comoving obs. frequency from given one in obs. frame
+        /// computeSynchrotronEmissivityAbsorptionAnalytic the comoving obs. frequency from given one in obs. frame
         double nuprime = (1.0 + p_pars->z) * nu_obs * delta_D;
         if (nuprime < p_pars->m_freq_arr[0]) {
             (*p_pars->p_log)(LOG_WARN, AT) << " freqprime=" << nuprime << " < freq_arr[0]="
@@ -1771,7 +1771,7 @@ public:
         double em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
         double abs_lab = abs_prime * delta_D; // conversion of absorption (see vanEerten+2010)
 
-        /// computeSynchrotronEmissivityAbsorption optical depth (for this shock radius and thickness are needed)
+        /// computeSynchrotronEmissivityAbsorptionAnalytic optical depth (for this shock radius and thickness are needed)
         double GammaShock = interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::iGammaTermShock]);
         double dr = interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::idr]);
         double dr_tau = EQS::shock_delta(r, GammaShock); // TODO this is added becasue in Johanneson Eq. I use ncells
@@ -2153,12 +2153,12 @@ private:
         (*p_log)(LOG_INFO,AT) << "Computing and saving PWN comoving spectrum...\n";
 
 //        if (!is_synch_computed){
-//            std::cerr << " ejecta analytic electrons were not evolved. Cannot computeSynchrotronEmissivityAbsorption light curve (analytic) exiting...\n";
+//            std::cerr << " ejecta analytic electrons were not evolved. Cannot computeSynchrotronEmissivityAbsorptionAnalytic light curve (analytic) exiting...\n";
 //            std::cerr << AT << " \n";
 //            exit(1);
 //        }
         if (!is_obs_pars_set){
-            std::cerr << " ejecta observer parameters are not set. Cannot computeSynchrotronEmissivityAbsorption light curve (analytic) exiting...\n";
+            std::cerr << " ejecta observer parameters are not set. Cannot computeSynchrotronEmissivityAbsorptionAnalytic light curve (analytic) exiting...\n";
             std::cerr << AT << " \n";
             exit(1);
         }
@@ -2239,7 +2239,7 @@ private:
 //            exit(1);
 //        }
         if (!is_obs_pars_set){
-            std::cerr << " ejecta observer parameters are not set. Cannot computeSynchrotronEmissivityAbsorption light curve (analytic) exiting...\n";
+            std::cerr << " ejecta observer parameters are not set. Cannot computeSynchrotronEmissivityAbsorptionAnalytic light curve (analytic) exiting...\n";
             std::cerr << AT << " \n";
             exit(1);
         }

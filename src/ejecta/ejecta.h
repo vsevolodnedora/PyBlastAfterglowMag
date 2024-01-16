@@ -243,12 +243,12 @@ private:
         (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta sky image with analytic synchrotron...\n";
 
         if (!is_ejecta_anal_synch_computed){
-            std::cerr  << "ejecta analytic electrons were not evolved. Cannot computeSynchrotronEmissivityAbsorption images (analytic) exiting...\n";
+            std::cerr  << "ejecta analytic electrons were not evolved. Cannot computeSynchrotronEmissivityAbsorptionAnalytic images (analytic) exiting...\n";
             std::cerr << AT << " \n";
             exit(1);
         }
         if (!is_ejecta_obs_pars_set){
-            std::cerr<< "ejecta observer parameters are not set. Cannot computeSynchrotronEmissivityAbsorption image (analytic) exiting...\n";
+            std::cerr<< "ejecta observer parameters are not set. Cannot computeSynchrotronEmissivityAbsorptionAnalytic image (analytic) exiting...\n";
             std::cerr << AT << " \n";
             exit(1);
         }
@@ -366,11 +366,11 @@ private:
 //        size_t ncells =  (int)p_cumShells->ncells();
 
         if (!is_ejecta_anal_synch_computed){
-            (*p_log)(LOG_INFO,AT) << " ejecta analytic electrons were not evolved. Cannot computeSynchrotronEmissivityAbsorption light curve (analytic) exiting...\n";
+            (*p_log)(LOG_INFO,AT) << " ejecta analytic electrons were not evolved. Cannot computeSynchrotronEmissivityAbsorptionAnalytic light curve (analytic) exiting...\n";
             exit(1);
         }
         if (!is_ejecta_obs_pars_set){
-            (*p_log)(LOG_INFO,AT) << " ejecta observer parameters are not set. Cannot computeSynchrotronEmissivityAbsorption light curve (analytic) exiting...\n";
+            (*p_log)(LOG_INFO,AT) << " ejecta observer parameters are not set. Cannot computeSynchrotronEmissivityAbsorptionAnalytic light curve (analytic) exiting...\n";
             exit(1);
         }
 
@@ -383,7 +383,7 @@ private:
 
         /// evaluate light curve
 //        auto spectrum = evalEjectaSpectrum();
-        auto & spec_freqs = p_cumShells[0]->getBW(0)->getPars()->p_syna->m_freq_arr;
+        auto & spec_freqs = p_cumShells[0]->getBW(0)->getPars()->p_syn_a->m_freq_arr;
         if (spec_freqs.size()<1){
             (*p_log)(LOG_INFO,AT) << " m_freq_arr is not initialized for a BW. Cannot compute comoving spectrum \n ";
             exit(1);
@@ -406,13 +406,13 @@ private:
             for (size_t ishell = 0; ishell < nshells(); ++ishell) {
                 for (size_t ilayer = 0; ilayer < nlayers(); ++ilayer) {
                     if (var == "em")
-                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syna->out_spectrum[itnu];
+                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syn_a->out_spectrum[itnu];
                     else if (var == "abs")
-                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syna->out_specturm_ssa[itnu];
+                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syn_a->out_specturm_ssa[itnu];
                     else if (var == "em_rs")
-                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syna_rs->out_spectrum[itnu];
+                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syn_a_rs->out_spectrum[itnu];
                     else if (var == "abs_rs")
-                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syna_rs->out_specturm_ssa[itnu];
+                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syn_a_rs->out_specturm_ssa[itnu];
                     else{
                         (*p_log)(LOG_INFO,AT) << " spec_var_out is not recognized. Possible options: "
                                               << " em "<< " abs "<<" em_rs " <<" abs_rs "<<" Givem="<<var<<"\n";
@@ -447,17 +447,17 @@ private:
             for (size_t ilayer = 0; ilayer < nlayers(); ++ilayer) {
                 group_names.emplace_back("shell=" + std::to_string(ishell) + " layer=" + std::to_string(ilayer));
                 total_fluxes_shell_layer[ii].resize(n,0.);
-                auto & spectrum = p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syna->out_spectrum;
+                auto & spectrum = p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syn_a->out_spectrum;
                 for (size_t ifnu = 0; ifnu < n; ifnu++) {
 
                     if (var == "em")
-                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syna->out_spectrum[ifnu];
+                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syn_a->out_spectrum[ifnu];
                     else if (var == "abs")
-                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syna->out_specturm_ssa[ifnu];
+                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syn_a->out_specturm_ssa[ifnu];
                     else if (var == "em_rs")
-                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syna_rs->out_spectrum[ifnu];
+                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syn_a_rs->out_spectrum[ifnu];
                     else if (var == "abs_rs")
-                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syna_rs->out_specturm_ssa[ifnu];
+                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syn_a_rs->out_specturm_ssa[ifnu];
                     else{
                         (*p_log)(LOG_INFO,AT) << " spec_var_out is not recognized. Possible options: "
                                               << " em "<< " abs "<<" em_rs " <<" abs_rs "<<" Givem="<<var<<"\n";
@@ -486,7 +486,7 @@ private:
         (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta spectrum with analytic synchrotron...\n";
 
         if (!is_ejecta_anal_synch_computed){
-            (*p_log)(LOG_INFO,AT) << " ejecta analytic electrons were not evolved. Cannot computeSynchrotronEmissivityAbsorption light curve (analytic) exiting...\n";
+            (*p_log)(LOG_INFO,AT) << " ejecta analytic electrons were not evolved. Cannot computeSynchrotronEmissivityAbsorptionAnalytic light curve (analytic) exiting...\n";
             exit(1);
         }
 
@@ -503,11 +503,11 @@ private:
                 std::string group_name = "shell=" + std::to_string(ish) + " layer=" + std::to_string(il);
                 H5::Group grp(file.createGroup(group_name));
                 auto &bw = getShells()[il]->getBW(ish);
-                Output::addVectorToGroup(grp, bw->getPars()->p_syna->out_spectrum, "synch_em_fs");
-                Output::addVectorToGroup(grp, bw->getPars()->p_syna->out_specturm_ssa, "synch_abs_fs");
+                Output::addVectorToGroup(grp, bw->getPars()->p_syn_a->out_spectrum, "synch_em_fs");
+                Output::addVectorToGroup(grp, bw->getPars()->p_syn_a->out_specturm_ssa, "synch_abs_fs");
                 if (bw->getPars()->do_rs){
-                    Output::addVectorToGroup(grp, bw->getPars()->p_syna_rs->out_spectrum, "synch_em_rs");
-                    Output::addVectorToGroup(grp, bw->getPars()->p_syna_rs->out_specturm_ssa, "synch_abs_rs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->out_spectrum, "synch_em_rs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->out_specturm_ssa, "synch_abs_rs");
                 }
                 grp.close();
             }
@@ -516,13 +516,13 @@ private:
         auto &bw0 = getShells()[0]->getBW(0);
 
         /// make vectors for time and freq with the same structure as emissivity and absorption
-        Vector _times(bw0->get_tburst().size()*bw0->getPars()->p_syna->m_freq_arr.size(),0.);
-        Vector _freqs(bw0->get_tburst().size()*bw0->getPars()->p_syna->m_freq_arr.size(),0.);
+        Vector _times(bw0->get_tburst().size()*bw0->getPars()->p_syn_a->m_freq_arr.size(), 0.);
+        Vector _freqs(bw0->get_tburst().size()*bw0->getPars()->p_syn_a->m_freq_arr.size(), 0.);
         size_t ii =0;
         for (size_t it = 0; it < bw0->get_tburst().size(); it++) {
-            for (size_t ifreq = 0; ifreq < bw0->getPars()->p_syna->m_freq_arr.size(); ifreq++){
+            for (size_t ifreq = 0; ifreq < bw0->getPars()->p_syn_a->m_freq_arr.size(); ifreq++){
                 _times[ii]=bw0->get_tburst()[it];
-                _freqs[ii]=bw0->getPars()->p_syna->m_freq_arr[ifreq];
+                _freqs[ii]=bw0->getPars()->p_syn_a->m_freq_arr[ifreq];
                 ii++;
             }
         }

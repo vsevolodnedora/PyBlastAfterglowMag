@@ -1668,7 +1668,7 @@ namespace Integrators {
             double* _restrict const k1 = buffer.ptr<double>() + size * 1;
             double* _restrict const k2 = buffer.ptr<double>() + size * 2;
 
-            // computeSynchrotronEmissivityAbsorption a first guess for explicit euler as:
+            // computeSynchrotronEmissivityAbsorptionAnalytic a first guess for explicit euler as:
             //   h1 = 0.01 * NORM(value) / NORM(k1).
             double dnf = 0.0, dny = 0.0;
             for (std::size_t i = 0; i < size; i++) {

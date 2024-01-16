@@ -147,7 +147,7 @@ public:
     }
 
     static size_t _evalTotalNcells(size_t nlayers){
-        /// computeSynchrotronEmissivityAbsorption the number of phi cells in each 'theta' layer
+        /// computeSynchrotronEmissivityAbsorptionAnalytic the number of phi cells in each 'theta' layer
         std::vector<size_t> cil;
         _evalCellsInLayer(nlayers, cil);
         size_t ncells = std::accumulate(cil.begin(), cil.end(), decltype(cil)::value_type(0));

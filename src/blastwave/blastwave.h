@@ -1178,7 +1178,7 @@ public:
             dGammaRhodR = 0.;
         }
 
-        /// computeSynchrotronEmissivityAbsorption the relative velocity of the ISM (with respect to ejecta) and its derivative
+        /// computeSynchrotronEmissivityAbsorptionAnalytic the relative velocity of the ISM (with respect to ejecta) and its derivative
 //            double betaREL = EQS::BetaRel(EQS::Beta(ej_Gamma),EQS::Beta(GammaCMB));
 //            GammaREL = EQS::Gamma(betaREL);
         GammaREL = EQS::GammaRel(ej_Gamma,GammaCMB);
@@ -2440,7 +2440,7 @@ void BlastWave::rhs_fs_dense_pwn(double * out_Y, size_t i, double x, double cons
     if (v_w > beta*CGS::c){
         v_w = beta*CGS::c; } // velocity should also be bounded by BW TODO see if not
     double mom_wind = EQS::MomFromBeta(v_w/CGS::c);
-    double dEnbdt = 0; // computeSynchrotronEmissivityAbsorption nebula energy \int(Lem * min(1, tau_T^ej * V_ej / c))dt
+    double dEnbdt = 0; // computeSynchrotronEmissivityAbsorptionAnalytic nebula energy \int(Lem * min(1, tau_T^ej * V_ej / c))dt
     if (bw_tau * (r_w / R) > CGS::c / v_w){ // Eq.[28] in Eq. 28 in Kashiyama+16
         dEnbdt = (p_pars->eps_e_w * ldip + p_pars->epsth_w * lacc);
     }

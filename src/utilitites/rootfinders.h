@@ -956,7 +956,7 @@ int hybrd ( void fcn ( int n, double x[], double fvec[], int &iflag, void * pars
 
     fnorm = enorm ( n, fvec );
 //
-//  Determine the number of calls to FCN needed to computeSynchrotronEmissivityAbsorption the jacobian matrix.
+//  Determine the number of calls to FCN needed to computeSynchrotronEmissivityAbsorptionAnalytic the jacobian matrix.
 //
     if ( ml + mu + 1 < n )
     {
@@ -1457,7 +1457,7 @@ void qrfac ( int m, int n, double a[], int lda, bool pivot, int ipvt[],
 //  Discussion:
 //
 //    This function uses Householder transformations with optional column
-//    pivoting to computeSynchrotronEmissivityAbsorption a QR factorization of the M by N matrix A.
+//    pivoting to computeSynchrotronEmissivityAbsorptionAnalytic a QR factorization of the M by N matrix A.
 //
 //    That is, QRFAC determines an orthogonal
 //    matrix Q, a permutation matrix P, and an upper trapezoidal

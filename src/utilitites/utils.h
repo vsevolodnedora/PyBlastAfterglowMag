@@ -18,6 +18,7 @@ typedef std::unordered_map<std::string,std::string> StrStrMap;
 inline namespace CGS{
     const double &c  = 2.99792458e10;     // speed of light in cm / s
     const double &c2  = c * c;     // speed of light in cm / s
+    const double &c3  = c * c * c;     // speed of light in cm / s
     const double &pi = 3.141592653589793; // pi
     const double &mp = 1.6726e-24;        // proton mass
     const double &me = 9.1094e-28;        //electron mass

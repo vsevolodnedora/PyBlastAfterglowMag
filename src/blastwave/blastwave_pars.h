@@ -38,8 +38,8 @@ struct Pars{
         p_log = std::make_unique<logger>(std::cout,std::cerr,loglevel,"Pars");
     }
 
-    std::unique_ptr<RadiationNumeric> p_syna = nullptr;
-    std::unique_ptr<RadiationNumeric> p_syna_rs = nullptr;
+    std::unique_ptr<ElectronAndRadiation> p_syn_a = nullptr;
+    std::unique_ptr<ElectronAndRadiation> p_syn_a_rs = nullptr;
 
 //    std::unique_ptr<ShockMicrophysics> & p_fs;
 //    std::unique_ptr<ShockMicrophysics> & p_rs;
@@ -169,6 +169,7 @@ struct Pars{
     METHODS_SHOCK_VEL method_shock_vel_rs{};
     METHOD_NE m_method_ne{};
     METHODS_RAD m_method_rad{};
+//    METHODS_SHOCK_ELE m_method_shock_ele{};
     /// ---------------------------
     int opacitymode = -1;
     double Z_eff=-1.; // electron mean molecular weight

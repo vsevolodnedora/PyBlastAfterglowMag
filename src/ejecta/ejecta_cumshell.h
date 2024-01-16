@@ -749,7 +749,7 @@ public:
 
     }
     /// Evaluate shell total mass, volume, density
-    /// next three functions computeSynchrotronEmissivityAbsorption mass, volume and average density of the entire shell
+    /// next three functions computeSynchrotronEmissivityAbsorptionAnalytic mass, volume and average density of the entire shell
     double getShellMass(const double * Y_){
         double mtot = 0.;
         for (size_t ii=0; ii<p_pars->n_active_shells; ++ii){

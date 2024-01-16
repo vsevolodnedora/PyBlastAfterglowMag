@@ -5,22 +5,27 @@
 #ifndef SRC_KERNELS_H
 #define SRC_KERNELS_H
 
+# define M_SQRT3    1.7320508075688772	/* sqrt(3) */
+
 #include "../utilitites/utils.h"
+#include "numeric_model.h"
 
 class SSCKernel{
 
     std::vector<VecVector> kernel; // [i_nu_ssc, i_gam, i_nu_syn]
     VecVector kernel_integral;     // [i_gam, i_nu_syn]
-    State & ssc; State & ele; State & syn;
-    double (*m_func) (double,double,double);
+//    State & ssc; State & ele; State & syn;
+    double (*m_func) (double,double,double) = nullptr;
 
 public:
 
-    SSCKernel(State & ele, State & syn, State & ssc, double (*func)(double,double,double))
-            :ele(ele),syn(syn),ssc(ssc),m_func(func){}
+//    SSCKernel(State & ele, State & syn, State & ssc, double (*func)(double,double,double))
+//            :ele(ele),syn(syn),ssc(ssc),m_func(func){}
 
-    void evalSSCkernel(){
-//        std::vector<VecVector> kernel{};
+    SSCKernel() = default;
+
+    void allocate(State & ele, State & syn, State & ssc, double (*m_func_) (double,double,double)){
+        //        std::vector<VecVector> kernel{};
         kernel.resize(ssc.numbins);
         /// allocate memory
         for (auto & vecvec : kernel) {
@@ -28,6 +33,10 @@ public:
             for (auto & vec : vecvec)
                 vec.resize(syn.numbins, 0.);
         }
+        m_func = m_func_;
+    }
+
+    void evalSSCkernel(State & ele, State & syn, State & ssc){
         /// compute kernel
 //    auto * eq = ssc_kernel_nava;
         for (size_t i = 0; i < ssc.numbins; i++){
@@ -40,9 +49,9 @@ public:
 //        return std::move( kernel );
     }
 
-    void evalSSCgridIntergral(){
+    void evalSSCgridIntergral(State & ele, State & syn, State & ssc){
 
-        double h = 6.6261e-27; //  erg*sec
+//        double h = 6.6261e-27; //  erg*sec
 
         /// allocate memory
         kernel_integral.resize(ele.numbins);
@@ -57,7 +66,7 @@ public:
                     res += kernel[i][j][k]
                            * (ssc.e[i+1] / 8.093440820813486e-21) // freq
                            * (ssc.de[i+1] / 8.093440820813486e-21) // dfreq
-                           * h;
+                           * CGS::h;
                 }
                 kernel_integral[j][k] = res; // [i_gamma, i_energy_syn]
             }
@@ -92,12 +101,12 @@ public:
     static double sscHUANG(double en_ssc, double gam, double en_syn){
         double freq_ssc = en_ssc / 8.093440820813486e-21;
         double freq_syn = en_syn / 8.093440820813486e-21;
-        double mec2 = 8.187e-7; // ergs
-        double h = 6.6261e-27; // erg*sec
+//        double mec2 = 8.187e-7; // ergs
+//        double h = 6.6261e-27; // erg*sec
         double g = gam * h * freq_syn / mec2;
         double w = h * freq_ssc / gam / mec2;
         double q = w / (4.*g*(1.-w));
-        double freq_ssc_max = gam * mec2 * 4. * g / (4. * g + 1.) / h;
+        double freq_ssc_max = gam * CGS::mec2 * 4. * g / (4. * g + 1.) / CGS::h;
         double f = 0.;
         if ((freq_ssc > freq_syn) && (freq_ssc < freq_ssc_max))
             f = 2. * q * std::log(q) \
@@ -141,14 +150,17 @@ double cheb_eval(const double * coeff, int order, double a, double b, double x){
 
 class SynKernel{
     VecVector kernel{}; // [i_freq, i_gam]
-    double (*m_func) (double,double,double);
-    State & ele; State & syn;
+    double (*m_func) (double,double,double) = nullptr;
+//    State & ele; State & syn;
 public:
-    SynKernel(State & ele, State & syn, double (*func) (double,double,double)) : ele(ele), syn(syn), m_func(func){
+    SynKernel() = default;
+
+    void allocate(State & ele, State & syn, double (*m_func_) (double,double,double)){
         /// allocate memory for the kernel (kernel is not static, but size is)
         kernel.resize(syn.numbins);
         for (auto & arr : kernel)
             arr.resize(ele.numbins);
+        m_func = m_func_;
     }
 
     /**
@@ -319,7 +331,7 @@ public:
      * Fill the kernel array with values for this value of magnetic field
      * @param B
      */
-    void evalSynKernel(double B){
+    void evalSynKernel(State & ele, State & syn, double B){
         for (size_t k = 0; k < syn.numbins; k++){
             for (size_t j = 0; j < ele.numbins; j++){
                 kernel[k][j] = m_func(B, syn.e[k], ele.e[j]);
@@ -335,3 +347,5 @@ public:
 };
 
 #endif //SRC_KERNELS_H
+
+

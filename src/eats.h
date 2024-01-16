@@ -14,9 +14,7 @@
 #include "utilitites/quadratures.h"
 #include "utilitites/rootfinders.h"
 #include "image.h"
-#include "radiation/radiation.h"
-#include "microphysics/analytic.h"
-#include "microphysics/numeric.h"
+
 //#include "blastwave.h"
 
 
@@ -257,7 +255,7 @@ void saveImages(std::vector<ImageExtend> & ims, Vector & times, Vector & freqs,
     file.close();
 }
 
-/// methods to computeSynchrotronEmissivityAbsorption radiation from a Blastwave
+/// methods to computeSynchrotronEmissivityAbsorptionAnalytic radiation from a Blastwave
 
 
 class EATS {
@@ -397,7 +395,7 @@ class EATS {
                              void* params ){
 
         auto * p_pars = (struct EATS *) params; // removing EATS_pars for simplicity
-//        auto & p_syna = p_pars->p_syna;//->getAnSynch();
+//        auto & p_syn_a = p_pars->p_syn_a;//->getAnSynch();
 //        auto * p_log = p_ params;
 //        auto & m_data = p_pars->m_data;
         auto & tburst = p_pars->m_tburst;//m_data[BW::Q::itburst];
@@ -517,9 +515,9 @@ class EATS {
             double ashock = (1.0 - mu * beta_shock); // shock velocity beaming factor
             dr /= ashock; // TODO why is this here? What it means? Well.. Without it GRB LCs do not work!
             dr_tau /= ashock;
-            double dtau = RadiationBase::optical_depth(abs_lab,dr_tau, mu, beta_shock);
-            double intensity = RadiationBase::computeIntensity(em_lab, dtau,
-                                                               p_syna->getPars()->method_tau);
+            double dtau = ElectronAndRadiaionBase::optical_depth(abs_lab,dr_tau, mu, beta_shock);
+            double intensity = ElectronAndRadiaionBase::computeIntensity(em_lab, dtau,
+                                                               p_syn_a->getPars()->method_tau);
             double flux_dens = (intensity * r * r * dr); //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
             dFnu+=flux_dens;
             /// save the result in image
@@ -630,7 +628,7 @@ class EATS {
     //            double nprime3 = 4.0 * Gamma * (rho4 / CGS::mppme);
     //            double nprime3 = p_pars->eq_rho2(Gamma, rho4 / CGS::mp, gammaAdi_rs); // TODO check if for RS here is Gamma!
                 double nprime3 = rho3 / CGS::mp;
-                /// computeSynchrotronEmissivityAbsorption the 'thickness' of the shock (emitting region)
+                /// computeSynchrotronEmissivityAbsorptionAnalytic the 'thickness' of the shock (emitting region)
     //            double dr_rs = thick3;
 
     //          // TODO check if for the shock velocity gamma43 has to be used!!! I think it is gam43! See gammaAdi calc.
@@ -970,7 +968,7 @@ public:
         method_quad = methodsQuadratures;
 
         /// set synchrotron parameters
-//            p_syna->setPars(pars, opts);
+//            p_syn_a->setPars(pars, opts);
         skymap_remove_mu = getBoolOpt("skymap_remove_mu", opts, AT, p_log,true, true);
 
     }
@@ -1041,7 +1039,7 @@ public:
                                  <<", "<<m_tburst[m_i_end_r-1]<<" Extend tburst grid or shorten tobs grid. \n";
             exit(1);
         }
-        /// computeSynchrotronEmissivityAbsorption image for primary jet and counter jet
+        /// computeSynchrotronEmissivityAbsorptionAnalytic image for primary jet and counter jet
         double int_pj=0., int_cj=0.;
         int_pj = evalSkyMapA(out, t_obs, freq_obs, il, offset, cil, obsAngle, imageXXs, imageYYs);
         if (counter_jet) // p_eats->counter_jet

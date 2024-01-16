@@ -14,8 +14,7 @@
 
 #include "../blastwave/blastwave_components.h"
 
-#include "kernels.h"
-
+#include "numeric_model.h"
 
 enum METHODS_SHOCK_ELE { iShockEleAnalyt, iShockEleNum };
 
@@ -971,7 +970,7 @@ struct Dermer09{
             return brokenPowerLaw(gam, gmin, gb, gmax, p1, p2);
         };
 
-        // computeSynchrotronEmissivityAbsorption electron distribution normalisation
+        // computeSynchrotronEmissivityAbsorptionAnalytic electron distribution normalisation
         double k_e = nprim / Simpson38(gm, gM, 200, integrand_ele); // TODO replace with adative integrals
 
         // convolve the electron distribution with emission spectrum and itegrate
@@ -991,80 +990,7 @@ struct Dermer09{
 };
 
 
-struct State{
-    /// limits
-    double x1=-1;
-    double x2=-1;
-    size_t numbins=0;
-    /// arrays
-    Vector e{}, de{}, half_e{}, j{}, a{}, n{}, f{};
-    Vector dfde{}; /// For SSA calcualtions
-
-    /// for chang cooper scheme
-    Vector delta_grid{}, delta_grid_bar{};
-
-    State() = default;
-
-    void allocate(double x1_, double x2_, size_t numbins_){
-
-        x1=x1_;
-        x2=x2_;
-        numbins=numbins_;
-
-        e = TOOLS::MakeLogspaceVec(std::log10(x1),std::log10(x2), (int)numbins);
-
-        de.resize(numbins-1);
-        for (size_t i = 0; i < numbins-1; i++) // de = e[1:] - e[:-1]
-            de[i] = e[i+1] - e[i];
-
-        half_e.resize(numbins-1);
-        j.resize(numbins);
-        a.resize(numbins);
-        n.resize(numbins);
-        f.resize(numbins);
-        dfde.resize(numbins);
-    }
-
-    /**
-     * Construct extra grids that are used by Chang Cooper scheme
-     */
-    void build_grid_chang_cooper(){
-
-        if (numbins < 1){
-            std::cout << " state is not initialized, empty \n";
-            exit(1);
-        }
-
-        double step = std::exp((std::log(x2) / (double)numbins));
-        double step_plus_one = step + 1.0;
-
-        /// now build the grid and the half grid points
-        /// we also make squared terms just incase
-        for (size_t i = 0; i < numbins; i++){
-            e[i] = std::pow(step, (double)i);
-            if (i < numbins - 1)
-                half_e[i] = .5 * e[i] * step_plus_one;
-        }
-
-        delta_grid.resize(numbins+1);
-        for (size_t i = 0; i < numbins-1; i++)
-            delta_grid[i+1] = e[i+1]-e[i];
-        ///  we need to add extra end points to the grid
-        ///  so that we can compute the delta at the boundaries
-        delta_grid[0] = e[0] * (1 - 1.0 / step);
-        delta_grid[numbins] = e[numbins-1] * (step - 1);
-
-        delta_grid_bar.resize(numbins);
-        for (size_t i = 0; i < numbins; i++)
-            delta_grid_bar[i] = (delta_grid[i] + delta_grid[i+1])/2.;
-
-        std::cout<<delta_grid_bar<<"\n";
-    }
-
-};
-
-
-class RadiationBase{
+class ElectronAndRadiaionBase{
 public:
     Vector out_spectrum{}; Vector out_specturm_ssa{};
     Vector m_freq_arr{};
@@ -1077,7 +1003,7 @@ public:
     METHOD_TAU method_tau{}; double beta_min = -1;
     METHODS_SHOCK_ELE m_eleMethod{};
     /// --------------------------------------
-    void setPars( StrDbMap & pars, StrStrMap & opts ){
+    void setBasePars( StrDbMap & pars, StrStrMap & opts ){
 
         // set parameters
         std::string fs_or_rs;
@@ -1362,54 +1288,63 @@ public:
             }
         }
         method_tau = methodTau;
-
-        // ---
-        (*p_log)(LOG_INFO,AT) << " allocating memory for gamma_arr\n";
-
     }
-    void allocateSpectrumStorage(size_t nr, StrDbMap & pars, StrStrMap & opts){
-
-        /// get freq. boundaries for calculation of the comoving spectrum
-        double freq1 = getDoublePar("freq1", pars, AT, p_log,1.e7, true);//pars.at("freq1");
-        double freq2 = getDoublePar("freq2", pars, AT, p_log,1.e28, true);//pars.at("freq2");
-        size_t nfreq = (size_t)getDoublePar("nfreq", pars, AT, p_log,200, true);//pars.at("nfreq");
-
-        (*p_log)(LOG_INFO,AT) << " allocating comoving spectrum array (fs) "
-                              << " freqs="<<nfreq << " by radii=" << nr << " Spec. grid="
-                              << nfreq * nr << "\n";
-
-        /// allocate space for the comoving spectrum
+    void allocateStorageForOutputSpectra(size_t nr, double freq1, double freq2,  size_t nfreq){
         m_freq_arr = TOOLS::MakeLogspaceVec(log10(freq1), log10(freq2),(int)nfreq);
+        /// allocate space for the comoving spectrum
+        out_spectrum.resize(nfreq * nr );
+        out_specturm_ssa.resize(nfreq * nr );
 
-        out_spectrum.resize(m_freq_arr.size() * nr );
-        out_specturm_ssa.resize(m_freq_arr.size() * nr );
-
-        /// allocate spectrum for evolving electrons numerically
-        if (m_eleMethod == METHODS_SHOCK_ELE::iShockEleNum){
-            double gam1 = getDoublePar("gam1", pars, AT, p_log,1, true);//pars.at("freq1");
-            double gam2 = getDoublePar("gam2", pars, AT, p_log,1.e8, true);//pars.at("freq2");
-            size_t ngams = (size_t)getDoublePar("ngam", pars, AT, p_log,250, true);//pars.at("nfreq");
-
-            ele->allocate(gam1, gam2, ngams);
-            ele->build_grid_chang_cooper(); // build the grid for the implicit solver
-
-            syn = State (freq1*CGS::freqToErg, freq2*CGS::freqToErg, nfreq);
-
-            if (m_methods_ssc == METHOD_SSC::iNumSSC)
-                ssc = State (freq1*CGS::freqToErg, freq2*CGS::freqToErg, nfreq);
-
-            if (m_sychMethod != METHODS_SYNCH::iGSL or m_sychMethod != METHODS_SYNCH::iDER06){
-                (*p_log)(LOG_ERR,AT) << " only GSL or DER06 synchrotron options are "
-                                        "avaialble when evolving electrons numerically. \n";
-                exit(1);
-            }
-
-            /// allocate memory for synchrotron kernel
-//            syn_kernel = std::make_unique<SynKernel>(*ele, *syn, SynKernel::synchGSL);
-            SynKernel sync = SynKernel(ele, syn, SynKernel::synchGSL);
-
-        }
     }
+    /// store current shock properties
+    void updateSockProperties(double e_prime, double Gamma_, double Gamma_shock, double t_e_, double n_prime_){
+        /// Store current parameters
+
+        GammaSh = Gamma_shock; // for bisect solver
+        eprime = e_prime; // for bisect solver
+        Gamma = Gamma_; // for bisect solver
+        beta = EQS::Beta(Gamma_shock); // for bisect solver
+        t_e = t_e_; // for bisect solver
+        n_prime = ksi_n * n_prime_; //  for bisect solver
+    }
+    /// In case the electrons were computed elsewhere E.g., if interpolated for EATS plane
+    void setShockElectronParameters(double n_prime_, double acc_frac,
+                                    double B_, double gm, double gM, double gc,
+                                    double Theta_, double z_cool_){
+
+        if (!std::isfinite(gm) || !std::isfinite(gc) || !std::isfinite(n_prime_)) {
+            (*p_log)(LOG_ERR, AT) << " nans is synchrotron spectum\n";
+            exit(1);
+        }
+
+        gamma_min = gm;
+        gamma_max = gM;
+        n_prime = n_prime_;
+        B = B_;
+        accel_frac = acc_frac;
+        gamma_c = gc;
+        z_cool = z_cool_;
+        Theta = Theta_;
+    }
+    /// evaluate frequency independent quantities (critical LFs, Bfield, etc)
+    void evaluateElectronDistributionAnalytic() {
+
+        if (not checkParams())
+            return;
+
+        computeMagneticField();
+
+        computeGammaMax();
+
+        computeGammaMin();
+
+        computeNonRelativisticFlattening();
+
+        /// compute cooling lorentz factor
+        gamma_c = 6. * CGS::pi * CGS::me * CGS::c / (CGS::sigmaT * t_e * B * B) / Gamma; // Eq. A19 in vanEarten+10
+    }
+    /// ---
+    [[nodiscard]] ElectronAndRadiaionBase const * getThis() const { return this; }
 protected:
     int m_loglevel = -1;
     std::unique_ptr<logger> p_log = nullptr;
@@ -1427,13 +1362,7 @@ protected:
     METHODS_SSA m_methods_ssa{};
     METHOD_SSC m_methods_ssc{};
     /// --------------------------------------
-    std::unique_ptr<State> ele = nullptr;
-    std::unique_ptr<State> syn = nullptr;
-    std::unique_ptr<State> ssc = nullptr;
-    std::unique_ptr<SSCKernel> ssc_kernel = nullptr;
-    std::unique_ptr<SynKernel> syn_kernel = nullptr;
-    /// --------------------------------------
-    RadiationBase(int loglevel, bool _is_rs){
+    ElectronAndRadiaionBase(int loglevel, bool _is_rs){
         m_loglevel = loglevel; is_rs = _is_rs;
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "SynchrotronAnalytic");
     }
@@ -1492,7 +1421,7 @@ protected:
     }
     /// --------------------------------------
     static double gammaMinFunc(const double &x, void * pars){
-        auto * pp = (struct RadiationBase *) pars;
+        auto * pp = (struct ElectronAndRadiaionBase *) pars;
         return (pp->p - 1) / (pp->p - 2)
             * (std::pow(pp->gamma_max, -pp->p + 2) - std::pow(x, -pp->p + 2))
             / (std::pow(pp->gamma_max, -pp->p + 1) - std::pow(x, -pp->p + 1))
@@ -1531,7 +1460,7 @@ protected:
     void computeGammaMin(){
         /// compute injection LF (lower bound of source injection gammaMinFunc)
         int status = 0; double U_e_prime = -1;
-//        void * pars = (struct RadiationBase *) this; // this "this" i do not understand myself...
+//        void * pars = (struct ElectronAndRadiaionBase *) this; // this "this" i do not understand myself...
         switch (m_methodsLfmin) {
             case igmUprime:
                 U_e_prime = eprime * eps_e;
@@ -1545,7 +1474,7 @@ protected:
                 break;
             case igmNumGamma:
                 /// solve gamma_min fun numerically; use fixed limits and number of iterations
-                gamma_min = Bisect(RadiationBase::gammaMinFunc,
+                gamma_min = Bisect(ElectronAndRadiaionBase::gammaMinFunc,
                                    1, 1e8, 0, .001, 100, this, status);
                 /// If numerical solution failed, use simple analytical solution
                 if (status < 0)
@@ -1595,14 +1524,19 @@ protected:
                 break;
         }
     }
+
 };
 
 
-class RadiationAnalytic : public RadiationBase{
-protected:
-    RadiationAnalytic(int loglevel, bool _is_rs) : RadiationBase(loglevel,  _is_rs){
-        ///
-    }
+class ElectronAndRadiation : public ElectronAndRadiaionBase{
+
+    /// --------------------------------------
+    Source source{};
+    State ele{}; // std::unique_ptr<State> ele = nullptr;
+    State syn{}; //std::unique_ptr<State> syn = nullptr;
+    State ssc{}; //std::unique_ptr<State> ssc = nullptr;
+    SynKernel syn_kernel{};//std::unique_ptr<SSCKernel> ssc_kernel = nullptr;
+    SSCKernel ssc_kernel{};//std::unique_ptr<SynKernel> syn_kernel = nullptr;
 
     /// Analytical Synchrotron Sectrum; BPL;
     void computeAnalyticSynchJOH06(double nuprime){
@@ -1754,7 +1688,7 @@ protected:
             double gb = gamma_min < gamma_c ? gamma_c : gamma_min;
             return Dermer09::brokenPowerLaw(gam, gmin, gb, gmax, p1, p2);
         };
-        // computeSynchrotronEmissivityAbsorption electron distribution normalisation
+        // computeSynchrotronEmissivityAbsorptionAnalytic electron distribution normalisation
         double k_e = ne / Simpson38(gamma_min, gamma_max, 200, integrand_ele); // TODO replace with adative integrals
         // convolve the electron distribution with emission spectrum and itegrate
         auto integrand = [&](double gam){
@@ -1780,7 +1714,7 @@ protected:
                 double gb = gamma_min < gamma_c ? gamma_c : gamma_min;
                 return Dermer09::brokenPowerLawSSA(gam, gmin, gb, gmax, p1, p2);
             };
-            // computeSynchrotronEmissivityAbsorption electron distribution normalisation
+            // computeSynchrotronEmissivityAbsorptionAnalytic electron distribution normalisation
             double k_e_ssa = ne / Simpson38(gamma_min, gamma_max, 200, integrand_ele_ssa); // TODO replace with adative integrals
             // convolve the electron distribution with emission spectrum and itegrate
             auto integrand_ssa = [&](double gam) {
@@ -1858,70 +1792,42 @@ protected:
         }
     }
 
-public:
+public: // ---------------- ANALYTIC -------------------------- //
 
-};
+    ElectronAndRadiation(int loglevel, bool _is_rs) : ElectronAndRadiaionBase(loglevel, _is_rs){}
 
-
-class RadiationNumeric : public RadiationAnalytic {
-public:
-    RadiationNumeric(int loglevel, bool _is_rs) : RadiationAnalytic(loglevel, _is_rs) {
-        ///
-    }
-
-
-    /// evaluate frequency independent quantities (critical LFs, Bfield, etc)
-    void evaluateElectronDistributionAnalytic() {
-
-        if (not checkParams())
-            return;
-
-        computeMagneticField();
-
-        computeGammaMax();
-
-        computeGammaMin();
-
-        computeNonRelativisticFlattening();
-
-        /// compute cooling lorentz factor
-        gamma_c = 6. * CGS::pi * CGS::me * CGS::c / (CGS::sigmaT * t_e * B * B) / Gamma; // Eq. A19 in vanEarten+10
-    }
-
-    /// store current shock properties
-    void updateSockProperties(double e_prime, double Gamma_, double Gamma_shock, double t_e_, double n_prime_){
-        /// Store current parameters
-        GammaSh = Gamma_shock; // for bisect solver
-        eprime = e_prime; // for bisect solver
-        Gamma = Gamma_; // for bisect solver
-        beta = EQS::Beta(Gamma_shock); // for bisect solver
-        t_e = t_e_; // for bisect solver
-        n_prime = ksi_n * n_prime_; //  for bisect solver
-    }
-
-    /// In case the electrons were computed elsewhere E.g., if interpolated for EATS plane
-    void setShockElectronParameters(double n_prime_, double acc_frac,
-                                    double B_, double gm, double gM, double gc,
-                                    double Theta_, double z_cool_){
-
-        if (!std::isfinite(gm) || !std::isfinite(gc) || !std::isfinite(n_prime_)) {
-            (*p_log)(LOG_ERR, AT) << " nans is synchrotron spectum\n";
-            exit(1);
+    void setPars( StrDbMap & pars, StrStrMap & opts, size_t nr ){
+        setBasePars(pars, opts);
+        // ---
+        switch (m_eleMethod) {
+            case iShockEleAnalyt:
+                allocateStorageForAnalyticSpectra(pars, nr);
+                break;
+            case iShockEleNum:
+                allocateStorageForNumericSpectra(pars, nr);
+                break;
         }
-
-        gamma_min = gm;
-        gamma_max = gM;
-        n_prime = n_prime_;
-        B = B_;
-        accel_frac = acc_frac;
-        gamma_c = gc;
-        z_cool = z_cool_;
-        Theta = Theta_;
     }
 
+    void allocateStorageForAnalyticSpectra(StrDbMap & pars, size_t nr){
+        /// get freq. boundaries for calculation of the comoving spectrum
+        double freq1 = getDoublePar("freq1", pars, AT, p_log,1.e7, true);//pars.at("freq1");
+        double freq2 = getDoublePar("freq2", pars, AT, p_log,1.e28, true);//pars.at("freq2");
+        size_t nfreq = (size_t)getDoublePar("nfreq", pars, AT, p_log,200, true);//pars.at("nfreq");
+
+        (*p_log)(LOG_INFO,AT) << " allocating comoving spectrum array (fs) "
+                              << " freqs="<<nfreq << " by radii=" << nr << " Spec. grid="
+                              << nfreq * nr << "\n";
+
+        /// allocate space for the comoving spectrum
+        out_spectrum.resize(m_freq_arr.size() * nr );
+        out_specturm_ssa.resize(m_freq_arr.size() * nr );
+
+        allocateStorageForOutputSpectra(nr, freq1, freq2, nfreq);
+    }
 
     /// evaluate the comoving emissivity and absorption (frequency dependent)
-    void computeSynchrotronEmissivityAbsorption(double nuprime ) {
+    void computeSynchrotronEmissivityAbsorptionAnalytic( double nuprime ) {
 
         // TODO WARNING I did replace n_prime with ne is absorption, but this might not be correct!!!
 
@@ -1942,24 +1848,253 @@ public:
     }
 
     /// compute spectrum for all freqs and add it to the container
-    void computeSynchrotronSpectrum(size_t it){
+    void computeSynchrotronSpectrumAnalytic(size_t it){
         size_t nfreq = m_freq_arr.size();
-        /// computeSynchrotronEmissivityAbsorption emissivity and absorption for each frequency
+        /// computeSynchrotronEmissivityAbsorptionAnalytic emissivity and absorption for each frequency
         for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq) {
-            computeSynchrotronEmissivityAbsorption(m_freq_arr[ifreq]);
+            computeSynchrotronEmissivityAbsorptionAnalytic(m_freq_arr[ifreq]);
             out_spectrum[ifreq + nfreq * it] = em;
             out_specturm_ssa[ifreq + nfreq * it] = abs;
         }
     }
 
+public: // -------------------- NUMERIC -------------------------------- //
+
+    void allocateStorageForNumericSpectra(StrDbMap & pars, size_t nr){
+
+        /// get freq. boundaries for calculation of the comoving spectrum
+        double freq1 = getDoublePar("freq1", pars, AT, p_log,1.e7, true);//pars.at("freq1");
+        double freq2 = getDoublePar("freq2", pars, AT, p_log,1.e28, true);//pars.at("freq2");
+        size_t nfreq = (size_t)getDoublePar("nfreq", pars, AT, p_log,200, true);//pars.at("nfreq");
+
+        double gam1 = getDoublePar("gam1", pars, AT, p_log,1, true);//pars.at("freq1");
+        double gam2 = getDoublePar("gam2", pars, AT, p_log,1.e8, true);//pars.at("freq2");
+        size_t ngams = (size_t)getDoublePar("ngam", pars, AT, p_log,250, true);//pars.at("nfreq");
+
+        ele.allocate(gam1, gam2, ngams);
+        ele.build_grid_chang_cooper(); // build the grid for the implicit solver
+
+        syn.allocate(freq1*CGS::freqToErg, freq2*CGS::freqToErg, nfreq);
+
+        if ((m_sychMethod != METHODS_SYNCH::iGSL) and (m_sychMethod != METHODS_SYNCH::iDER06)){
+            (*p_log)(LOG_ERR,AT) << " only GSL or DER06 synchrotron options are "
+                                    "avaialble when evolving electrons numerically. \n";
+            exit(1);
+        }
+
+        /// allocate memory for synchrotron kernel
+        if (m_sychMethod == METHODS_SYNCH::iGSL)
+            syn_kernel.allocate(ele, syn, SynKernel::synchGSL);
+        else
+            syn_kernel.allocate(ele, syn, SynKernel::synchDermer);
+
+        /// allocate memory for SSC structure and kernel
+        if (m_methods_ssc == METHOD_SSC::iNumSSC) {
+            ssc.allocate(freq1 * CGS::freqToErg, freq2 * CGS::freqToErg, nfreq);
+            ssc_kernel.allocate(ele, syn, ssc, SSCKernel::sscNava);
+            ssc_kernel.evalSSCkernel(ele, syn, ssc);
+            ssc_kernel.evalSSCgridIntergral(ele, syn, ssc);
+        }
+
+        allocateStorageForOutputSpectra(nr, freq1, freq2, nfreq);
+
+    }
 
     void evaluateElectronDistributionNumeric(double dt, double dm, double r, double dr, double rp1, double drp1){
+
+        /// check parameters
+        if (ele.e.size() < 1){
+            (*p_log)(LOG_ERR,AT) << " electon grid is not initialized\n";
+            exit(1);
+        }
+        if (B <= 0 || gamma_min <= 0 || gamma_max <= 0){
+            (*p_log)(LOG_ERR,AT) << "wrong value, cannot evolve electrons: "
+                                    "B="<<B<<" gm="<<gamma_min<<" gM="<<gamma_max<<"\n";
+            exit(1);
+        }
+
         /// for adiabatic cooling of electron distribution
         double dlnVdt = 1. / dt * (1. - (r * r * dr) / (rp1 * rp1 * drp1));
         /// number of injected electrons
         double N = dm / CGS::mp / dt;
         /// compute substepping to account for electron cooling timescales
-        double dlog_gam = ((ele->e[1]-ele->e[0])/ele->e[0]);
+        double dlog_gam = ((ele.e[1]-ele.e[0])/ele.e[0]);
+        double delta_t_syn = CGS::sigmaT * gamma_max * B * B / (6. * M_PI * CGS::me * CGS::c);
+        double delta_t_adi = (1-gamma_max*gamma_max)/(3.*gamma_max*gamma_max)*dlnVdt;
+        double delta_t = dlog_gam / (delta_t_syn + delta_t_adi);
+
+//        int n_substeps = (int) (dt / delta_t);
+
+        /// if cooling is too slow, we still need to evolve distribution
+        int max_substeps = 1000;
+        int n_substeps;
+        if (delta_t <= dt){
+            delta_t = dt;
+            n_substeps = 1;
+        }
+        else if (delta_t > dt / (double)max_substeps){
+            delta_t = dt / (double) max_substeps;
+            n_substeps = (int) (dt / delta_t);
+        }
+        else{
+            n_substeps = (int) (dt / delta_t);
+        }
+//
+//        n_substeps = std::max(n_substeps, 1);
+//        n_substeps = std::min(n_substeps, max_substeps);
+//
+//
+//        /// if cooling is too fast we need to limit the maximum number of iteration
+//        if (delta_t > dt)
+//            delta_t = dt;
+//        if (delta_t > dt / (double)max_substeps) {
+//            delta_t = dt / (double) max_substeps;
+//            n_substeps = max_substeps;
+//        }
+
+
+        delta_t = std::max(delta_t, dt / (double)max_substeps);
+
+        (*p_log)(LOG_INFO, AT) << "\t nsubsteps="<<n_substeps<<" max="<<max_substeps<<"\n";
+
+        /// update source properties
+        source.B = B;
+        source.dlnVdt = dlnVdt;
+        source.r = r;
+        source.dr = dr;
+        source.N = N;
+
+        ChangCooper model = ChangCooper(source, ele, syn, ssc, syn_kernel, ssc_kernel);
+
+        /// Assume source/escape do not change during substepping
+        model.setSourceFunction(gamma_min, gamma_max, p, N);
+        model.setEscapeFunction(gamma_min, gamma_max);
+
+        /// Init photon field
+        Vector photon_field (syn.numbins, 0);
+
+        for (size_t i = 0; i < (size_t)n_substeps; i++){
+
+            /// Set gamma_dot terms (uses syn.n[] for photon density for SSC from previous solution)
+            model.setHeatCoolTerms(2);
+
+            /// Assuming sources change during substepping
+//            model.setSourceFunction(m_data[Q::igm][it], m_data[Q::igM][it], index, N);
+//            model.setEscapeFunction(m_data[Q::igm][it], m_data[Q::igM][it]);
+
+            /// setup grid of differences for escape term
+            model.computeDeltaJ();
+
+            /// setup tridiagonal solver arrays
+            model.setupVectors(delta_t);
+
+            /// solve system
+            model.solve(delta_t);
+
+            /// Update photon field during electron evolution
+//            model.update_radiation(); // Too long, if inside
+
+        }
+
+        /// Update photon field during electron evolution
+        model.update_radiation(); // saves photon density in syn.n[] -> used in ssc cooling next iteration
+
+    }
+
+    void computeSynchrotronSpectrumNumeric(size_t it){
+        size_t nfreq = m_freq_arr.size();
+        /// store emissivity and absorption for each frequency
+        for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq) {
+            out_spectrum[ifreq + nfreq * it] = syn.j[ifreq];
+            out_specturm_ssa[ifreq + nfreq * it] = syn.a[ifreq];
+        }
+
+        /// implicitely assume that SSC and Syn grids are the same. TODO generalize
+        if (m_methods_ssc != METHOD_SSC::inoSSC)
+            for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq) {
+                out_spectrum[ifreq + nfreq * it] += ssc.j[ifreq];
+            }
+    }
+};
+
+#if 0
+class RadiationNumeric : public ElectronAndRadiation {
+public:
+    /// --------------------------------------
+    Source source{};
+    State ele{}; // std::unique_ptr<State> ele = nullptr;
+    State syn{}; //std::unique_ptr<State> syn = nullptr;
+    State ssc{}; //std::unique_ptr<State> ssc = nullptr;
+    SynKernel syn_kernel{};//std::unique_ptr<SSCKernel> ssc_kernel = nullptr;
+    SSCKernel ssc_kernel{};//std::unique_ptr<SynKernel> syn_kernel = nullptr;
+
+
+    RadiationNumeric(int loglevel, bool _is_rs) : ElectronAndRadiaionBase(loglevel, _is_rs) {}
+
+    void setPars(StrDbMap & pars, StrStrMap & opts){
+        m_eleMethod = METHODS_SHOCK_ELE::iShockEleNum;
+        setBasePars(pars, opts);
+    }
+
+    void allocate_storage(StrDbMap & pars, size_t nr){
+
+        /// get freq. boundaries for calculation of the comoving spectrum
+        double freq1 = getDoublePar("freq1", pars, AT, p_log,1.e7, true);//pars.at("freq1");
+        double freq2 = getDoublePar("freq2", pars, AT, p_log,1.e28, true);//pars.at("freq2");
+        size_t nfreq = (size_t)getDoublePar("nfreq", pars, AT, p_log,200, true);//pars.at("nfreq");
+
+        double gam1 = getDoublePar("gam1", pars, AT, p_log,1, true);//pars.at("freq1");
+        double gam2 = getDoublePar("gam2", pars, AT, p_log,1.e8, true);//pars.at("freq2");
+        size_t ngams = (size_t)getDoublePar("ngam", pars, AT, p_log,250, true);//pars.at("nfreq");
+
+        ele.allocate(gam1, gam2, ngams);
+        ele.build_grid_chang_cooper(); // build the grid for the implicit solver
+
+        syn.allocate(freq1*CGS::freqToErg, freq2*CGS::freqToErg, nfreq);
+
+        if ((m_sychMethod != METHODS_SYNCH::iGSL) and (m_sychMethod != METHODS_SYNCH::iDER06)){
+            (*p_log)(LOG_ERR,AT) << " only GSL or DER06 synchrotron options are "
+                                    "avaialble when evolving electrons numerically. \n";
+            exit(1);
+        }
+
+        /// allocate memory for synchrotron kernel
+        if (m_sychMethod == METHODS_SYNCH::iGSL)
+            syn_kernel.allocate(ele, syn, SynKernel::synchGSL);
+        else
+            syn_kernel.allocate(ele, syn, SynKernel::synchDermer);
+
+        /// allocate memory for SSC structure and kernel
+        if (m_methods_ssc == METHOD_SSC::iNumSSC) {
+            ssc.allocate(freq1 * CGS::freqToErg, freq2 * CGS::freqToErg, nfreq);
+            ssc_kernel.allocate(ele, syn, ssc, SSCKernel::sscNava);
+            ssc_kernel.evalSSCkernel(ele, syn, ssc);
+            ssc_kernel.evalSSCgridIntergral(ele, syn, ssc);
+        }
+
+        allocate_output_storage(nr, freq1, freq2, nfreq);
+
+    }
+
+    void evaluateElectronDistributionNumeric(double dt, double dm, double r, double dr, double rp1, double drp1){
+
+        /// check parameters
+        if (ele.e.size() < 1){
+            (*p_log)(LOG_ERR,AT) << " electon grid is not initialized\n";
+            exit(1);
+        }
+        if (B <= 0 || gamma_min <= 0 || gamma_max <= 0){
+            (*p_log)(LOG_ERR,AT) << "wrong value, cannot evolve electrons: "
+                                    "B="<<B<<" gm="<<gamma_min<<" gM="<<gamma_max<<"\n";
+            exit(1);
+        }
+
+        /// for adiabatic cooling of electron distribution
+        double dlnVdt = 1. / dt * (1. - (r * r * dr) / (rp1 * rp1 * drp1));
+        /// number of injected electrons
+        double N = dm / CGS::mp / dt;
+        /// compute substepping to account for electron cooling timescales
+        double dlog_gam = ((ele.e[1]-ele.e[0])/ele.e[0]);
         double delta_t_syn = CGS::sigmaT * gamma_max * B * B / (6. * M_PI * CGS::me * CGS::c);
         double delta_t_adi = (1-gamma_max*gamma_max)/(3.*gamma_max*gamma_max)*dlnVdt;
         double delta_t = dlog_gam / (delta_t_syn + delta_t_adi);
@@ -1972,14 +2107,71 @@ public:
         if (delta_t > dt) delta_t = dt;
         delta_t = std::max(delta_t, dt / 1000);
 
+        /// update source properties
+        source.B = B;
+        source.dlnVdt = dlnVdt;
+        source.r = r;
+        source.dr = dr;
+        source.N = N;
+
+        ChangCooper model = ChangCooper(source, ele, syn, ssc, syn_kernel, ssc_kernel);
+
+        /// Assume source/escape do not change during substepping
+        model.setSourceFunction(gamma_min, gamma_max, p, N);
+        model.setEscapeFunction(gamma_min, gamma_max);
+
+        /// Init photon field
+        Vector photon_field (syn.numbins, 0);
+
+        for (size_t i = 0; i < (size_t)n_substeps; i++){
+
+            /// Set gamma_dot terms (uses syn.n[] for photon density for SSC from previous solution)
+            model.setHeatCoolTerms(2);
+
+            /// Assuming sources change during substepping
+//            model.setSourceFunction(m_data[Q::igm][it], m_data[Q::igM][it], index, N);
+//            model.setEscapeFunction(m_data[Q::igm][it], m_data[Q::igM][it]);
+
+            /// setup grid of differences for escape term
+            model.computeDeltaJ();
+
+            /// setup tridiagonal solver arrays
+            model.setupVectors(delta_t);
+
+            /// solve system
+            model.solve(delta_t);
+
+            /// Update photon field during electron evolution
+//            model.update_radiation(); // Too long, if inside
+
+        }
+
+        /// Update photon field during electron evolution
+        model.update_radiation(); // saves photon density in syn.n[] -> used in ssc cooling next iteration
+
     }
 
+    void computeSynchrotronSpectrumNumeric(size_t it){
+        size_t nfreq = m_freq_arr.size();
+        /// store emissivity and absorption for each frequency
+        for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq) {
+            out_spectrum[ifreq + nfreq * it] = syn.j[ifreq];
+            out_specturm_ssa[ifreq + nfreq * it] = syn.a[ifreq];
+        }
+
+        /// implicitely assume that SSC and Syn grids are the same. TODO generalize
+        if (m_methods_ssc != METHOD_SSC::inoSSC)
+            for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq) {
+                out_spectrum[ifreq + nfreq * it] += ssc.j[ifreq];
+            }
+    }
 };
+#endif
 
 
 #if 0
 /// evaluate comoving emissivity and absorption for synchrotron mech.
-class SynchrotronAnalytic : private RadiationBase{
+class SynchrotronAnalytic : private ElectronAndRadiaionBase{
 
     int m_loglevel = -1;
 
@@ -2790,7 +2982,7 @@ public:
         size_t nfreq = m_freq_arr.size();
         /// computeShycnhrotronEmissivityAbsorption emissivity and absorption for each frequency
         for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq) {
-            computeSynchrotronEmissivityAbsorption( m_freq_arr[ifreq] );
+            computeSynchrotronEmissivityAbsorptionAnalytic( m_freq_arr[ifreq] );
             out_spectrum[ifreq + nfreq * it] = p_pars->em;
             out_specturm_ssa[ifreq + nfreq * it] = p_pars->abs;
         }
