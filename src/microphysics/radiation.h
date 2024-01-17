@@ -955,9 +955,10 @@ struct Dermer09{
         result = prefactor * R(x);
         return result;
     }
-    double pprime(const double nuprim, const double p, double gm, const double gc, const double B, double nprim){
 
-        double gM = 1e10;//Electrons::gamma_max(B);
+    double pprime(double nuprim, double p, double gm, double gc, double gM, double B, double nprim){
+
+//        double gM = 1e10;//Electrons::gamma_max(B);
         double epsilon = nuprim * CGS::h / CGS::mec2;
 
         // electron distribution, broken power law with two regimes depending on the order of gamma_i
@@ -996,7 +997,7 @@ public:
     Vector m_freq_arr{};
     /// ------------------------------------
     double B=-1, gamma_min=-1, gamma_max=-1, gamma_c=-1;
-    double n_prime=-1, eprime=-1.,Gamma=-1,GammaSh=-1, beta=-1.,t_e=-1.;
+    double n_prime=-1, eprime=-1.,Gamma=-1,GammaSh=-1, beta=-1.,t_e=-1.,n_protons=-1.;
     double accel_frac=-1.;
     double Theta=-1, z_cool=-1, x=-1;
     double em=-1., abs=-1.;
@@ -1297,7 +1298,8 @@ public:
 
     }
     /// store current shock properties
-    void updateSockProperties(double e_prime, double Gamma_, double Gamma_shock, double t_e_, double n_prime_){
+    void updateSockProperties(double e_prime, double Gamma_, double Gamma_shock, double t_e_,
+                              double n_prime_, double n_protons_){
         /// Store current parameters
 
         GammaSh = Gamma_shock; // for bisect solver
@@ -1306,6 +1308,7 @@ public:
         beta = EQS::Beta(Gamma_shock); // for bisect solver
         t_e = t_e_; // for bisect solver
         n_prime = ksi_n * n_prime_; //  for bisect solver
+        n_protons = ksi_n * n_protons_;
     }
     /// In case the electrons were computed elsewhere E.g., if interpolated for EATS plane
     void setShockElectronParameters(double n_prime_, double acc_frac,
@@ -1537,7 +1540,9 @@ class ElectronAndRadiation : public ElectronAndRadiaionBase{
     State ssc{}; //std::unique_ptr<State> ssc = nullptr;
     SynKernel syn_kernel{};//std::unique_ptr<SSCKernel> ssc_kernel = nullptr;
     SSCKernel ssc_kernel{};//std::unique_ptr<SynKernel> syn_kernel = nullptr;
-
+    double vol=-1.;
+    double vol_p1=-1.;
+    double dm=-1.;
     /// Analytical Synchrotron Sectrum; BPL;
     void computeAnalyticSynchJOH06(double nuprime){
 //        double gamma_min=p_pars->gamma_min, gamma_c=p_pars->gamma_c, B=p_pars->B, n_prime=p_pars->n_prime;
@@ -1674,13 +1679,14 @@ class ElectronAndRadiation : public ElectronAndRadiaionBase{
     }
     /// Analytical Synchrotron Sectrum; BPL;
     void computeAnalyticSynchDER06(double nuprime){
-//        double gamma_min=p_pars->gamma_min, gamma_c=p_pars->gamma_c, gamma_max=p_pars->gamma_max, B=p_pars->B, n_prime=p_pars->n_prime;
+
+        Vector gammmas = TOOLS::MakeLogspaceVec(std::log10(gamma_min),
+                                                std::log10(gamma_max),
+                                                200);
+
         double ne = n_prime * ksi_n;
-//        double p = p_pars->p;
-//        double em=0.,abs=0.;
         double epsilon = nuprime * CGS::h / CGS::mec2;
-        // electron distribution, broken power law with two regimes depending on the order of gamma_i
-        auto integrand_ele = [&](double gam){
+        auto integrand_ele = [&](const double gam){
             double p1 = gamma_min < gamma_c ? p : 2.0;
             double p2 = p + 1.0;
             double gmax = gamma_max;
@@ -1688,23 +1694,22 @@ class ElectronAndRadiation : public ElectronAndRadiaionBase{
             double gb = gamma_min < gamma_c ? gamma_c : gamma_min;
             return Dermer09::brokenPowerLaw(gam, gmin, gb, gmax, p1, p2);
         };
-        // computeSynchrotronEmissivityAbsorptionAnalytic electron distribution normalisation
-        double k_e = ne / Simpson38(gamma_min, gamma_max, 200, integrand_ele); // TODO replace with adative integrals
-        // convolve the electron distribution with emission spectrum and itegrate
-        auto integrand = [&](double gam){
-            double power_e = Dermer09::single_electron_synch_power( B, epsilon, gam );
-            double n_e = k_e * integrand_ele(gam);
-            return n_e * power_e;
-        };
-        double power = Simpson38(gamma_min, gamma_max, 200, integrand); // TODO replace with adative integrals
+        Vector k_e_s (gammmas.size(), 0.);
+        double k_e = 0., power_e = 0., power = 0.;
+        for (size_t i = 0; i < gammmas.size()-1; i++) {
+            k_e_s[i] = integrand_ele(gammmas[i]);
+            k_e += k_e_s[i] * (gammmas[i + 1] - gammmas[i]);
+        }
+        k_e = ne / k_e;
+
+        for (size_t i = 0; i < gammmas.size()-1; i++) {
+            power_e = Dermer09::single_electron_synch_power( B, epsilon, gammmas[i] );
+            power += k_e_s[i] * power_e * (gammmas[i + 1] - gammmas[i]);
+        }
+        power *= k_e;
+
         em = power * (CGS::h / CGS::mec2);
-        /* --- SSA ---
-         * Computes the syncrotron self-absorption opacity for a general set
-         * of model parameters, see
-         * :gammaMinFunc:`~agnpy:sycnhrotron.Synchrotron.evaluate_sed_flux`
-         * for parameters defintion.
-         * Eq. before 7.122 in [DermerMenon2009]_.
-         */
+
         if (m_methods_ssa!=iSSAoff) {
             auto integrand_ele_ssa = [&](double gam) {
                 double p1 = gamma_min < gamma_c ? p : 2.0;
@@ -1714,20 +1719,25 @@ class ElectronAndRadiation : public ElectronAndRadiaionBase{
                 double gb = gamma_min < gamma_c ? gamma_c : gamma_min;
                 return Dermer09::brokenPowerLawSSA(gam, gmin, gb, gmax, p1, p2);
             };
-            // computeSynchrotronEmissivityAbsorptionAnalytic electron distribution normalisation
-            double k_e_ssa = ne / Simpson38(gamma_min, gamma_max, 200, integrand_ele_ssa); // TODO replace with adative integrals
-            // convolve the electron distribution with emission spectrum and itegrate
-            auto integrand_ssa = [&](double gam) {
-                double power_e = Dermer09::single_electron_synch_power(B, epsilon, gam);
-                double n_e = k_e * integrand_ele_ssa(gam);
-                return n_e * power_e;
-            };
-            abs = Simpson38(gamma_min, gamma_max, 200, integrand); // TODO replace with adative integrals
+
+            Vector k_e_s_ssa (gammmas.size(), 0.);
+            double k_e_ssa = 0., absorption = 0.;
+            for (size_t i = 0; i < gammmas.size()-1; i++) {
+                k_e_s_ssa[i] = integrand_ele_ssa(gammmas[i]);
+                k_e_ssa += k_e_s_ssa[i] * (gammmas[i + 1] - gammmas[i]);
+            }
+            k_e_ssa = ne / k_e_ssa;
+
+            for (size_t i = 0; i < gammmas.size()-1; i++) {
+                power_e = Dermer09::single_electron_synch_power(B, epsilon, gammmas[i]);
+                absorption += power_e * k_e_s_ssa[i] * (gammmas[i + 1] - gammmas[i]);
+            }
+            absorption *= k_e; // TODO check k_e_ssa
             double coeff = -1 / (8 * CGS::pi * CGS::me * std::pow(epsilon, 2)) * std::pow(CGS::lambda_c / CGS::c, 3);
-            abs *= coeff;
+            absorption *= coeff;
+
+            abs = absorption;
         }
-        em = em;
-        abs = abs;
     }
     /// Analytical Synchrotron Sectrum; BPL;
     void computeAnalyticSynchMARG21(double nuprime){
@@ -1900,7 +1910,7 @@ public: // -------------------- NUMERIC -------------------------------- //
 
     }
 
-    void evaluateElectronDistributionNumeric(double dt, double dm, double r, double dr, double rp1, double drp1){
+    void evaluateElectronDistributionNumeric(double dt, double d_m, double r, double dr, double rp1, double drp1){
 
         /// check parameters
         if (ele.e.size() < 1){
@@ -1914,13 +1924,16 @@ public: // -------------------- NUMERIC -------------------------------- //
         }
 
         /// for adiabatic cooling of electron distribution
-        double dlnVdt = 1. / dt * (1. - (r * r * dr) / (rp1 * rp1 * drp1));
+        vol = r * r * dr;
+        vol_p1 = rp1 * rp1 * drp1;
+        dm = d_m;
+        double dlnVdt = 1. / dt * (1. - vol / vol_p1);
         /// number of injected electrons
         double N = dm / CGS::mp / dt;
         /// compute substepping to account for electron cooling timescales
         double dlog_gam = ((ele.e[1]-ele.e[0])/ele.e[0]);
         double delta_t_syn = CGS::sigmaT * gamma_max * B * B / (6. * M_PI * CGS::me * CGS::c);
-        double delta_t_adi = (1-gamma_max*gamma_max)/(3.*gamma_max*gamma_max)*dlnVdt;
+        double delta_t_adi = (1.-gamma_max*gamma_max)/(3.*gamma_max*gamma_max)*dlnVdt;
         double delta_t = dlog_gam / (delta_t_syn + delta_t_adi);
 
 //        int n_substeps = (int) (dt / delta_t);
@@ -1967,7 +1980,7 @@ public: // -------------------- NUMERIC -------------------------------- //
         ChangCooper model = ChangCooper(source, ele, syn, ssc, syn_kernel, ssc_kernel);
 
         /// Assume source/escape do not change during substepping
-        model.setSourceFunction(gamma_min, gamma_max, p, N);
+        model.setSourceFunction(gamma_min, gamma_max, -p, N);
         model.setEscapeFunction(gamma_min, gamma_max);
 
         /// Init photon field
@@ -2002,11 +2015,22 @@ public: // -------------------- NUMERIC -------------------------------- //
     }
 
     void computeSynchrotronSpectrumNumeric(size_t it){
+
+//        m_sychMethod = METHODS_SYNCH::iDER06;
+
         size_t nfreq = m_freq_arr.size();
         /// store emissivity and absorption for each frequency
         for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq) {
-            out_spectrum[ifreq + nfreq * it] = syn.j[ifreq];
-            out_specturm_ssa[ifreq + nfreq * it] = syn.a[ifreq];
+
+//            computeSynchrotronEmissivityAbsorptionAnalytic(m_freq_arr[ifreq]);
+
+            out_spectrum[ifreq + nfreq * it] = syn.j[ifreq]/n_protons*n_prime;
+            out_specturm_ssa[ifreq + nfreq * it] = syn.a[ifreq]/n_protons*n_prime;
+
+//            std::cout<<ifreq<<" em="<<em<<" j="<<out_spectrum[ifreq + nfreq * it]<<"\n";
+//            std::cout<<ifreq<<" em="<<abs<<" a="<<out_specturm_ssa[ifreq + nfreq * it]<<"\n";
+//            int x = 1;
+
         }
 
         /// implicitely assume that SSC and Syn grids are the same. TODO generalize

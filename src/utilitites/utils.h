@@ -74,12 +74,13 @@ namespace TOOLS{
         }
     };
 
-    static void MakeLogspaceVec(std::vector<double> & vec, const double &start, const double &stop, const double &base = 10) {
-        int num = (int)vec.size();
-        double realStart = std::pow(base, start);
-        double realBase = std::pow(base, (stop-start)/num);
-        std::generate_n(std::back_inserter(vec), num, Logspace<double>(realStart,realBase));
-    }
+//    static void MakeLogspaceVec(std::vector<double> & vec, const double &start,
+//                                const double &stop, const double &base = 10) {
+//        int num = (int)vec.size();
+//        double realStart = std::pow(base, start);
+//        double realBase = std::pow(base, (stop-start)/num);
+//        std::generate_n(std::back_inserter(vec), num, Logspace<double>(realStart,realBase));
+//    }
 
     static Vector MakeLogspaceVec(const double &start,
                                                const double &stop,

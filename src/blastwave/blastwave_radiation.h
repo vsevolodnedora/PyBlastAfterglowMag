@@ -1362,7 +1362,9 @@ public:
                                           m_data[BW::Q::iGammaFsh][it],
                                           m_data[BW::Q::itt][it], // TODO WHICH TIME IS HERE? tbirst? tcomov? observer time (TT)
 //                               m_data[Q::itburst][it], // emission time (TT)
-                                          m_data[BW::Q::irho2][it] / CGS::mp);
+                                          m_data[BW::Q::irho2][it] / CGS::mp,
+                                          m_data[BW::Q::iM2][it] / CGS::mp
+                                          );
 
             /// compute electron injection function / electron spectrum (analytically)
             p_syn_a->evaluateElectronDistributionAnalytic();
@@ -1397,7 +1399,9 @@ public:
                                                  m_data[BW::Q::iGammaRsh][it],
                                                  m_data[BW::Q::itt][it], // TODO WHICH TIME IS HERE? tbirst? tcomov? observer time (TT)
 //                               m_data[Q::itburst][it], // emission time (TT)
-                                                 m_data[BW::Q::irho3][it] / CGS::mp);
+                                                 m_data[BW::Q::irho3][it] / CGS::mp,
+                                                 m_data[BW::Q::iM3][it] / CGS::mp
+                                                 );
 
                 p_syn_a_rs->evaluateElectronDistributionAnalytic();
 

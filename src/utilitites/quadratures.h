@@ -16,12 +16,13 @@
  * @param last_idx last index of 'x' array up to which to continue integrating
  *
  */
-double Trapz(Vector &integrant, Vector &x, size_t last_idx){
-    double result = 0.0;
-    for (size_t i = 0; i < last_idx - 1; i++)
-        result += (integrant[i] + integrant[i+1]) * (x[i+1]-x[i]) / 2.0;
-    return result;
-}
+//double Trapz(Vector & x, Vector & integrant){
+//    size_t last_idx = x.size();
+//    double result = 0.0;
+//    for (size_t i = 0; i < last_idx; i++)
+//        result += (integrant[i] + integrant[i+1]) * (x[i+1] - x[i]) / 2.0;
+//    return result;
+//}
 
 /**
  * Simple Simpson’s 3/8 rule
@@ -42,8 +43,20 @@ double Simpson38( double x0, double x1, int n_elements, T & func ){
         else
             sum = sum + 3 * func(x0 + i * interval_size);
     }
-    return ( 3 * interval_size / 8 ) * sum ;
+    return ( 3. * interval_size / 8. ) * sum ;
 }
+
+//double Simpson38( Vector & x, Vector & func ){
+//    size_t n_elements = func.size();
+//    double sum = func[0] + func[n_elements-1];
+//    for (int i = 1 ; i < n_elements ; i++) {
+//        if (i % 3 == 0)
+//            sum = sum + (2 * func[i]) * 3 * (x[i]-x[i-1]) / 8;
+//        else
+//            sum = sum + (3 * func[i]) * 3 * (x[i]-x[i-1]) / 8;
+//    }
+//    return sum ;
+//}
 
 /*
  * The following code is adapted from
