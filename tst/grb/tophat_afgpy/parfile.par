@@ -60,6 +60,10 @@ eps_t = 0.
 p = 2.2
 ksi_n = 1.
 
+gam1 = 1.
+gam2 = 1.e8
+ngam = 250
+
 freq1 = 1.e5
 freq2 = 1.e22
 nfreq = 200
@@ -82,7 +86,7 @@ do_skymap = no
 do_rs = no
 bw_type = fs
 method_collision = none # none
-method_eats = adaptive # piece-wise
+method_eats = piece-wise # piece-wise
 allow_termination = no
 use_rs = no
 
@@ -90,13 +94,13 @@ do_thermrad_loss = no
 
 use_1d_id = yes
 fname_dyn = dyn_grb_tophad.h5
-fname_light_curve = tophat_0_a.h5
+fname_light_curve = tophat_0_pw.h5
 fname_light_curve_layers = none
 fname_sky_map = skymap_grb_gauss.h5
 
 do_nucinj = no
 type = numeric
-fname_ejecta_id = tophat_grb_id_a.h5
+fname_ejecta_id = tophat_grb_id_pw.h5
 load_r0 = no
 
 tprompt = 0.
@@ -106,7 +110,7 @@ rs_shutOff_criterion_rho = 1e-50 # criterion when to shut down the reverse shock
 method_spread = None
 method_dgdr = our
 method_eos = Nava13
-method_GammaSh = useGamma # useJKwithGammaRel  # default -- "useGamma"
+method_GammaFsh = useGammaShock
 method_Up = useEint2
 method_Delta = useJoh06
 use_adiabLoss = yes
@@ -115,13 +119,15 @@ method_dmdr = usingdthdr
 method_shock_vel = sameAsBW
 use_dens_prof_behind_jet_for_ejecta = no
 method_synchrotron = Joh06
+method_ssc = none
+method_shock_ele = analytic
 method_lf_min = useU_e
-method_ne = usenprime
+method_ne = usenprime # usenprime
 method_tau = smooth
-use_ssa = yes
+use_ssa = no
 emissivity = em
 absorption = abs
-method_comp_mode = observFlux   # "comovSpec"
+method_comp_mode = comovSpec # "comovSpec"
 method_quad = CADRE
 
 skymap_remove_mu = no

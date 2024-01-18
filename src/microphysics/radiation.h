@@ -36,6 +36,7 @@ enum METHODS_SSA { iSSAoff, iSSAon };
 
 enum METHOD_NONRELDIST{ inone, iuseGm };
 
+enum METHOD_NE{ iusenprime, iuseNe };
 
 /// Evaluate optical depth
 inline double optical_depth(const double abs_lab, const double dr,
@@ -997,12 +998,16 @@ public:
     Vector m_freq_arr{};
     /// ------------------------------------
     double B=-1, gamma_min=-1, gamma_max=-1, gamma_c=-1;
-    double n_prime=-1, eprime=-1.,Gamma=-1,GammaSh=-1, beta=-1.,t_e=-1.,n_protons=-1.;
+    double n_prime=-1; // used in B and gamma_min
+    double n_protons=-1; // conditionally used on synchrotron emissivity
+    double nn=-1; // Ne or nprime depending on the setting 'm_method_ne'
+    double eprime=-1.,Gamma=-1,GammaSh=-1, beta=-1.,t_e=-1.,r=-1,dr=-1;
     double accel_frac=-1.;
     double Theta=-1, z_cool=-1, x=-1;
-    double em=-1., abs=-1.;
+//    double em=-1., abs=-1.;
     METHOD_TAU method_tau{}; double beta_min = -1;
     METHODS_SHOCK_ELE m_eleMethod{};
+    METHOD_NE m_method_ne{};
     /// --------------------------------------
     void setBasePars( StrDbMap & pars, StrStrMap & opts ){
 
@@ -1047,6 +1052,30 @@ public:
             }
         }
         m_eleMethod = val_ele;
+
+        /// how to compute number of electrons that are emitting
+        opt = "method_ne";
+        METHOD_NE methodNe;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            methodNe = METHOD_NE::iuseNe;
+        }
+        else{
+            if(opts.at(opt) == "useNe")
+                methodNe = METHOD_NE::iuseNe;
+            else if(opts.at(opt) == "usenprime")
+                methodNe = METHOD_NE::iusenprime;
+            else{
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
+                                     <<" given: " << opts.at(opt)
+                                     << " is not recognized. "
+                                     << "Possible options: "
+                                     << " useNe " << " usenprime " << "\n";
+//                std::cerr << AT << "\n";
+                exit(1);
+            }
+        }
+        m_method_ne = methodNe;
 
         opt = "method_synchrotron" + fs_or_rs;
         METHODS_SYNCH val_synch;
@@ -1298,7 +1327,7 @@ public:
 
     }
     /// store current shock properties
-    void updateSockProperties(double e_prime, double Gamma_, double Gamma_shock, double t_e_,
+    void updateSockProperties(double r_, double dr_, double e_prime, double Gamma_, double Gamma_shock, double t_e_,
                               double n_prime_, double n_protons_){
         /// Store current parameters
 
@@ -1309,9 +1338,26 @@ public:
         t_e = t_e_; // for bisect solver
         n_prime = ksi_n * n_prime_; //  for bisect solver
         n_protons = ksi_n * n_protons_;
+        r = r_;
+        dr = dr_;
+
+        switch (m_method_ne) {
+            case iusenprime:
+                nn = n_prime;
+                if (m_eleMethod == METHODS_SHOCK_ELE::iShockEleNum){
+                    (*p_log)(LOG_ERR,AT)<<" cannot use shock electron density for "
+                                          "numeric electron evolution. Must use actaul electron number, Ne.\n";
+                    exit(1);
+                }
+                break;
+            case iuseNe:
+                nn = n_protons;
+                break;
+        }
+
     }
     /// In case the electrons were computed elsewhere E.g., if interpolated for EATS plane
-    void setShockElectronParameters(double n_prime_, double acc_frac,
+    void setShockElectronParameters(double r_, double dr_, double n_prime_, double acc_frac,
                                     double B_, double gm, double gM, double gc,
                                     double Theta_, double z_cool_){
 
@@ -1328,6 +1374,8 @@ public:
         gamma_c = gc;
         z_cool = z_cool_;
         Theta = Theta_;
+        r = r_;
+        dr = dr_;
     }
     /// evaluate frequency independent quantities (critical LFs, Bfield, etc)
     void evaluateElectronDistributionAnalytic() {
@@ -1544,7 +1592,7 @@ class ElectronAndRadiation : public ElectronAndRadiaionBase{
     double vol_p1=-1.;
     double dm=-1.;
     /// Analytical Synchrotron Sectrum; BPL;
-    void computeAnalyticSynchJOH06(double nuprime){
+    void computeAnalyticSynchJOH06(double & em, double & abs, double nuprime, double n_prime){
 //        double gamma_min=p_pars->gamma_min, gamma_c=p_pars->gamma_c, B=p_pars->B, n_prime=p_pars->n_prime;
 //        double p = p_pars->p;
 //        double em=0., abs=0.;
@@ -1628,7 +1676,7 @@ class ElectronAndRadiation : public ElectronAndRadiaionBase{
         abs = abs * abs_scaling;
     };
     /// Analytical Synchrotron Sectrum; BPL;
-    void computeAnalyticSynchWSPN99(double nuprime){
+    void computeAnalyticSynchWSPN99(double & em, double & abs, double nuprime, double n_prime){
 //        double gamma_min=p_pars->gamma_min, gamma_c=p_pars->gamma_c, B=p_pars->B, n_prime=p_pars->n_prime;
 //        double p = p_pars->p;
         double nu_m, nu_c, emissivity, scaling, abs_scaling=1.;
@@ -1678,7 +1726,7 @@ class ElectronAndRadiation : public ElectronAndRadiaionBase{
 //            exit(1);
     }
     /// Analytical Synchrotron Sectrum; BPL;
-    void computeAnalyticSynchDER06(double nuprime){
+    void computeAnalyticSynchDER06(double & em, double & abs, double nuprime, double n_prime){
 
         Vector gammmas = TOOLS::MakeLogspaceVec(std::log10(gamma_min),
                                                 std::log10(gamma_max),
@@ -1740,7 +1788,7 @@ class ElectronAndRadiation : public ElectronAndRadiaionBase{
         }
     }
     /// Analytical Synchrotron Sectrum; BPL;
-    void computeAnalyticSynchMARG21(double nuprime){
+    void computeAnalyticSynchMARG21(double & em, double & abs, double nuprime, double n_prime){
 //        double gamma_min=p_pars->gamma_min, gamma_c=p_pars->gamma_c, B=p_pars->B, n_prime=p_pars->n_prime;
 //        double Theta=p_pars->Theta, z_cool = p_pars->z_cool, acc_frac = p_pars->accel_frac;
 //        double p = p_pars->p;
@@ -1783,7 +1831,7 @@ class ElectronAndRadiation : public ElectronAndRadiaionBase{
     }
 
     /// Analytical Synchrotron Sectrum; BPL;
-    void checkEmssivityAbsorption(){
+    void checkEmssivityAbsorption(double em, double abs){
         if (( em < 0.) || (!std::isfinite( em )) ){
             (*p_log)(LOG_ERR,AT) << " em_pl_prime < 0 or nan ("<< em<<") or \n";
             (*p_log)(LOG_ERR,AT) << " abs_pl_prime < 0 or nan ("<< abs<<")\n";
@@ -1837,34 +1885,40 @@ public: // ---------------- ANALYTIC -------------------------- //
     }
 
     /// evaluate the comoving emissivity and absorption (frequency dependent)
-    void computeSynchrotronEmissivityAbsorptionAnalytic( double nuprime ) {
+    void computeSynchrotronEmissivityAbsorptionAnalytic( double nuprime, double & em, double & abs ) {
 
         // TODO WARNING I did replace n_prime with ne is absorption, but this might not be correct!!!
 
         if (m_sychMethod == METHODS_SYNCH::iJOH06)
-            computeAnalyticSynchJOH06(nuprime);
+            computeAnalyticSynchJOH06(em, abs, nuprime, nn);
         else if (m_sychMethod == METHODS_SYNCH::iWSPN99)
-            computeAnalyticSynchWSPN99(nuprime);
+            computeAnalyticSynchWSPN99(em, abs, nuprime, nn);
         else if (m_sychMethod == METHODS_SYNCH::iDER06)
-            computeAnalyticSynchDER06(nuprime);
+            computeAnalyticSynchDER06(em, abs, nuprime, nn);
         else if (m_sychMethod == METHODS_SYNCH::iMARG21)
-            computeAnalyticSynchMARG21(nuprime);
+            computeAnalyticSynchMARG21(em, abs, nuprime, nn);
         else{
             (*p_log)(LOG_ERR,AT)<<" analytic synchrotron method is not supported \n";
             exit(1);
         }
 
-        checkEmssivityAbsorption();
+        checkEmssivityAbsorption(em, abs);
     }
 
     /// compute spectrum for all freqs and add it to the container
     void computeSynchrotronSpectrumAnalytic(size_t it){
         size_t nfreq = m_freq_arr.size();
+        double em, abs;
         /// computeSynchrotronEmissivityAbsorptionAnalytic emissivity and absorption for each frequency
         for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq) {
-            computeSynchrotronEmissivityAbsorptionAnalytic(m_freq_arr[ifreq]);
+            computeSynchrotronEmissivityAbsorptionAnalytic(m_freq_arr[ifreq], em, abs );
             out_spectrum[ifreq + nfreq * it] = em;
             out_specturm_ssa[ifreq + nfreq * it] = abs;
+            /// compute emissivity density
+            if (m_method_ne == METHOD_NE::iuseNe){
+                out_spectrum[ifreq + nfreq * it] /= (r * r * dr);
+                out_specturm_ssa[ifreq + nfreq * it] /= (r * r * dr);
+            }
         }
     }
 
@@ -2023,12 +2077,18 @@ public: // -------------------- NUMERIC -------------------------------- //
         for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq) {
 
 //            computeSynchrotronEmissivityAbsorptionAnalytic(m_freq_arr[ifreq]);
+//
+//            out_spectrum[ifreq + nfreq * it] = syn.j[ifreq] / n_or_nprime * n_prime; // M2 / mp * (4. * Gamma * rho_ism)
+            out_spectrum[ifreq + nfreq * it] = syn.j[ifreq]; // M2 / mp * (4. * Gamma * rho_ism)
+//            out_specturm_ssa[ifreq + nfreq * it] = syn.a[ifreq] / n_or_nprime * n_prime;
+            out_specturm_ssa[ifreq + nfreq * it] = syn.a[ifreq];
 
-            out_spectrum[ifreq + nfreq * it] = syn.j[ifreq]/n_protons*n_prime;
-            out_specturm_ssa[ifreq + nfreq * it] = syn.a[ifreq]/n_protons*n_prime;
-
-//            std::cout<<ifreq<<" em="<<em<<" j="<<out_spectrum[ifreq + nfreq * it]<<"\n";
-//            std::cout<<ifreq<<" em="<<abs<<" a="<<out_specturm_ssa[ifreq + nfreq * it]<<"\n";
+            if (m_method_ne == METHOD_NE::iuseNe){
+                out_spectrum[ifreq + nfreq * it] /= (r * r * dr);
+                out_specturm_ssa[ifreq + nfreq * it] /= (r * r * dr);
+            }
+//            std::cout<<ifreq<<" em="<<em / (r * r * dr)<<" j="<<out_spectrum[ifreq + nfreq * it]<<"\n";
+//            std::cout<<ifreq<<" em="<<abs / (r * r * dr)<<" a="<<out_specturm_ssa[ifreq + nfreq * it]<<"\n";
 //            int x = 1;
 
         }

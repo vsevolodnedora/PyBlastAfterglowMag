@@ -25,7 +25,6 @@ enum METHOD_dgdr{ iour, ipeer };
 
 enum METHODS_RAD { icomovspec, iobservflux };
 enum METHODS_SHOCK_VEL { isameAsBW, ishockVel };
-enum METHOD_NE{ iusenprime, iuseNe };
 
 enum METHOD_SINGLE_BW_DELTA {iconst, ifrac_last, ilr, ibm, ist, ibm_st };
 enum METHOD_THICK_FOR_RHO { iFromRadius };
@@ -167,7 +166,7 @@ struct Pars{
     double z=-1.;
     METHODS_SHOCK_VEL method_shock_vel{};
     METHODS_SHOCK_VEL method_shock_vel_rs{};
-    METHOD_NE m_method_ne{};
+//    METHOD_NE m_method_ne{};
     METHODS_RAD m_method_rad{};
 //    METHODS_SHOCK_ELE m_method_shock_ele{};
     /// ---------------------------

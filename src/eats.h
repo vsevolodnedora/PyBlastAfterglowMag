@@ -255,7 +255,7 @@ void saveImages(std::vector<ImageExtend> & ims, Vector & times, Vector & freqs,
     file.close();
 }
 
-/// methods to computeSynchrotronEmissivityAbsorptionAnalytic radiation from a Blastwave
+/// methods to compute radiation from a Blastwave
 
 
 class EATS {

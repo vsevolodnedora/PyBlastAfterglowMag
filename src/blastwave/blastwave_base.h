@@ -426,30 +426,6 @@ public:
         p_pars->prev_idx_x = 0;
         p_pars->ii_eq  = ii_eq;
 
-        /// how to compute number of electrons that are emitting
-        opt = "method_ne";
-        METHOD_NE methodNe;
-        if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            methodNe = METHOD_NE::iuseNe;
-        }
-        else{
-            if(opts.at(opt) == "useNe")
-                methodNe = METHOD_NE::iuseNe;
-            else if(opts.at(opt) == "usenprime")
-                methodNe = METHOD_NE::iusenprime;
-            else{
-                (*p_log)(LOG_ERR,AT) << " option for: " << opt
-                                     <<" given: " << opts.at(opt)
-                                     << " is not recognized. "
-                                     << "Possible options: "
-                                     << " useNe " << " usenprime " << "\n";
-//                std::cerr << AT << "\n";
-                exit(1);
-            }
-        }
-        p_pars->m_method_ne = methodNe;
-
         /// should the shock gamma be the bw gamma, or from RH jump conditions
         opt = "method_shock_vel";
         METHODS_SHOCK_VEL methodsShockVel;
