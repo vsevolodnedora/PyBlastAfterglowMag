@@ -1008,9 +1008,11 @@ public:
     METHOD_TAU method_tau{}; double beta_min = -1;
     METHODS_SHOCK_ELE m_eleMethod{};
     METHOD_NE m_method_ne{};
+//    EjectaID2::STUCT_TYPE m_method_eats{}; // for em with useNe normalization
+    size_t n_layers{};
     /// --------------------------------------
-    void setBasePars( StrDbMap & pars, StrStrMap & opts ){
-
+    void setBasePars( StrDbMap & pars, StrStrMap & opts, size_t nlayers ){
+        n_layers = nlayers;
         // set parameters
         std::string fs_or_rs;
         if (is_rs)
@@ -1327,7 +1329,7 @@ public:
 
     }
     /// store current shock properties
-    void updateSockProperties(double r_, double dr_, double e_prime, double Gamma_, double Gamma_shock, double t_e_,
+    void updateSockProperties(double e_prime, double Gamma_, double Gamma_shock, double t_e_,
                               double n_prime_, double n_protons_){
         /// Store current parameters
 
@@ -1338,8 +1340,8 @@ public:
         t_e = t_e_; // for bisect solver
         n_prime = ksi_n * n_prime_; //  for bisect solver
         n_protons = ksi_n * n_protons_;
-        r = r_;
-        dr = dr_;
+//        r = r_;
+//        dr = dr_;
 
         switch (m_method_ne) {
             case iusenprime:
@@ -1357,7 +1359,7 @@ public:
 
     }
     /// In case the electrons were computed elsewhere E.g., if interpolated for EATS plane
-    void setShockElectronParameters(double r_, double dr_, double n_prime_, double acc_frac,
+    void setShockElectronParameters(double n_prime_, double n_protons_, double acc_frac,
                                     double B_, double gm, double gM, double gc,
                                     double Theta_, double z_cool_){
 
@@ -1369,13 +1371,27 @@ public:
         gamma_min = gm;
         gamma_max = gM;
         n_prime = n_prime_;
+        n_protons = n_protons_;
         B = B_;
         accel_frac = acc_frac;
         gamma_c = gc;
         z_cool = z_cool_;
         Theta = Theta_;
-        r = r_;
-        dr = dr_;
+//        r = r_;
+//        dr = dr_;
+        switch (m_method_ne) {
+            case iusenprime:
+                nn = n_prime_;
+                if (m_eleMethod == METHODS_SHOCK_ELE::iShockEleNum){
+                    (*p_log)(LOG_ERR,AT)<<" cannot use shock electron density for "
+                                          "numeric electron evolution. Must use actaul electron number, Ne.\n";
+                    exit(1);
+                }
+                break;
+            case iuseNe:
+                nn = n_protons_;
+                break;
+        }
     }
     /// evaluate frequency independent quantities (critical LFs, Bfield, etc)
     void evaluateElectronDistributionAnalytic() {
@@ -1831,21 +1847,22 @@ class ElectronAndRadiation : public ElectronAndRadiaionBase{
     }
 
     /// Analytical Synchrotron Sectrum; BPL;
-    void checkEmssivityAbsorption(double em, double abs){
+    void checkEmssivityAbsorption(double em, double abs, double nuprime){
         if (( em < 0.) || (!std::isfinite( em )) ){
+
             (*p_log)(LOG_ERR,AT) << " em_pl_prime < 0 or nan ("<< em<<") or \n";
             (*p_log)(LOG_ERR,AT) << " abs_pl_prime < 0 or nan ("<< abs<<")\n";
-//            (*p_log)(LOG_ERR,AT) << " Error in data \n"
-//                                 << " eps_e = " << p_pars->eps_e << "\n"
-//                                 << " eps_t = " << p_pars->eps_t << "\n"
-//                                 << " ne = " << p_pars->ne << "\n"
-//                                 << " gm = " << p_pars->gm << "\n"
-//                                 << " gM = " << p_pars->gM << "\n"
-//                                 << " gc = " << p_pars->gc << "\n"
-//                                 << " B = " << p_pars->B << "\n"
-//                                 << " Theta = " << p_pars->Theta << "\n"
-//                                 << " z_cool = " << p_pars->z_cool << "\n"
-//                                 << " nuprime = " << p_pars->nuprime << "\n";
+            (*p_log)(LOG_ERR,AT) << " Error in data "
+                                 << " eps_e = " << eps_e //<< "\n"
+                                 << " eps_t = " << eps_t //<< "\n"
+                                 << " n_prime = " << n_prime //<< "\n"
+                                 << " gamma_min = " << gamma_min //<< "\n"
+                                 << " gamma_max = " << gamma_max //<< "\n"
+                                 << " gamma_c = " << gamma_c //<< "\n"
+                                 << " B = " << B //<< "\n"
+                                 << " Theta = " << Theta //<< "\n"
+                                 << " z_cool = " << z_cool //<< "\n"
+                                 << " nuprime = " << nuprime << "\n";
             exit(1);
         }
     }
@@ -1854,8 +1871,8 @@ public: // ---------------- ANALYTIC -------------------------- //
 
     ElectronAndRadiation(int loglevel, bool _is_rs) : ElectronAndRadiaionBase(loglevel, _is_rs){}
 
-    void setPars( StrDbMap & pars, StrStrMap & opts, size_t nr ){
-        setBasePars(pars, opts);
+    void setPars( StrDbMap & pars, StrStrMap & opts, size_t nr, size_t nlayers ){
+        setBasePars(pars, opts, nlayers);
         // ---
         switch (m_eleMethod) {
             case iShockEleAnalyt:
@@ -1889,6 +1906,8 @@ public: // ---------------- ANALYTIC -------------------------- //
 
         // TODO WARNING I did replace n_prime with ne is absorption, but this might not be correct!!!
 
+        em=0, abs=0.;
+
         if (m_sychMethod == METHODS_SYNCH::iJOH06)
             computeAnalyticSynchJOH06(em, abs, nuprime, nn);
         else if (m_sychMethod == METHODS_SYNCH::iWSPN99)
@@ -1902,7 +1921,20 @@ public: // ---------------- ANALYTIC -------------------------- //
             exit(1);
         }
 
-        checkEmssivityAbsorption(em, abs);
+        checkEmssivityAbsorption(em, abs, nuprime);
+
+
+//        em /= (r * r * dr);
+//        abs /= (r * r * dr);
+
+
+
+        /// in piece-wise EATS you also need to normalize by n_layers
+//        if ((m_method_ne == METHOD_NE::iuseNe) && (n_layers > 0)){
+//            em /= (double)n_layers;
+//            abs /= (double)n_layers;
+//        }
+
     }
 
     /// compute spectrum for all freqs and add it to the container
@@ -1916,8 +1948,8 @@ public: // ---------------- ANALYTIC -------------------------- //
             out_specturm_ssa[ifreq + nfreq * it] = abs;
             /// compute emissivity density
             if (m_method_ne == METHOD_NE::iuseNe){
-                out_spectrum[ifreq + nfreq * it] /= (r * r * dr);
-                out_specturm_ssa[ifreq + nfreq * it] /= (r * r * dr);
+                out_spectrum[ifreq + nfreq * it] /= n_protons;// /= (r * r * dr);///= (r * r * dr);
+                out_specturm_ssa[ifreq + nfreq * it] /= n_protons;// /= (r * r * dr);//  /= n_protons;///= (r * r * dr);
             }
         }
     }
@@ -2084,8 +2116,8 @@ public: // -------------------- NUMERIC -------------------------------- //
             out_specturm_ssa[ifreq + nfreq * it] = syn.a[ifreq];
 
             if (m_method_ne == METHOD_NE::iuseNe){
-                out_spectrum[ifreq + nfreq * it] /= (r * r * dr);
-                out_specturm_ssa[ifreq + nfreq * it] /= (r * r * dr);
+                out_spectrum[ifreq + nfreq * it] /= n_protons; //;/= (r * r * dr);
+                out_specturm_ssa[ifreq + nfreq * it] /= n_protons; // /= (r * r * dr);
             }
 //            std::cout<<ifreq<<" em="<<em / (r * r * dr)<<" j="<<out_spectrum[ifreq + nfreq * it]<<"\n";
 //            std::cout<<ifreq<<" em="<<abs / (r * r * dr)<<" a="<<out_specturm_ssa[ifreq + nfreq * it]<<"\n";

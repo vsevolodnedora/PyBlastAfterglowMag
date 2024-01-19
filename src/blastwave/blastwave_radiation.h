@@ -10,6 +10,104 @@
 #include "blastwave_base.h"
 
 
+static double fixMe(double & em_lab, double & abs_lab, double Gamma, double GammaSh,
+                    double mu, double r, double dr, double n_prime, double ne, void * params){
+//    double flux_dens = 0.;
+    auto * p_pars = (struct Pars *) params;
+//    switch (p_pars->p_syn_a->m_method_ne) {
+//        case iusenprime:
+//            flux_dens = em * r * r * dr; //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+//            break;
+//        case iuseNe:
+//            flux_dens = em * r * r * dr * n_prime;
+//            break;
+//    }
+//    return flux_dens;
+
+    double beta_shock;
+    switch (p_pars->method_shock_vel) {
+
+        case isameAsBW:
+            beta_shock = EQS::Beta(Gamma);
+            break;
+        case ishockVel:
+//                double u = sqrt(GammaShock * GammaShock - 1.0);
+//                double us = 4.0 * u * sqrt((u * u + 1) / (8. * u * u + 9.)); // from the blast wave velocity -> computeSynchrotronEmissivityAbsorptionAnalytic shock velocity
+            beta_shock = EQS::Beta(GammaSh);//us / sqrt(1. + us * us);
+            break;
+    }
+    double ashock = (1.0 - mu * beta_shock); // shock velocity beaming factor
+    dr /= ashock;
+
+    double dr_tau,dtau=0,intensity=0,flux_dens=0;
+    switch (p_pars->m_method_eats) {
+        case EjectaID2::iadaptive:
+            switch (p_pars->m_method_rad) {
+                // fluxDensAdaptiveWithComov()
+                case icomovspec:
+                    dr_tau = EQS::shock_delta(r, GammaSh);
+                    dr_tau /= ashock;
+                    dtau = optical_depth(abs_lab,dr_tau, mu, beta_shock);
+                    intensity = computeIntensity(em_lab, dtau, p_pars->p_syn_a->method_tau);
+                    switch (p_pars->p_syn_a->m_method_ne) {
+                        case iusenprime:
+                            flux_dens = intensity * r * r * dr; //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+                            break;
+                        case iuseNe:
+                            flux_dens = intensity * r * r * dr * n_prime;
+                            break;
+                    }
+                    break;
+                case iobservflux:
+                    dr_tau = EQS::shock_delta(r,GammaSh);
+                    dr_tau /= ashock;
+                    dtau = optical_depth(abs_lab,dr_tau, mu, beta_shock);
+                    intensity = computeIntensity(em_lab, dtau, p_pars->p_syn_a->method_tau);
+                    switch (p_pars->p_syn_a->m_method_ne){
+                        case iusenprime:
+                            flux_dens = (intensity * r * r * dr);
+                            break;
+                        case iuseNe:
+                            flux_dens = intensity * r * r * dr / ne * n_prime;
+                            break;
+                    }
+                    break;
+            }
+            break;
+        case EjectaID2::ipiecewise:
+            switch (p_pars->m_method_rad) {
+
+                case icomovspec:
+                    dr_tau = EQS::shock_delta(r,GammaSh);
+                    dr_tau /= ashock;
+                    dtau = optical_depth(abs_lab, dr_tau, mu, beta_shock);
+                    intensity = computeIntensity(em_lab, dtau, p_pars->p_syn_a->method_tau);
+                    switch (p_pars->p_syn_a->m_method_ne) {
+                        case iusenprime:
+                            flux_dens = intensity * r * r * dr; //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+                            break;
+                        case iuseNe:
+                            flux_dens = intensity * r * r * dr * n_prime;
+                            break;
+                    }
+                    break;
+                case iobservflux:
+                    switch (p_pars->p_syn_a->m_method_ne){
+                        case iusenprime:
+                            flux_dens = (intensity * r * r * dr);
+                            break;
+                        case iuseNe:
+                            flux_dens = intensity * r * r * dr / ne * n_prime;
+                            break;
+                    }
+                    break;
+            }
+            break;
+    }
+    return flux_dens;
+}
+
+
 /// use precomputed emissivity and absorption for Piece Wise EATS and blastwave structure
 static void fluxDensPieceWiseWithComov(
         double & flux_dens, double & tau_comp, double & tau_BH, double & tau_bf,
@@ -58,35 +156,42 @@ static void fluxDensPieceWiseWithComov(
     /// interpolate the emissivity and absorption coefficines
 //                double em_prime = int_em.Interpolate(nuprime, r, mth);
     double em_prime = int_em.InterpolateBilinear(nuprime, r, ia_nu, ib_nu, ia, ib);
+
 //                double abs_prime = int_abs.Interpolate(nuprime, r, mth);
     double abs_prime = int_abs.InterpolateBilinear(nuprime, r, ia_nu, ib_nu, ia, ib);
     /// convert to the laboratory frame
-    double em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
+    double em_lab = em_prime / (delta_D * delta_D); // TODO added another delta_D ... conversion of emissivity (see vanEerten+2010)
     double abs_lab = abs_prime * delta_D; // conversion of absorption (see vanEerten+2010)
 
     /// compute optical depth (for this shock radius and thickness are needed)
     double GammaShock = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::iGammaFsh]);
     double dr = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::ithickness]);
-    double dr_tau = EQS::shock_delta(r,GammaShock); // TODO this is added becasue in Johanneson Eq. I use ncells
+//    double dr_tau = EQS::shock_delta(r,GammaShock); // TODO this is added becasue in Johanneson Eq. I use ncells
 
-    double beta_shock;
-    switch (p_pars->method_shock_vel) {
+//    double beta_shock;
+//    switch (p_pars->method_shock_vel) {
+//
+//        case isameAsBW:
+//            beta_shock = EQS::Beta(Gamma);
+//            break;
+//        case ishockVel:
+////                double u = sqrt(GammaShock * GammaShock - 1.0);
+////                double us = 4.0 * u * sqrt((u * u + 1) / (8. * u * u + 9.)); // from the blast wave velocity -> computeSynchrotronEmissivityAbsorptionAnalytic shock velocity
+//            beta_shock = EQS::Beta(GammaShock);//us / sqrt(1. + us * us);
+//            break;
+//    }
+//    double ashock = (1.0 - mu * beta_shock); // shock velocity beaming factor
+//
+//    dr /= ashock; // TODO why is this here? What it means? Well.. Without it GRB LCs do not work!
+//    dr_tau /= ashock;
+//    double dtau = optical_depth(abs_lab, dr_tau, mu, beta_shock);
+//    double intensity = computeIntensity(em_lab, dtau, p_pars->p_syn_a->method_tau);
 
-        case isameAsBW:
-            beta_shock = EQS::Beta(Gamma);
-            break;
-        case ishockVel:
-//                double u = sqrt(GammaShock * GammaShock - 1.0);
-//                double us = 4.0 * u * sqrt((u * u + 1) / (8. * u * u + 9.)); // from the blast wave velocity -> computeSynchrotronEmissivityAbsorptionAnalytic shock velocity
-            beta_shock = EQS::Beta(GammaShock);//us / sqrt(1. + us * us);
-            break;
-    }
-    double ashock = (1.0 - mu * beta_shock); // shock velocity beaming factor
-    dr /= ashock; // TODO why is this here? What it means? Well.. Without it GRB LCs do not work!
-    dr_tau /= ashock;
-    double dtau = optical_depth(abs_lab, dr_tau, mu, beta_shock);
-    double intensity = computeIntensity(em_lab, dtau, p_pars->p_syn_a->method_tau);
-    flux_dens = (intensity * r * r * dr) * (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+    double nprime = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::irho2])/CGS::mp;
+    double ne = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::iM2])/CGS::mp;
+    flux_dens = fixMe(em_lab,abs_lab, Gamma,GammaShock,mu,r,dr,nprime,ne,params);
+    flux_dens *= (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+//    flux_dens = (intensity * r * r * dr) * (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
 //    flux_dens = intensity * (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
 //        flux += flux_dens;
     /// save the result in image
@@ -101,6 +206,9 @@ static void fluxDensPieceWiseWithComov(
     if (p_pars->m_type == BW_TYPES::iFSRS) {
         if (p_pars->do_rs &&
             !(m_data[BW::Q::ithichness_rs][ia] == 0 || m_data[BW::Q::ithichness_rs][ib] == 0)) {
+
+            (*p_pars->p_log)(LOG_ERR,AT) << " fixMe not here :)\n";
+            exit(1);
 
             Vector & freq_arr_rs = p_pars->p_syn_a_rs->m_freq_arr;
             Vector & synch_em_rs = p_pars->p_syn_a_rs->out_spectrum;
@@ -217,25 +325,38 @@ static void fluxDensAdaptiveWithComov(
     /// computeSynchrotronEmissivityAbsorptionAnalytic optical depth (for this shock radius and thickness are needed)
     double GammaShock = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::iGammaFsh]);
     double dr = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::ithickness]);
-    double dr_tau = EQS::shock_delta(r, GammaShock); // TODO this is added becasue in Johanneson Eq. I use ncells
+//    double dr_tau = EQS::shock_delta(r, GammaShock); // TODO this is added becasue in Johanneson Eq. I use ncells
 
-    double beta_shock;
-    switch (p_pars->method_shock_vel) {
-        case isameAsBW:
-            beta_shock = EQS::Beta(Gamma);
-            break;
-        case ishockVel:
-//                double u = sqrt(GammaShock * GammaShock - 1.0);
-//                double us = 4.0 * u * sqrt((u * u + 1) / (8. * u * u + 9.)); // from the blast wave velocity -> computeSynchrotronEmissivityAbsorptionAnalytic shock velocity
-            beta_shock = EQS::Beta(GammaShock);//us / sqrt(1. + us * us);
-            break;
-    }
-    double ashock = (1.0 - mu * beta_shock); // shock velocity beaming factor
-    dr /= ashock; // TODO why is this here? What it means? Well.. Without it GRB LCs do not work!
-    dr_tau /= ashock;
-    double dtau = optical_depth(abs_lab,dr_tau, mu, beta_shock);
-    double intensity = computeIntensity(em_lab, dtau, p_syna->method_tau);
-    flux_dens = intensity * r * r * dr; //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+//    double beta_shock;
+//    switch (p_pars->method_shock_vel) {
+//        case isameAsBW:
+//            beta_shock = EQS::Beta(Gamma);
+//            break;
+//        case ishockVel:
+////                double u = sqrt(GammaShock * GammaShock - 1.0);
+////                double us = 4.0 * u * sqrt((u * u + 1) / (8. * u * u + 9.)); // from the blast wave velocity -> computeSynchrotronEmissivityAbsorptionAnalytic shock velocity
+//            beta_shock = EQS::Beta(GammaShock);//us / sqrt(1. + us * us);
+//            break;
+//    }
+//    double ashock = (1.0 - mu * beta_shock); // shock velocity beaming factor
+//    dr /= ashock; // TODO why is this here? What it means? Well.. Without it GRB LCs do not work!
+//    dr_tau /= ashock;
+//    double dtau = optical_depth(abs_lab,dr_tau, mu, beta_shock);
+//    double intensity = computeIntensity(em_lab, dtau, p_syna->method_tau);
+
+    double ne = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::iM2]) / CGS::mp;
+    double n_prime = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::irho2]) / CGS::mp;
+//    switch (p_syna->m_method_ne) {
+//
+//        case iusenprime:
+//            flux_dens = intensity * r * r * dr; //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+//            break;
+//        case iuseNe:
+//            flux_dens = intensity * r * r * dr * n_prime;
+//            break;
+//    }
+    flux_dens = fixMe(em_lab,abs_lab,Gamma,GammaShock,mu,r,dr,n_prime,ne,params);
+
 //    flux_dens = intensity; //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
     if (!std::isfinite(flux_dens)||flux_dens<0){
         (*p_pars->p_log)(LOG_ERR,AT)<<"flux_dens="<<flux_dens<<"\n";
@@ -246,9 +367,13 @@ static void fluxDensAdaptiveWithComov(
     ctheta = interpSegLin(ia, ib, t_e, tburst, Dt[BW::Q::ictheta]);
     theta = interpSegLin(ia, ib, t_e, tburst, Dt[BW::Q::itheta]);
 
+
     if (p_pars->m_type == BW_TYPES::iFSRS) {
         if (p_pars->do_rs &&
             !(Dt[BW::Q::ithichness_rs][ia] == 0 || Dt[BW::Q::ithichness_rs][ib] == 0)) {
+
+            (*p_pars->p_log)(LOG_ERR,AT) << "fixMe not added :)" << '\n';
+            exit(1);
 
             Vector & freq_arr_rs = p_pars->p_syn_a_rs->m_freq_arr;
             Vector & synch_em_rs = p_pars->p_syn_a_rs->out_spectrum;
@@ -315,21 +440,21 @@ static double shock_synchrotron_flux_density(
     double beta = EQS::Beta(Gamma);
     double a = 1.0 - beta * mu; // beaming factor
     double delta_D = Gamma * a; // doppler factor
-    double beta_shock;
-    switch (p_pars->method_shock_vel) {
-
-        case isameAsBW:
-            beta_shock = EQS::Beta(Gamma);
-            break;
-        case ishockVel:
-//                double u = sqrt(GammaShock * GammaShock - 1.0);
-//                double us = 4.0 * u * sqrt((u * u + 1) / (8. * u * u + 9.)); // from the blast wave velocity -> computeSynchrotronEmissivityAbsorptionAnalytic shock velocity
-            beta_shock = EQS::Beta(GammaShock);//us / sqrt(1. + us * us);
-            break;
-    }
-    double ashock = (1.0 - mu * beta_shock); // shock velocity beaming factor
-    dr /= ashock; // TODO why is this here? What it means? Well.. Without it GRB LCs do not work!
-    dr_tau /= ashock;
+//    double beta_shock;
+//    switch (p_pars->method_shock_vel) {
+//
+//        case isameAsBW:
+//            beta_shock = EQS::Beta(Gamma);
+//            break;
+//        case ishockVel:
+////                double u = sqrt(GammaShock * GammaShock - 1.0);
+////                double us = 4.0 * u * sqrt((u * u + 1) / (8. * u * u + 9.)); // from the blast wave velocity -> computeSynchrotronEmissivityAbsorptionAnalytic shock velocity
+//            beta_shock = EQS::Beta(GammaShock);//us / sqrt(1. + us * us);
+//            break;
+//    }
+//    double ashock = (1.0 - mu * beta_shock); // shock velocity beaming factor
+//    dr /= ashock; // TODO why is this here? What it means? Well.. Without it GRB LCs do not work!
+//    dr_tau /= ashock;
 
     /// properties of the emitting electrons
     double nuprime = (1.0 + p_pars->z ) * nu_obs * delta_D;
@@ -337,17 +462,23 @@ static double shock_synchrotron_flux_density(
     double nprime = rho2 / CGS::mp; // number density of protons/electrons
     double em_prime,em_lab,abs_prime,abs_lab,intensity,flux_dens,dtau;
 
-
-#if 1
+    p_syna->setShockElectronParameters(nprime, Ne, acc_frac,
+                                       B, gm, gM, gc, Theta, z_cool);
+    p_syna->computeSynchrotronEmissivityAbsorptionAnalytic(nuprime, em_prime, abs_prime);
+    em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
+    abs_lab = abs_prime * delta_D; // conversion of absorption (see vanEerten+2010)
+//    dtau = optical_depth(abs_lab,dr_tau, mu, beta_shock);
+//    intensity = computeIntensity(em_lab, dtau, p_syna->method_tau);
+    flux_dens = fixMe(em_lab,abs_lab,Gamma,GammaShock,mu,R,dr,nprime,Ne,params);
+#if 0
 //    double em_prime, abs_prime;
     switch (p_syna->m_method_ne) {
         // default (presumably more correct version)
         case iusenprime:
             /// this is informed by van Earten et al. and afterglowpy
-            p_syna->setShockElectronParameters(R,dr,nprime, acc_frac,
+            p_syna->setShockElectronParameters(R,dr,nprime, Ne, acc_frac,
                                                B, gm, gM, gc, Theta, z_cool);
-
-            p_syna->computeSynchrotronEmissivityAbsorptionAnalytic(em_prime, abs_prime, nuprime);
+            p_syna->computeSynchrotronEmissivityAbsorptionAnalytic(nuprime, em_prime, abs_prime);
 //            em_prime = p_syna->em;
             em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
 //            abs_prime = p_syna->abs;
@@ -360,18 +491,43 @@ static double shock_synchrotron_flux_density(
             break;
         case iuseNe: // TODO THIS SHOULD NOT BE USED (tau is incorrectly estimated)
             /// This is informed by the G. Lamb and Fernandez et al.
-            p_syna->setShockElectronParameters(R,dr,Ne, acc_frac,
+            p_syna->setShockElectronParameters(R,dr,nprime, Ne, acc_frac,
                                                B, gm, gM, gc, Theta, z_cool);
             p_syna->computeSynchrotronEmissivityAbsorptionAnalytic(nuprime, em_prime, abs_prime);
 //            em_prime = p_syna->em;
             em_lab = em_prime / (delta_D * delta_D);
-            em_lab /= delta_D; // TODO this should be from 'dr'...
+//            em_lab /= (delta_D); // TODO this should be from 'dr'...
+//            em_lab /= (delta_D); // TODO this should be from 'dr'...
             abs_lab = abs_prime * delta_D; // TODO with Ne this might not work as we do not use 'dr' of the shock...
             dtau = optical_depth(abs_lab,dr_tau,mu,beta_shock);
             intensity = computeIntensity(em_lab, dtau, p_syna->method_tau);
 //                flux_dens = intensity * (1.0 + p_eats->z) / (p_eats->d_l * p_eats->d_l) / 10;
-            flux_dens = intensity / 5.; // TODO why no '2'?? // why this need /10 to fit the upper result?
+            flux_dens = intensity * R * R * dr / Ne * nprime; // TODO why no '2'?? // why this need /10 to fit the upper result?
             break;
+    }
+    if ((!std::isfinite(flux_dens)) || (flux_dens < 0.)){
+        (*p_pars->p_log)(LOG_ERR,AT) << " flux_dens="<<flux_dens
+                        <<" em_lab="<<em_lab<<" abs_lab="<<abs_lab <<'\n';
+        (*p_pars->p_log)(LOG_ERR,AT) << " wrong value in interpolation to EATS surface  \n"
+                  << " nu_obs = " << nu_obs
+                  << " nuprime = " << nuprime
+                  << " R = " << R
+                  << " mu = " << mu
+                  << " dr = " << dr
+                  << " m2 = " << m2
+                  << " rno2 = " << rho2
+                  << " B = " << B
+                  << " Ne = " << Ne
+                  << " nprime = " << nprime
+                  << " gm = " << gm
+                  << " gM = " << gM
+                  << " gc = " << gc
+                  << " Gamma = " << Gamma
+                  << " theta = " << Theta
+                  << " z_cool = " << z_cool
+                  << " t_e = " << t_e
+                  << " Exiting...\n";
+        exit(1);
     }
 #endif
     return flux_dens;
@@ -984,10 +1140,12 @@ public:
                 getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false));
 
 
+        /// When using Ne in comoving radiation calc for piece-wise, you need devidide it by nlayers...
+        size_t _nlayers_ = (id->method_eats==EjectaID2::STUCT_TYPE::ipiecewise) ? id->nlayers : 0;
         /// Set Electron And Radiation Model
-        p_pars->p_syn_a->setPars(pars, opts, p_pars->nr);
+        p_pars->p_syn_a->setPars(pars, opts, p_pars->nr, _nlayers_);
         if (p_pars->do_rs)
-            p_pars->p_syn_a_rs->setPars(pars, opts, p_pars->nr);
+            p_pars->p_syn_a_rs->setPars(pars, opts, p_pars->nr, _nlayers_);
 
         /// Set EATS functions (interpolator functions)
         if (p_pars->m_method_rad == METHODS_RAD::icomovspec) {
@@ -1460,8 +1618,8 @@ public:
                 return;
 
             /// update shock properties
-            p_syn_a->updateSockProperties(m_data[BW::Q::iR][it],
-                                          m_data[BW::Q::ithickness][it],
+            p_syn_a->updateSockProperties(//m_data[BW::Q::iR][it],
+                                          //m_data[BW::Q::ithickness][it],
                                           m_data[BW::Q::iU_p][it],
                                           m_data[BW::Q::iGamma][it],
 //                               m_data[Q::iGamma][it],
@@ -1500,8 +1658,8 @@ public:
 
             /// compute electron distribution in reverse shock
             if ( considerReverseShock(it) ){
-                p_syn_a_rs->updateSockProperties(m_data[BW::Q::iR][it],
-                                                 m_data[BW::Q::ithichness_rs][it],
+                p_syn_a_rs->updateSockProperties(//m_data[BW::Q::iR][it],
+                                                 //m_data[BW::Q::ithichness_rs][it],
                                                  m_data[BW::Q::iU_p3][it],
                                                  m_data[BW::Q::iGamma][it],
 //                               m_data[Q::iGamma][it],

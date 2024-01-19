@@ -654,12 +654,17 @@ class EATS {
     }
     static double costheta_integrand( double aomct, void* params ){
         auto * p_eats = (struct EATS *) params; // removing EATS_pars for simplicity
-        p_eats->nevals = p_eats->nevals + 1;
+        p_eats->nevals+=1;
+        if (p_eats->nevals > (long)1e7){
+            (*p_eats->p_log)(LOG_ERR,AT) << " EATS adaptive integration frozen, "
+                                                       " reached "<<p_eats->nevals<<" iterations\n";
+            exit(1);
+        }
+
         double act = 1 - aomct; // one minus cos theta 0 -> 'doppler_d' cos theta
         double r = 0., mu=0., gam=0., ctheta=0.;
         double integ = integrand(act, p_eats->phi, r, mu, gam, ctheta, params );
         return integ;
-
     }
     /// integral of the (costheta_integrand)dtheta
     static double phi_integrand( double a_phi, void* params ){
@@ -780,6 +785,11 @@ class EATS {
             return 0.;
         }
 //        printf("   a_phi: %.6lf (%.6le)\n", a_phi, result);
+        if (p_eats->nevals > (long)1e7){
+            (*p_eats->p_log)(LOG_ERR,AT) << " EATS adaptive integration frozen, "
+                                            " reached "<<p_eats->nevals<<" iterations\n";
+            exit(1);
+        }
         return result;
 
     }
@@ -787,7 +797,7 @@ class EATS {
     double integrate_theta_phi(){
 
         auto * p_eats = (struct EATS *) this; // this "this" i do not understand myself...
-
+        p_eats->nevals = 0;
         double atol = p_eats->atol_theta;
         // check if the parameters are set
         if(p_eats->nmax_theta < 0 || p_eats->nmax_phi < 0 || p_eats->rtol_phi < 0
