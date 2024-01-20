@@ -426,30 +426,6 @@ public:
         p_pars->prev_idx_x = 0;
         p_pars->ii_eq  = ii_eq;
 
-        /// should the shock gamma be the bw gamma, or from RH jump conditions
-        opt = "method_shock_vel";
-        METHODS_SHOCK_VEL methodsShockVel;
-        if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            methodsShockVel = METHODS_SHOCK_VEL::isameAsBW;
-        }
-        else{
-            if(opts.at(opt) == "sameAsBW")
-                methodsShockVel = METHODS_SHOCK_VEL::isameAsBW;
-            else if(opts.at(opt) == "shockVel")
-                methodsShockVel = METHODS_SHOCK_VEL::ishockVel;
-            else{
-                (*p_log)(LOG_ERR,AT) << " option for: " << opt
-                                     <<" given: " << opts.at(opt)
-                                     << " is not recognized. "
-                                     << " Possible options: "
-                                     << " sameAsBW " << " shockVel " << "\n";
-//                std::cerr << AT << "\n";
-                exit(1);
-            }
-        }
-        p_pars->method_shock_vel = methodsShockVel;
-
         /// how to compute obs.flux via interpolation of comoving intensity, or on the fly
         opt = "method_comp_mode";
         METHODS_RAD methodCompMode;
@@ -520,28 +496,28 @@ public:
         }
         p_pars->m_method_gamma_rsh = m_method_gamma_rsh;
 
-        opt = "method_shock_vel_rs";
-        METHODS_SHOCK_VEL methodsShockVel_rs;
-        if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            methodsShockVel_rs = METHODS_SHOCK_VEL::isameAsBW;
-        }
-        else{
-            if(opts.at(opt) == "sameAsBW")
-                methodsShockVel_rs = METHODS_SHOCK_VEL::isameAsBW;
-            else if(opts.at(opt) == "shockVel")
-                methodsShockVel_rs = METHODS_SHOCK_VEL::ishockVel;
-            else{
-                (*p_log)(LOG_ERR,AT) << " option for: " << opt
-                                     <<" given: " << opts.at(opt)
-                                     << " is not recognized. "
-                                     << " Possible options: "
-                                     << " sameAsBW " << " shockVel " << "\n";
-//                std::cerr << AT << "\n";
-                exit(1);
-            }
-        }
-        p_pars->method_shock_vel_rs = methodsShockVel_rs;
+//        opt = "method_shock_vel_rs";
+//        METHODS_SHOCK_VEL methodsShockVel_rs;
+//        if ( opts.find(opt) == opts.end() ) {
+//            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+//            methodsShockVel_rs = METHODS_SHOCK_VEL::isameAsBW;
+//        }
+//        else{
+//            if(opts.at(opt) == "sameAsBW")
+//                methodsShockVel_rs = METHODS_SHOCK_VEL::isameAsBW;
+//            else if(opts.at(opt) == "shockVel")
+//                methodsShockVel_rs = METHODS_SHOCK_VEL::ishockVel;
+//            else{
+//                (*p_log)(LOG_ERR,AT) << " option for: " << opt
+//                                     <<" given: " << opts.at(opt)
+//                                     << " is not recognized. "
+//                                     << " Possible options: "
+//                                     << " sameAsBW " << " shockVel " << "\n";
+////                std::cerr << AT << "\n";
+//                exit(1);
+//            }
+//        }
+//        p_pars->method_shock_vel_rs = methodsShockVel_rs;
 
 
         p_pars->do_rs = getBoolOpt("do_rs", opts, AT,p_log, false, true);

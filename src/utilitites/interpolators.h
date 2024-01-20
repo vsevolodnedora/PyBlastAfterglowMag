@@ -712,9 +712,23 @@ public:
         return result;
     }
 
+//    template<class T>
+//    inline double InterpolateBilinear(const T &x, const T &y,
+//                               const int & ix1, const int &ix2, const int & iy1, const int & iy2){
+//        double z = BilinearInterpolation<T>(
+//                m_Z[Idx(ix1, iy1)],
+//                m_Z[Idx(ix1, iy2)],
+//                m_Z[Idx(ix2, iy1)],
+//                m_Z[Idx(ix2, iy2)],
+//                m_X[ix1], m_X[ix2], m_Y[iy1], m_Y[iy2], x, y );
+////        if (!std::isfinite(z)){
+////            std::cerr << AT << " nan in InterpolateBilinear \n";
+////        }
+//        return z;
+//    }
     template<class T>
     inline double InterpolateBilinear(const T &x, const T &y,
-                               const int & ix1, const int &ix2, const int & iy1, const int & iy2){
+                                      const size_t & ix1, const size_t &ix2, const size_t & iy1, const size_t & iy2){
         double z = BilinearInterpolation<T>(
                 m_Z[Idx(ix1, iy1)],
                 m_Z[Idx(ix1, iy2)],
@@ -787,7 +801,8 @@ private:
     Vector & m_X, & m_Y, & m_Z;
     size_t m_nX, m_nY, m_nZ;
 
-    inline size_t Idx( int x, int y ) const { return x + m_nX * y; } // m_width
+//    inline size_t Idx( int x, int y ) const { return x + m_nX * y; } // m_width
+    inline size_t Idx( size_t x, size_t y ) const { return x + m_nX * y; } // m_width
 //    inline size_t Idx( int x, int y ) const { return y + m_nY * x; } // m_width
 
     static inline double BilinearInterpolation(double &q11, double &q12, double &q21, double &q22, double &x1,
@@ -808,7 +823,7 @@ private:
     }
     template<class T>
     static inline T BilinearInterpolation(T &q11, T &q12, T &q21, T &q22, T &x1,
-                                               T &x2, T &y1, T &y2, const T &x, const T &y) {
+                                          T &x2, T &y1, T &y2, const T &x, const T &y) {
         double x2x1, y2y1, x2x, y2y, yy1, xx1;
         x2x1 = x2 - x1;
         y2y1 = y2 - y1;

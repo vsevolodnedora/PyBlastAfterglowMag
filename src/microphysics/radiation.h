@@ -16,6 +16,8 @@
 
 #include "numeric_model.h"
 
+enum METHODS_SHOCK_VEL { isameAsBW, ishockVel };
+
 enum METHODS_SHOCK_ELE { iShockEleAnalyt, iShockEleNum };
 
 enum METHOD_TAU { iAPPROX, iTHICK, iSMOOTH, iSHARP };
@@ -1008,11 +1010,12 @@ public:
     METHOD_TAU method_tau{}; double beta_min = -1;
     METHODS_SHOCK_ELE m_eleMethod{};
     METHOD_NE m_method_ne{};
-//    EjectaID2::STUCT_TYPE m_method_eats{}; // for em with useNe normalization
-    size_t n_layers{};
+    METHODS_SHOCK_VEL method_shock_vel{};
+    //    EjectaID2::STUCT_TYPE m_method_eats{}; // for em with useNe normalization
+//    size_t n_layers{};
     /// --------------------------------------
     void setBasePars( StrDbMap & pars, StrStrMap & opts, size_t nlayers ){
-        n_layers = nlayers;
+//        n_layers = nlayers;
         // set parameters
         std::string fs_or_rs;
         if (is_rs)
@@ -1031,8 +1034,32 @@ public:
         lim_gm_to_1 = getBoolOpt("limit_lf_min_to1" + fs_or_rs, opts, AT, p_log, false, false);//pars.at("beta_min");
 
         // set options
-
         std::string opt;
+
+        /// should the shock gamma be the bw gamma, or from RH jump conditions
+        opt = "method_shock_vel";
+        METHODS_SHOCK_VEL methodsShockVel;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_ERR,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            methodsShockVel = METHODS_SHOCK_VEL::isameAsBW;
+        }
+        else{
+            if(opts.at(opt) == "sameAsBW")
+                methodsShockVel = METHODS_SHOCK_VEL::isameAsBW;
+            else if(opts.at(opt) == "shockVel")
+                methodsShockVel = METHODS_SHOCK_VEL::ishockVel;
+            else{
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
+                                     <<" given: " << opts.at(opt)
+                                     << " is not recognized. "
+                                     << " Possible options: "
+                                     << " sameAsBW " << " shockVel " << "\n";
+//                std::cerr << AT << "\n";
+                exit(1);
+            }
+        }
+        method_shock_vel = methodsShockVel;
+
         opt = "method_shock_ele" + fs_or_rs;
         METHODS_SHOCK_ELE val_ele;
         if ( opts.find(opt) == opts.end() ) {
@@ -2131,6 +2158,151 @@ public: // -------------------- NUMERIC -------------------------------- //
                 out_spectrum[ifreq + nfreq * it] += ssc.j[ifreq];
             }
     }
+
+public: // ---------------------- EATS -------------------------------- //
+
+    double fixMe(double & em_prime, double & abs_prime, double Gamma, double GammaSh,
+                 double mu, double r, double dr, double n_prime, double ne){
+//    double flux_dens = 0.;
+//        auto * p_pars = (struct Pars *) params;
+
+        double beta = EQS::Beta(Gamma);
+        double a = 1.0 - beta * mu; // beaming factor
+        double delta_D = Gamma * a; // doppler factor
+
+        /// convert to the laboratory frame
+        double em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
+        double abs_lab = abs_prime * delta_D; // conversion of absorption (see vanEerten+2010)
+
+        double beta_shock;
+        switch (method_shock_vel) {
+
+            case isameAsBW:
+                beta_shock = EQS::Beta(Gamma);
+                break;
+            case ishockVel:
+//                double u = sqrt(GammaShock * GammaShock - 1.0);
+//                double us = 4.0 * u * sqrt((u * u + 1) / (8. * u * u + 9.)); // from the blast wave velocity -> computeSynchrotronEmissivityAbsorptionAnalytic shock velocity
+                beta_shock = EQS::Beta(GammaSh);//us / sqrt(1. + us * us);
+                break;
+        }
+        double ashock = (1.0 - mu * beta_shock); // shock velocity beaming factor
+        dr /= ashock;
+
+        double dr_tau = EQS::shock_delta(r,GammaSh);
+        dr_tau /= ashock;
+        double dtau = optical_depth(abs_lab, dr_tau, mu, beta_shock);
+        double intensity = computeIntensity(em_lab, dtau, method_tau);
+
+        if ((intensity < 0) || (!std::isfinite(intensity))) {
+            (*p_log)(LOG_ERR, AT) << "intensity = " << intensity << "\n";
+            exit(1);
+        }
+
+        double flux_dens=0.;
+        switch (m_method_ne) {
+            case iusenprime:
+                flux_dens = intensity * r * r * dr;
+                break;
+            case iuseNe:
+                flux_dens = intensity * r * r * dr * n_prime;
+                break;
+        }
+
+        if (flux_dens < 0 || !std::isfinite(flux_dens)) {
+            (*p_log)(LOG_ERR, AT) << "flux_dens_rs = " << flux_dens << "\n";
+            exit(1);
+        }
+
+        return flux_dens;
+#if 0
+        switch (p_pars->m_method_eats) {
+        case EjectaID2::iadaptive:
+            switch (p_pars->m_method_rad) {
+                // fluxDensAdaptiveWithComov()
+                case icomovspec:
+                    switch (p_pars->p_syn_a->m_method_ne) {
+                        case iusenprime:
+                            flux_dens = intensity * r * r * dr; //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+                            break;
+                        case iuseNe:
+                            flux_dens = intensity * r * r * dr * n_prime;
+                            break;
+                    }
+                    break;
+                case iobservflux:
+                    switch (p_pars->p_syn_a->m_method_ne){
+                        case iusenprime:
+                            flux_dens = (intensity * r * r * dr);
+                            break;
+                        case iuseNe:
+                            flux_dens = intensity * r * r * dr / ne * n_prime;
+                            break;
+                    }
+                    break;
+            }
+            break;
+        case EjectaID2::ipiecewise:
+            switch (p_pars->m_method_rad) {
+                case icomovspec:
+                    switch (p_pars->p_syn_a->m_method_ne) {
+                        case iusenprime:
+                            flux_dens = intensity * r * r * dr; //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+                            break;
+                        case iuseNe:
+                            flux_dens = intensity * r * r * dr * n_prime;
+                            break;
+                    }
+                    break;
+                case iobservflux:
+
+                    switch (p_pars->p_syn_a->m_method_ne){
+                        case iusenprime:
+                            flux_dens = (intensity * r * r * dr);
+                            break;
+                        case iuseNe:
+                            flux_dens = intensity * r * r * dr / ne * n_prime;
+                            break;
+                    }
+                    break;
+            }
+            break;
+    }
+#endif
+//        return flux_dens;
+    }
+
+    double fluxDens(size_t ia, size_t ib, double freq, double Gamma, double GammaSh,
+                    double mu, double r, double dr, double n_prime, double ne, Vector & r_arr){
+
+
+        if (freq >= m_freq_arr[m_freq_arr.size()-1]){
+            (*p_log)(LOG_ERR,AT)<<" freq_prime="<<freq
+                                <<" > grid freq[-1]="<<m_freq_arr[m_freq_arr.size()-1]
+                                <<" increase 'freq2' parameter\n";
+            exit(1);
+        }
+        if (freq <= m_freq_arr[0]){
+            (*p_log)(LOG_ERR,AT)<<" freq_prime="<<freq
+                                <<" < grid freq[0]="<<m_freq_arr[0]
+                                <<" decrease 'freq1' parameter\n";
+            exit(1);
+        }
+
+        size_t ia_nu = findIndex(freq, m_freq_arr, m_freq_arr.size());
+        size_t ib_nu = ia_nu + 1;
+
+        /// interpolate the emissivity and absorption coefficines
+        Interp2d int_em(m_freq_arr, r_arr, out_spectrum);
+        double em_prime = int_em.InterpolateBilinear(freq, r, ia_nu, ib_nu, ia, ib);
+
+        Interp2d int_abs(m_freq_arr, r_arr, out_specturm_ssa);
+        double abs_prime = int_abs.InterpolateBilinear(freq, r, ia_nu, ib_nu, ia, ib);
+
+        /// compute flux density
+        return fixMe(em_prime,abs_prime, Gamma,GammaSh,mu,r,dr,n_prime,ne);
+    }
+
 };
 
 #if 0
