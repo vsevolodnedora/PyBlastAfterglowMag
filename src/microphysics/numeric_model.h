@@ -16,13 +16,14 @@
  * @param b
  * @param c
  */
-void tridiagonal_solver(Vector & d_j, Vector & d_j_plus_one, Vector & a, Vector & b, Vector & c){
+static void tridiagonal_solver(
+        Vector & d_j, Vector & d_j_plus_one, Vector & a, Vector & b, Vector & c_){
     size_t n_grid_points = a.size();
     double cprime[n_grid_points];
     double dprime[n_grid_points];
     /// This is the forward sweep of the tridiagonal solver
     for (size_t i = 0; i < n_grid_points; i++){
-        cprime[i] = c[i] / b[i];
+        cprime[i] = c_[i] / b[i];
         dprime[i] = d_j[i] / b[i];
     }
     /// forward_sweep if Non-zero
@@ -31,7 +32,7 @@ void tridiagonal_solver(Vector & d_j, Vector & d_j_plus_one, Vector & a, Vector 
     if (sum > 0){
         for (size_t i = 1; i < n_grid_points; i++){
             double b_minus_ac = b[i] - a[i] * cprime[i - 1];
-            cprime[i] = c[i] / b_minus_ac;
+            cprime[i] = c_[i] / b_minus_ac;
             dprime[i] = (d_j[i] - a[i] * dprime[i - 1]) / b_minus_ac;
         }
     }
@@ -51,7 +52,8 @@ void tridiagonal_solver(Vector & d_j, Vector & d_j_plus_one, Vector & a, Vector 
  * @param delta_j_minus_one  1 - delta_j
  * @return
  */
-inline double compute_n_j_minus_one_term(
+static inline double
+compute_n_j_minus_one_term(
         double one_over_delta_grid, double one_over_delta_grid_bar_backward,
         double C_backward, double B_backward, double delta_j_minus_one){
     return one_over_delta_grid * (one_over_delta_grid_bar_backward * C_backward - delta_j_minus_one * B_backward);
@@ -69,10 +71,11 @@ inline double compute_n_j_minus_one_term(
  * @param delta_j
  * @return
  */
-inline double compute_n_j(double one_over_delta_grid, double one_over_delta_grid_bar_backward,
-                          double one_over_delta_grid_bar_forward,
-                          double C_backward, double C_forward, double B_backward, double B_forward,
-                          double one_minus_delta_j_minus_one, double delta_j){
+static inline double
+compute_n_j(double one_over_delta_grid, double one_over_delta_grid_bar_backward,
+            double one_over_delta_grid_bar_forward,
+            double C_backward, double C_forward, double B_backward, double B_forward,
+            double one_minus_delta_j_minus_one, double delta_j){
     return -one_over_delta_grid * (
             (
                     one_over_delta_grid_bar_forward * C_forward
@@ -91,8 +94,9 @@ inline double compute_n_j(double one_over_delta_grid, double one_over_delta_grid
  * @param one_minus_delta_j  1 - delta_j
  * @return
  */
-inline double compute_n_j_plus_one(double one_over_delta_grid, double one_over_delta_grid_bar_forward,
-                                   double C_forward, double B_forward, double one_minus_delta_j){
+static inline double
+compute_n_j_plus_one(double one_over_delta_grid, double one_over_delta_grid_bar_forward,
+                     double C_forward, double B_forward, double one_minus_delta_j){
     return one_over_delta_grid * (one_minus_delta_j * B_forward + one_over_delta_grid_bar_forward * C_forward);
 }
 

@@ -551,17 +551,20 @@ public:
 //            exit(1);
         }
 
-        Dat[BW::Q::iadi][it] = p_eos->getGammaAdi(Dat[BW::Q::iGamma][it], // TODO ! is it adi or adi21 (using GammaRel)??
-                                                           Dat[BW::Q::ibeta][it]);
-        Dat[BW::Q::irho2][it] = EQS::rho2t(Dat[BW::Q::iGamma][it], // TODO should there be a gammaRel?? with adi43??..
-                                            Dat[BW::Q::iadi][it],
-                                            Dat[BW::Q::irho][it]);
+        Dat[BW::Q::iadi][it] = p_eos->getGammaAdi(
+                Dat[BW::Q::iGamma][it], // TODO ! is it adi or adi21 (using GammaRel)??
+                Dat[BW::Q::ibeta][it]);
+        Dat[BW::Q::irho2][it] = EQS::rho2t(
+                Dat[BW::Q::iGamma][it], // TODO should there be a gammaRel?? with adi43??..
+                Dat[BW::Q::iadi][it],
+                Dat[BW::Q::irho][it]);
 
         /// FS: shock front velocity
-        switch (p_pars->m_method_gamma_fsh) {
+        switch (p_pars->p_syn_a->m_method_gamma_fsh) {
 
             case iuseGammaShock:
-                Dat[BW::Q::iGammaFsh][it] = EQS::GammaSh(Dat[BW::Q::iGamma][it], Dat[BW::Q::iadi][it]);
+                Dat[BW::Q::iGammaFsh][it] = EQS::GammaSh(
+                        Dat[BW::Q::iGamma][it], Dat[BW::Q::iadi][it]);
                 break;
             case iuseJustGamma:
                 Dat[BW::Q::iGammaFsh][it] = Dat[BW::Q::iGamma][it];
@@ -570,12 +573,13 @@ public:
                 Dat[BW::Q::iGammaFsh][it] = Dat[BW::Q::iGammaREL][it];
                 break;
             case iuseGammaRelShock:
-                Dat[BW::Q::iGammaFsh][it] = EQS::GammaSh(Dat[BW::Q::iGammaREL][it], Dat[BW::Q::iadi][it]);
+                Dat[BW::Q::iGammaFsh][it] = EQS::GammaSh(
+                        Dat[BW::Q::iGammaREL][it], Dat[BW::Q::iadi][it]);
                 break;
         }
 
         /// FS: shock front radius
-        switch (p_pars->m_method_r_sh) {
+        switch (p_pars->p_syn_a->m_method_r_sh) {
 
             case isameAsR:
                 Dat[BW::Q::iRsh][it] = Dat[BW::Q::iR][it]; // overrude
@@ -585,15 +589,21 @@ public:
         }
 
         /// FS: shock thickness
-        switch (p_pars->m_method_Delta) {
+        switch (p_pars->p_syn_a->m_method_Delta) {
 
             case iuseJoh06:
-                Dat[BW::Q::ithickness][it]= EQS::shock_delta_joh06(Dat[BW::Q::iR][it], Dat[BW::Q::iM2][it],
-                                                                   Dat[BW::Q::itheta][it], Dat[BW::Q::iGamma][it],
-                                                                   Dat[BW::Q::irho2][it], p_pars->ncells);
+                Dat[BW::Q::ithickness][it] = EQS::shock_delta_joh06(
+                        Dat[BW::Q::iR][it],
+                        Dat[BW::Q::iM2][it],
+                        Dat[BW::Q::itheta][it],
+                        Dat[BW::Q::iGamma][it],
+                        Dat[BW::Q::irho2][it],
+                        p_pars->ncells);
                 break;
             case iuseVE12:
-                Dat[BW::Q::ithickness][it]=EQS::shock_delta(Dat[BW::Q::iR][it], Dat[BW::Q::iGamma][it]);
+                Dat[BW::Q::ithickness][it] = EQS::shock_delta(
+                        Dat[BW::Q::iR][it], Dat[BW::Q::iGamma][it]
+                        );
                 break;
             case iNoDelta:
                 Dat[BW::Q::ithickness][it] = 1.;
@@ -601,76 +611,103 @@ public:
         }
 
         /// FS: shock downstream energy density
-        switch(p_pars->m_method_up){
+        switch(p_pars->p_syn_a->m_method_up){
             case iuseEint2:
                 Dat[BW::Q::iU_p][it] = EQS::get_U_p(Dat[BW::Q::irho2][it],
                                                     Dat[BW::Q::iM2][it],
                                                     Dat[BW::Q::iEint2][it]);
                 break;
             case iuseGamma:
-                Dat[BW::Q::iU_p][it]= EQS::get_U_p(Dat[BW::Q::irho2][it],
+                Dat[BW::Q::iU_p][it] = EQS::get_U_p(Dat[BW::Q::irho2][it],
                                                    Dat[BW::Q::iGammaFsh][it]);
                 break;
         }
 
         /// For reverse shock
         if ((it>0) && (p_pars->do_rs) && (!p_pars->shutOff) && (p_pars->m_type==BW_TYPES::iFSRS)){
-            Dat[BW::Q::iGamma43][it] = EQS::get_gamma43_minus_one(Dat[BW::Q::iGamma][it],
-                                                                  p_pars->Gamma0,
-                                                                  EQS::BetFromMom(Dat[BW::Q::imom][it]),
-                                                                  p_pars->beta0,
-                                                                  0.99995) + 1.0;
-            Dat[BW::Q::irho4][it]    = EQS::rho4(Dat[BW::Q::iR][it],
+            Dat[BW::Q::iGamma43][it] = EQS::get_gamma43_minus_one(
+                    Dat[BW::Q::iGamma][it],
+                    p_pars->Gamma0,
+                    EQS::BetFromMom(Dat[BW::Q::imom][it]),
+                    p_pars->beta0,
+                    0.99995) + 1.0;
+
+            Dat[BW::Q::irho4][it] = EQS::rho4(Dat[BW::Q::iR][it],
                                                  Dat[BW::Q::ideltaR4][it],
                                                  p_pars->tprompt,
                                                  p_pars->beta0,
                                                  p_pars->M0,
                                                  p_pars->theta_a,
                                                  p_pars->theta_b0);
-            Dat[BW::Q::iadi3][it]      = p_eos->getGammaAdi(Dat[BW::Q::iGamma43][it], // TODO ! is it adi or adi21 (using GammaRel)??
-                                                                Beta(Dat[BW::Q::iGamma43][it]));
-            Dat[BW::Q::irho3][it]    = EQS::rho2t(Dat[BW::Q::iGamma][it],
-                                                  Dat[BW::Q::iadi3][it],
-                                                  Dat[BW::Q::irho4][it]); // TODO Check if here Gamma and adi3 are used
+
+            Dat[BW::Q::iadi3][it] = p_eos->getGammaAdi(
+                    Dat[BW::Q::iGamma43][it], // TODO ! is it adi or adi21 (using GammaRel)??
+                    Beta(Dat[BW::Q::iGamma43][it]));
+
+            Dat[BW::Q::irho3][it] = EQS::rho2t(
+                    Dat[BW::Q::iGamma][it],
+                    Dat[BW::Q::iadi3][it],
+                    Dat[BW::Q::irho4][it]
+                    ); // TODO Check if here Gamma and adi3 are used
 
             /// shock front velocity
-            switch (p_pars->m_method_gamma_rsh) {
+            switch (p_pars->p_syn_a_rs->m_method_gamma_rsh) {
 
                 case iuseGammaShock:
-                    Dat[BW::Q::iGammaRsh][it] = EQS::GammaSh(Dat[BW::Q::iGamma43][it], Dat[BW::Q::iadi3][it]);
+                    Dat[BW::Q::iGammaRsh][it] = EQS::GammaSh(
+                            Dat[BW::Q::iGamma43][it], Dat[BW::Q::iadi3][it]
+                            );
                     break;
                 case iuseJustGamma:
                     Dat[BW::Q::iGammaRsh][it] = Dat[BW::Q::iGamma43][it];
                     break;
+                case iuseJustGammaRel:
+                    (*p_log)(LOG_ERR,AT)<<" not implemented method_gamma_rsh = useJustGammaRel \n";
+                    exit(1);
+                    break;
+                case iuseGammaRelShock:
+                    (*p_log)(LOG_ERR,AT)<<" not implemented method_gamma_rsh = useGammaRelShock \n";
+                    exit(1);
+                    break;
             }
 
-            switch(p_pars->m_method_Delta) {
+            switch(p_pars->p_syn_a_rs->m_method_Delta) {
 
                 case iuseJoh06:
-                    Dat[BW::Q::ithichness_rs][it]= EQS::shock_delta_joh06(Dat[BW::Q::iR][it], Dat[BW::Q::iM3][it],
-                                                                          Dat[BW::Q::itheta][it], Dat[BW::Q::iGamma][it],// TODO check if it is correct !!!
-                                                                           Dat[BW::Q::irho3][it], p_pars->ncells);
+                    Dat[BW::Q::ithichness_rs][it]= EQS::shock_delta_joh06(
+                            Dat[BW::Q::iR][it],
+                            Dat[BW::Q::iM3][it],
+                            Dat[BW::Q::itheta][it],
+                            Dat[BW::Q::iGamma][it],// TODO check if it is correct !!!
+                            Dat[BW::Q::irho3][it],
+                            p_pars->ncells
+                            );
                     break;
                 case iuseVE12:
-                    Dat[BW::Q::ithichness_rs][it]=EQS::shock_delta(Dat[BW::Q::iR][it], Dat[BW::Q::iGamma][it]);// TODO check if it is correct !!!
+                    Dat[BW::Q::ithichness_rs][it] = EQS::shock_delta(
+                            Dat[BW::Q::iR][it],
+                            Dat[BW::Q::iGamma][it]
+                            );// TODO check if it is correct !!!
                     break;
                 case iNoDelta:
                     Dat[BW::Q::ithichness_rs][it] = 1.;
                     break;
             }
-            switch(p_pars->m_method_up){
+            switch(p_pars->p_syn_a_rs->m_method_up){
                 case iuseEint2:
-                    Dat[BW::Q::iU_p3][it] = EQS::get_U_p(Dat[BW::Q::irho3][it],
-                                                         Dat[BW::Q::iM3][it],
-                                                         Dat[BW::Q::iEint3][it]);
+                    Dat[BW::Q::iU_p3][it] = EQS::get_U_p(
+                            Dat[BW::Q::irho3][it],
+                            Dat[BW::Q::iM3][it],
+                            Dat[BW::Q::iEint3][it]);
                     if (Dat[BW::Q::iU_p3][it] < 0 || !std::isfinite(Dat[BW::Q::iU_p3][it])){
                         std::cerr << AT << " error  \n";
                         exit(1);
                     }
                     break;
                 case iuseGamma:
-                    Dat[BW::Q::iU_p3][it]= EQS::get_U_p(Dat[BW::Q::irho3][it],
-                                                        Dat[BW::Q::iGamma][it]); // TODO here should be Gamma RS
+                    Dat[BW::Q::iU_p3][it]= EQS::get_U_p(
+                            Dat[BW::Q::irho3][it],
+                            Dat[BW::Q::iGamma][it]); // TODO here should be Gamma RS
                     break;
             }
         }

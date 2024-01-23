@@ -982,7 +982,7 @@ public:
 //                                        p_pars->m_freq_arr, p_pars->out_spectrum, p_pars->out_specturm_ssa,
                                         i_end_r, 0, layer(), m_loglevel, p_pars);
 //        p_eats->setFluxFunc(fluxDensPW);
-        p_eats->fluxFunc = fluxDensPW;
+        p_eats->fluxFuncPW = fluxDensPW;
     }
 
     std::unique_ptr<EATS> & getEATS(){ return p_eats; }

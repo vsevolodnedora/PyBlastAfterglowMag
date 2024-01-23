@@ -211,16 +211,21 @@ int main(int argc, char** argv) {
     std::string working_dir; std::string parfilename;
     /// ------------------------------------------------------
     if (argc<4){
-        /// test cases || GRG
+        // test cases || GRG
 //        working_dir = "../tst/grb/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO; // gauss, skymap
-        working_dir = "../tst/grb/tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO; // tophat, lcs
-        /// project test cases || GRB
+//        working_dir = "../tst/grb/tophat_afgpy/"; parfilename = "parfile.par"; loglevel=LOG_INFO; // tophat, lcs
+
+        // project test cases || GRB
 //        working_dir = "../../PBA_projects/grbafg/tophat_ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO; // tophat, lcs
-        /// test cases || kn
+
+        // test cases || kn
 //        working_dir = "../tst/kn/knafg_nrinformed/"; parfilename = "parfile.par"; loglevel=LOG_INFO; // tophat, lcs
 
-        /// From projects
+        // From projects
 //        working_dir = "../../PBA_projects/grbafg/tophat_ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../../PBA_projects/grbafg/tophat/output/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+
+
 
 //        working_dir = "../projects/grb_prj/structured/output/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../projects/grb_prj/structured/output_rs/"; parfilename = "parfile.par"; loglevel=LOG_INFO;

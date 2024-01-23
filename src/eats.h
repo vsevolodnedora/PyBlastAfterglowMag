@@ -911,7 +911,7 @@ public:
         m_i_end_r = i_end_r;
     }
 
-    void (* fluxFunc)(
+    void (* fluxFuncPW)(
             double & flux_dens, double & tau_comp, double & tau_BH, double & tau_bf,
             double r, double & ctheta, double theta, double phi,
             size_t ia, size_t ib, double ta, double tb, double mu, double t_obs, double nu_obs, void * params
@@ -1324,8 +1324,8 @@ private:
             phi_cell = (double) i * 2.0 * M_PI / (double) cil;
             ctheta_cell = ctheta0;
 
-            fluxFunc(flux_dens, tau_comp, tau_BH, tau_bf, r[i], ctheta, ctheta_cell, phi_cell,
-                             ia[i], ib[i], ta[i], tb[i], mu[i], obs_time, obs_freq, _params);
+            fluxFuncPW(flux_dens, tau_comp, tau_BH, tau_bf, r[i], ctheta, ctheta_cell, phi_cell,
+                       ia[i], ib[i], ta[i], tb[i], mu[i], obs_time, obs_freq, _params);
 
             if (!std::isfinite(flux_dens) || flux_dens < 0){
                 (*p_log)(LOG_ERR,AT) << " flux_dens="<<flux_dens<<"\n";

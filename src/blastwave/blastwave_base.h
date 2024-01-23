@@ -217,124 +217,6 @@ public:
         /// set Nuclear Atomic pars
         p_nuc->setPars(pars, opts);
 
-
-        /// method for shock radius
-        opt = "method_Rsh";
-        METHOD_RSh m_method_r_sh;
-        if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            m_method_r_sh = METHOD_RSh::isameAsR;
-        }
-        else{
-            if(opts.at(opt) == "sameAsR")
-                m_method_r_sh = METHOD_RSh::isameAsR;
-            else if(opts.at(opt) == "useGammaSh")
-                m_method_r_sh = METHOD_RSh::iuseGammaSh;
-            else{
-                (*p_log)(LOG_ERR,AT) << " option for: " << opt
-                                      <<" given: " << opts.at(opt)
-                                      << " is not recognized "
-                                      << " Possible options: "
-                                      << " sameAsR " << " useGammaSh "
-                                      << " Exiting...\n";
-//                std::cerr << AT << "\n";
-                exit(1);
-            }
-        }
-        p_pars->m_method_r_sh = m_method_r_sh;
-
-        /// method for shock velocity
-        opt = "method_GammaFsh";
-        METHOD_GammaSh m_method_gamma_fsh;
-        if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            m_method_gamma_fsh = METHOD_GammaSh::iuseGammaShock;
-        }
-        else{
-            if(opts.at(opt) == "useJustGamma")
-                m_method_gamma_fsh = METHOD_GammaSh::iuseJustGamma;
-            else if(opts.at(opt) == "useGammaShock")
-                m_method_gamma_fsh = METHOD_GammaSh::iuseGammaShock;
-            else if(opts.at(opt) == "useJustGammaRel") {
-                if (!(p_pars->m_type == BW_TYPES::iFS_DENSE || p_pars->m_type == BW_TYPES::iFS_PWN_DENSE)){
-                    (*p_log)(LOG_ERR,AT)<<" Cannot use "<<opt<<" = useJustGammaRel "<< " if bw_type ="<<p_pars->m_type<<"\n";
-                    exit(1);
-                }
-                m_method_gamma_fsh = METHOD_GammaSh::iuseJustGammaRel;
-            }
-            else if(opts.at(opt) == "useGammaRelShock") {
-                if (!(p_pars->m_type == BW_TYPES::iFS_DENSE || p_pars->m_type == BW_TYPES::iFS_PWN_DENSE)){
-                    (*p_log)(LOG_ERR,AT)<<" Cannot use "<<opt<<" = useGammaRelShock "<< " if bw_type ="<<p_pars->m_type<<"\n";
-                    exit(1);
-                }
-                m_method_gamma_fsh = METHOD_GammaSh::iuseGammaRelShock;
-            }
-            else{
-                (*p_log)(LOG_ERR,AT) << " option for: " << opt
-                                      <<" given: " << opts.at(opt)
-                                      << " is not recognized "
-                                      << " Possible options: "
-                                      << " useGammaShock " << " useJustGamma "
-                                      << " Exiting...\n";
-//                std::cerr << AT << "\n";
-                exit(1);
-            }
-        }
-        p_pars->m_method_gamma_fsh = m_method_gamma_fsh;
-
-        /// method for energy density behind shock
-        opt = "method_Up";
-        METHODS_Up m_method_up;
-        if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            m_method_up = METHODS_Up::iuseEint2;
-        }
-        else{
-            if(opts.at(opt) == "useEint2")
-                m_method_up = METHODS_Up::iuseEint2;
-            else if(opts.at(opt) == "useGamma")
-                m_method_up = METHODS_Up::iuseGamma;
-            else{
-                (*p_log)(LOG_ERR,AT) << " option for: " << opt
-                                      <<" given: " << opts.at(opt)
-                                      << " is not recognized "
-                                      << " Possible options: "
-                                      << " useEint2 " << " useGamma "
-                                      << " Exiting...\n";
-//                std::cerr << AT << "\n";
-                exit(1);
-            }
-        }
-        p_pars->m_method_up = m_method_up;
-
-        /// method for shock thickness
-        opt = "method_Delta";
-        METHOD_Delta m_method_delta;
-        if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            m_method_delta = METHOD_Delta::iuseJoh06;
-        }
-        else{
-            if(opts.at(opt) == "useJoh06")
-                m_method_delta = METHOD_Delta::iuseJoh06;
-            else if(opts.at(opt) == "useVE12")
-                m_method_delta = METHOD_Delta::iuseVE12;
-            else if(opts.at(opt) == "None")
-                m_method_delta = METHOD_Delta::iNoDelta;
-            else{
-                (*p_log)(LOG_ERR,AT) << " option for: " << opt
-                                      <<" given: " << opts.at(opt)
-                                      << " is not recognized "
-                                      << " Possible options: "
-                                      << " useJoh06 " << " useVE12 " << "None"
-                                      << " Exiting...\n";
-//                std::cerr << AT << "\n";
-                exit(1);
-            }
-        }
-        p_pars->m_method_Delta = m_method_delta;
-
-
         /// limit the spreading
         opt = "method_limit_spread";
         METHOD_LIMIT_SPREAD method_limit_spread;
@@ -471,30 +353,30 @@ public:
         p_pars->epsilon_rad_rs = getDoublePar("epsilon_rad_rs",pars,AT,p_log,.0,false);
         p_pars->rs_shutOff_criterion_rho = getDoublePar("rs_shutOff_criterion_rho",pars,AT,p_log,1.e-50,false);
 
-        /// RS: method for shock velocity
-        std::string opt = "method_GammaRsh";
-        METHOD_GammaSh m_method_gamma_rsh;
-        if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            m_method_gamma_rsh = METHOD_GammaSh::iuseGammaShock;
-        }
-        else{
-            if(opts.at(opt) == "useJustGamma")
-                m_method_gamma_rsh = METHOD_GammaSh::iuseJustGamma;
-            else if(opts.at(opt) == "useGammaShock")
-                m_method_gamma_rsh = METHOD_GammaSh::iuseGammaShock;
-            else{
-                (*p_log)(LOG_ERR,AT) << " option for: " << opt
-                                     <<" given: " << opts.at(opt)
-                                     << " is not recognized "
-                                     << " Possible options: "
-                                     << " useGammaShock " << " useJustGamma "
-                                     << " Exiting...\n";
-//                std::cerr << AT << "\n";
-                exit(1);
-            }
-        }
-        p_pars->m_method_gamma_rsh = m_method_gamma_rsh;
+//        /// RS: method for shock velocity
+//        std::string opt = "method_GammaRsh";
+//        METHOD_Gamma_sh m_method_gamma_rsh;
+//        if ( opts.find(opt) == opts.end() ) {
+//            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+//            m_method_gamma_rsh = METHOD_Gamma_sh::iuseGammaShock;
+//        }
+//        else{
+//            if(opts.at(opt) == "useJustGamma")
+//                m_method_gamma_rsh = METHOD_Gamma_sh::iuseJustGamma;
+//            else if(opts.at(opt) == "useGammaShock")
+//                m_method_gamma_rsh = METHOD_Gamma_sh::iuseGammaShock;
+//            else{
+//                (*p_log)(LOG_ERR,AT) << " option for: " << opt
+//                                     <<" given: " << opts.at(opt)
+//                                     << " is not recognized "
+//                                     << " Possible options: "
+//                                     << " useGammaShock " << " useJustGamma "
+//                                     << " Exiting...\n";
+////                std::cerr << AT << "\n";
+//                exit(1);
+//            }
+//        }
+//        p_pars->m_method_gamma_rsh = m_method_gamma_rsh;
 
 //        opt = "method_shock_vel_rs";
 //        METHODS_SHOCK_VEL methodsShockVel_rs;

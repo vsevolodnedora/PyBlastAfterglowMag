@@ -7,19 +7,13 @@
 
 //#include "../synchrotron_an.h"
 #include "../eats.h"
-#include "../microphysics/radiation.h"
+#include "../microphysics/shock_microphysics.h"
 
 /* ------------- EQUATIONS ----------------- */
 
 //enum RHS_TYPES { iGRG_FS, iGRG_FSRS, iEJ, iEJ_PWN };
 enum BW_TYPES { iFS, iFSRS, iFS_DENSE, iFS_PWN_DENSE };
 
-
-enum METHODS_Up { iuseEint2, iuseGamma }; // energy density behind the shock
-enum METHOD_Delta { iuseJoh06, iuseVE12, iNoDelta }; // thickness of the shock
-//enum METHOD_GammaSh { iuseJK, isameAsGamma, iuseGammaRel, iuseJKwithGammaRel };
-enum METHOD_GammaSh { iuseGammaShock, iuseJustGamma, iuseJustGammaRel, iuseGammaRelShock };
-enum METHOD_RSh { isameAsR, iuseGammaSh };
 enum METHOD_dmdr{ iusingA, iusingdthdR, iNodmdr };
 enum METHOD_dgdr{ iour, ipeer };
 
@@ -54,11 +48,7 @@ struct Pars{
     // initial conditions (settings)
 //    bool is_init = false;
     BW_TYPES m_type{};
-    METHODS_Up m_method_up{};
-    METHOD_Delta m_method_Delta{};
-    METHOD_GammaSh m_method_gamma_fsh{};
-    METHOD_GammaSh m_method_gamma_rsh{};
-    METHOD_RSh m_method_r_sh{};
+
     METHOD_dmdr m_method_dmdr{};
 //    bool only_last_shell_dmdr= false;
     METHOD_dgdr m_method_dgdr{};
