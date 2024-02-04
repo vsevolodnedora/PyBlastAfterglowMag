@@ -223,7 +223,8 @@ int main(int argc, char** argv) {
 
         // From projects
 //        working_dir = "../../PBA_projects/grbafg/tophat_ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-        working_dir = "../../PBA_projects/grbafg/tophat/output/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../../PBA_projects/grbafg/tophat/output/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../../PBA_projects/grbafg/structured/output/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 
 
 

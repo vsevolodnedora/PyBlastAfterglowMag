@@ -1016,11 +1016,12 @@ public: // ---------------- ANALYTIC -------------------------- //
             computeSynchrotronEmissivityAbsorptionAnalytic(m_freq_arr[ifreq], em, abs );
             out_spectrum[ifreq + nfreq * it] = em;
             out_specturm_ssa[ifreq + nfreq * it] = abs;
+            /// TODO removed becase of the error in Gaussian Jet test
             /// compute emissivity density
-            if (m_method_ne == METHOD_NE::iuseNe){
-                out_spectrum[ifreq + nfreq * it] /= n_protons;// /= (r * r * dr);///= (r * r * dr);
-                out_specturm_ssa[ifreq + nfreq * it] /= n_protons;// /= (r * r * dr);//  /= n_protons;///= (r * r * dr);
-            }
+//            if (m_method_ne == METHOD_NE::iuseNe){
+//                out_spectrum[ifreq + nfreq * it] /= n_protons;// /= (r * r * dr);///= (r * r * dr);
+//                out_specturm_ssa[ifreq + nfreq * it] /= n_protons;// /= (r * r * dr);//  /= n_protons;///= (r * r * dr);
+//            }
         }
     }
 
@@ -1165,10 +1166,11 @@ public: // -------------------- NUMERIC -------------------------------- //
 //            out_specturm_ssa[ifreq + nfreq * it] = syn.a[ifreq] / n_or_nprime * n_prime;
             out_specturm_ssa[ifreq + nfreq * it] = syn.a[ifreq];
 
-            if (m_method_ne == METHOD_NE::iuseNe){
-                out_spectrum[ifreq + nfreq * it] /= n_protons; //;/= (r * r * dr);
-                out_specturm_ssa[ifreq + nfreq * it] /= n_protons; // /= (r * r * dr);
-            }
+            /// TODO removed becase of the error in Gaussian Jet test
+//            if (m_method_ne == METHOD_NE::iuseNe){
+//                out_spectrum[ifreq + nfreq * it] /= n_protons; //;/= (r * r * dr);
+//                out_specturm_ssa[ifreq + nfreq * it] /= n_protons; // /= (r * r * dr);
+//            }
 //            std::cout<<ifreq<<" em="<<em / (r * r * dr)<<" j="<<out_spectrum[ifreq + nfreq * it]<<"\n";
 //            std::cout<<ifreq<<" em="<<abs / (r * r * dr)<<" a="<<out_specturm_ssa[ifreq + nfreq * it]<<"\n";
 //            int x = 1;
@@ -1228,7 +1230,9 @@ public: // ---------------------- EATS -------------------------------- //
                 flux_dens = intensity * r * r * dr;
                 break;
             case iuseNe:
-                flux_dens = intensity * r * r * dr * n_prime;
+                // TODO this nprime / ne is so that results afree with when we use nprime not Ne option
+                flux_dens = intensity * r * r * dr
+                          * n_prime / ne;
                 break;
         }
 

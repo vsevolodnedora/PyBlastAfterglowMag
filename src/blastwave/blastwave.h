@@ -1546,7 +1546,20 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
     double M2     = Y[i+ SOL::QS::iM2];
     // ****************************************
     if (Gamma < 1) {
-        (*p_log)(LOG_ERR, AT) << " Gamma="<<Gamma<<" Gammas"<<p_pars->m_data_tmp[BW::Q::iGamma][0]<<"\n";
+        (*p_log)(LOG_ERR, AT) << "Wrong value in RHS: Gamma="<<Gamma
+            << " Gamma0="<<p_pars->Gamma0
+            << " E0=" <<p_pars->E0
+            << " M0=" <<p_pars->M0
+            << " R=" <<R
+            << " Rsh=" <<Rsh
+            << " Eint2=" <<Eint2
+            << " theta=" <<theta
+            << " M2=" <<M2
+            << " rho=" <<p_dens->m_rho_def / p_pars->M0
+            << " drhodr=" <<p_dens->m_drhodr_def / p_pars->M0
+            << " M2=" <<M2
+            << " dthetadr_prev=" << p_pars->dthetadr_prev
+            <<"\n";
         exit(1);
     }
 //        double Gamma = EQS::GamFromMom(mom);
@@ -1597,6 +1610,7 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
                 break;
         }
     }
+    p_pars->dthetadr_prev = dthetadr; // for debugging
 
 
     double dM2dR = 0;
@@ -1607,6 +1621,8 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
             break;
         case iusingdthdR:
             dM2dR = EQS::dmdr(Gamma, R, dthetadr, theta, rho) / p_pars->ncells;
+            break;
+        case iNodmdr:
             break;
     }
     if (dM2dR < 0.){
@@ -1699,7 +1715,7 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
                               << " M0=" <<p_pars->M0 << "\n"
                               << " R=" <<R << " Rsh=" <<Rsh<< " Gamma=" <<Gamma<< " Eint2=" <<Eint2<< " theta=" <<theta
                               << " M2=" <<M2<< " rho=" <<rho<<" drhodr=" <<drhodr<<" dM2dR=" <<dM2dR<< "\n";
-        (*p_log)(LOG_ERR,AT)  << " maybe timestep is too large \n Exiting...";
+        (*p_log)(LOG_ERR,AT)  << " maybe timestep is too large. Exiting...";
 //            std::cerr << AT << "\n";
         exit(1);
     }

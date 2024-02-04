@@ -45,7 +45,7 @@ except:
 curdir = os.getcwd() + '/' #"/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglow_dev/PyBlastAfterglow/src/PyBlastAfterglow/tests/dyn/"
 
 def tst_against_afgpy(withSpread = False,
-                      savefig = "compare_uniform_afgpy.png",
+                      savefig = "compare_gauss_afgpy.png",
                       load_data = True):
 
     # pba = PBA(workingdir=os.getcwd()+"/", readparfileforpaths=True)
@@ -163,7 +163,7 @@ def tst_against_afgpy(withSpread = False,
     plt.show()
 
 def tst_against_afgpy_methods(withSpread = False,
-                      savefig = "compare_uniform_afgpy.png",
+                      savefig = "compare_gauss_afgpy.png",
                       load_data = True):
 
     # pba = PBA(workingdir=os.getcwd()+"/", readparfileforpaths=True)
@@ -175,24 +175,29 @@ def tst_against_afgpy_methods(withSpread = False,
     # pba_016 = PBA(os.getcwd()+"/", readparfileforpaths=True)
     workdir = os.getcwd() + '/'
     # prepare initial data (piecewise and adaptive)
-    struct = {"struct":"tophat",
-              "Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.1}
-    pba_id = PBA.id_analytic.JetStruct(n_layers_pw=80, n_layers_a=1)
+    struct = {"struct":"gaussian",
+              "Eiso_c":1.e52, "Gamma0c": 300., "M0c": -1.,
+              "theta_c": 0.085, "theta_w": 0.2618,
+              "nlayers_pw":90,"nlayers_a": 10}
+    pba_id = PBA.id_analytic.JetStruct(n_layers_pw=struct["nlayers_pw"],
+                                       n_layers_a=struct["nlayers_a"])
     # save piece-wise EATS ID
     id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="piece-wise")
-    pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=curdir+"tophat_grb_id_pw.h5")
+    pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars,
+                      outfpath=curdir+"gauss_grb_id_pw.h5")
 
     # save adaptive EATS ID
     id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="adaptive")
-    pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=curdir+"tophat_grb_id_a.h5")
+    pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars,
+                      outfpath=curdir+"gauss_grb_id_a.h5")
 
 
     lls, lbls = [], []
     for (i_thetaobs, i_freq, i_color) in [
         # (thetaObs, freqobs, "blue"),
-        (0.16, 1e9, "orange"),
+        (0.3752, 1e9, "orange"),
         (0, 1e18, "green"),
-        (0.16, 1.e18, "red"),
+        (0.3752, 1.e18, "red"),
         (0, 1e9, "blue"),
     ]:
 
@@ -204,8 +209,8 @@ def tst_against_afgpy_methods(withSpread = False,
                                         "method_eats":"piece-wise",
                                         "method_ne_fs":"useNe",
                                         "method_shock_ele_fs":"analytic",
-                                        "fname_ejecta_id":"tophat_grb_id_pw.h5",
-                                        "fname_light_curve":"tophat_{}_pw.h5".format( str(i_thetaobs).replace(".",""))},
+                                        "fname_ejecta_id":"gauss_grb_id_pw.h5",
+                                        "fname_light_curve":"gauss_{}_pw.h5".format( str(i_thetaobs).replace(".",""))},
                                parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         pba_pw = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
         pba_pw.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
@@ -221,8 +226,8 @@ def tst_against_afgpy_methods(withSpread = False,
                                                           "method_eats":"piece-wise",
                                                           "method_ne_fs":"usenprime",
                                                           "method_shock_ele_fs":"analytic",
-                                                          "fname_ejecta_id":"tophat_grb_id_pw.h5",
-                                                          "fname_light_curve":"tophat_{}_pw.h5".format( str(i_thetaobs).replace(".",""))},
+                                                          "fname_ejecta_id":"gauss_grb_id_pw.h5",
+                                                          "fname_light_curve":"gauss_{}_pw.h5".format( str(i_thetaobs).replace(".",""))},
                                                  parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         pba_pw = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
         # pba.reload_parfile()
@@ -240,8 +245,8 @@ def tst_against_afgpy_methods(withSpread = False,
                                                           "method_eats":"piece-wise",
                                                           "method_ne_fs":"useNe",
                                                           "method_shock_ele_fs":"analytic",
-                                                          "fname_ejecta_id":"tophat_grb_id_pw.h5",
-                                                          "fname_light_curve":"tophat_{}_pw.h5".format( str(i_thetaobs).replace(".",""))},
+                                                          "fname_ejecta_id":"gauss_grb_id_pw.h5",
+                                                          "fname_light_curve":"gauss_{}_pw.h5".format( str(i_thetaobs).replace(".",""))},
                                                  parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         pba_pw2 = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
         pba_pw2.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
@@ -256,8 +261,8 @@ def tst_against_afgpy_methods(withSpread = False,
                                                           "method_eats":"piece-wise",
                                                           "method_ne_fs":"usenprime",
                                                           "method_shock_ele_fs":"analytic",
-                                                          "fname_ejecta_id":"tophat_grb_id_pw.h5",
-                                                          "fname_light_curve":"tophat_{}_pw.h5".format( str(i_thetaobs).replace(".",""))},
+                                                          "fname_ejecta_id":"gauss_grb_id_pw.h5",
+                                                          "fname_light_curve":"gauss_{}_pw.h5".format( str(i_thetaobs).replace(".",""))},
                                                  parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         pba_pw2 = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
         # pba.reload_parfile()
@@ -276,8 +281,8 @@ def tst_against_afgpy_methods(withSpread = False,
         #                                                   "method_eats":"piece-wise",
         #                                                   "method_ne_fs":"useNe",
         #                                                   "method_shock_ele_fs":"numeric",
-        #                                                   "fname_ejecta_id":"tophat_grb_id_pw.h5",
-        #                                                   "fname_light_curve":"tophat_{}_pw.h5".format( str(i_thetaobs).replace(".",""))},
+        #                                                   "fname_ejecta_id":"gauss_grb_id_pw.h5",
+        #                                                   "fname_light_curve":"gauss_{}_pw.h5".format( str(i_thetaobs).replace(".",""))},
         #                                          parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         # pba_pw2 = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
         # # pba.reload_parfile()
@@ -296,8 +301,8 @@ def tst_against_afgpy_methods(withSpread = False,
                                         "method_eats":"adaptive",
                                         "method_ne_fs":"useNe",
                                         "method_shock_ele_fs":"analytic",
-                                        "fname_ejecta_id":"tophat_grb_id_a.h5",
-                                        "fname_light_curve":"tophat_{}_a.h5"
+                                        "fname_ejecta_id":"gauss_grb_id_a.h5",
+                                        "fname_light_curve":"gauss_{}_a.h5"
                                .format( str(i_thetaobs).replace(".",""))},
                                parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         pba_a = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
@@ -314,8 +319,8 @@ def tst_against_afgpy_methods(withSpread = False,
                                                           "method_eats":"adaptive",
                                                           "method_ne_fs":"usenprime",
                                                           "method_shock_ele_fs":"analytic",
-                                                          "fname_ejecta_id":"tophat_grb_id_a.h5",
-                                                          "fname_light_curve":"tophat_{}_a.h5"
+                                                          "fname_ejecta_id":"gauss_grb_id_a.h5",
+                                                          "fname_light_curve":"gauss_{}_a.h5"
                                                  .format( str(i_thetaobs).replace(".",""))},
                                                  parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         pba_a = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
@@ -324,7 +329,7 @@ def tst_against_afgpy_methods(withSpread = False,
                 pba_a.GRB.get_lc_totalflux(freq=i_freq), color=i_color, ls=':', lw=1.0,
                 label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
         pba_a.clear()
-        # -------------------------------------------------------
+        # # -------------------------------------------------------
         PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main",newpars={"theta_obs":i_thetaobs},newopts={},
                                                  parfile="default_parfile.par", newparfile="parfile.par", keep_old=True)
         PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",newpars={},
@@ -333,8 +338,8 @@ def tst_against_afgpy_methods(withSpread = False,
                                                           "method_eats":"adaptive",
                                                           "method_ne_fs":"useNe",
                                                           "method_shock_ele_fs":"analytic",
-                                                          "fname_ejecta_id":"tophat_grb_id_a.h5",
-                                                          "fname_light_curve":"tophat_{}_a.h5"
+                                                          "fname_ejecta_id":"gauss_grb_id_a.h5",
+                                                          "fname_light_curve":"gauss_{}_a.h5"
                                                  .format( str(i_thetaobs).replace(".",""))},
                                                  parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         pba_a2 = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
@@ -351,8 +356,8 @@ def tst_against_afgpy_methods(withSpread = False,
                                                           "method_eats":"adaptive",
                                                           "method_ne_fs":"usenprime",
                                                           "method_shock_ele_fs":"analytic",
-                                                          "fname_ejecta_id":"tophat_grb_id_a.h5",
-                                                          "fname_light_curve":"tophat_{}_a.h5"
+                                                          "fname_ejecta_id":"gauss_grb_id_a.h5",
+                                                          "fname_light_curve":"gauss_{}_a.h5"
                                                  .format( str(i_thetaobs).replace(".",""))},
                                                  parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         pba_a2 = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
@@ -365,8 +370,6 @@ def tst_against_afgpy_methods(withSpread = False,
 
         # -------------------------------------------------------
 
-
-
         PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main",newpars={"theta_obs":i_thetaobs},newopts={},
                                                  parfile="default_parfile.par", newparfile="parfile.par", keep_old=True)
         PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
@@ -376,8 +379,8 @@ def tst_against_afgpy_methods(withSpread = False,
                                                           "method_eats":"adaptive",
                                                           "method_ne_fs":"useNe",
                                                           "method_shock_ele_fs":"numeric",
-                                                          "fname_ejecta_id":"tophat_grb_id_a.h5",
-                                                          "fname_light_curve":"tophat_{}_a.h5"
+                                                          "fname_ejecta_id":"gauss_grb_id_a.h5",
+                                                          "fname_light_curve":"gauss_{}_a.h5"
                                                  .format( str(i_thetaobs).replace(".",""))},
                                                  parfile="parfile.par", newparfile="parfile.par", keep_old=False)
         pba_a2 = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
@@ -387,21 +390,36 @@ def tst_against_afgpy_methods(withSpread = False,
                 label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
         pba_a2.clear()
 
-        if load_data:
-            if withSpread:
-                fname = "afterglowpy_theta{:d}_lognu{:d}_spread.txt".format(int(i_thetaobs * 180 / np.pi),
-                                                                            int(np.log10(i_freq)))
-            else:
-                fname = "afterglowpy_theta{:d}_lognu{:d}.txt".format(int(i_thetaobs * 180 / np.pi),
-                                                                     int(np.log10(i_freq)))
-            _t, _ref_F_afgpy, _ref_F = np.loadtxt(os.getcwd() + '/' + fname, unpack=True)
-            _ll, = ax.plot(_t / PBA.utils.cgs.day, _ref_F_afgpy, color=i_color, ls='-')
+
+        # afterglowpy
+        if afterglowpy:
+            pba_a = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
+
+            # afterglowpy
+            Z = {'jetType':     grb.jet.Gaussian,     # Top-Hat jet
+                                    'specType':    0,                  # Basic Synchrotron Spectrum
+                                    'counterjet':  1,
+                                    'spread':      7,
+                                    'thetaObs':    i_thetaobs,   # Viewing angle in radians
+                                    'E0':          struct["Eiso_c"], # Isotropic-equivalent energy in erg
+                                    'g0':          1000,
+                                    'thetaCore':   struct["theta_c"],    # Half-opening angle in radians
+                                    'thetaWing':   struct["theta_w"],
+                                    'n0':          pba_a.main_pars["n_ism"],    # circumburst density in cm^{-3}
+                                    'p':           pba_a.GRB.pars["p_fs"],    # electron energy distribution index
+                                    'epsilon_e':   pba_a.GRB.pars["eps_e_fs"],    # epsilon_e
+                                    'epsilon_B':   pba_a.GRB.pars["eps_b_fs"],   # epsilon_B
+                                    'xi_N':        1.0,    # Fraction of electrons accelerated
+                                    'd_L':         pba_a.main_pars["d_l"], # Luminosity distance in cm
+                                    'z':           pba_a.main_pars["z"]}   # redshift
+            t = np.geomspace(1e4, 1e10, 200)
+            nu = np.empty(t.shape)
+            nu[:] = i_freq
+            Fnu = grb.fluxDensity(t, nu, **Z)
+            _ll, = ax.plot(t / PBA.utils.cgs.day, Fnu, color=i_color, ls='-')
             lls.append(_ll)
             lbls.append(r"$\nu=$" + r"${}$ Hz ".format(PBA.utils.latex_float(i_freq))
                         + r"$\theta_{\rm obs}=$" + r"{:.1f} deg".format(i_thetaobs * 180 / np.pi))
-
-        # break
-
 
     l11, = ax.plot([-1., -1.], [-2., -2.], color='gray', ls='--', lw=0.5, label=r"\texttt{PBA} [pw;obs]")
     l11, = ax.plot([-1., -1.], [-2., -2.], color='gray', ls='--', lw=1.5, label=r"\texttt{PBA} [pw;comov]")

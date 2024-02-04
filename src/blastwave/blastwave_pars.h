@@ -108,6 +108,7 @@ struct Pars{
     double entry_r = -1; // same for radius
     // --
     double prev_x=-1; size_t prev_idx_x=0; size_t n_substeps=10; // for Derivatives, logging
+    double dthetadr_prev = 0.;
     // ---
     size_t ijl = 123456;
     size_t prev_ijl = 123456;

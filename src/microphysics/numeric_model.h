@@ -496,7 +496,7 @@ public:
         double norm = (1 + index) / (std::pow(x_max, index + 1) - std::pow(x_min, index + 1));
         for (size_t i = 0; i < n_grid_points; i++)
             if ((ele.e[i] > x_min) && (ele.e[i] <= x_max))
-                source_grid[i] = N * norm * std::pow(ele.e[i], index);;
+                source_grid[i] = N * norm * std::pow(ele.e[i], index);
     }
 
     /**

@@ -990,7 +990,8 @@ public:
                 scaling = std::pow(nuprime / nu_m, -1.0 * (p - 1.0) / 2.0);
             }
             else  { // if (nuprime >= nu_c)
-                scaling = std::pow(nu_c / nu_m, -1.0 * (p - 1.0) / 2.0) * std::pow(nuprime / nu_c, -1.0 * p / 2.0);
+                scaling = std::pow(nu_c / nu_m, -1.0 * (p - 1.0) / 2.0)
+                        * std::pow(nuprime / nu_c, -1.0 * p / 2.0);
             }
         }
         else {//  # fast cooling
