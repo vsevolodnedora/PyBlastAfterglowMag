@@ -57,7 +57,6 @@ public:
                 saveEjectaBWsDynamics(
                         working_dir,
                         getStrOpt("fname_dyn", m_opts, AT, p_log, "", true),
-                        (int)getDoublePar("save_dyn_every_it", m_pars, AT, p_log, 1, true),
                         main_pars, m_pars);
 
             if (do_spec && save_spec)
@@ -193,7 +192,7 @@ private:
 private:
     /// OUTPUT dynamics/electrons
     void saveEjectaBWsDynamics(
-            std::string workingdir, std::string fname, size_t every_it, StrDbMap & main_pars, StrDbMap & ej_pars){
+            std::string workingdir, std::string fname, StrDbMap & main_pars, StrDbMap & ej_pars){
 
 
         (*p_log)(LOG_INFO,AT) << "Saving Ejecta BW dynamics...\n";
@@ -353,7 +352,7 @@ private:
 
         }
     }
-
+#if 0
     /// OUTPUT spectrum
     void computeSaveEjectaSpectrumOLD(
             std::string workingdir,std::string fname, std::string fname_shells_layers,
@@ -478,15 +477,16 @@ private:
         group_names.emplace_back("total_power");
         p_out->VectorOfVectorsH5(total_fluxes_shell_layer, group_names, workingdir+fname,  attrs);
     }
-
+#endif
     /// OUTPUT spectrum
     void computeSaveEjectaSpectrum(
             std::string workingdir,std::string fname, StrDbMap & main_pars, StrDbMap & ej_pars){
 
-        (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta spectrum with analytic synchrotron...\n";
+        (*p_log)(LOG_INFO,AT) << "Computing and saving ejecta spectra...\n";
 
         if (!is_ejecta_anal_synch_computed){
-            (*p_log)(LOG_INFO,AT) << " ejecta analytic electrons were not evolved. Cannot computeSynchrotronEmissivityAbsorptionAnalytic light curve (analytic) exiting...\n";
+            (*p_log)(LOG_INFO,AT) << " ejecta electrons were not evolved. "
+                                                " Cannot compute light curve exiting...\n";
             exit(1);
         }
 
@@ -503,11 +503,26 @@ private:
                 std::string group_name = "shell=" + std::to_string(ish) + " layer=" + std::to_string(il);
                 H5::Group grp(file.createGroup(group_name));
                 auto &bw = getShells()[il]->getBW(ish);
-                Output::addVectorToGroup(grp, bw->getPars()->p_syn_a->out_spectrum, "synch_em_fs");
-                Output::addVectorToGroup(grp, bw->getPars()->p_syn_a->out_specturm_ssa, "synch_abs_fs");
+                /// save spectra for forward shock
+                Output::addVectorToGroup(grp, bw->getPars()->p_syn_a->out_spectrum,
+                                         "synch_fs");
+                Output::addVectorToGroup(grp, bw->getPars()->p_syn_a->out_specturm_ssa,
+                                         "ssa_fs");
+                /// save electron spectrum if electrons are numerically evolved
+                if (bw->getPars()->p_syn_a->m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum)
+                    Output::addVectorToGroup(grp, bw->getPars()->p_syn_a->out_ele_spectrum,
+                                             "n_ele_fs");
+
+                /// save spectra of the reverse shock
                 if (bw->getPars()->do_rs){
-                    Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->out_spectrum, "synch_em_rs");
-                    Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->out_specturm_ssa, "synch_abs_rs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->out_spectrum,
+                                             "synch_em_rs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->out_specturm_ssa,
+                                             "synch_abs_rs");
+                    /// save electron spectrum if electrons are numerically evolved
+                    if (bw->getPars()->p_syn_a->m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum)
+                        Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->out_ele_spectrum,
+                                                 "n_ele_rs");
                 }
                 grp.close();
             }
@@ -516,19 +531,36 @@ private:
         auto &bw0 = getShells()[0]->getBW(0);
 
         /// make vectors for time and freq with the same structure as emissivity and absorption
-        Vector _times(bw0->get_tburst().size()*bw0->getPars()->p_syn_a->m_freq_arr.size(), 0.);
-        Vector _freqs(bw0->get_tburst().size()*bw0->getPars()->p_syn_a->m_freq_arr.size(), 0.);
-        size_t ii =0;
+        Vector _times_for_freq(bw0->get_tburst().size() * bw0->getPars()->p_syn_a->m_freq_arr.size(), 0.);
+        Vector _freqs(bw0->get_tburst().size() * bw0->getPars()->p_syn_a->m_freq_arr.size(), 0.);
+        size_t ii=0;
         for (size_t it = 0; it < bw0->get_tburst().size(); it++) {
             for (size_t ifreq = 0; ifreq < bw0->getPars()->p_syn_a->m_freq_arr.size(); ifreq++){
-                _times[ii]=bw0->get_tburst()[it];
+                _times_for_freq[ii]=bw0->get_tburst()[it];
                 _freqs[ii]=bw0->getPars()->p_syn_a->m_freq_arr[ifreq];
                 ii++;
             }
         }
+        Output::addVector(_times_for_freq,"times_freqs",file);
+        Output::addVector(_freqs,"freqs",file);
 
-        Output::addVector(_times,"tburst",file);
-        Output::addVector(_freqs,"synch_freq",file);
+
+        /// make vectors for time and freq with the same structure as emissivity and absorption
+        if (bw0->getPars()->p_syn_a->m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum){
+            Vector _times_freq_gam(bw0->get_tburst().size() * bw0->getPars()->p_syn_a->getEle().numbins, 0.);
+            Vector _gams (bw0->get_tburst().size() * bw0->getPars()->p_syn_a->m_gam_arr.size(), 0.);
+            ii=0;
+            for (size_t it = 0; it < bw0->get_tburst().size(); it++) {
+                for(size_t igam = 0; igam < bw0->getPars()->p_syn_a->getEle().numbins; igam++) {
+                    _times_freq_gam[ii]=bw0->get_tburst()[it];
+                    _gams[ii] = bw0->getPars()->p_syn_a->getEle().e[igam];
+                    ii++;
+                }
+            }
+            Output::addVector(_times_freq_gam,"times_gams",file);
+            Output::addVector(_gams,"gams",file);
+        }
+
 
         /// add attributes
         std::unordered_map<std::string, double> attrs{

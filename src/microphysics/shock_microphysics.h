@@ -140,14 +140,14 @@ double computeIntensity(const double em_lab, double dtau, METHOD_TAU m_tau){
 
 class ElectronAndRadiaionBase{
 public:
-    Vector out_spectrum{}; Vector out_specturm_ssa{};
-    Vector m_freq_arr{};
+    Vector out_ele_spectrum{}; Vector out_spectrum{}; Vector out_specturm_ssa{};
+    Vector m_gam_arr{}; Vector m_freq_arr{};
     /// ------------------------------------
     double B=-1, gamma_min=-1, gamma_max=-1, gamma_c=-1;
     double n_prime=-1; // used in B and gamma_min
     double n_protons=-1; // conditionally used on synchrotron emissivity
     double nn=-1; // Ne or nprime depending on the setting 'm_method_ne'
-    double eprime=-1.,Gamma=-1,GammaSh=-1, beta=-1.,t_e=-1.,r=-1,dr=-1;
+    double eprime=-1.,Gamma=-1,GammaSh=-1, beta=-1.,t_e=-1.;
     double accel_frac=-1.;
     double Theta=-1, z_cool=-1, x=-1;
     size_t max_substeps=0; // limit to the number of substeps to evolve electrons
@@ -624,7 +624,11 @@ public:
         /// allocate space for the comoving spectrum
         out_spectrum.resize(nfreq * nr );
         out_specturm_ssa.resize(nfreq * nr );
-
+    }
+    void allocateStorageForOutputElectronSpectra(size_t nr, double gam1, double gam2,  size_t ngams){
+        m_gam_arr = TOOLS::MakeLogspaceVec(log10(gam1), log10(gam2),(int)ngams);
+        /// allocate space for the comoving spectrum
+        out_ele_spectrum.resize(ngams * nr );
     }
     /// store current shock properties
     void updateSockProperties(double e_prime, double Gamma_, double Gamma_shock, double t_e_,
@@ -968,6 +972,7 @@ public: // ---------------- ANALYTIC -------------------------- //
 
         em=0., abs=0.;
 
+//        nn = n_protons;
         nn *= ksi_n;// TODO this is not included in normalization obs.flux
 
         // defined in Margalit+21 arXiv:2111.00012
@@ -978,11 +983,11 @@ public: // ---------------- ANALYTIC -------------------------- //
                 SynchrotronAnalytic(gamma_min,gamma_c,gamma_max,B,p,do_ssa,p_log);
 
         if (m_sychMethod == METHODS_SYNCH::iJOH06)
-            syn_an.computeAnalyticSynchJOH06(em, abs, nuprime, nn);
+            syn_an.computeAnalyticSynchJOH06(em, abs, nuprime, ne_);
         else if (m_sychMethod == METHODS_SYNCH::iWSPN99)
-            syn_an.computeAnalyticSynchWSPN99(em, abs, nuprime, nn);
+            syn_an.computeAnalyticSynchWSPN99(em, abs, nuprime, ne_);
         else if (m_sychMethod == METHODS_SYNCH::iDER06)
-            syn_an.computeAnalyticSynchDER06(em, abs, nuprime, nn);
+            syn_an.computeAnalyticSynchDER06(em, abs, nuprime, ne_);
         else if (m_sychMethod == METHODS_SYNCH::iMARG21)
             syn_an.computeAnalyticSynchMARG21(em, abs, nuprime, ne_,
                                               delta,Theta,z_cool,accel_frac);
@@ -992,6 +997,13 @@ public: // ---------------- ANALYTIC -------------------------- //
         }
 
         checkEmssivityAbsorption(em, abs, nuprime);
+
+        if (m_method_ne == METHOD_NE::iuseNe){
+            em /= n_protons;
+            abs /= n_protons;
+//                out_spectrum[ifreq + nfreq * it] /= (source.r * source.r * source.dr); // /= n_protons;
+//                out_specturm_ssa[ifreq + nfreq * it] /= (source.r * source.r * source.dr);// /= n_protons;
+        }
 
 
 //        em /= (r * r * dr);
@@ -1008,7 +1020,9 @@ public: // ---------------- ANALYTIC -------------------------- //
     }
 
     /// compute spectrum for all freqs and add it to the container
-    void computeSynchrotronSpectrumAnalytic(size_t it){
+    void computeSynchrotronSpectrumAnalytic(size_t it, double r, double dr){
+        source.r = r;
+        source.dr = dr;
         size_t nfreq = m_freq_arr.size();
         double em, abs;
         /// computeSynchrotronEmissivityAbsorptionAnalytic emissivity and absorption for each frequency
@@ -1017,15 +1031,21 @@ public: // ---------------- ANALYTIC -------------------------- //
             out_spectrum[ifreq + nfreq * it] = em;
             out_specturm_ssa[ifreq + nfreq * it] = abs;
             /// TODO removed becase of the error in Gaussian Jet test
-            /// compute emissivity density
+            /// compute emissivity density per unit volume
 //            if (m_method_ne == METHOD_NE::iuseNe){
-//                out_spectrum[ifreq + nfreq * it] /= n_protons;// /= (r * r * dr);///= (r * r * dr);
-//                out_specturm_ssa[ifreq + nfreq * it] /= n_protons;// /= (r * r * dr);//  /= n_protons;///= (r * r * dr);
+//                out_spectrum[ifreq + nfreq * it] /= n_protons;
+//                out_specturm_ssa[ifreq + nfreq * it] /= n_protons;
+////                out_spectrum[ifreq + nfreq * it] /= (source.r * source.r * source.dr); // /= n_protons;
+////                out_specturm_ssa[ifreq + nfreq * it] /= (source.r * source.r * source.dr);// /= n_protons;
 //            }
         }
     }
 
 public: // -------------------- NUMERIC -------------------------------- //
+
+    State & getEle(){return ele;}
+    State & getSyn(){return syn;}
+    State & getSSC(){return ssc;}
 
     void allocateStorageForNumericSpectra(StrDbMap & pars, size_t nr){
 
@@ -1063,8 +1083,9 @@ public: // -------------------- NUMERIC -------------------------------- //
             ssc_kernel.evalSSCgridIntergral(ele, syn, ssc);
         }
 
+        /// allocate space for data that is to be saved in h5 files
+        allocateStorageForOutputElectronSpectra(nr, gam1, gam2, ngams);
         allocateStorageForOutputSpectra(nr, freq1, freq2, nfreq);
-
     }
 
     void evaluateElectronDistributionNumeric(double dt, double d_m, double r, double dr, double rp1, double drp1){
@@ -1153,36 +1174,56 @@ public: // -------------------- NUMERIC -------------------------------- //
 
     void computeSynchrotronSpectrumNumeric(size_t it){
 
-//        m_sychMethod = METHODS_SYNCH::iDER06;
+//        print_xy_as_numpy(ele.e, ele.f,ele.numbins,1);
 
-        size_t nfreq = m_freq_arr.size();
+        /// store electron spectrum
+        size_t ngam = ele.numbins;
+        for (size_t igam = 0; igam < ele.e.size(); ++igam)
+            out_ele_spectrum[igam + ngam * it] = ele.f[igam];
+
         /// store emissivity and absorption for each frequency
+        size_t nfreq = m_freq_arr.size();
         for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq) {
-
-//            computeSynchrotronEmissivityAbsorptionAnalytic(m_freq_arr[ifreq]);
-//
-//            out_spectrum[ifreq + nfreq * it] = syn.j[ifreq] / n_or_nprime * n_prime; // M2 / mp * (4. * Gamma * rho_ism)
-            out_spectrum[ifreq + nfreq * it] = syn.j[ifreq]; // M2 / mp * (4. * Gamma * rho_ism)
-//            out_specturm_ssa[ifreq + nfreq * it] = syn.a[ifreq] / n_or_nprime * n_prime;
+            out_spectrum[ifreq + nfreq * it] = syn.j[ifreq];
             out_specturm_ssa[ifreq + nfreq * it] = syn.a[ifreq];
-
-            /// TODO removed becase of the error in Gaussian Jet test
-//            if (m_method_ne == METHOD_NE::iuseNe){
-//                out_spectrum[ifreq + nfreq * it] /= n_protons; //;/= (r * r * dr);
-//                out_specturm_ssa[ifreq + nfreq * it] /= n_protons; // /= (r * r * dr);
-//            }
-//            std::cout<<ifreq<<" em="<<em / (r * r * dr)<<" j="<<out_spectrum[ifreq + nfreq * it]<<"\n";
-//            std::cout<<ifreq<<" em="<<abs / (r * r * dr)<<" a="<<out_specturm_ssa[ifreq + nfreq * it]<<"\n";
-//            int x = 1;
-
         }
 
-        /// implicitely assume that SSC and Syn grids are the same. TODO generalize
-        if (m_methods_ssc != METHOD_SSC::inoSSC)
-            for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq) {
+        /// Add SSC emission
+        if (m_methods_ssc == METHOD_SSC::iNumSSC)
+            for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq)
                 out_spectrum[ifreq + nfreq * it] += ssc.j[ifreq];
-            }
+
+        /// Normalize to get emissivity per particle (for EATS)
+        for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq) {
+            out_spectrum[ifreq + nfreq * it] /= n_protons;
+            out_specturm_ssa[ifreq + nfreq * it] /= n_protons; // TODO check if just by n_protons
+        }
     }
+    ////            computeSynchrotronEmissivityAbsorptionAnalytic(m_freq_arr[ifreq]);
+////
+////            out_spectrum[ifreq + nfreq * it] = syn.j[ifreq] / n_or_nprime * n_prime; // M2 / mp * (4. * Gamma * rho_ism)
+//            out_spectrum[ifreq + nfreq * it] = syn.j[ifreq]; // M2 / mp * (4. * Gamma * rho_ism)
+////            out_specturm_ssa[ifreq + nfreq * it] = syn.a[ifreq] / n_or_nprime * n_prime;
+//            out_specturm_ssa[ifreq + nfreq * it] = syn.a[ifreq];
+//
+//            /// Compute emission spectra per unit volume (for EATS integration)
+//            if (m_method_ne == METHOD_NE::iuseNe){
+//                out_spectrum[ifreq + nfreq * it] /= n_protons;
+//                out_specturm_ssa[ifreq + nfreq * it] /= n_protons;
+////                out_spectrum[ifreq + nfreq * it] /= (source.r * source.r * source.dr);
+////                out_specturm_ssa[ifreq + nfreq * it] /= (source.r * source.r * source.dr);
+//            }
+////            std::cout<<ifreq<<" em="<<em / (r * r * dr)<<" j="<<out_spectrum[ifreq + nfreq * it]<<"\n";
+////            std::cout<<ifreq<<" em="<<abs / (r * r * dr)<<" a="<<out_specturm_ssa[ifreq + nfreq * it]<<"\n";
+////            int x = 1;
+//
+//        }
+//
+//        /// implicitely assume that SSC and Syn grids are the same. TODO generalize
+//        if (m_methods_ssc != METHOD_SSC::inoSSC)
+//            for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq) {
+//                out_spectrum[ifreq + nfreq * it] += ssc.j[ifreq];
+//            }
 
 public: // ---------------------- EATS -------------------------------- //
 
@@ -1224,6 +1265,8 @@ public: // ---------------------- EATS -------------------------------- //
             exit(1);
         }
 
+//        double flux_dens = intensity * r * r * dr;
+
         double flux_dens=0.;
         switch (m_method_ne) {
             case iusenprime:
@@ -1232,7 +1275,7 @@ public: // ---------------------- EATS -------------------------------- //
             case iuseNe:
                 // TODO this nprime / ne is so that results afree with when we use nprime not Ne option
                 flux_dens = intensity * r * r * dr
-                          * n_prime / ne;
+                          * n_prime;// / ne;
                 break;
         }
 

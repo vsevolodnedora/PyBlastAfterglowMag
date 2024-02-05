@@ -143,7 +143,7 @@ static double shock_synchrotron_flux_density(
     double delta_D = Gamma * a; // doppler factor
 
     /// properties of the emitting electrons
-    double nuprime = (1.0 + p_pars->z ) * nu_obs * delta_D;
+    double nuprime = (1.0 + p_pars->z) * nu_obs * delta_D;
 
     double em_prime,abs_prime;
     p_syna->setShockElectronParameters(nprime, nprotons, acc_frac,
@@ -645,7 +645,8 @@ static void fluxDensPieceWiseWithObs(
 
 /// use evaluated local emissivity and absoprtion to get observed flux density for Adaptive EATS and blastwave structure
 static void fluxDensAdaptiveWithObs(double & flux_dens, double & r, double & ctheta, double theta, double phi,
-                                    size_t ia, size_t ib, double mu, double t_e, double t_obs, double nu_obs, void * params){
+                                    size_t ia, size_t ib, double mu, double t_e, double t_obs, double nu_obs,
+                                    void * params){
 
     auto * p_pars = (struct Pars *) params; // removing EATS_pars for simplicity
     auto & p_syna = p_pars->p_syn_a;//->getAnSynch();
@@ -1054,7 +1055,9 @@ public:
             if (p_pars->m_method_rad == METHODS_RAD::icomovspec)
                 switch (p_syn_a->m_eleMethod) {
                     case iShockEleAnalyt:
-                        p_syn_a->computeSynchrotronSpectrumAnalytic(it);
+                        p_syn_a->computeSynchrotronSpectrumAnalytic(it,
+                                                                    m_data[BW::Q::iR][it],
+                                                                    m_data[BW::Q::ithickness][it]);
                         break;
                     case iShockEleNum:
                         p_syn_a->evaluateElectronDistributionNumeric(
@@ -1091,7 +1094,9 @@ public:
                 if (p_pars->m_method_rad == METHODS_RAD::icomovspec)
                     switch (p_syn_a_rs->m_eleMethod) {
                         case iShockEleAnalyt:
-                            p_syn_a_rs->computeSynchrotronSpectrumAnalytic(it);
+                            p_syn_a_rs->computeSynchrotronSpectrumAnalytic(it,
+                                                                           m_data[BW::Q::iR][it],
+                                                                           m_data[BW::Q::ithichness_rs][it]);
                             break;
                         case iShockEleNum:
                             p_syn_a_rs->evaluateElectronDistributionNumeric(
