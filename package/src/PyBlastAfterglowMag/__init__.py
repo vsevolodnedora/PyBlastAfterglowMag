@@ -9,5 +9,5 @@ from .skymap_plotting_tools import (plot_skymap_with_hists, full_plot_skymap_wit
 from .skymap_process import ProcessRawSkymap
 
 # case-depended methods
-from .wrappers import (CasesFS, CasesFSRS, runset_for_skymap)
+# from .wrappers import (CasesFS, CasesFSRS, runset_for_skymap)
 from .run_sets import CollateDataForRuns

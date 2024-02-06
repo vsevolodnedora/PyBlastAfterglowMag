@@ -6,6 +6,7 @@ import copy
 import subprocess
 from shutil import copyfile
 from multiprocessing import Pool
+import itertools
 
 from .utils import cgs, get_beta, find_nearest_index
 
@@ -23,7 +24,7 @@ def get_str_val(v_n, val):
     elif ((v_n == "Eiso_c") or ((v_n == "Eiso_c"))):
         val = np.log10(val)
     elif (v_n == "d_l"):
-        val = val / 1.e9 / cgs.pc
+        val = val / 1.e6 / cgs.pc
     else:
         pass
     if len(str(val)) > 7:
@@ -38,7 +39,32 @@ def _apply_pars(pars, keys : list, vals : list, prefix_key : str, prefix : str):
     _pars[prefix_key] = prefix
     return _pars
 
-def set_parlists_for_pars(iter_pars_keys, iter_pars : dict, fname : str):
+def set_parlists_for_pars(iter_pars_keys:list[str], iter_pars : dict):
+    """ Generate a list of dictionaries containing all possible permutations
+        of parameters and returns the list of dictionaries
+
+        `iter_pars_keys` : list[str] list of parameter names that should be iterated over
+        :iter_pars: dict that must contain all iter_pars_keys with lists as values e.g.,
+            iter_pars_keys : {
+            par1: [1,2,3,4]
+            par2: [4,6,7,8]
+        }
+        """
+    ranges = [iter_pars[key] for key in iter_pars_keys]
+    result = []
+    # Generate all possible combinations of values for the 5 parameters
+    all_combinations = itertools.product(*ranges)
+    for combination in all_combinations:
+        # create a dict with {par:value} for each parameter and value in current permitation
+        result.append({par:val for par,val in zip(iter_pars_keys,combination)})
+        # create a str containing the par_value for each par and value (used later to label the simulation)
+        result[-1]["name"] = "".join([par.replace("_","")+get_str_val(par,val)+'_'
+                                      for par,val in zip(iter_pars_keys,combination)])
+    return result
+
+    # print(f"Total combinations {len(all_combinations)}")
+
+def OLD_set_parlists_for_pars(iter_pars_keys, iter_pars : dict, fname : str)->list[dict]:
     pars = {}
     prefix_key = "name"
     # fname = pars["ejecta_prefix"]

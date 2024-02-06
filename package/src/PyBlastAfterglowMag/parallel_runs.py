@@ -94,22 +94,17 @@ class ParallelRuns():
         """
         if (iter_pars_dict.keys() == 0):
             print("Empty iter_pars_dict is given")
-
-        # generate directory names for the runs (concacenate parameters to iterate over)
-        workdir_template = "".join(["{}[{}]_".format(key.replace("_",""),key) for key in iter_pars_dict.keys()])
-        # add user-specified prefix if needed
-        workdir_template = dirname_prefix + workdir_template
         # create lists of parameters by doing permutations on the given 'iter_pars_dict'
         self.new_pars = set_parlists_for_pars(
             iter_pars_keys=list(iter_pars_dict.keys()),
-            iter_pars=iter_pars_dict,
-            fname=workdir_template)
+            iter_pars=iter_pars_dict)
 
         # create directories for each run and copy there the parfile from outdir
         if len(self.new_pars) and len(self.new_pars[0].keys()) > 0:
-            self.working_dirs = [self.outdir + new_par["name"] + dirname_ending + "/" for new_par in self.new_pars]
+            self.working_dirs = [self.outdir + dirname_prefix + '_' + new_par["name"] + dirname_ending + "/"
+                                 for new_par in self.new_pars]
         else:
-            self.working_dirs = [self.outdir + dirname_ending + "/"]
+            self.working_dirs = [self.outdir + dirname_prefix + dirname_ending + "/"]
         print(f"NOTE {len(self.working_dirs)} directories will be created!")
         print(f"\t Example {self.working_dirs[0]}")
 
@@ -140,14 +135,12 @@ class ParallelRuns():
             # modify workingdirs parfile in accordance with the current iteration
             if len(pars.keys()) > 0:
                 print(f"\tModifying {workingdir + parfilename}")
-                modify_parfile_par_opt(part="main", newpars=pars,
-                                                         newopts={},
-                                                         workingdir=workingdir, parfile=parfilename,
-                                                         newparfile="parfile.par", keep_old=True)
-                modify_parfile_par_opt(part=type, newpars=pars,
-                                                         newopts={"fname_ejecta_id": fname_ejecta_id},
-                                                         workingdir=workingdir, parfile="parfile.par",
-                                                         newparfile="parfile.par", keep_old=False)
+                modify_parfile_par_opt(
+                    part="main", newpars=pars, newopts={}, workingdir=workingdir,
+                    parfile=parfilename,newparfile="parfile.par", keep_old=True)
+                modify_parfile_par_opt(
+                    part=type, newpars=pars, newopts={"fname_ejecta_id": fname_ejecta_id},
+                    workingdir=workingdir, parfile="parfile.par", newparfile="parfile.par", keep_old=False)
             else:
                 print(f"\tNo pars given, not parfiles are modified")
 
@@ -235,9 +228,13 @@ class ParallelRuns():
                 pool.close()
                 pool.join()
 
-def distribute_and_parallel_run(path_to_executable:str, working_dirs:list[str], parfile_name:str, n_cpu:int):
+def distribute_and_parallel_run(path_to_executable:str, working_dirs:list[str], parfile_name:str, n_cpu:int, pba_loglevel:int):
     ''' run multiple instances of PyBlastAfterglow in different directories '''
-    pba_parallel = ParallelRunDispatcher(working_dirs=working_dirs, parfile_name=parfile_name)
+    pba_parallel = ParallelRunDispatcher(
+        path_to_executable=path_to_executable,working_dirs=working_dirs,
+        parfile_name=parfile_name,loglevel=pba_loglevel,
+        skymap_postprocess_conf=None
+    )
     if (n_cpu == 1):
         for i, pars in enumerate(working_dirs):
             pba_parallel(i)

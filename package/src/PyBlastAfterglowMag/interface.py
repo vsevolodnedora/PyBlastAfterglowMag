@@ -105,8 +105,6 @@ class Ejecta(Base):
     def __init__(self,workingdir : str, readparfileforpaths : str, parfile : str, type : str, verbose : str):
         super().__init__(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,verbose=verbose)
 
-        self.spectral_types = ["synch"]
-
         if not os.path.isdir(workingdir):
             raise IOError("Working directory not found {}".format(workingdir))
         self.parfile = parfile
@@ -227,96 +225,74 @@ class Ejecta(Base):
         self._ckeck_if_loaded_dyn_obj()
         return self._get_1d_or_2d_array(self.get_dyn_obj(),v_n=v_n,ishell=ishell,ilayer=ilayer)
 
-    def OLD_get_dyn_1d_arr_layers(self, v_n="em", idx=0, ishell=None, ilayer=None):
-        obj_dyn = self.get_dyn_obj()
-        nlayers = int(obj_dyn.attrs["nlayers"])
-        nshells = int(obj_dyn.attrs["nshells"])
-        x_arr = []
-        if (not ishell is None and ilayer is None):
-            for il in range(nlayers):
-                x_arr.append(self.get_dyn_arr(v_n, ishell=ishell, ilayer=il)[idx])
-        else:
-            for ish in range(nshells):
-                x_arr.append(self.get_dyn_arr(v_n, ishell=ish, ilayer=ilayer)[idx])
-        return np.array(x_arr)
-
     # --------- Comov.Spectrum ---------
+    #
+    # def get_spec_obj(self) -> h5py.File:
+    #     self._check_if_loaded_spec()
+    #     return self.spec_dfile
+    #
+    # def get_spec_times(self, unique : bool = True)->np.ndarray:
+    #     dfile = self.get_spec_obj()
+    #     arr = np.array(dfile["tburst"])
+    #     if not unique:
+    #         return arr
+    #     else:
+    #         arr_u = np.unique(arr)
+    #         if len(arr_u) == 0:
+    #             raise ValueError("no unique times found in array \n {}".format(arr))
+    #         return arr_u
+    #
+    # def get_spec_freqs(self, unique : bool = True)->np.ndarray:
+    #
+    #     dfile = self.get_spec_obj()
+    #     arr = np.array(dfile["freqs"])
+    #     if not unique:
+    #         return arr
+    #     else:
+    #         arr_u = np.unique(arr)
+    #         if len(arr_u) == 0:
+    #             raise ValueError("no unique freqs found in array \n {}".format(arr))
+    #         return arr_u
+    #
+    # def get_spec(self, time : float or None,
+    #              key : str, ishell : int or None, ilayer : int or None)->np.ndarray:
+    #
+    #     res = self._get_1d_or_2d_array(self.get_spec_obj(),v_n=key,ishell=ishell,ilayer=ilayer)
+    #
+    #     utimes = self.get_spec_times(unique=True)
+    #     ufreqs = self.get_spec_freqs(unique=True)
+    #
+    #     def _get_time() -> float:
+    #         if (not time in utimes):
+    #             if (time > utimes.max()):
+    #                 raise ValueError(f"requested time={time} > dfile times.max()={utimes.max()}")
+    #             if (time < utimes.min()):
+    #                 raise ValueError(f"requested time={time} < dfile times.min()={utimes.min()}")
+    #             _time = utimes[find_nearest_index(utimes, time)]
+    #             if self.verb:
+    #                 print(f"Warning: time={time} is not in {utimes} Using time={_time}")
+    #         else:
+    #             _time = utimes[int(np.where(utimes==time)[0])]
+    #         return _time
+    #
+    #     if res.ndim == 1:
+    #         if (time is None):
+    #             arr = np.reshape(res,newshape=(len(utimes),len(ufreqs)))
+    #             return arr
+    #         else:
+    #             _time = _get_time()
+    #             arr = res[np.where(self.get_spec_times(unique=False) == _time)]
+    #             return arr
+    #     elif res.ndim == 2:
+    #         raise NotImplementedError("Not implemented")
+    #     else:
+    #         raise ValueError(f"Incorrect value of ndim={res.ndim}")
 
-    def get_spec_obj(self) -> h5py.File:
-        self._check_if_loaded_spec()
-        return self.spec_dfile
-
-    def get_spec_times(self, unique : bool = True)->np.ndarray:
-        dfile = self.get_spec_obj()
-        arr = np.array(dfile["tburst"])
-        if not unique:
-            return arr
-        else:
-            arr_u = np.unique(arr)
-            if len(arr_u) == 0:
-                raise ValueError("no unique times found in array \n {}".format(arr))
-            return arr_u
-
-    def get_spec_freqs(self, type : str, unique : bool = True)->np.ndarray:
-        if (not type in self.spectral_types):
-            raise KeyError(f"type = {type} is not supported. Available spectra_types: {self.spectral_types}")
-        dfile = self.get_spec_obj()
-        arr = np.array(dfile[type+"_freq"])
-        if not unique:
-            return arr
-        else:
-            arr_u = np.unique(arr)
-            if len(arr_u) == 0:
-                raise ValueError("no unique freqs found in array \n {}".format(arr))
-            return arr_u
-
-    def get_spec(self, time : float or None,
-                 type : str, em_or_abs : str, fs_or_rs : str, ishell : int or None, ilayer : int or None)->np.ndarray:
-
-        if (not em_or_abs in ["em","abs"]):
-            raise KeyError(f"em_or_abs must be em or abs. Given {em_or_abs}")
-        if (not fs_or_rs in ["fs","rs"]):
-            raise KeyError(f"fs_or_rs must be fs or rs. Given {fs_or_rs}")
-        if (not type in self.spectral_types):
-            raise KeyError(f"type = {type} is not supported. Available spectra_types: {self.spectral_types}")
-
-        self._ckeck_if_loaded_dyn_obj()
-        v_n = type+'_'+em_or_abs+'_'+fs_or_rs
-        res = self._get_1d_or_2d_array(self.get_spec_obj(),v_n=v_n,ishell=ishell,ilayer=ilayer)
-
-        utimes = self.get_spec_times(unique=True)
-        ufreqs = self.get_spec_freqs(type=type,unique=True)
-
-        def _get_time() -> float:
-            if (not time in utimes):
-                if (time > utimes.max()):
-                    raise ValueError(f"requested time={time} > dfile times.max()={utimes.max()}")
-                if (time < utimes.min()):
-                    raise ValueError(f"requested time={time} < dfile times.min()={utimes.min()}")
-                _time = utimes[find_nearest_index(utimes, time)]
-                if self.verb:
-                    print(f"Warning: time={time} is not in {utimes} Using time={_time}")
-            else:
-                _time = utimes[int(np.where(utimes==time)[0])]
-            return _time
-
-        if res.ndim == 1:
-            if (time is None):
-                arr = np.reshape(res,newshape=(len(utimes),len(ufreqs)))
-                return arr
-            else:
-                _time = _get_time()
-                arr = res[np.where(self.get_spec_times(unique=False) == _time)]
-                return arr
-        elif res.ndim == 2:
-            raise NotImplementedError("Not implemented")
-        else:
-            raise ValueError(f"Incorrect value of ndim={res.ndim}")
 
 
     # --------- Light Curves ---------
 
-    def get_lc_obj(self,spec : bool = False) -> h5py.File:
+    def get_lc_obj(self, spec : bool = False) -> h5py.File:
         if spec:
             self._check_if_loaded_spec()
             return self.spec_dfile
@@ -324,24 +300,64 @@ class Ejecta(Base):
             self._check_if_loaded_lc()
             return self.lc_dfile
 
-    def get_lc_times(self, unique : bool = True, spec : bool = False) -> np.ndarray:
+    def get_grid(self, key:str, unique : bool = True, spec : bool = False) -> np.ndarray:
         dfile = self.get_lc_obj(spec=spec)
-        arr = np.array(dfile["times"])
+        if not key in dfile.keys():
+            raise KeyError(f"Key={key} is not found in dfile.keys():\n"
+                           f"{dfile.keys()}")
+        arr = np.array(dfile[key])
         if (not unique):
             return arr
         arr_u = np.unique(arr)
         if len(arr_u) == 0:
-            raise ValueError("no unique times found in array \n {}".format(arr))
-        return arr_u
+            raise ValueError(f"no unique values found in data={key} spec={spec} \n {arr}")
+        return np.array(arr_u)
 
+    def get_gams(self,unique : bool = True) -> np.ndarray:
+        return self.get_grid(key="gams",unique=unique,spec=True)
+    #     dfile = self.get_lc_obj(spec=True)
+    #     arr = np.array(dfile["gams"])
+    #     if (not unique):
+    #         return arr
+    #     arr_u = np.unique(arr)
+    #     if len(arr_u) == 0:
+    #         raise ValueError("no unique gams found in data \n {}".format(arr))
+    #     return np.array(arr_u)# np.array(dfile["freqs"])
+    #
+    def get_lc_times(self, unique : bool = True, spec : bool = False) -> np.ndarray:
+        return self.get_grid(key="times",unique=unique, spec=spec)
+    #     dfile = self.get_lc_obj(spec=spec)
+    #     arr = np.array(dfile["times"])
+    #     if (not unique):
+    #         return arr
+    #     arr_u = np.unique(arr)
+    #     if len(arr_u) == 0:
+    #         raise ValueError("no unique times found in array \n {}".format(arr))
+    #     return arr_u
+    #
     def get_lc_freqs(self,unique : bool = True, spec : bool = False) -> np.ndarray:
-        dfile = self.get_lc_obj(spec=spec)
-        arr = np.array(dfile["freqs"])
-        if (not unique): return arr
-        arr_u = np.unique(arr)
-        if len(arr_u) == 0:
-            raise ValueError("no unique freqs found in light curve \n {}".format(arr))
-        return np.array(arr_u)# np.array(dfile["freqs"])
+        return self.get_grid(key="freqs",unique=unique, spec=spec)
+    #     dfile = self.get_lc_obj(spec=spec)
+    #     arr = np.array(dfile["freqs"])
+    #     if (not unique):
+    #         return arr
+    #     arr_u = np.unique(arr)
+    #     if len(arr_u) == 0:
+    #         raise ValueError("no unique freqs found in light curve \n {}".format(arr))
+    #     return np.array(arr_u)# np.array(dfile["freqs"])
+
+    def _get_closest_grid_val(self, val, key:str, uvals:np.ndarray)->float:
+        if (not val in uvals):
+            if (val > uvals.max()):
+                raise ValueError(f"requested {key}={val} > dfile unique {key}.max()={uvals.max()}")
+            if (val < uvals.min()):
+                raise ValueError(f"requested {key}={val} < dfile unique {key}.min()={uvals.min()}")
+            _val = uvals[find_nearest_index(uvals, val)]
+            if self.verb:
+                print(f"Warning: {val}={val} is not in unique {val} {uvals} Using {val}={_val}")
+        else:
+            _val = uvals[int(np.where(uvals==val)[0])]
+        return _val
 
     def get_lc_totalflux(self, freq : float or None = None, time : float or None = None, spec : bool = False) -> np.ndarray:
         dfile = self.get_lc_obj(spec=spec)
@@ -349,44 +365,44 @@ class Ejecta(Base):
         ufreqs = self.get_lc_freqs(spec=spec,unique=True)
         fluxes =  np.array(dfile["total_power"]) if spec else np.array(dfile["total_fluxes"])
         # return np.zeros(0,)
-        def _get_time() -> float:
-            if (not time in utimes):
-                if (time > utimes.max()):
-                    raise ValueError(f"requested time={time} > dfile times.max()={utimes.max()}")
-                if (time < utimes.min()):
-                    raise ValueError(f"requested time={time} < dfile times.min()={utimes.min()}")
-                _time = utimes[find_nearest_index(utimes, time)]
-                if self.verb:
-                    print(f"Warning: time={time} is not in {utimes} Using time={_time}")
-            else:
-                _time = utimes[int(np.where(utimes==time)[0])]
-            return _time
-
-        def _get_freq() -> float:
-            if (not freq in ufreqs):
-                if (freq > ufreqs.max()):
-                    raise ValueError(f"requested freq={freq} > dfile freqs.max()={ufreqs.max()}")
-                if (freq < ufreqs.min()):
-                    raise ValueError(f"requested freq={freq} < dfile freqs.min()={ufreqs.min()}")
-                _freq = ufreqs[find_nearest_index(ufreqs, freq)]
-                if self.verb: print(f"Warning: freq={freq} is not in {ufreqs} Using freq={_freq}")
-            else:
-                _freq = ufreqs[int(np.where(ufreqs==freq)[0])]
-            return _freq
+        # def _get_time() -> float:
+        #     if (not time in utimes):
+        #         if (time > utimes.max()):
+        #             raise ValueError(f"requested time={time} > dfile times.max()={utimes.max()}")
+        #         if (time < utimes.min()):
+        #             raise ValueError(f"requested time={time} < dfile times.min()={utimes.min()}")
+        #         _time = utimes[find_nearest_index(utimes, time)]
+        #         if self.verb:
+        #             print(f"Warning: time={time} is not in {utimes} Using time={_time}")
+        #     else:
+        #         _time = utimes[int(np.where(utimes==time)[0])]
+        #     return _time
+        #
+        # def _get_freq() -> float:
+        #     if (not freq in ufreqs):
+        #         if (freq > ufreqs.max()):
+        #             raise ValueError(f"requested freq={freq} > dfile freqs.max()={ufreqs.max()}")
+        #         if (freq < ufreqs.min()):
+        #             raise ValueError(f"requested freq={freq} < dfile freqs.min()={ufreqs.min()}")
+        #         _freq = ufreqs[find_nearest_index(ufreqs, freq)]
+        #         if self.verb: print(f"Warning: freq={freq} is not in {ufreqs} Using freq={_freq}")
+        #     else:
+        #         _freq = ufreqs[int(np.where(ufreqs==freq)[0])]
+        #     return _freq
 
         if ((freq is None) and (not time is None)):
             # light curve mode
-            _time = _get_time()
+            _time = self._get_closest_grid_val(val=time, key="time", uvals=utimes)
             arr = fluxes[np.where(self.get_lc_times(spec=spec,unique=False) == _time)]
             return arr
         elif ((not freq is None) and (time is None)):
             # spectrum mode
-            _freq = _get_freq()
+            _freq = self._get_closest_grid_val(val=freq, key="freq", uvals=ufreqs)
             arr = fluxes[np.where(self.get_lc_freqs(spec=spec,unique=False) == _freq)]
             return arr
         elif ((not time is None) and (not freq is None)):
-            _time = _get_time()
-            _freq = _get_freq()
+            _time = self._get_closest_grid_val(val=time, key="time", uvals=utimes)
+            _freq = self._get_closest_grid_val(val=freq, key="freq", uvals=ufreqs)
             # flux at a time and freq mocde
             arr = fluxes[np.where(((self.get_lc_freqs(spec=spec,unique=False) == _freq).astype(int) *
                                    (self.get_lc_times(spec=spec,unique=False) == _time).astype(int)).astype(bool))]
@@ -457,8 +473,73 @@ class Ejecta(Base):
         #     raise NameError()
         # return np.array(dfile[key])
 
+    def _get_lc_shell_layer(self, key:str, ishell:int, ilayer:int, spec=False)->np.ndarray:
 
-    def get_lc(self, freq=None, time=None, ishell=None, ilayer=None, spec=False) -> np.ndarray:
+        dfile = self.get_lc_obj(spec=spec)
+        grp = dfile["shell={} layer={}".format(ishell, ilayer)]
+        if not key in grp.keys():
+            raise KeyError(f"key={key} is not in the dfile: {grp.keys()}")
+        arr = np.array(grp[key])
+        return arr
+
+    def _get_lc_for_mask(self, key:str, mask:np.ndarray, x_arr:np.ndarray, 
+                         ishell:int or None, ilayer:int or None, spec=False):
+
+        dfile = self.get_lc_obj(spec=spec)
+        if not ("nlayers" in dfile.attrs.keys()):
+            raise KeyError(f"key= nlayers is not in dfile.attrs.keys()=[{dfile.attrs.keys()}]")
+        nlayers = int(dfile.attrs["nlayers"])
+        if not ("nshells" in dfile.attrs.keys()):
+            raise KeyError(f"key= nshells is not in dfile.attrs.keys()=[{dfile.attrs.keys()}]")
+        nshells = int(dfile.attrs["nshells"])
+        # compute the array of a required shape
+        if not ishell is None and not ilayer is None:
+            return self._get_lc_shell_layer(key=key,ishell=ishell, ilayer=ilayer, spec=spec)[mask]
+        elif ishell is None and not ilayer is None:
+            res = [self._get_lc_shell_layer(key=key,ishell=i, ilayer=ilayer, spec=spec)[mask] for i in range(nshells)]
+            return np.reshape(np.array(res),newshape=(nshells,len(x_arr)))
+        elif not ishell is None and ilayer is None:
+            res = [self._get_lc_shell_layer(key=key,ishell=ishell, ilayer=i, spec=spec)[mask] for i in range(nlayers)]
+            return np.reshape(np.array(res),newshape=(nlayers,len(x_arr)))
+        else:
+            res = [self._get_lc_shell_layer(key=key,ishell=i, ilayer=j, spec=spec)[mask]
+                   for i in range(nshells) for j in range(nlayers)]
+            return np.reshape(np.array(res),newshape=(nshells,nlayers,len(x_arr)))
+
+    def get_lc(self, key:str, xkey="freqs", ykey="times_freqs",
+               freq=None, time=None, ishell=None, ilayer=None, spec=False):
+        dfile = self.get_lc_obj(spec=spec)
+        if not xkey in dfile.keys():
+            raise KeyError(f"xkey={xkey} is not recognized. Avaialble: {dfile.keys()}")
+
+        utimes = self.get_grid(key=ykey, unique=True, spec=spec)
+        ufreqs = self.get_grid(key=xkey, unique=True, spec=spec)
+
+        # light curve
+        if (time is None) and (not freq is None):
+            # get freq that is in the h5file
+            _freq = self._get_closest_grid_val(val=freq, key=xkey, uvals=ufreqs)
+            # get mask for this freq
+            mask = np.array(self.get_grid(key=xkey,spec=spec,unique=False) == _freq,dtype=bool)
+            # get light curve for this mask and for this shell and layer
+            return self._get_lc_for_mask(key=key,mask=mask, x_arr=utimes, ishell=ishell, ilayer=ilayer, spec=spec)
+
+        # spectrum
+        if (not time is None) and (freq is None):
+            # get time that is in the h5file
+            _time = self._get_closest_grid_val(val=time, key=ykey, uvals=utimes)
+            # get mask for this fre,q
+            mask = np.array(self.get_grid(key=ykey, spec=spec,unique=False) == _time,dtype=bool)
+            # get spectrum for this mask and for this shell and layer
+            return self._get_lc_for_mask(key=key, mask=mask, x_arr=ufreqs, ishell=ishell, ilayer=ilayer, spec=spec)
+
+        if (time is None and freq is None) and (not ishell is None) and (not ilayer is None):
+            return np.reshape(self._get_lc_shell_layer(key=key,ishell=ishell, ilayer=ilayer, spec=spec),
+                              newshape=(len(utimes),len(ufreqs)))
+
+        raise ValueError("Either time of freq must be specified to compute lc/spec")
+
+    def OLD_get_lc(self, freq=None, time=None, ishell=None, ilayer=None, spec=False) -> np.ndarray:
         dfile = self.get_lc_obj(spec=spec)
         if not ("nlayers" in dfile.attrs.keys()):
             raise KeyError(f"key= nlayers is not in dfile.attrs.keys()=[{dfile.attrs.keys()}]")
@@ -468,6 +549,7 @@ class Ejecta(Base):
         nshells = int(dfile.attrs["nshells"])
         utimes = self.get_lc_times(spec=spec,unique=True)
         ufreqs = self.get_lc_freqs(spec=spec,unique=True)
+
 
         tidx = None
         if (not time is None):
@@ -499,6 +581,8 @@ class Ejecta(Base):
 
         times = self.get_lc_times(spec=spec,unique=False)
         freqs = self.get_lc_freqs(spec=spec,unique=False)
+
+
 
         if (freq is None):
             # spectum
