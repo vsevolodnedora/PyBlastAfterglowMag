@@ -137,30 +137,62 @@ def plot_spec():
                                                       "method_eats":"adaptive",
                                                       "method_ne_fs":"useNe",
                                                       "method_ele_fs":"numeric",
+                                                      "method_ssc_fs":"numeric",
                                                       "fname_ejecta_id":"tophat_grb_id_a.h5",
-                                                      "fname_spec":"tophat_spec_{}_a.h5",
-                                                      "fname_light_curve":"tophat_{}_a.h5"
+                                                      "fname_spec":"tophat_spec_{}_num.h5",
+                                                      "fname_spectrum":"tophat_{}_num.h5"
                                              .format( str(i_thetaobs).replace(".",""))},
                                              parfile="parfile.par", newparfile="parfile.par", keep_old=False)
     pba = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
-    # pba_a2.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
+    # pba.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
 
-    # plot electrons
-    # plot_electrons(pba)
+    # ===========
 
+    PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main",newpars={"theta_obs":i_thetaobs},newopts={},
+                                             parfile="parfile_def.par", newparfile="parfile.par", keep_old=True)
+    PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
+                                             newpars={"gam1":1,"gam2":1e8,"ngam":250},
+                                             newopts={"method_synchrotron_fs":"Dermer09",
+                                                      "method_comp_mode":"comovSpec",
+                                                      "method_eats":"adaptive",
+                                                      "method_ne_fs":"useNe",
+                                                      "method_ele_fs":"analytic",
+                                                      "fname_ejecta_id":"tophat_grb_id_a.h5",
+                                                      "fname_spec":"tophat_spec_{}_a.h5",
+                                                      "fname_spectrum":"tophat_{}_a.h5"
+                                             .format( str(i_thetaobs).replace(".",""))},
+                                             parfile="parfile.par", newparfile="parfile.par", keep_old=False)
+    pba_an = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
+    # pba_an.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
+
+    plot_electrons(pba)
 
     spec_syn = pba.GRB.get_lc(key="synch_fs",xkey="freqs",ykey="times_freqs",freq=None,time=None,ishell=0,ilayer=0,spec=True)
+    spec_ssc = pba.GRB.get_lc(key="ssc_fs",xkey="freqs",ykey="times_freqs",freq=None,time=None,ishell=0,ilayer=0,spec=True)
     spec_ssa = pba.GRB.get_lc(key="ssa_fs",xkey="freqs",ykey="times_freqs",freq=None,time=None,ishell=0,ilayer=0,spec=True)
     freqs = pba.GRB.get_lc_freqs(unique=True, spec=True)
     ts = pba.GRB.get_grid(key="times_freqs",spec=True)
 
-    indexes = [1, int(len(ts)/2)]
-    colors = ["blue", "green", "red"]
-
     spec_syn[~np.isfinite(spec_syn)] = 1e-100
     spec_syn[spec_syn <= 0] = 1e-100
+    spec_ssc[~np.isfinite(spec_ssc)] = 1e-100
+    spec_ssc[spec_ssc <= 0] = 1e-100
     spec_ssa[~np.isfinite(spec_ssa)] = 1e-100
     spec_ssa[spec_ssa <= 0] = 1e-100
+
+    spec_syn_an = pba_an.GRB.get_lc(key="synch_fs",xkey="freqs",ykey="times_freqs",freq=None,time=None,ishell=0,ilayer=0,spec=True)
+    spec_ssa_an = pba_an.GRB.get_lc(key="ssa_fs",xkey="freqs",ykey="times_freqs",freq=None,time=None,ishell=0,ilayer=0,spec=True)
+    # freqs = pba.GRB.get_lc_freqs(unique=True, spec=True)
+    # ts = pba.GRB.get_grid(key="times_freqs",spec=True)
+
+    spec_syn_an[~np.isfinite(spec_syn_an)] = 1e-100
+    spec_syn_an[spec_syn_an <= 0] = 1e-100
+    spec_ssa_an[~np.isfinite(spec_ssa_an)] = 1e-100
+    spec_ssa_an[spec_ssa_an <= 0] = 1e-100
+
+    indexes = [10]
+    colors = ["blue", "green", "red"]
+
 
     fig, axes = plt.subplots(ncols=2, nrows=4, sharex="all", sharey="row", figsize=(6, 9),
                              gridspec_kw=dict(height_ratios=[1.2, 1.2, 1.7, 1.7]),
@@ -168,15 +200,18 @@ def plot_spec():
 
     for idx, color in zip(indexes, colors):
         ax = axes[0, 0]
-        ax.plot(freqs, spec_syn[idx, :] * freqs, color=color, linewidth=2.0, linestyle="-")
+        ax.plot(freqs, spec_syn[idx, :] * freqs, color=color, linewidth=1.0, linestyle="-")
+        ax.plot(freqs, spec_ssc[idx, :] * freqs, color=color, linewidth=1.0, linestyle="-")
+        ax.plot(freqs, spec_syn_an[idx, :] * freqs, color=color, linewidth=2.0, linestyle=":")
 
         ax = axes[1, 0]
-        ax.plot(freqs, freqs ** 2 * spec_ssa[idx, :], color=color, linewidth=2.0, linestyle="-")
+        ax.plot(freqs, freqs ** 2 * spec_ssa[idx, :], color=color, linewidth=1.0, linestyle="-")
+        ax.plot(freqs, freqs ** 2 * spec_ssa_an[idx, :], color=color, linewidth=2.0, linestyle=":")
 
     ax = axes[0, 0]
     spec_syn[~np.isfinite(spec_syn)] = 1e-100
-    ax.set_ylim(np.max(spec_syn[idx, :] * freqs) * 1.e-5,
-                np.max(spec_syn[0, :] * freqs) * 1e2)
+    ax.set_ylim(np.max(spec_syn[idx, :] * freqs) * 1.e-15,
+                np.max(spec_syn[0, :] * freqs) * 1e1)
     ax.set_xscale('log')
     ax.set_yscale('log')
     ax.set_xlim(freqs[0], freqs[-1])
@@ -205,10 +240,21 @@ def plot_spec():
     _c = ax.pcolormesh(freqs, ts, spec_syn, cmap='Reds', norm=norm)
     ax.set_xscale('log')
     ax.set_yscale('log')
-    ax.set_ylabel(r'comoving time [s]')
+    ax.set_ylabel(r'$t_{\rm burst}$ [s]')
     # ax.set_xlabel(r'$\nu$ [Hz]')
     ax.set_ylim(ts[0], ts[-1])
     # fig.colorbar(_c, ax=ax,shrink=0.9,pad=.01,label=r'$\nu j_{\nu}$ [erg/s]')
+
+    ax = axes[2, 1]  # [1, 1]  # row,col
+    spec_syn_an = spec_syn_an * freqs[np.newaxis, :]
+    norm = LogNorm(vmin=spec_syn_an.max() * 1e-12, vmax=spec_syn_an.max() * 10)
+    _c = ax.pcolormesh(freqs, ts, spec_syn_an, cmap='Reds', norm=norm)
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    # ax.set_ylabel(r'comoving time [s]')
+    # ax.set_xlabel(r'$\nu$ [Hz]')
+    ax.set_ylim(ts[0], ts[-1])
+    fig.colorbar(_c, ax=ax,shrink=0.9,pad=.01,label=r'$\nu j_{\nu}$ [erg/s]')
 
     # -------- Plot absorption ------------
 
@@ -219,10 +265,22 @@ def plot_spec():
     _c = ax.pcolormesh(freqs, ts, spec_ssa, cmap='Blues', norm=norm)
     ax.set_xscale('log')
     ax.set_yscale('log')
-    ax.set_ylabel(r'comoving time [s]')
-    # ax.set_xlabel(r'$\nu$ [Hz]')
+    ax.set_ylabel(r'$t_{\rm burst}$ [s]')
+    ax.set_xlabel(r'$\nu$ [Hz]')
     ax.set_ylim(ts[0], ts[-1])
     # fig.colorbar(_c, ax=ax,shrink=0.9,pad=.01,label=r'$\nu^2 a_{\nu}$ [erg/s]')
+
+    ax = axes[3, 1]  # [1, 1]  # row,col
+    spec_ssa_an = spec_ssa_an * freqs[np.newaxis, :] ** 2
+    norm = LogNorm(vmin=spec_ssa_an.max() * 1e-7, vmax=spec_ssa_an.max() * 10)
+    _c = ax.pcolormesh(freqs, ts, spec_ssa_an, cmap='Blues', norm=norm)
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    # ax.set_ylabel(r'comoving time [s]')
+    ax.set_xlabel(r'$\nu$ [Hz]')
+    ax.set_ylim(ts[0], ts[-1])
+    fig.colorbar(_c, ax=ax,shrink=0.9,pad=.01,label=r'$\nu^2 a_{\nu}$ [erg/s]')
+
 
     plt.show()
 

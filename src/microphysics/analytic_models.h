@@ -1048,8 +1048,8 @@ public:
 
 //        Vector k_e_s (numbins, 0.);
         double k_e_s[numbins];
-        for (size_t i = 0; i < numbins; i++)
-            k_e_s[i] = 0.;
+//        for (size_t i = 0; i < numbins; i++)
+//            k_e_s[i] = 0.;
 
         double k_e = 0., power_e = 0., power = 0.;
         for (size_t i = 0; i < numbins-1; i++) {
@@ -1078,8 +1078,8 @@ public:
 
 //            Vector k_e_s_ssa (numbins, 0.);
             double k_e_s_ssa[numbins];
-            for (size_t i = 0; i < numbins; i++)
-                k_e_s_ssa[i] = 0.;
+//            for (size_t i = 0; i < numbins; i++)
+//                k_e_s_ssa[i] = 0.;
 
             double k_e_ssa = 0., absorption = 0.;
             for (size_t i = 0; i < numbins-1; i++) {

@@ -140,7 +140,8 @@ double computeIntensity(const double em_lab, double dtau, METHOD_TAU m_tau){
 
 class ElectronAndRadiaionBase{
 public:
-    Vector out_ele_spectrum{}; Vector out_spectrum{}; Vector out_specturm_ssa{};
+    Vector out_ele_spectrum{}; Vector out_spectrum_syn{}; Vector out_spectrum_ssc{}; Vector out_specturm_ssa{};
+    Vector out_spectrum_total{};
     Vector m_gam_arr{}; Vector m_freq_arr{};
     /// ------------------------------------
     double B=-1, gamma_min=-1, gamma_max=-1, gamma_c=-1;
@@ -154,7 +155,7 @@ public:
     METHOD_TAU method_tau{}; double beta_min = -1;
     METHODS_SHOCK_ELE m_eleMethod{};
     METHOD_NE m_method_ne{};
-    bool do_ssa{};
+//    bool do_ssa{};
     METHODS_SHOCK_VEL method_shock_vel{};
     METHODS_Up_sh m_method_up{};
     METHOD_thickness_sh m_method_Delta{};
@@ -414,12 +415,12 @@ public:
         if ( opts.find(opt) == opts.end() ) {
             (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
             val_ssc = METHOD_SSC::inoSSC;
-            do_ssa = false;
+//            do_ssa = false;
         }
         else{
             if(opts.at(opt) == "none") {
                 val_ssc = METHOD_SSC::inoSSC;
-                do_ssa = false;
+//                do_ssa = false;
             }
             else if(opts.at(opt) == "numeric") {
                 if (m_eleMethod != METHODS_SHOCK_ELE::iShockEleNum){
@@ -427,7 +428,7 @@ public:
                     exit(1);
                 }
                 val_ssc = METHOD_SSC::iNumSSC;
-                do_ssa = true;
+//                do_ssa = true;
             }
             else{
                 (*p_log)(LOG_WARN,AT) << " option for: " << opt
@@ -622,8 +623,11 @@ public:
     void allocateStorageForOutputSpectra(size_t nr, double freq1, double freq2,  size_t nfreq){
         m_freq_arr = TOOLS::MakeLogspaceVec(log10(freq1), log10(freq2),(int)nfreq);
         /// allocate space for the comoving spectrum
-        out_spectrum.resize(nfreq * nr );
-        out_specturm_ssa.resize(nfreq * nr );
+        out_spectrum_syn.resize( nfreq * nr );
+        out_spectrum_total.resize( nfreq * nr );
+        out_specturm_ssa.resize( nfreq * nr );
+        if (m_methods_ssc!=METHOD_SSC::inoSSC)
+            out_spectrum_ssc.resize( nfreq * nr );
     }
     void allocateStorageForOutputElectronSpectra(size_t nr, double gam1, double gam2,  size_t ngams){
         m_gam_arr = TOOLS::MakeLogspaceVec(log10(gam1), log10(gam2),(int)ngams);
@@ -714,14 +718,7 @@ public:
     }
     /// ---
     [[nodiscard]] ElectronAndRadiaionBase const * getThis() const { return this; }
-protected:
-    int m_loglevel = -1;
-    std::unique_ptr<logger> p_log = nullptr;
-    bool is_rs = false;
-    /// --------------------------------------
-    double eps_e=-1, eps_b=-1, eps_t=-1, p=-1, ksi_n=-1;
-    double mu=-1, mu_e=-1;
-    bool lim_gm_to_1= true;
+public:
     /// --------------------------------------
     METHODS_SYNCH m_sychMethod{};
     METHODS_LFMIN m_methodsLfmin{};
@@ -730,6 +727,14 @@ protected:
     METHOD_NONRELDIST m_method_nonreldist{};
     METHODS_SSA m_methods_ssa{};
     METHOD_SSC m_methods_ssc{};
+protected:
+    int m_loglevel = -1;
+    std::unique_ptr<logger> p_log = nullptr;
+    bool is_rs = false;
+    /// --------------------------------------
+    double eps_e=-1, eps_b=-1, eps_t=-1, p=-1, ksi_n=-1;
+    double mu=-1, mu_e=-1;
+    bool lim_gm_to_1= true;
     /// --------------------------------------
     ElectronAndRadiaionBase(int loglevel, bool _is_rs){
         m_loglevel = loglevel; is_rs = _is_rs;
@@ -937,7 +942,7 @@ public: // ---------------- ANALYTIC -------------------------- //
 
     void setPars( StrDbMap & pars, StrStrMap & opts, size_t nr ){
         setBasePars(pars, opts);
-        // ---
+        /// allocate memory for spectra to be used in EATS interpolation
         switch (m_eleMethod) {
             case iShockEleAnalyt:
                 allocateStorageForAnalyticSpectra(pars, nr);
@@ -959,9 +964,6 @@ public: // ---------------- ANALYTIC -------------------------- //
                               << nfreq * nr << "\n";
 
         /// allocate space for the comoving spectrum
-        out_spectrum.resize(m_freq_arr.size() * nr );
-        out_specturm_ssa.resize(m_freq_arr.size() * nr );
-
         allocateStorageForOutputSpectra(nr, freq1, freq2, nfreq);
     }
 
@@ -978,6 +980,8 @@ public: // ---------------- ANALYTIC -------------------------- //
         // defined in Margalit+21 arXiv:2111.00012
         double delta = eps_e / eps_t;
         double ne_ = mu_e * nn;
+
+        bool do_ssa = m_methods_ssa == METHODS_SSA::iSSAon;
 
         SynchrotronAnalytic syn_an =
                 SynchrotronAnalytic(gamma_min,gamma_c,gamma_max,B,p,do_ssa,p_log);
@@ -1028,7 +1032,8 @@ public: // ---------------- ANALYTIC -------------------------- //
         /// computeSynchrotronEmissivityAbsorptionAnalytic emissivity and absorption for each frequency
         for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq) {
             computeSynchrotronEmissivityAbsorptionAnalytic(m_freq_arr[ifreq], em, abs );
-            out_spectrum[ifreq + nfreq * it] = em;
+            out_spectrum_total[ifreq + nfreq * it] = em;
+            out_spectrum_syn[ifreq + nfreq * it] = em;
             out_specturm_ssa[ifreq + nfreq * it] = abs;
             /// TODO removed becase of the error in Gaussian Jet test
             /// compute emissivity density per unit volume
@@ -1184,20 +1189,30 @@ public: // -------------------- NUMERIC -------------------------------- //
         /// store emissivity and absorption for each frequency
         size_t nfreq = m_freq_arr.size();
         for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq) {
-            out_spectrum[ifreq + nfreq * it] = syn.j[ifreq];
+            out_spectrum_syn[ifreq + nfreq * it] = syn.j[ifreq];
+            out_spectrum_total[ifreq + nfreq * it] = syn.j[ifreq];
             out_specturm_ssa[ifreq + nfreq * it] = syn.a[ifreq];
         }
 
-        /// Add SSC emission
+        /// store SSC emissivity
         if (m_methods_ssc == METHOD_SSC::iNumSSC)
-            for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq)
-                out_spectrum[ifreq + nfreq * it] += ssc.j[ifreq];
+            for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq) {
+                out_spectrum_ssc[ifreq + nfreq * it] = ssc.j[ifreq];
+                out_spectrum_total[ifreq + nfreq * it] += ssc.j[ifreq];
+            }
 
         /// Normalize to get emissivity per particle (for EATS)
         for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq) {
-            out_spectrum[ifreq + nfreq * it] /= n_protons;
+            out_spectrum_total[ifreq + nfreq * it] /= n_protons;
+            out_spectrum_syn[ifreq + nfreq * it] /= n_protons;
             out_specturm_ssa[ifreq + nfreq * it] /= n_protons; // TODO check if just by n_protons
         }
+        if (m_methods_ssc == METHOD_SSC::iNumSSC)
+            for (size_t ifreq = 0; ifreq < m_freq_arr.size(); ++ifreq)
+                out_spectrum_ssc[ifreq + nfreq * it] /= n_protons;  // TODO check if just by n_protons
+
+
+
     }
     ////            computeSynchrotronEmissivityAbsorptionAnalytic(m_freq_arr[ifreq]);
 ////
@@ -1363,7 +1378,7 @@ public: // ---------------------- EATS -------------------------------- //
         size_t ib_nu = ia_nu + 1;
 
         /// interpolate the emissivity and absorption coefficines
-        Interp2d int_em(m_freq_arr, r_arr, out_spectrum);
+        Interp2d int_em(m_freq_arr, r_arr, out_spectrum_total);
         double em_prime = int_em.InterpolateBilinear(freq, r, ia_nu, ib_nu, ia, ib);
 
         Interp2d int_abs(m_freq_arr, r_arr, out_specturm_ssa);
