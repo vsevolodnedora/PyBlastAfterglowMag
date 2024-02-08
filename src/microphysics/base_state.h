@@ -23,6 +23,9 @@ struct State{
     /// for chang cooper scheme
     Vector delta_grid{}, delta_grid_bar{};
 
+    /// output vectors
+    Vector j_all{}, a_all{}, f_all{};
+
     State() = default;
 
     void allocate(double x1_, double x2_, size_t numbins_){
@@ -43,6 +46,41 @@ struct State{
         n.resize(numbins);
         f.resize(numbins);
         dfde.resize(numbins);
+    }
+    /// allocate output vectors of the size numbins * num_timesteps
+    void allocate_output(size_t nx, size_t nt){
+        size_t nn = nx * nt;
+//        Vector tmp = TOOLS::MakeLogspaceVec(std::log10(x1_),std::log10(x2_), (int)nx);
+//        e_all.resize(nn, 0.);
+//        size_t ii = 0;
+//        for (size_t i_ = 0; i_ < nt; i_++) // time steps or radial steps
+//            for (size_t j_ = 0; j_ < nx; j_++) {// freq or gam steps
+//                e_all[ii] = tmp[j_];
+//                ii++;
+//            }
+        f_all.resize(nn, 0.);
+        j_all.resize(nn, 0.);
+        a_all.resize(nn, 0.);
+    }
+    /// store the current state for this timestep in total_rad vector
+    void save_to_all(size_t it){
+        for (size_t i_ = 0; i_ < numbins; i_++){
+            f_all[i_ + numbins * it] = f[i_];
+            j_all[i_ + numbins * it] = j[i_];
+            a_all[i_ + numbins * it] = a[i_];
+        }
+    }
+
+    void add_to_all(State & other, size_t it){
+        if (numbins != other.numbins){
+            std::cerr << " cannot sum states. Current nbins="<<numbins<<" other nbins="<<other.numbins<<"\n";
+            exit(1);
+        }
+        for (size_t i_ = 0; i_ < numbins; i_++){
+            f_all[i_ + numbins * it] += other.f[i_];
+            j_all[i_ + numbins * it] += other.j[i_];
+            a_all[i_ + numbins * it] += other.a[i_];
+        }
     }
 
     /**

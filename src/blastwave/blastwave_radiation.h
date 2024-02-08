@@ -1052,24 +1052,22 @@ public:
                     it, const_cast<ElectronAndRadiaionBase *>(p_syn_a->getThis()));
 
             /// compute comoving spectra
-            if (p_pars->m_method_rad == METHODS_RAD::icomovspec)
-                switch (p_syn_a->m_eleMethod) {
-                    case iShockEleAnalyt:
-                        p_syn_a->computeSynchrotronSpectrumAnalytic(it,
-                                                                    m_data[BW::Q::iR][it],
-                                                                    m_data[BW::Q::ithickness][it]);
-                        break;
-                    case iShockEleNum:
-                        p_syn_a->evaluateElectronDistributionNumeric(
-                                m_data[BW::Q::itcomov][it + 1] - m_data[BW::Q::itcomov][it],
-                                m_data[BW::Q::iM2][it + 1] - m_data[BW::Q::iM2][it],
-                                m_data[BW::Q::iR][it],
-                                m_data[BW::Q::ithickness][it],
-                                m_data[BW::Q::iR][it + 1],
-                                m_data[BW::Q::ithickness][it + 1]);
-                        p_syn_a->computeSynchrotronSpectrumNumeric(it);
-                        break;
+            if (p_pars->m_method_rad == METHODS_RAD::icomovspec) {
+                if (p_syn_a->m_eleMethod == METHODS_SHOCK_ELE::iShockEleAnalyt)
+                    p_syn_a->computeSynchrotronSpectrumAnalytic(it,
+                                                                m_data[BW::Q::iR][it],
+                                                                m_data[BW::Q::ithickness][it]);
+                else {
+                    p_syn_a->evaluateElectronDistributionNumeric(
+                            m_data[BW::Q::itcomov][it + 1] - m_data[BW::Q::itcomov][it],
+                            m_data[BW::Q::iM2][it + 1] - m_data[BW::Q::iM2][it],
+                            m_data[BW::Q::iR][it],
+                            m_data[BW::Q::ithickness][it],
+                            m_data[BW::Q::iR][it + 1],
+                            m_data[BW::Q::ithickness][it + 1]);
+                    p_syn_a->storeSynchrotronSpectrumNumeric(it);
                 }
+            }
 
             /// compute electron distribution in reverse shock
             if ( considerReverseShock(it) ){
@@ -1091,25 +1089,22 @@ public:
                         it,const_cast<ElectronAndRadiaionBase *>(p_syn_a_rs->getThis()));
 
                 /// compute comoving spectra
-                if (p_pars->m_method_rad == METHODS_RAD::icomovspec)
-                    switch (p_syn_a_rs->m_eleMethod) {
-                        case iShockEleAnalyt:
-                            p_syn_a_rs->computeSynchrotronSpectrumAnalytic(it,
-                                                                           m_data[BW::Q::iR][it],
-                                                                           m_data[BW::Q::ithichness_rs][it]);
-                            break;
-                        case iShockEleNum:
-                            p_syn_a_rs->evaluateElectronDistributionNumeric(
-                                    m_data[BW::Q::itcomov][it + 1] - m_data[BW::Q::itcomov][it],
-                                    m_data[BW::Q::iM3][it + 1] - m_data[BW::Q::iM3][it],
-                                    m_data[BW::Q::iR][it],
-                                    m_data[BW::Q::ithichness_rs][it],
-                                    m_data[BW::Q::iR][it + 1],
-                                    m_data[BW::Q::ithichness_rs][it + 1]);
-                            p_syn_a_rs->computeSynchrotronSpectrumNumeric(it);
-                            break;
+                if (p_pars->m_method_rad == METHODS_RAD::icomovspec) {
+                    if (p_syn_a_rs->m_eleMethod==METHODS_SHOCK_ELE::iShockEleAnalyt)
+                        p_syn_a_rs->computeSynchrotronSpectrumAnalytic(it,
+                                                                       m_data[BW::Q::iR][it],
+                                                                       m_data[BW::Q::ithichness_rs][it]);
+                    else{
+                        p_syn_a_rs->evaluateElectronDistributionNumeric(
+                                m_data[BW::Q::itcomov][it + 1] - m_data[BW::Q::itcomov][it],
+                                m_data[BW::Q::iM3][it + 1] - m_data[BW::Q::iM3][it],
+                                m_data[BW::Q::iR][it],
+                                m_data[BW::Q::ithichness_rs][it],
+                                m_data[BW::Q::iR][it + 1],
+                                m_data[BW::Q::ithichness_rs][it + 1]);
+                        p_syn_a_rs->storeSynchrotronSpectrumNumeric(it);
                     }
-
+                }
             }
         }
 

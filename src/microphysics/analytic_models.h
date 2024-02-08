@@ -599,7 +599,7 @@ struct Margalit21 {
         double z_cool = (6.0 * M_PI * CGS::me * CGS::c / (CGS::sigmaT * B * B * t)) / Theta;
         /// normalized frequency:
         double x = nu / nu_Theta(Theta, B);
-        /// calculate total emissivity & optical depth:
+        /// calculate total_rad emissivity & optical depth:
         double j = jnu_th(x, ne, B, Theta, z_cool) + jnu_pl(x, ne, B, Theta, gamma_m, delta,  p, z_cool);
         /// calculate optical depth
 //        double tau = tau_nu(x, ne, R, B, Theta, delta, p_xi, z_cool);
@@ -1023,18 +1023,14 @@ public:
 //            exit(1);
     }
     /// Analytical Synchrotron Sectrum; BPL;
-    void computeAnalyticSynchDER06(double & em, double & abs, double nuprime, double n_prime){
+    void computeAnalyticSynchDER06_OLD(double & em, double & abs, double nuprime, double n_prime){
 
-//        Vector gammmas = TOOLS::MakeLogspaceVec(std::log10(gamma_min),
-//                                                std::log10(gamma_max),
-//                                                200);
         int numbins = 200;
         double gammmas[numbins];
         double step = std::exp((std::log(gamma_max) / (double)200));
         for (size_t i = 0; i < numbins; i++)
             gammmas[i] = std::pow(step,(double)i);
 
-//        double ne = n_prime * ksi_n;
         double epsilon = nuprime * CGS::h / CGS::mec2;
         auto integrand_ele = [&](const double gam){
             double p1 = gamma_min < gamma_c ? p : 2.0;
@@ -1046,11 +1042,7 @@ public:
             return Dermer09::brokenPowerLaw(gam, gmin, gb, gmax, p1, p2);
         };
 
-//        Vector k_e_s (numbins, 0.);
         double k_e_s[numbins];
-//        for (size_t i = 0; i < numbins; i++)
-//            k_e_s[i] = 0.;
-
         double k_e = 0., power_e = 0., power = 0.;
         for (size_t i = 0; i < numbins-1; i++) {
             k_e_s[i] = integrand_ele(gammmas[i]);
@@ -1060,7 +1052,7 @@ public:
 
         for (size_t i = 0; i < numbins-1; i++) {
             power_e = Dermer09::single_electron_synch_power( B, epsilon, gammmas[i] );
-            power += k_e_s[i] * power_e * (gammmas[i + 1] - gammmas[i]);
+            power += k_e_s[i] * (gammmas[i + 1] - gammmas[i]) * power_e;
         }
         power *= k_e;
 
@@ -1076,10 +1068,74 @@ public:
                 return Dermer09::brokenPowerLawSSA(gam, gmin, gb, gmax, p1, p2);
             };
 
-//            Vector k_e_s_ssa (numbins, 0.);
             double k_e_s_ssa[numbins];
-//            for (size_t i = 0; i < numbins; i++)
-//                k_e_s_ssa[i] = 0.;
+
+            double k_e_ssa = 0., absorption = 0.;
+            for (size_t i = 0; i < numbins-1; i++) {
+                k_e_s_ssa[i] = integrand_ele_ssa(gammmas[i]);
+                k_e_ssa += k_e_s_ssa[i] * (gammmas[i + 1] - gammmas[i]);
+            }
+            k_e_ssa = n_prime / k_e_ssa;
+
+            for (size_t i = 0; i < numbins-1; i++) {
+                power_e = Dermer09::single_electron_synch_power(B, epsilon, gammmas[i]);
+                absorption += power_e * k_e_s_ssa[i] * (gammmas[i + 1] - gammmas[i]);
+            }
+            absorption *= k_e; // TODO check k_e_ssa
+            double coeff = -1 / (8 * CGS::pi * CGS::me * std::pow(epsilon, 2)) * std::pow(CGS::lambda_c / CGS::c, 3);
+            absorption *= coeff;
+
+            abs = absorption;
+        }
+    }
+    void computeAnalyticSynchDER06(double & em, double & abs, double nuprime, double n_prime){
+
+        int numbins = 200;
+        double gammmas[numbins];
+
+        double step = std::exp((std::log(gamma_max) / (double)200));
+        for (size_t i = 0; i < numbins; i++)
+            gammmas[i] = std::pow(step,(double)i);
+
+        double epsilon = nuprime * CGS::h / CGS::mec2;
+        auto integrand_ele = [&](const double gam){
+            double p1 = gamma_min < gamma_c ? p : 2.0;
+            double p2 = p + 1.0;
+            double gmax = gamma_max;
+            double gmin = gamma_min < gamma_c ? gamma_min : gamma_c;
+            double gb = gamma_min < gamma_c ? gamma_c : gamma_min;
+
+            return Dermer09::brokenPowerLaw(gam, gmin, gb, gmax, p1, p2);
+        };
+
+        double k_e_s[numbins];
+        double k_e = 0., power_e = 0., power = 0.;
+        for (size_t i = 0; i < numbins-1; i++) {
+            k_e_s[i] = integrand_ele(gammmas[i]);
+            k_e += k_e_s[i] * (gammmas[i + 1] - gammmas[i]);
+        }
+        k_e = n_prime / k_e;
+
+        for (size_t i = 0; i < numbins-1; i++) {
+            power_e = Dermer09::single_electron_synch_power( B, epsilon, gammmas[i] );
+            power += k_e_s[i] * (gammmas[i + 1] - gammmas[i]) * power_e;
+        }
+        power *= k_e;
+
+
+        em = power * (CGS::h / CGS::mec2);
+
+        if (m_methods_ssa) {
+            auto integrand_ele_ssa = [&](double gam) {
+                double p1 = gamma_min < gamma_c ? p : 2.0;
+                double p2 = p + 1.0;
+                double gmax = gamma_max;
+                double gmin = gamma_min < gamma_c ? gamma_min : gamma_c;
+                double gb = gamma_min < gamma_c ? gamma_c : gamma_min;
+                return Dermer09::brokenPowerLawSSA(gam, gmin, gb, gmax, p1, p2);
+            };
+
+            double k_e_s_ssa[numbins];
 
             double k_e_ssa = 0., absorption = 0.;
             for (size_t i = 0; i < numbins-1; i++) {
@@ -1117,7 +1173,7 @@ public:
             (*p_log)(LOG_ERR,AT) << " x = "<< x << "\n";
             exit(1);
         }
-        /// calculate total emissivity & optical depth:
+        /// calculate total_rad emissivity & optical depth:
         em_th = Margalit21::jnu_th(x, ne_, B, Theta, z_cool);
         em_pl = Margalit21::jnu_pl(x, ne_ * accel_frac, B, Theta, gamma_min, delta, p, z_cool); //TODO added 'accel_frac'
         if ((!std::isfinite(em_th))||(em_th < 0.)) em_th = 0.;

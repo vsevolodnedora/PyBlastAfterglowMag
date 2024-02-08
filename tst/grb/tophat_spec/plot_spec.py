@@ -37,30 +37,40 @@ import gc
 import package.src.PyBlastAfterglowMag as PBA
 curdir = os.getcwd()+'/'
 
-def plot_electrons(pba):
+def plot_electrons(pba, pba_an):
     # extract data
     spec = pba.GRB.get_lc(key="n_ele_fs",xkey="gams",ykey="times_gams",freq=None,time=None,ishell=0,ilayer=0,spec=True)
     gams = pba.GRB.get_gams(unique=True)
     ts = pba.GRB.get_grid(key="times_gams",spec=True)
 
+    spec_an = pba_an.GRB.get_lc(key="n_ele_fs",xkey="gams",ykey="times_gams",freq=None,time=None,ishell=0,ilayer=0,spec=True)
+    gams_an = pba_an.GRB.get_gams(unique=True)
 
     # normalize spectrum
     spec = spec / np.trapz(y=spec, x=gams, axis=1)[:,np.newaxis]
     spec *= np.power(gams,2)[np.newaxis,:]
 
+    spec_an = spec_an / np.trapz(y=spec_an, x=gams_an, axis=1)[:,np.newaxis]
+    spec_an *= np.power(gams_an,2)[np.newaxis,:]
+
+    spec = spec[::4,:]
+    spec_an = spec_an[::4,:]
+    ts = ts[::4]
+
     # select to plot
-    indexes = [1,int(len(ts)/3),2*int(len(ts)/3)]
+    indexes = [2,int(len(ts)/3),2*int(len(ts)/3)]
     colors = ["blue", "green", "red"]
 
     # plot
-    fig, axes = plt.subplots(ncols=1, nrows=2, sharex="all", sharey="row", figsize=(6, 9),
+    fig, axes = plt.subplots(ncols=2, nrows=2, sharex="all", sharey="row", figsize=(6, 9),
                              gridspec_kw=dict(height_ratios=[1,2]),
                              layout='constrained'
                              )
 
-    ax = axes[0]
+    ax = axes[0,0]
     for idx, color in zip(indexes, colors):
-        ax.plot(gams, spec[idx,:], color=color, linewidth=1.0, linestyle="--")  # , label="$dn/d\gamma|_{\rm num}$")#label=r'$N_{adiab\; losses}$')
+        ax.plot(gams, spec[idx,:], color=color, linewidth=1.0, linestyle="-")  # , label="$dn/d\gamma|_{\rm num}$")#label=r'$N_{adiab\; losses}$')
+        ax.plot(gams, spec_an[idx,:], color=color, linewidth=1.0, linestyle="--")  # , label="$dn/d\gamma|_{\rm num}$")#label=r'$N_{adiab\; losses}$')
         # ax.axvline(x=gms[idx], ymin=0, ymax=1, color=color, linestyle=':', linewidth=.6, )  # , label=r'$\gamma_{min}$')
         # ax.axvline(x=gcs[idx], ymin=0, ymax=1, color=color, linestyle='-.', linewidth=.6, )  # , label=r'$\gamma_{c}$')
 
@@ -87,7 +97,7 @@ def plot_electrons(pba):
     norm = LogNorm(vmin=spec.max() * 1e-5, vmax=spec.max())
 
     # fig, ax = plt.subplots(ncols=1,nrows=1)
-    ax = axes[1]
+    ax = axes[1,0]
 
     ax.plot(pba.GRB.get_dyn_arr(v_n="gamma_min",ishell=0,ilayer=0),
             pba.GRB.get_dyn_arr(v_n="tburst",ishell=0,ilayer=0),
@@ -105,10 +115,32 @@ def plot_electrons(pba):
     ax.set_ylabel(r'$t_{\rm burst}$ [s]', fontsize=12)
     ax.set_xlabel(r'$\gamma$', fontsize=12)
     ax.set_xlim(.5, gams[-1])
+    # cbar = fig.colorbar(_c, ax=ax, shrink=0.9, pad=.01, label=r'$N_{\rm tot}^{-1} [ \gamma_e^2 dn/d\gamma$ ]')
+    # cbar.ax.tick_params(labelsize=12)
+    ax.tick_params(direction="in", which="both")
+
+    ax = axes[1,1]
+
+    ax.plot(pba.GRB.get_dyn_arr(v_n="gamma_min",ishell=0,ilayer=0),
+            pba.GRB.get_dyn_arr(v_n="tburst",ishell=0,ilayer=0),
+            color="gray",ls=':')
+    ax.plot(pba.GRB.get_dyn_arr(v_n="gamma_c",ishell=0,ilayer=0),
+            pba.GRB.get_dyn_arr(v_n="tburst",ishell=0,ilayer=0),
+            color="gray",ls='-.')
+    ax.plot(pba.GRB.get_dyn_arr(v_n="gamma_max",ishell=0,ilayer=0),
+            pba.GRB.get_dyn_arr(v_n="tburst",ishell=0,ilayer=0),
+            color="gray",ls='--')
+
+    _c = ax.pcolormesh(gams_an, ts, spec_an, cmap='viridis', norm=norm)
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    # ax.set_ylabel(r'$t_{\rm burst}$ [s]', fontsize=12)
+    ax.set_xlabel(r'$\gamma$', fontsize=12)
+    ax.set_xlim(.5, gams_an[-1])
     cbar = fig.colorbar(_c, ax=ax, shrink=0.9, pad=.01, label=r'$N_{\rm tot}^{-1} [ \gamma_e^2 dn/d\gamma$ ]')
     cbar.ax.tick_params(labelsize=12)
     ax.tick_params(direction="in", which="both")
-    # plt.tight_layout()
+
     ax.legend()
     plt.show()
     plt.close()
@@ -136,17 +168,16 @@ def plot_spec():
                                                       "method_comp_mode":"comovSpec",
                                                       "method_eats":"adaptive",
                                                       "method_ne_fs":"useNe",
-                                                      "method_ele_fs":"numeric",
-                                                      "method_ssc_fs":"numeric",
+                                                      "method_ele_fs":"mix",
                                                       "fname_ejecta_id":"tophat_grb_id_a.h5",
-                                                      "fname_spec":"tophat_spec_{}_num.h5",
-                                                      "fname_spectrum":"tophat_{}_num.h5"
+                                                      "fname_spec":"tophat_spec_{}_a.h5",
+                                                      "fname_spectrum":"tophat_{}_a.h5"
                                              .format( str(i_thetaobs).replace(".",""))},
                                              parfile="parfile.par", newparfile="parfile.par", keep_old=False)
-    pba = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
-    # pba.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
+    pba_an = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
+    pba_an.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
 
-    # ===========
+    # ---w
 
     PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main",newpars={"theta_obs":i_thetaobs},newopts={},
                                              parfile="parfile_def.par", newparfile="parfile.par", keep_old=True)
@@ -156,16 +187,22 @@ def plot_spec():
                                                       "method_comp_mode":"comovSpec",
                                                       "method_eats":"adaptive",
                                                       "method_ne_fs":"useNe",
-                                                      "method_ele_fs":"analytic",
+                                                      "method_ele_fs":"numeric",
+                                                      "method_ssc_fs":"none",
                                                       "fname_ejecta_id":"tophat_grb_id_a.h5",
-                                                      "fname_spec":"tophat_spec_{}_a.h5",
-                                                      "fname_spectrum":"tophat_{}_a.h5"
+                                                      "fname_spec":"tophat_spec_{}_num.h5",
+                                                      "fname_spectrum":"tophat_{}_num.h5"
                                              .format( str(i_thetaobs).replace(".",""))},
                                              parfile="parfile.par", newparfile="parfile.par", keep_old=False)
-    pba_an = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
-    # pba_an.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
+    pba = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
+    pba.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
 
-    plot_electrons(pba)
+    # --------
+
+
+    # =========== #
+
+    plot_electrons(pba, pba_an)
 
     spec_syn = pba.GRB.get_lc(key="synch_fs",xkey="freqs",ykey="times_freqs",freq=None,time=None,ishell=0,ilayer=0,spec=True)
     spec_ssc = pba.GRB.get_lc(key="ssc_fs",xkey="freqs",ykey="times_freqs",freq=None,time=None,ishell=0,ilayer=0,spec=True)

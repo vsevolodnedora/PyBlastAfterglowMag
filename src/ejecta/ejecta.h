@@ -47,11 +47,11 @@ public:
                                      getStrOpt("fname_dyn", m_opts, AT, p_log, "", true));
 
 //            if (do_ele)
-//                setPreComputeEjectaAnalyticElectronsPars();
+//                evolveElectronDistributionAndRadiation();
 
             if (do_spec || do_lc || do_skymap)
 //                setPreComputeEjectaAnalyticSynchrotronPars();
-                setPreComputeEjectaAnalyticElectronsPars();
+                evolveElectronDistributionAndRadiation();
 
             if (save_dyn)
                 saveEjectaBWsDynamics(
@@ -149,11 +149,11 @@ public:
 private:
 
     /// COMPUTE electrons
-    void setPreComputeEjectaAnalyticElectronsPars(){//(StrDbMap pars, StrStrMap opts){
+    void evolveElectronDistributionAndRadiation(){//(StrDbMap pars, StrStrMap opts){
         (*p_log)(LOG_INFO,AT) << "Computing Ejecta analytic electron pars...\n";
 
         if ((!run_bws)&&(!load_dyn)){
-            (*p_log)(LOG_ERR,AT) << " ejecta BWs were not evolved. Cannot setPreComputeEjectaAnalyticElectronsPars electrons (analytic) exiting...\n";
+            (*p_log)(LOG_ERR,AT) << " ejecta BWs were not evolved. Cannot evolveElectronDistributionAndRadiation electrons (analytic) exiting...\n";
             exit(1);
         }
         auto & models = getShells();
@@ -388,7 +388,7 @@ private:
             exit(1);
         }
 
-        /// save total lightcurve
+        /// save total_rad lightcurve
         size_t n = t_arr.size() * spec_freqs.size();
         Vector total_power (n, 0.0);
         Vector _times, _freqs;
@@ -504,48 +504,50 @@ private:
                 H5::Group grp(file.createGroup(group_name));
                 auto &bw = getShells()[il]->getBW(ish);
                 /// save electron spectrum if electrons are numerically evolved
-                if (bw->getPars()->p_syn_a->m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum)
-                    Output::addVectorToGroup(grp, bw->getPars()->p_syn_a->out_ele_spectrum,
+                if (bw->getPars()->p_syn_a->m_eleMethod!=METHODS_SHOCK_ELE::iShockEleAnalyt)
+                    Output::addVectorToGroup(grp, bw->getPars()->p_syn_a->ele.f_all,
                                              "n_ele_fs");
                 /// save synchrotron spectra for forward shock
-                Output::addVectorToGroup(grp, bw->getPars()->p_syn_a->out_spectrum_syn,
+                Output::addVectorToGroup(grp, bw->getPars()->p_syn_a->syn.j_all,
                                          "synch_fs");
-                Output::addVectorToGroup(grp, bw->getPars()->p_syn_a->out_specturm_ssa,
+                Output::addVectorToGroup(grp, bw->getPars()->p_syn_a->syn.a_all,
                                          "ssa_fs");
                 /// save SSC spectrum
                 if (bw->getPars()->p_syn_a->m_methods_ssc!=METHOD_SSC::inoSSC)
-                    Output::addVectorToGroup(grp, bw->getPars()->p_syn_a->out_spectrum_ssc,
+                    Output::addVectorToGroup(grp, bw->getPars()->p_syn_a->ssc.j_all,
                                              "ssc_fs");
 
                 /// save spectra of the reverse shock
                 if (bw->getPars()->do_rs){
                     /// save electron spectrum if electrons are numerically evolved
-                    if (bw->getPars()->p_syn_a->m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum)
-                        Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->out_ele_spectrum,
+                    if (bw->getPars()->p_syn_a->m_eleMethod!=METHODS_SHOCK_ELE::iShockEleAnalyt)
+                        Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->ele.f_all,
                                                  "n_ele_rs");
-                    Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->out_spectrum_syn,
+                    Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->syn.j_all,
                                              "synch_fs_rs");
-                    Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->out_specturm_ssa,
+                    Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->syn.a_all,
                                              "ssa_fs_rs");
                     /// save SSC spectrum
                     if (bw->getPars()->p_syn_a_rs->m_methods_ssc!=METHOD_SSC::inoSSC)
-                        Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->out_spectrum_ssc,
+                        Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->ssc.j_all,
                                                  "ssc_rs");
                 }
                 grp.close();
             }
         }
+
         /// add time and frequency. Note: specta are 1D and loop is for t in time, { for freq in freqs { } }
         auto &bw0 = getShells()[0]->getBW(0);
+        size_t nn = bw0->get_tburst().size() * bw0->getPars()->p_syn_a->total_rad.numbins;
 
         /// make vectors for time and freq with the same structure as emissivity and absorption
-        Vector _times_for_freq(bw0->get_tburst().size() * bw0->getPars()->p_syn_a->m_freq_arr.size(), 0.);
-        Vector _freqs(bw0->get_tburst().size() * bw0->getPars()->p_syn_a->m_freq_arr.size(), 0.);
+        Vector _times_for_freq(nn, 0.);
+        Vector _freqs(nn, 0.);
         size_t ii=0;
         for (size_t it = 0; it < bw0->get_tburst().size(); it++) {
-            for (size_t ifreq = 0; ifreq < bw0->getPars()->p_syn_a->m_freq_arr.size(); ifreq++){
+            for (size_t ifreq = 0; ifreq < bw0->getPars()->p_syn_a->total_rad.numbins; ifreq++){
                 _times_for_freq[ii]=bw0->get_tburst()[it];
-                _freqs[ii]=bw0->getPars()->p_syn_a->m_freq_arr[ifreq];
+                _freqs[ii]=bw0->getPars()->p_syn_a->total_rad.e[ifreq];
                 ii++;
             }
         }
@@ -554,14 +556,14 @@ private:
 
 
         /// make vectors for time and freq with the same structure as emissivity and absorption
-        if (bw0->getPars()->p_syn_a->m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum){
-            Vector _times_freq_gam(bw0->get_tburst().size() * bw0->getPars()->p_syn_a->getEle().numbins, 0.);
-            Vector _gams (bw0->get_tburst().size() * bw0->getPars()->p_syn_a->getEle().numbins, 0.);
+        if (bw0->getPars()->p_syn_a->m_eleMethod!=METHODS_SHOCK_ELE::iShockEleAnalyt){
+            Vector _times_freq_gam(bw0->get_tburst().size() * bw0->getPars()->p_syn_a->ele.numbins, 0.);
+            Vector _gams (bw0->get_tburst().size() * bw0->getPars()->p_syn_a->ele.numbins, 0.);
             ii=0;
             for (size_t it = 0; it < bw0->get_tburst().size(); it++) {
-                for(size_t igam = 0; igam < bw0->getPars()->p_syn_a->getEle().numbins; igam++) {
+                for(size_t igam = 0; igam < bw0->getPars()->p_syn_a->ele.numbins; igam++) {
                     _times_freq_gam[ii]=bw0->get_tburst()[it];
-                    _gams[ii] = bw0->getPars()->p_syn_a->getEle().e[igam];
+                    _gams[ii] = bw0->getPars()->p_syn_a->ele.e[igam];
                     ii++;
                 }
             }
@@ -602,7 +604,7 @@ private:
 
         evalEjectaLightCurves(out, _times, _freqs);
 
-        /// Collect total flux at a given time/freq from all shells/layers
+        /// Collect total_rad flux at a given time/freq from all shells/layers
         Vector total_fluxes (_times.size(), 0.0);
         for (size_t itnu = 0; itnu < _times.size(); ++itnu) {
             size_t ii = 0;
@@ -617,7 +619,7 @@ private:
         std::vector<std::string> other_names { "times", "freqs", "total_fluxes" };
         VecVector out_data {_times, _freqs, total_fluxes};
 
-        /// save the total fluxes (sparse output)
+        /// save the total_rad fluxes (sparse output)
         std::unordered_map<std::string,double> attrs{ {"nshells", nshells()}, {"nlayers", nlayers()} };
         for (auto& [key, value]: main_pars) { attrs[key] = value; }
         for (auto& [key, value]: ej_pars) { attrs[key] = value; }

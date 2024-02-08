@@ -316,7 +316,7 @@ public:
 //        if ((p_log->getLogLevel() > LOG_WARN)) {
 //            if (n_ejecta_empty_images > 0) {
 //                auto &ccerr = std::cout;
-//                ccerr << "Ejecta blastwave is NOT initialized for total n="
+//                ccerr << "Ejecta blastwave is NOT initialized for total_rad n="
 //                      << n_ejecta_empty_images << " layers. Specifically:\n";
 //                for (size_t ish = 0; ish < n_empty_images_shells.size(); ish++) {
 ////                    auto &ejectaStruct = ejectaStructs.structs[n_empty_images_shells[ish]];
@@ -325,7 +325,7 @@ public:
 //                    for (size_t il = 0; il < n_empty_images[ish].size(); il++) {
 //                        ccerr << n_empty_images[ish][il] << " ";
 //                    }
-//                    ccerr << "] / (" << n_layers_i << " total layers) \n";
+//                    ccerr << "] / (" << n_layers_i << " total_rad layers) \n";
 //                }
 //            }
 //        }
@@ -576,7 +576,7 @@ public:
             /// rotate index to the next time/freq/shell
             size_t ncells = 0;
 
-            /// find how many sublayers lie withing jet openning angle and how many phi-cells are there in total
+            /// find how many sublayers lie withing jet openning angle and how many phi-cells are there in total_rad
             std::vector<size_t> sublayers_l{};
             auto &bw_rad = p_cumShells[ilayer]->getBW(0)->getFsEATS();
             double theta_l = p_cumShells[ilayer]->getBW(0)->getPars()->theta_c_l;
@@ -855,7 +855,7 @@ public:
                 }
                 Vector cthetas(nsublayers, 0.);
 
-                /// find how many sublayers lie withing jet openning angle and how many phi-cells are there in total
+                /// find how many sublayers lie withing jet openning angle and how many phi-cells are there in total_rad
                 std::vector<size_t> sublayers_l{};
                 auto &bw_rad = p_cumShells[ilayer]->getBW(0)->getFsEATS();
                 double theta_l = p_cumShells[ilayer]->getBW(0)->getPars()->theta_c_l;

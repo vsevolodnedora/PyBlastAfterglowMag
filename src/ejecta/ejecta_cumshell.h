@@ -748,7 +748,7 @@ public:
 
 
     }
-    /// Evaluate shell total mass, volume, density
+    /// Evaluate shell total_rad mass, volume, density
     /// next three functions computeSynchrotronEmissivityAbsorptionAnalytic mass, volume and average density of the entire shell
     double getShellMass(const double * Y_){
         double mtot = 0.;

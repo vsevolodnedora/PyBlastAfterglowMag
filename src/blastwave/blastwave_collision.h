@@ -208,7 +208,7 @@ public:
 //            Y[iieq + DynRadBlastWave::QS::iEsh2] += Y[iieq + DynRadBlastWave::QS::iEsh2] * bw1->getPars()->M0 / bw2->getPars()->M0;
 //            Y[iieq + DynRadBlastWave::QS::iR] = rcoll;
             //
-            bw1->getPars()->M0 = bw2->getPars()->M0 + bw1->getPars()->M0;//i_mM; // update the total mass of the shell
+            bw1->getPars()->M0 = bw2->getPars()->M0 + bw1->getPars()->M0;//i_mM; // update the total_rad mass of the shell
 //            Y[iieq + DynRadBlastWave::QS::iM2] = i_mM / bw1->getPars()->M0;//Y[iieq + DynRadBlastWave::QS::iM2] * bw2->getPars()->M0 / bw1->getPars()->M0;
             Y[iieq + DynRadBlastWave::QS::iM2] = (m0_1 + m2_1 + m2_2 + m0_2) / (m0_1 + m0_2);
             m2_after = Y[iieq + DynRadBlastWave::QS::iM2];
@@ -240,7 +240,7 @@ public:
 //            Y[iieq + DynRadBlastWave::QS::iR] = rcoll;
             ///
             ///
-            bw2->getPars()->M0 = bw2->getPars()->M0 + bw1->getPars()->M0;//i_mM; // update the total mass of the shell
+            bw2->getPars()->M0 = bw2->getPars()->M0 + bw1->getPars()->M0;//i_mM; // update the total_rad mass of the shell
 //            Y[iieq + DynRadBlastWave::QS::iM2] = i_mM / bw2->getPars()->M0;// Y[iieq + DynRadBlastWave::QS::iM2] * bw1->getPars()->M0 / bw2->getPars()->M0;
             Y[iieq + DynRadBlastWave::QS::iM2] = (m0_1 + m2_1 + m2_2 + m0_2) / (m0_1 + m0_2);
             m2_after = Y[iieq + DynRadBlastWave::QS::iM2];
@@ -287,13 +287,13 @@ private:
         double eM = x[1];
 //        double em = x[1];
         double gAdiM = pp->p_eos->getGammaAdi(gM, EQS::Beta(gM));
-        /// total mass conservation
+        /// total_rad mass conservation
         double mM = pp->m_mass1 + pp->m_mass2;
-        /// total energy consercation (Ek + Eint)
+        /// total_rad energy consercation (Ek + Eint)
         double fx1 = (pp->m_gam1 * pp->m_mass1 + EQS::get_GammaEff(pp->m_gam1, pp->m_adi1) * pp->m_eint1)
                      + (pp->m_gam2 * pp->m_mass2 + EQS::get_GammaEff(pp->m_gam2, pp->m_adi2) * pp->m_eint2)
                      - (gM * mM + EQS::get_GammaEff(gM,gAdiM) * eM );
-        /// total momentum conservation
+        /// total_rad momentum conservation
         double fx2 = sqrt(pp->m_gam1 * pp->m_gam1 - 1) * (pp->m_mass1 + pp->m_adi1 * pp->m_eint1 )
                      + sqrt(pp->m_gam2 * pp->m_gam2 - 1) * (pp->m_mass2 + pp->m_adi2 * pp->m_eint2 )
                      - sqrt(gM * gM - 1) * (mM + gAdiM * eM );

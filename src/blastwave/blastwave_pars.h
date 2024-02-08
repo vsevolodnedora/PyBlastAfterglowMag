@@ -242,7 +242,7 @@ namespace BW{
             "EJtemp", "EJlum", "EJtdiff",
             "WR", "Wmom", "Wenb", "Wepwn", "Wtt", "Wb", "WGamma", "Wdr",
     }; // 82
-    /// total mumber of variables
+    /// total_rad mumber of variables
     constexpr unsigned TOTAL_VARS = 83;
     /// what varaibles to allocate memory for
     static std::unordered_map<BW_TYPES,std::vector<std::size_t>> VARS {

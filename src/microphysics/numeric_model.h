@@ -45,7 +45,7 @@ static void tridiagonal_solver(
 
 /**
  * equation for the CC n_j-1 term
- * @param one_over_delta_grid  the total change in energy
+ * @param one_over_delta_grid  the total_rad change in energy
  * @param one_over_delta_grid_bar_backward  the forward change in energy for the second derivative
  * @param C_backward  the backward dispersion term
  * @param B_backward  the backward heating term
@@ -60,7 +60,7 @@ compute_n_j_minus_one_term(
 }
 /**
  * equation for the CC n_j term
- * @param one_over_delta_grid  the total change in energy
+ * @param one_over_delta_grid  the total_rad change in energy
  * @param one_over_delta_grid_bar_backward  the backward change in energy for the second derivative
  * @param one_over_delta_grid_bar_forward  the forward change in energy for the second derivative
  * @param C_backward  the forward dispersion term
@@ -87,7 +87,7 @@ compute_n_j(double one_over_delta_grid, double one_over_delta_grid_bar_backward,
 }
 /**
  * equation for the CC n_j +1 term
- * @param one_over_delta_grid  the total change in energy
+ * @param one_over_delta_grid  the total_rad change in energy
  * @param one_over_delta_grid_bar_forward  the backward change in energy for the second derivative
  * @param C_forward  the forward dispersion term
  * @param B_forward  the forward heating term
@@ -304,7 +304,8 @@ public:
      * terms, then delta_j is zero
      */
     void computeDeltaJ(){
-        for (size_t j = 0; j <  n_grid_points; j++){
+        for (size_t j = 0; j < n_grid_points; j++){
+            delta_j[j] = 0.;
             // if the dispersion term is 0 => delta_j = 0
             if (dispersion_term[j] != 0){
                 // w = ( self.ele._delta_grid[1:-1][j] * self._heating_term[j] ) / self._dispersion_term[j] # REPLACED
@@ -329,6 +330,11 @@ public:
 
         double one_over_delta_grid_forward,one_over_delta_grid_backward,
                 one_over_delta_grid_bar,B_forward,B_backward,C_forward,C_backward;
+
+        /// clean to prevent leackage
+        for (size_t k = 0; k < n_grid_points; k++){
+            a[k] = 0.; b[k] = 0.; c[k] = 0.;
+        }
 
         /// walk backwards in j starting from the second to last index; then set the end points
         for (size_t k = n_grid_points - 2; k > 0; k--){
@@ -497,6 +503,8 @@ public:
         for (size_t i = 0; i < n_grid_points; i++)
             if ((ele.e[i] > x_min) && (ele.e[i] <= x_max))
                 source_grid[i] = N * norm * std::pow(ele.e[i], index);
+            else
+                source_grid[i] = 0.;
     }
 
     /**

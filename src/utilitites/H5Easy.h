@@ -102,7 +102,7 @@ class LoadH5
       std::vector<std::vector<float> > getData2Dfloat() const;
       std::vector<std::vector<double> > getData2Ddouble() const;
       // Return the size of the data
-      // Note that for multi-dim arrays that it gets the total size and not the size of a single row.
+      // Note that for multi-dim arrays that it gets the total_rad size and not the size of a single row.
       int getSize() const;
 
       // We now make a proxy class so that we can overload the return type and use a single

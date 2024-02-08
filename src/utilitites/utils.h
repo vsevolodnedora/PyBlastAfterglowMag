@@ -780,7 +780,10 @@ public:
     }
 
     static void addVectorToGroup(H5::Group & grp, Vector & data, std::string data_name){
-        if(data.empty()){ std::cerr << AT << " no data\n"; exit(1); }
+        if(data.empty()){
+            std::cerr << AT << " no data\n";
+            exit(1);
+        }
         double varray[data.size()];
         for (size_t ii = 0; ii < data.size(); ii++)
             varray[ii] = data[ii];
