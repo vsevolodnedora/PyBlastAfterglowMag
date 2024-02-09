@@ -940,7 +940,7 @@ public:
         i_Rw, // Wind radius (PWN radius)
 //        i_mom,
         i_tt,
-        i_Enb, // PWN total energy
+        i_Enb, // PWN total_rad energy
         i_Epwn
     };
 
@@ -2174,7 +2174,7 @@ private:
         //auto spect =
         evalPWNComovSpectrum(spec_times, spec_freqs, spec_gams);
 
-        /// save total lightcurve
+        /// save total_rad lightcurve
         size_t n = _times.size();
         Vector total_fluxes (n, 0.0);
         for (size_t itnu = 0; itnu < n; ++itnu) {
@@ -2254,7 +2254,7 @@ private:
         /// evaluate light curve
         auto light_curve = evalPWNLightCurves( _times, _freqs );
 
-        /// save total lightcurve
+        /// save total_rad lightcurve
         size_t n = _times.size();
         Vector total_fluxes (n, 0.0);
         for (size_t itnu = 0; itnu < n; ++itnu) {
@@ -2530,7 +2530,7 @@ private:
         if (p_log->getLogLevel() == LOG_INFO) {
             if (n_jet_empty_images > 0) {
                 auto &ccerr = std::cout;
-                ccerr << "PWN at tobs=" << obs_time << " freq=" << obs_freq << " gave an isEmpty images for total n="
+                ccerr << "PWN at tobs=" << obs_time << " freq=" << obs_freq << " gave an isEmpty images for total_rad n="
                       << n_jet_empty_images << " layers. Specifically:\n";
                 for (size_t ish = 0; ish < n_empty_images_shells.size(); ish++) {
 //                auto & ejectaStruct = ejectaStructs.structs[n_empty_images_shells[ish]];
@@ -2539,7 +2539,7 @@ private:
                     for (size_t il = 0; il < n_empty_images[ish].size(); il++) {
                         ccerr << n_empty_images[ish][il] << " ";
                     }
-                    ccerr << "] / (" << nlayers_ << " total layers) \n";
+                    ccerr << "] / (" << nlayers_ << " total_rad layers) \n";
                 }
             }
         }

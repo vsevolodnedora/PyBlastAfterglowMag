@@ -675,6 +675,7 @@ protected:
     int m_loglevel = -1;
     std::unique_ptr<logger> p_log = nullptr;
     bool is_rs = false;
+    double tcomov0=-1.;
     /// --------------------------------------
     double eps_e=-1, eps_b=-1, eps_t=-1, p=-1, ksi_n=-1;
     double mu=-1, mu_e=-1;
@@ -748,21 +749,18 @@ protected:
     /// --------------------------------------
     void computeMagneticField(){
         /// fraction of the shock energy density in electrons
-        double U_b_prime;
+        double U_b_prime = eprime * eps_b;
+        double B1 = sqrt(8. * CGS::pi * U_b_prime);
+        /// See Nava 2013 paper or others; classical equation
+        double B2 = std::sqrt( 32. * M_PI * eps_b * (GammaSh - 1.)
+                       * (GammaSh + 3. / 4) * n_prime * CGS::mp * CGS::c2);
+        double B3 = sqrt(9.0 * M_PI * eps_b * n_prime * mu * CGS::mp)
+            * (beta * CGS::c);
+
         switch (m_methodsB) {
-            case iBuseUb:
-                U_b_prime = eprime * eps_b;
-                B = sqrt(8. * CGS::pi * U_b_prime);
-                break;
-            case iBuseGammaSh:
-                /// See Nava 2013 paper or others; classical equation
-                B = std::sqrt( 32. * M_PI * eps_b * (GammaSh - 1.)
-                  * (GammaSh + 3. / 4) * n_prime * CGS::mp * CGS::c2);
-                break;
-            case iBasMAG21:
-                B = sqrt(9.0 * M_PI * eps_b * n_prime * mu * CGS::mp)
-                  * (beta * CGS::c);
-                break;
+            case iBuseUb:       B=B1; break;
+            case iBuseGammaSh:  B=B2; break;
+            case iBasMAG21:     B=B3; break;
         }
     }
     void computeGammaMax(){
@@ -878,10 +876,16 @@ class ElectronAndRadiation : public ElectronAndRadiaionBase{
 
 public: // ---------------- ANALYTIC -------------------------- //
 
-    ElectronAndRadiation(int loglevel, bool _is_rs) : ElectronAndRadiaionBase(loglevel, _is_rs){}
+    ElectronAndRadiation(int loglevel, bool _is_rs) :
+        ElectronAndRadiaionBase(loglevel, _is_rs){}
 
-    void setPars( StrDbMap & pars, StrStrMap & opts, size_t nr ){
+    void setPars( StrDbMap & pars, StrStrMap & opts, size_t nr, double tcomov0_ ){
         setBasePars(pars, opts);
+        if (tcomov0_<=0.){
+            (*p_log)(LOG_ERR,AT) << "Bad value: tcomov="<<tcomov0_<<"\n";
+            exit(1);
+        }
+        tcomov0 = tcomov0_;
         /// allocate memory for spectra to be used in EATS interpolation
         if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleAnalyt)
             allocateForAnalyticSpectra(pars, opts, nr);
@@ -974,38 +978,41 @@ public: // ---------------- ANALYTIC -------------------------- //
 
 public: // -------------------- NUMERIC -------------------------------- //
     /// Analytic electron spectrum, power-law
-    void powerLawElectronDistributionAnalytic(double N_inj_analytical){
-        /// fast cooling
-        if (gamma_min >= gamma_c) {
-            double K_f = N_inj_analytical / (
-                    std::pow(gamma_min, (1. - p) * (std::pow(gamma_c, -1.)
-                                                    - std::pow(gamma_min, -1))
-                                        + std::pow(p, -1) * (std::pow(gamma_min, -p)
-                                                             - std::pow(gamma_max, -p)))
-            );
-            for (size_t i = 0; i < ele.e.size(); i++) {
-                if (gamma_c <= ele.e[i] and ele.e[i] < gamma_min)
-                    ele.f[i] = K_f * std::pow(gamma_min, 1. - p) * std::pow(ele.e[i], -2);
-                else if (gamma_min <= ele.e[i] and ele.e[i] <= gamma_max)
-                    ele.f[i] = K_f * std::pow(ele.e[i], -p - 1);
-                else
-                    ele.f[i] = 0.;
+    void powerLawElectronDistributionAnalytic(double tcomov0_, double n_ele_inj){
+//        /// prevent gamma_max to go beyond the electron grid
+//        if (gamma_max > 0.99 * ele.e[ele.numbins-1])
+//            gamma_max = 0.99 * ele.e[ele.numbins-1];
+
+//        double gamma_c_ = 6. * CGS::pi * CGS::me * CGS::c / (CGS::sigmaT * dt * B * B) / Gamma; // Eq. A19 in vanEarten+10
+        gamma_c = ((6. * CGS::pi * me * c) / (CGS::sigmaT * B * B * (tcomov0_ - (tcomov0-1.e-6))));
+
+        if (gamma_min > gamma_c) { // fast cooling regime
+            double K_f = n_ele_inj / (pow(gamma_min, 1 - p)
+                                      * (1 / gamma_c - 1 / gamma_min)
+                                      + 1 / p * (pow(gamma_min, -p)
+                                                        - pow(gamma_max, -p)));
+            for (size_t idx_gamma = 0; idx_gamma < ele.numbins; ++idx_gamma) {
+                double gamma = ele.e[idx_gamma];
+                double N = 0.0;
+                if (gamma_c <= gamma && gamma < gamma_min) {
+                    N = K_f * pow(gamma_min, 1 - p) * pow(gamma, -2);
+                } else if (gamma_min <= gamma && gamma <= gamma_max) {
+                    N = K_f * pow(gamma, -p - 1);
+                }
+                ele.f[idx_gamma] = N;
             }
-        }
-        else{
-            double K_s = N_inj_analytical / (
-                    1. / (1 - p) * (std::pow(gamma_c, 1. - p)
-                                    - std::pow(gamma_min, 1. - p))
-                    - gamma_c / p * ( std::pow(gamma_max, -p)
-                                      - std::pow(gamma_c, -p))
-            );
-            for (size_t i = 0; i < ele.e.size(); i++) {
-                if (gamma_min <= ele.e[i]  and ele.e[i] < gamma_c)
-                    ele.f[i] = K_s * std::pow(ele.e[i], -p);
-                else if (gamma_c <= ele.e[i] and ele.e[i] <= gamma_max)
-                    ele.f[i] = K_s * gamma_c * std::pow(ele.e[i], -p - 1);
-                else
-                    ele.f[i] = 0.;
+        } else if (gamma_c > gamma_min) { // slow cooling regime
+            double K_s = n_ele_inj / ((1. / (1 - p)) * (pow(gamma_c, 1 - p) - pow(gamma_min, 1 - p))
+                                      - gamma_c / p * (pow(gamma_max, -p) - pow(gamma_c, -p)));
+            for (size_t idx_gamma = 0; idx_gamma < ele.numbins; ++idx_gamma) {
+                double gamma = ele.e[idx_gamma];
+                double N = 0.0;
+                if (gamma_min <= gamma && gamma < gamma_c) {
+                    N = K_s * pow(gamma, -p);
+                } else if (gamma_c <= gamma && gamma <= gamma_max) {
+                    N = K_s * gamma_c * pow(gamma, -p - 1);
+                }
+                ele.f[idx_gamma] = N;
             }
         }
     }
@@ -1056,8 +1063,10 @@ public: // -------------------- NUMERIC -------------------------------- //
 
     }
 
+
     void evaluateElectronDistributionNumeric(
-            double dt, double d_m, double r, double dr, double rp1, double drp1){
+            double tcomov, double tcomov_1, double m2, double m2_1,
+            double r, double rp1, double dr, double drp1){
 
         /// check parameters
         if (ele.e.size() < 1){
@@ -1070,29 +1079,31 @@ public: // -------------------- NUMERIC -------------------------------- //
             exit(1);
         }
 
-        if (gamma_max > 0.99 * ele.e[ele.numbins-1]){
-            gamma_max = 0.99 * ele.e[ele.numbins-1];
-        }
+//        /// prevent gamma_max to go beyond the electron grid
+//        if (gamma_max > 0.99 * ele.e[ele.numbins-1])
+//            gamma_max = 0.99 * ele.e[ele.numbins-1];
 
+        dm = m2_1 - m2;
+        double dt = tcomov_1 - tcomov;
         /// for adiabatic cooling of electron distribution
         vol = r * r * dr;
         vol_p1 = rp1 * rp1 * drp1;
-        dm = d_m;
         double dlnVdt = 1. / dt * (1. - vol / vol_p1);
 
         /// number of injected electrons
-        double N = dm / CGS::mp / dt;
+//        double N = dm / CGS::mp;// / dt;
 
         /// compute substepping to account for electron cooling timescales
         double dlog_gam = ((ele.e[1]-ele.e[0])/ele.e[0]);
         double delta_t_syn = CGS::sigmaT * gamma_max * B * B / (6. * M_PI * CGS::me * CGS::c);
         double delta_t_adi = (gamma_max*gamma_max-1.)/(3.*gamma_max*gamma_max)*dlnVdt;
-        double delta_t = 0.5 * dlog_gam / (delta_t_syn + delta_t_adi);
+        double delta_t = dlog_gam / (delta_t_syn + delta_t_adi);
         size_t n_substeps = 0;
         /// if cooling is too slow, we still need to evolve distribution
-        if (delta_t >= dt) {
-            delta_t = dt;
-            n_substeps = 1;
+        size_t min_substeps = 2;
+        if (delta_t >= dt/(double)min_substeps) {
+            delta_t = dt/(double)min_substeps;
+            n_substeps = min_substeps;
         }
         else if (delta_t < dt/(double)max_substeps){
             delta_t = dt/(double)max_substeps;
@@ -1101,19 +1112,9 @@ public: // -------------------- NUMERIC -------------------------------- //
         else
             n_substeps = (size_t)(dt/delta_t);
 
-//        delta_t = dt;
-//        n_substeps = 1;
+        /// number of injected electrons
+        double N = dm / CGS::mp / dt;// / dt;
 
-//        if (delta_t < dt/(double)max_substeps)
-//            delta_t = dt/(double)max_substeps;
-
-//        /// limit the max number of substeps
-//        else if (delta_t > dt / (double)max_substeps)
-//            delta_t = dt / (double) max_substeps;
-//
-//        auto n_substeps = (size_t) (dt / delta_t) + 1; // number of substeps for electron evolution
-//
-//        delta_t = std::max(delta_t, dt / (double)max_substeps);
 
         /// update source properties
         source.B = B;
@@ -1121,16 +1122,22 @@ public: // -------------------- NUMERIC -------------------------------- //
         source.r = r;
         source.dr = dr;
         source.N = N;
-
+        double N_tot = 0.;
         ChangCooper model = ChangCooper(source, ele, syn, ssc, syn_kernel, ssc_kernel);
 
-        if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum) {
+        if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleMix)
+            /// compute radiation numerically from ANALYTIC electron distribution
+            powerLawElectronDistributionAnalytic(tcomov, m2_1/CGS::mp);
+
+        else{
+            /// evolve radiation numerically and compute radiation numerically
+
             /// Assume source/escape do not change during substepping
             model.setSourceFunction(gamma_min, gamma_max, -p, N);
             model.setEscapeFunction(gamma_min, gamma_max);
 
             /// Init photon field
-            Vector photon_field(syn.numbins, 0);
+//            Vector photon_field(syn.numbins, 0);
 
             for (size_t i = 0; i < (size_t) n_substeps; i++) {
 
@@ -1153,33 +1160,21 @@ public: // -------------------- NUMERIC -------------------------------- //
                 /// Update photon field during electron evolution
 //            model.update_radiation(); // Too long, if inside
 
-                model.resetSolver();
+//                model.resetSolver();
             }
-
-            /// Update photon field during electron evolution
-            model.update_radiation(); // saves photon density in syn.n[] -> used in ssc cooling next iteration
-
         }
-        else{
-            /// set the electron distribution from analytic solution
-            powerLawElectronDistributionAnalytic(N);
-            /// Update photon field during electron evolution
-            model.update_radiation(); // saves photon density in syn.n[] -> used in ssc cooling next iteration
-        }
+        /// Update photon field during electron evolution
+        model.update_radiation(); // saves photon density in syn.n[] -> used in ssc cooling next iteration
 
-    }
+        /// check continouity
+        
+        for (size_t i = 0; i < ele.numbins-1; i++)
+            N_tot += ele.f[i] * ele.de[i];
 
-    void evaluateElectronDistributionAnalyticAndRadiationNumeric(double d_m){
-        /// check parameters
-        if (ele.e.size() < 1){
-            (*p_log)(LOG_ERR,AT) << " electon grid is not initialized\n";
-            exit(1);
-        }
-        if (B <= 0 || gamma_min <= 0 || gamma_max <= 0){
-            (*p_log)(LOG_ERR,AT) << "wrong value, cannot evolve electrons: "
-                                    "B="<<B<<" gm="<<gamma_min<<" gM="<<gamma_max<<"\n";
-            exit(1);
-        }
+        (*p_log)(LOG_INFO,AT) << "it="<<tcomov<<" n_substeps="<<n_substeps
+                                        <<" Nnum/Nan="<<(dm/CGS::mp)/N_tot<<"\n";
+        /// clear array (resets everything!)
+        model.resetSolver();
     }
 
     void storeSynchrotronSpectrumNumeric(size_t it){
@@ -1202,8 +1197,6 @@ public: // -------------------- NUMERIC -------------------------------- //
             ssc.save_to_all(it);
             total_rad.add_to_all(ssc, it);
         }
-
-
     }
 
 public: // ---------------------- EATS -------------------------------- //

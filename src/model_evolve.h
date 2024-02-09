@@ -76,7 +76,7 @@ public:
                                         << " N_ej="<<p_ej->getNeq()
                                         << " N_ej_pwn2="<<p_ej_pwn2->getNeq()
                                         << " N_ej_pwn="<<p_ej_pwn->getNeq()
-                                        << " (total " << p_pars->n_tot_eqs << ") equations. \n";
+                                        << " (total_rad " << p_pars->n_tot_eqs << ") equations. \n";
         p_pars->n_substeps = (size_t)_t_grid.size() / t_grid.size();
         p_pars->m_tmp_tsubstes.resize(p_pars->n_substeps, 0.);
         m_InitData = new double [ p_pars->n_tot_eqs ];

@@ -513,9 +513,11 @@ public:
      * @param x_max
      */
     void setEscapeFunction(double x_min, double x_max){
-        for (size_t i = 0; i < n_grid_points; i++)
+        for (size_t i = 0; i < n_grid_points; i++) {
+            escape_grid[i] = 0.;
             if (ele.e[i] > x_min && ele.e[i] <= x_max)
                 escape_grid[i] = 0;
+        }
 
     }
 

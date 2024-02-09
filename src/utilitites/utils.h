@@ -728,7 +728,9 @@ public:
         size_t nrow = data.size();
 
         /// convert VecVector to array[][]
-        double varray[nrow];
+//        double varray[nrow];
+
+        double * varray = new double[nrow];
         for( size_t i = 0; i<nrow; ++i) { varray[i] = data[i]; }
 
         // preparation of a dataset and a file.
@@ -739,6 +741,7 @@ public:
         dataset.write( varray, H5::PredType::NATIVE_DOUBLE);
         dataset.close();
         dataspace.close();
+        delete[] varray;
     }
 
     static void add2Dtable(VecVector & data, std::string name, H5::H5File & file){
@@ -784,7 +787,8 @@ public:
             std::cerr << AT << " no data\n";
             exit(1);
         }
-        double varray[data.size()];
+//        double varray[data.size()];
+        double * varray = new double[data.size()];
         for (size_t ii = 0; ii < data.size(); ii++)
             varray[ii] = data[ii];
         hsize_t dimsf[1];
@@ -795,6 +799,7 @@ public:
         dataset.write(varray, H5::PredType::NATIVE_DOUBLE);
         dataset.close();
         dataspace.close();
+        delete[] varray;
     }
 
     static void addGroupWith1Ddata(VecVector & data, std::string group_name, std::vector<std::string> array_names, H5::H5File & file){
@@ -807,8 +812,10 @@ public:
             exit(1);
         }
         H5::Group grp(file.createGroup(group_name));
+        double * varray = new double[data[0].size()];
         for (size_t iv = 0; iv < data.size(); iv++){
-            double varray[data[iv].size()];
+//            double varray[data[iv].size()];
+//            double * varray = new double[data[iv].size()];
             for (size_t ii = 0; ii < data[iv].size(); ii++)
                 varray[ii] = data[iv][ii];
             hsize_t dimsf[1];
@@ -819,7 +826,9 @@ public:
             dataset.write(varray, H5::PredType::NATIVE_DOUBLE);
             dataset.close();
             dataspace.close();
+
         }
+        delete[] varray;
         grp.close();
     }
 
@@ -832,8 +841,9 @@ public:
             std::cerr << AT << " data.size()!=array_names.size()\n";
             exit(1);
         }
+        double * varray = new double[data[0].size()];
         for (size_t iv = 0; iv < data.size(); iv++){
-            double varray[data[iv].size()];
+//            double varray[data[iv].size()];
             for (size_t ii = 0; ii < data[iv].size(); ii++)
                 varray[ii] = data[iv][ii];
             hsize_t dimsf[1];
@@ -845,6 +855,7 @@ public:
             dataset.close();
             dataspace.close();
         }
+        delete[] varray;
     }
 
     static void load1DDataFromGroup(std::string key, Vector & out, H5::Group & grp){

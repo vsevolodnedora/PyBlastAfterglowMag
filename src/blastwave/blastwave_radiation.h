@@ -763,6 +763,7 @@ public:
             : BlastWaveBase(tb_arr,ishell,ilayer,n_substeps, type, loglevel){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BW_radiation");
 
+        /// init radiation
         p_pars->p_syn_a = std::make_unique<ElectronAndRadiation>(loglevel, false);
         p_pars->p_syn_a_rs = std::make_unique<ElectronAndRadiation>(loglevel, true);
 
@@ -817,9 +818,11 @@ public:
 
 
         /// Set Electron And Radiation Model
-        p_pars->p_syn_a->setPars(pars, opts, p_pars->nr);
+        p_pars->p_syn_a->setPars(pars, opts, p_pars->nr,
+                                 EQS::initTComov(p_pars->R0, p_pars->beta0, p_pars->Gamma0));
         if (p_pars->do_rs)
-            p_pars->p_syn_a_rs->setPars(pars, opts, p_pars->nr);
+            p_pars->p_syn_a_rs->setPars(pars, opts, p_pars->nr,
+                                        EQS::initTComov(p_pars->R0, p_pars->beta0, p_pars->Gamma0));
 
         /// Set EATS functions (interpolator functions)
         if (p_pars->m_method_rad == METHODS_RAD::icomovspec) {
@@ -1024,11 +1027,16 @@ public:
         auto & p_syn_a = p_pars->p_syn_a;
         auto &p_syn_a_rs = p_pars->p_syn_a_rs;
 
+        if (p_pars->m_method_rad == METHODS_RAD::icomovspec) {
+
+        }
+
         for (size_t it = 0; it < p_pars->nr - 1; it++) {
 
             /// check if to consider this timestep
             if ( not isBlastWaveValidForElectronCalc( it ) )
                 return;
+
 
             /// update shock properties
             p_syn_a->updateSockProperties(//m_data[BW::Q::iR][it],
@@ -1059,12 +1067,10 @@ public:
                                                                 m_data[BW::Q::ithickness][it]);
                 else {
                     p_syn_a->evaluateElectronDistributionNumeric(
-                            m_data[BW::Q::itcomov][it + 1] - m_data[BW::Q::itcomov][it],
-                            m_data[BW::Q::iM2][it + 1] - m_data[BW::Q::iM2][it],
-                            m_data[BW::Q::iR][it],
-                            m_data[BW::Q::ithickness][it],
-                            m_data[BW::Q::iR][it + 1],
-                            m_data[BW::Q::ithickness][it + 1]);
+                            m_data[BW::Q::itcomov][it], m_data[BW::Q::itcomov][it + 1],
+                            m_data[BW::Q::iM2][it], m_data[BW::Q::iM2][it + 1],
+                            m_data[BW::Q::iR][it],m_data[BW::Q::iR][it + 1],
+                            m_data[BW::Q::ithickness][it],m_data[BW::Q::ithickness][it + 1]);
                     p_syn_a->storeSynchrotronSpectrumNumeric(it);
                 }
             }
@@ -1096,12 +1102,10 @@ public:
                                                                        m_data[BW::Q::ithichness_rs][it]);
                     else{
                         p_syn_a_rs->evaluateElectronDistributionNumeric(
-                                m_data[BW::Q::itcomov][it + 1] - m_data[BW::Q::itcomov][it],
-                                m_data[BW::Q::iM3][it + 1] - m_data[BW::Q::iM3][it],
-                                m_data[BW::Q::iR][it],
-                                m_data[BW::Q::ithichness_rs][it],
-                                m_data[BW::Q::iR][it + 1],
-                                m_data[BW::Q::ithichness_rs][it + 1]);
+                                m_data[BW::Q::itcomov][it], m_data[BW::Q::itcomov][it + 1],
+                                m_data[BW::Q::iM3][it], m_data[BW::Q::iM3][it + 1],
+                                m_data[BW::Q::iR][it],m_data[BW::Q::iR][it + 1],
+                                m_data[BW::Q::ithichness_rs][it],m_data[BW::Q::ithichness_rs][it + 1]);
                         p_syn_a_rs->storeSynchrotronSpectrumNumeric(it);
                     }
                 }

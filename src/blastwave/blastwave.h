@@ -197,7 +197,7 @@ public:
         ic_arr[i + SOL::QS::iR]      = p_pars->R0;//m_tb_arr[0] * beta0 * CGS::c; CO
         ic_arr[i + SOL::QS::iRsh]    = p_pars->R0;//m_tb_arr[0] * EQS::Beta(GammaSh0) * CGS::c;
         ic_arr[i + SOL::QS::itt]     = EQS::init_elapsed_time(p_pars->R0, p_pars->mom0, use_spread);
-        ic_arr[i + SOL::QS::itcomov] = p_pars->R0 / (p_pars->beta0 * p_pars->Gamma0 * CGS::c);
+        ic_arr[i + SOL::QS::itcomov] = EQS::initTComov(p_pars->R0, p_pars->beta0, p_pars->Gamma0);
         ic_arr[i + SOL::QS::iEint2]  = (p_pars->Gamma0 - 1. ) * m_M20 / p_pars->M0;  //TODO Isnt it just E0 / m_M0 ???? As M0 = E0 * cgs.c ** -2 / Gamma0
         ic_arr[i + SOL::QS::iEint2]  += p_pars->Eint0 / p_pars->M0 / CGS::c / CGS::c; // add initial internal energy
 //        ic_arr[i + SOL::QS::imom]    = MomFromGam(p_pars->Gamma0);//std::log( p_pars->Gamma0 );

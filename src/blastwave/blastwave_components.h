@@ -127,7 +127,12 @@ inline namespace EQS{
         return std::pow(3. / (4. * CGS::pi) * 1. / (CGS::c * CGS::c * CGS::mp) * E / (nn * Gamma * Gamma), 1.0 / 3.0);
     }
 
-
+    /*
+     * Compute comoving time
+     */
+    double initTComov(const double R0, const double beta0, const double Gamma0){
+        return R0 / (beta0 * Gamma0 * CGS::c);
+    }
 
     /*
      * Compute time in the lab frame

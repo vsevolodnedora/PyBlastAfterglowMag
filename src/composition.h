@@ -499,7 +499,7 @@ namespace PWNradiationMurase{
         return 3.0/2.0*CGS::H/(2.0*M_PI)*gamma_b*gamma_b*CGS::ELEC*b_pwn/CGS::M_ELEC/CGS::c;
     }
 
-    /// The total KN cross section in unit of cm^2 (Eq.46 in Murase+15) e_gamma in ergs
+    /// The total_rad KN cross section in unit of cm^2 (Eq.46 in Murase+15) e_gamma in ergs
     static double sigma_kn(const double e_gamma) {
         double x = e_gamma/CGS::M_ELEC/CGS::c/CGS::c;
         if (x > 1.0e-3)
@@ -508,7 +508,7 @@ namespace PWNradiationMurase{
             return SIGMA_T;
     }
 
-    /// The total BH cross section in unit of cm^2 Eq.49 in Murase+15
+    /// The total_rad BH cross section in unit of cm^2 Eq.49 in Murase+15
     static double sigma_BH_p(const double e_gamma) {
         /// Eq. (A1) and (A2) of Chodorowski+92
         double x = e_gamma/CGS::M_ELEC/CGS::c/CGS::c;
