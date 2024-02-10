@@ -1046,6 +1046,7 @@ public:
 //                               m_data[Q::iGamma][it],
                                           m_data[BW::Q::iGammaFsh][it],
                                           m_data[BW::Q::itt][it], // TODO WHICH TIME IS HERE? tbirst? tcomov? observer time (TT)
+                                          m_data[BW::Q::itcomov][it], // TODO WHICH TIME IS HERE? tbirst? tcomov? observer time (TT)
 //                               m_data[Q::itburst][it], // emission time (TT)
                                           m_data[BW::Q::irho2][it] / CGS::mp,
 //                                          (m_data[BW::Q::iM2][it+1]-m_data[BW::Q::iM2][it]) / CGS::mp
@@ -1084,6 +1085,7 @@ public:
 //                               m_data[Q::iGamma][it],
                                                  m_data[BW::Q::iGammaRsh][it],
                                                  m_data[BW::Q::itt][it], // TODO WHICH TIME IS HERE? tbirst? tcomov? observer time (TT)
+                                                 m_data[BW::Q::itcomov][it], // TODO WHICH TIME IS HERE? tbirst? tcomov? observer time (TT)
 //                               m_data[Q::itburst][it], // emission time (TT)
                                                  m_data[BW::Q::irho3][it] / CGS::mp,
                                                  m_data[BW::Q::iM3][it] / CGS::mp

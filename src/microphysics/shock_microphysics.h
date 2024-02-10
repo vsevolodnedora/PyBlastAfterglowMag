@@ -41,6 +41,8 @@ enum METHODS_LFMIN { igmNumGamma, igmUprime, igmNakarPiran, igmJoh06, igmMAG21 }
 
 enum METHODS_B { iBuseUb, iBasMAG21, iBuseGammaSh };
 
+enum METHOD_LFCOOL{ iuseConst, iuseTe, iuseTcomov };
+
 enum METHOD_LFMAX { iConst, iuseB };
 
 enum METHODS_SSA { iSSAoff, iSSAon };
@@ -544,6 +546,33 @@ public:
         }
         m_methodsLfmax = methodLfmax;
 
+        opt = "method_gamma_c" + fs_or_rs;
+        METHOD_LFCOOL methodLfcool;
+        if ( opts.find(opt) == opts.end() ) {
+            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+            methodLfcool = METHOD_LFCOOL::iuseTe;
+        }
+        else{
+            if(opts.at(opt) == "useTe")
+                methodLfcool = METHOD_LFCOOL::iuseTe;
+            else if(opts.at(opt) == "useTcomov")
+                methodLfcool = METHOD_LFCOOL::iuseTcomov;
+            else if(opts.at(opt) == "useConst") {
+                gamma_c = getDoublePar("gamma_c" + fs_or_rs, pars,
+                                         AT, p_log, 1.e5, true);//pars.at("beta_min");
+                methodLfcool = METHOD_LFCOOL::iuseConst;
+            }
+            else{
+                (*p_log)(LOG_WARN,AT) << AT << " option for: " << opt
+                                      <<" given: " << opts.at(opt)
+                                      << " is not recognized. "
+                                      << "Possible options: "
+                                      << " useTe " << " useTcomov " << " useConst "<< "\n";
+                exit(1);
+            }
+        }
+        m_methodsLfcool = methodLfcool;
+
         bool tmp = getBoolOpt("use_ssa" + fs_or_rs, opts, AT, p_log, false, true);
         if (tmp) m_methods_ssa = METHODS_SSA::iSSAon;
         else m_methods_ssa = METHODS_SSA::iSSAoff;
@@ -577,7 +606,7 @@ public:
     }
 
     /// store current shock properties
-    void updateSockProperties(double e_prime, double Gamma_, double Gamma_shock, double t_e_,
+    void updateSockProperties(double e_prime, double Gamma_, double Gamma_shock, double t_e_, double tcomov_,
                               double n_prime_, double n_protons_){
         /// Store current parameters
 
@@ -586,6 +615,7 @@ public:
         Gamma = Gamma_; // for bisect solver
         beta = EQS::Beta(Gamma_shock); // for bisect solver
         t_e = t_e_; // for bisect solver
+        tcomov = tcomov_; // for bisect solver
         n_prime = ksi_n * n_prime_; //  for bisect solver
         n_protons = ksi_n * n_protons_;
 //        r = r_;
@@ -655,8 +685,7 @@ public:
 
         computeNonRelativisticFlattening();
 
-        /// compute cooling lorentz factor
-        gamma_c = 6. * CGS::pi * CGS::me * CGS::c / (CGS::sigmaT * t_e * B * B) / Gamma; // Eq. A19 in vanEarten+10
+        computeGammaCool();
     }
 
 
@@ -666,8 +695,9 @@ public:
     /// --------------------------------------
     METHODS_SYNCH m_sychMethod{};
     METHODS_LFMIN m_methodsLfmin{};
-    METHODS_B m_methodsB{};
+    METHOD_LFCOOL m_methodsLfcool{};
     METHOD_LFMAX m_methodsLfmax{};
+    METHODS_B m_methodsB{};
     METHOD_NONRELDIST m_method_nonreldist{};
     METHODS_SSA m_methods_ssa{};
     METHOD_SSC m_methods_ssc{};
@@ -676,6 +706,7 @@ protected:
     std::unique_ptr<logger> p_log = nullptr;
     bool is_rs = false;
     double tcomov0=-1.;
+    double tcomov=-1;
     /// --------------------------------------
     double eps_e=-1, eps_b=-1, eps_t=-1, p=-1, ksi_n=-1;
     double mu=-1, mu_e=-1;
@@ -819,6 +850,19 @@ protected:
         if (!std::isfinite(z_cool)){
             (*p_log)(LOG_ERR,AT) << AT << " Theta = " << Theta << " z_cool="<<z_cool<<"\n";
             exit(1);
+        }
+    }
+    void computeGammaCool(){
+        switch (m_methodsLfcool) {
+
+            case iuseConst:
+                break;
+            case iuseTe:
+                gamma_c = 6. * CGS::pi * CGS::me * CGS::c / (CGS::sigmaT * t_e * B * B) / Gamma; // Eq. A19 in vanEarten+10
+                break;
+            case iuseTcomov:
+                gamma_c = ((6. * CGS::pi * me * c) / (CGS::sigmaT * B * B * (tcomov - (tcomov0-1.e-6))));
+                break;
         }
     }
     /// for semi-neutonian regime, where gm ->
@@ -985,34 +1029,38 @@ public: // -------------------- NUMERIC -------------------------------- //
 
 //        double gamma_c_ = 6. * CGS::pi * CGS::me * CGS::c / (CGS::sigmaT * dt * B * B) / Gamma; // Eq. A19 in vanEarten+10
         gamma_c = ((6. * CGS::pi * me * c) / (CGS::sigmaT * B * B * (tcomov0_ - (tcomov0-1.e-6))));
+//        gamma_c = std::max(gamma_c,gamma_max);
 
         if (gamma_min > gamma_c) { // fast cooling regime
             double K_f = n_ele_inj / (pow(gamma_min, 1 - p)
                                       * (1 / gamma_c - 1 / gamma_min)
                                       + 1 / p * (pow(gamma_min, -p)
                                                         - pow(gamma_max, -p)));
-            for (size_t idx_gamma = 0; idx_gamma < ele.numbins; ++idx_gamma) {
-                double gamma = ele.e[idx_gamma];
+            for (size_t i = 0; i < ele.numbins; ++i) {
+                double gamma = ele.e[i];
                 double N = 0.0;
-                if (gamma_c <= gamma && gamma < gamma_min) {
+                if ((gamma_c <= gamma) && (gamma < gamma_min)) {
                     N = K_f * pow(gamma_min, 1 - p) * pow(gamma, -2);
-                } else if (gamma_min <= gamma && gamma <= gamma_max) {
+                }
+                else if ((gamma_min <= gamma) && (gamma <= gamma_max)) {
                     N = K_f * pow(gamma, -p - 1);
                 }
-                ele.f[idx_gamma] = N;
+                ele.f[i] = N;
             }
-        } else if (gamma_c > gamma_min) { // slow cooling regime
+        }
+        else if (gamma_c > gamma_min) { // slow cooling regime
             double K_s = n_ele_inj / ((1. / (1 - p)) * (pow(gamma_c, 1 - p) - pow(gamma_min, 1 - p))
                                       - gamma_c / p * (pow(gamma_max, -p) - pow(gamma_c, -p)));
-            for (size_t idx_gamma = 0; idx_gamma < ele.numbins; ++idx_gamma) {
-                double gamma = ele.e[idx_gamma];
+            for (size_t i = 0; i < ele.numbins; ++i) {
+                double gamma = ele.e[i];
                 double N = 0.0;
-                if (gamma_min <= gamma && gamma < gamma_c) {
+                if ((gamma_min <= gamma) && (gamma < gamma_c)) {
                     N = K_s * pow(gamma, -p);
-                } else if (gamma_c <= gamma && gamma <= gamma_max) {
+                }
+                else if ((gamma_c <= gamma) && (gamma <= gamma_max)) {
                     N = K_s * gamma_c * pow(gamma, -p - 1);
                 }
-                ele.f[idx_gamma] = N;
+                ele.f[i] = N;
             }
         }
     }
@@ -1127,7 +1175,7 @@ public: // -------------------- NUMERIC -------------------------------- //
 
         if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleMix)
             /// compute radiation numerically from ANALYTIC electron distribution
-            powerLawElectronDistributionAnalytic(tcomov, m2_1/CGS::mp);
+            powerLawElectronDistributionAnalytic(tcomov, m2/CGS::mp);
 
         else{
             /// evolve radiation numerically and compute radiation numerically
@@ -1167,7 +1215,7 @@ public: // -------------------- NUMERIC -------------------------------- //
         model.update_radiation(); // saves photon density in syn.n[] -> used in ssc cooling next iteration
 
         /// check continouity
-        
+
         for (size_t i = 0; i < ele.numbins-1; i++)
             N_tot += ele.f[i] * ele.de[i];
 

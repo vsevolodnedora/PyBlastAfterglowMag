@@ -648,8 +648,10 @@ private:
 
     /// INPUT dynamics
     void loadEjectaBWDynamics(std::string workingdir, std::string fname){
-        if (!std::experimental::filesystem::exists(working_dir+fname))
-            throw std::runtime_error("File not found. " + workingdir+fname);
+        if (!std::experimental::filesystem::exists(workingdir+fname)) {
+            (*p_log)(LOG_ERR, AT) << "File not found. " + workingdir + fname << "\n";
+            exit(1);
+        }
 
         Exception::dontPrint();
         H5std_string FILE_NAME(workingdir+fname);

@@ -46,19 +46,15 @@ def plot_electrons(pba, pba_an):
     spec_an = pba_an.GRB.get_lc(key="n_ele_fs",xkey="gams",ykey="times_gams",freq=None,time=None,ishell=0,ilayer=0,spec=True)
     gams_an = pba_an.GRB.get_gams(unique=True)
 
-    # normalize spectrum
-    spec = spec / np.trapz(y=spec, x=gams, axis=1)[:,np.newaxis]
-    spec *= np.power(gams,2)[np.newaxis,:]
+    # load ref.spec from stand alone C++ code
+    with h5py.File(os.getcwd()+'/'+'ref_spec.h5','r') as df:
+        times_ref = np.array(df["grid_time"],dtype=np.float64)
+        gams_ref = np.array(df["grid_gams"],dtype=np.float64)
+        spec_ref = np.array(df["matrix_of_N_array"],dtype=np.float64) \
+            .reshape(len(times_ref),len(gams_ref))
 
-    spec_an = spec_an / np.trapz(y=spec_an, x=gams_an, axis=1)[:,np.newaxis]
-    spec_an *= np.power(gams_an,2)[np.newaxis,:]
-
-    spec = spec[::4,:]
-    spec_an = spec_an[::4,:]
-    ts = ts[::4]
-
-    # select to plot
-    indexes = [2,int(len(ts)/3),2*int(len(ts)/3)]
+# select to plot
+    indexes = [10,int(len(ts)/3),2*int(len(ts)/3)]
     colors = ["blue", "green", "red"]
 
     # plot
@@ -71,6 +67,7 @@ def plot_electrons(pba, pba_an):
     for idx, color in zip(indexes, colors):
         ax.plot(gams, spec[idx,:], color=color, linewidth=1.0, linestyle="-")  # , label="$dn/d\gamma|_{\rm num}$")#label=r'$N_{adiab\; losses}$')
         ax.plot(gams, spec_an[idx,:], color=color, linewidth=1.0, linestyle="--")  # , label="$dn/d\gamma|_{\rm num}$")#label=r'$N_{adiab\; losses}$')
+        ax.plot(gams_ref, spec_ref[idx,:], color=color, linewidth=1.5, linestyle=":")  # , label="$dn/d\gamma|_{\rm num}$")#label=r'$N_{adiab\; losses}$')
         # ax.axvline(x=gms[idx], ymin=0, ymax=1, color=color, linestyle=':', linewidth=.6, )  # , label=r'$\gamma_{min}$')
         # ax.axvline(x=gcs[idx], ymin=0, ymax=1, color=color, linestyle='-.', linewidth=.6, )  # , label=r'$\gamma_{c}$')
 
@@ -81,7 +78,7 @@ def plot_electrons(pba, pba_an):
 
     ax.set_xscale('log')
     ax.set_yscale('log')
-    # ax.set_ylim(1e32, 1e52)
+    ax.set_ylim(np.max(spec[0,:])*1e-10, np.max(spec[idx,:])*20)
     ax.set_xlim(.5, gams[-1])
     # plt.plot(gamma, N, color="cyan", linewidth=1.0, linestyle="-", label=r'$N$')
 
@@ -92,6 +89,16 @@ def plot_electrons(pba, pba_an):
     ax.grid(linestyle=":")
 
 
+    # normalize spectrum
+    spec = spec / np.trapz(y=spec, x=gams, axis=1)[:,np.newaxis]
+    spec *= np.power(gams,2)[np.newaxis,:]
+
+    spec_an = spec_an / np.trapz(y=spec_an, x=gams_an, axis=1)[:,np.newaxis]
+    spec_an *= np.power(gams_an,2)[np.newaxis,:]
+
+    spec = spec[::4,:]
+    spec_an = spec_an[::4,:]
+    ts = ts[::4]
 
     spec[~np.isfinite(spec)] = 1e-100
     norm = LogNorm(vmin=spec.max() * 1e-5, vmax=spec.max())
@@ -148,12 +155,13 @@ def plot_electrons(pba, pba_an):
 def plot_spec():
     gc.collect()
     # prepare initial data (piecewise and adaptive)
-    struct = {"struct":"tophat", "Eiso_c":1.e52, "Gamma0c": 150., "M0c": -1.,"theta_c": 0.1, "theta_w": 0.1}
+    struct = {"struct":"tophat", "Eiso_c":1.e53, "Gamma0c": 750., "M0c": -1.,
+              "theta_c": np.pi / 10, "theta_w": np.pi / 10}
     pba_id = PBA.id_analytic.JetStruct(n_layers_pw=80, n_layers_a=1)
     # save piece-wise EATS ID
     id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="piece-wise")
     pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=curdir+"tophat_grb_id_pw.h5")
-    
+
     # save adaptive EATS ID
     id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="adaptive")
     pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=curdir+"tophat_grb_id_a.h5")
@@ -188,7 +196,7 @@ def plot_spec():
                                                       "method_eats":"adaptive",
                                                       "method_ne_fs":"useNe",
                                                       "method_ele_fs":"numeric",
-                                                      "method_ssc_fs":"none",
+                                                      "method_ssc_fs":"numeric",
                                                       "fname_ejecta_id":"tophat_grb_id_a.h5",
                                                       "fname_spec":"tophat_spec_{}_num.h5",
                                                       "fname_spectrum":"tophat_{}_num.h5"
