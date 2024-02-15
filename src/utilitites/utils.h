@@ -782,6 +782,17 @@ public:
         }
     }
 
+    static void addStrDbMap(StrDbMap & attrs, H5::Group & grp){
+        for (auto & ele : attrs){
+            auto key = ele.first;
+            auto val = ele.second;
+            H5::IntType int_type(H5::PredType::NATIVE_DOUBLE);
+            H5::DataSpace att_space(H5S_SCALAR);
+            H5::Attribute att = grp.createAttribute(key, int_type, att_space );
+            att.write( int_type, &val );
+        }
+    }
+
     static void addVectorToGroup(H5::Group & grp, Vector & data, std::string data_name){
         if(data.empty()){
             std::cerr << AT << " no data\n";

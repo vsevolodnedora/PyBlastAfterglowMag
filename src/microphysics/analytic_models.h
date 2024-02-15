@@ -972,16 +972,17 @@ public:
     void computeAnalyticSynchWSPN99(double & em, double & abs, double nuprime, double n_prime){
 //        double gamma_min=p_pars->gamma_min, gamma_c=p_pars->gamma_c, B=p_pars->B, n_prime=p_pars->n_prime;
 //        double p = p_pars->p;
-        double nu_m=0., nu_c=0., emissivity=0.,absorption=0., scaling=0., abs_scaling=1.;
+        double scaling=0., abs_scaling=1.;
 //        double em=0.,abs=0.;
 //            double PhiP = interpolated_phi(p);
 //            emissivity = (interpolated_phi(p) * sqrt(3.0) /  4.0 * CGS::pi)
 //                    * n_prime * CGS::qe * CGS::qe * CGS::qe * B / (CGS::me * CGS::c * CGS::c);
 
-        emissivity = (interpolated_phi(p) * sqrt(3.0) / 4.0 * CGS::pi) * n_prime * CGS::qe * CGS::qe * CGS::qe * B / (CGS::me * CGS::c * CGS::c);
+        double emissivity = (interpolated_phi(p) * sqrt(3.0) / 4.0 * CGS::pi)
+                          * n_prime * CGS::qe * CGS::qe * CGS::qe * B / (CGS::me * CGS::c * CGS::c);
         double Xp = interpolated_xi(p);
-        nu_m = 3.0 / ( 4.0 * CGS::pi ) * Xp * gamma_min * gamma_min * CGS::qe * B / (CGS::me * CGS::c );
-        nu_c = 0.286 * 3. * gamma_c * gamma_c * CGS::qe * B / (4.0 * CGS::pi * CGS::me * CGS::c );
+        double nu_m = 3.0 / ( 4.0 * CGS::pi ) * Xp * gamma_min * gamma_min * CGS::qe * B / (CGS::me * CGS::c );
+        double nu_c = 0.286 * 3. * gamma_c * gamma_c * CGS::qe * B / (4.0 * CGS::pi * CGS::me * CGS::c );
         if (nu_m <= nu_c){//  # slow cooling
             if (nuprime < nu_m) {
                 scaling = std::pow(nuprime / nu_m, 1.0 / 3.0);
@@ -1010,7 +1011,7 @@ public:
 
         /// from vanEarten+2010
         if (m_methods_ssa) {
-            absorption = sqrt(3) * std::pow(CGS::qe, 3) * (p - 1) * (p + 2) * n_prime * B
+            double absorption = sqrt(3) * std::pow(CGS::qe, 3) * (p - 1) * (p + 2) * n_prime * B
                   / (16 * M_PI * CGS::me * CGS::me * CGS::c * CGS::c * gamma_min * nuprime * nuprime);
             if (nuprime < nu_m) // slow cooling
                 abs_scaling = std::pow(nuprime / nu_m, 1.0 / 3.0);
@@ -1023,71 +1024,6 @@ public:
 //            exit(1);
     }
     /// Analytical Synchrotron Sectrum; BPL;
-    void computeAnalyticSynchDER06_OLD(double & em, double & abs, double nuprime, double n_prime){
-
-        int numbins = 200;
-        double gammmas[numbins];
-        double step = std::exp((std::log(gamma_max) / (double)200));
-        for (size_t i = 0; i < numbins; i++)
-            gammmas[i] = std::pow(step,(double)i);
-
-        double epsilon = nuprime * CGS::h / CGS::mec2;
-        auto integrand_ele = [&](const double gam){
-            double p1 = gamma_min < gamma_c ? p : 2.0;
-            double p2 = p + 1.0;
-            double gmax = gamma_max;
-            double gmin = gamma_min < gamma_c ? gamma_min : gamma_c;
-            double gb = gamma_min < gamma_c ? gamma_c : gamma_min;
-
-            return Dermer09::brokenPowerLaw(gam, gmin, gb, gmax, p1, p2);
-        };
-
-        double k_e_s[numbins];
-        double k_e = 0., power_e = 0., power = 0.;
-        for (size_t i = 0; i < numbins-1; i++) {
-            k_e_s[i] = integrand_ele(gammmas[i]);
-            k_e += k_e_s[i] * (gammmas[i + 1] - gammmas[i]);
-        }
-        k_e = n_prime / k_e;
-
-        for (size_t i = 0; i < numbins-1; i++) {
-            power_e = Dermer09::single_electron_synch_power( B, epsilon, gammmas[i] );
-            power += k_e_s[i] * (gammmas[i + 1] - gammmas[i]) * power_e;
-        }
-        power *= k_e;
-
-        em = power * (CGS::h / CGS::mec2);
-
-        if (m_methods_ssa) {
-            auto integrand_ele_ssa = [&](double gam) {
-                double p1 = gamma_min < gamma_c ? p : 2.0;
-                double p2 = p + 1.0;
-                double gmax = gamma_max;
-                double gmin = gamma_min < gamma_c ? gamma_min : gamma_c;
-                double gb = gamma_min < gamma_c ? gamma_c : gamma_min;
-                return Dermer09::brokenPowerLawSSA(gam, gmin, gb, gmax, p1, p2);
-            };
-
-            double k_e_s_ssa[numbins];
-
-            double k_e_ssa = 0., absorption = 0.;
-            for (size_t i = 0; i < numbins-1; i++) {
-                k_e_s_ssa[i] = integrand_ele_ssa(gammmas[i]);
-                k_e_ssa += k_e_s_ssa[i] * (gammmas[i + 1] - gammmas[i]);
-            }
-            k_e_ssa = n_prime / k_e_ssa;
-
-            for (size_t i = 0; i < numbins-1; i++) {
-                power_e = Dermer09::single_electron_synch_power(B, epsilon, gammmas[i]);
-                absorption += power_e * k_e_s_ssa[i] * (gammmas[i + 1] - gammmas[i]);
-            }
-            absorption *= k_e; // TODO check k_e_ssa
-            double coeff = -1 / (8 * CGS::pi * CGS::me * std::pow(epsilon, 2)) * std::pow(CGS::lambda_c / CGS::c, 3);
-            absorption *= coeff;
-
-            abs = absorption;
-        }
-    }
     void computeAnalyticSynchDER06(double & em, double & abs, double nuprime, double n_prime){
 
         int numbins = 200;

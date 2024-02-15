@@ -1171,7 +1171,8 @@ public: // -------------------- NUMERIC -------------------------------- //
         source.dr = dr;
         source.N = N;
         double N_tot = 0.;
-        ChangCooper model = ChangCooper(source, ele, syn, ssc, syn_kernel, ssc_kernel);
+        ChangCooper model = ChangCooper(
+                source, ele, syn, ssc, syn_kernel, ssc_kernel);
 
         if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleMix)
             /// compute radiation numerically from ANALYTIC electron distribution

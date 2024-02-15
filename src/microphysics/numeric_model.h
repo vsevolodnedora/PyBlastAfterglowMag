@@ -195,7 +195,8 @@ private:
 
         /// compute emitting region properties
         double T = source.dr / CGS::c; // escape time
-        double volume = 4. * M_PI * source.dr * source.r * source.r;
+
+        double volume = 4. * M_PI * source.r * source.r * source.dr;
         double constant = std::sqrt(3.) * CGS::qe * CGS::qe * CGS::qe / CGS::mec2;
 
         for (size_t i = 0; i < syn.numbins; i++){
@@ -238,8 +239,6 @@ private:
                 ssc.j[i] += inner[j] * ele.f[j] / ele.e[j] / ele.e[j] * ele.de[j];
 
             /// add final terms
-//            if (not std::isfinite(ssc.j[i]))
-//                throw std::runtime_error("nan in ssc");
             double ssc_freq = ssc.e[i] / 8.093440820813486e-21;
             ssc.j[i] *= constant * ssc_freq;
         }

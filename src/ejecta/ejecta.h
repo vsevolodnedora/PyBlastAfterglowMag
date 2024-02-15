@@ -212,6 +212,18 @@ private:
                 auto &bw = getShells()[il]->getBW(ish);
                 for (auto & ivn : BW::VARS.at(bw->getPars()->m_type))
                     Output::addVectorToGroup(grp,bw->getData(static_cast<BW::Q>(ivn)), BW::VARNAMES[ivn]);
+                StrDbMap bw_atts {
+                    {"E0",bw->getPars()->E0},
+                    {"Gamma0",bw->getPars()->Gamma0},
+                    {"R0",bw->getPars()->R0},
+                    {"Eint0",bw->getPars()->Eint0},
+                    {"Rd",bw->getPars()->Rd},
+                    {"t0",bw->getPars()->tb0},
+                    {"theta_b0",bw->getPars()->theta_b0},
+                    {"theta_a",bw->getPars()->theta_a}
+
+                };
+                Output::addStrDbMap(bw_atts, grp);
                 grp.close();
             }
         }

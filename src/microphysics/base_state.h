@@ -11,6 +11,7 @@ struct Source{
     double dt=-1, dlnVdt=-1, B=-1, r=-1, dr=-1, N=-1;
 };
 
+
 struct State{
     /// limits
     double x1=-1;
@@ -120,6 +121,7 @@ struct State{
     }
 
 };
+
 
 /**
  * Finite differencing stencil with boundaries using one-sided stencils
