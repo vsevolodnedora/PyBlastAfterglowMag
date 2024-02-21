@@ -329,8 +329,7 @@ inline namespace EQS{
     inline double get_gamma43_minus_one(const double Gamma,
                                         const double Gamma0,
                                         const double beta,
-                                        const double beta0,
-                                        const double beta_switch=0.999995){
+                                        const double beta0){
         /*
          * Idea:
          *
@@ -343,14 +342,16 @@ inline namespace EQS{
          * gamma43_minus_one = Gamma * Gamma0 * (1 - beta * beta0)
          *
          */
-        double gamma43_minus_one;
-        if (Gamma > beta_switch * Gamma0){
-            gamma43_minus_one = 1.0 - 1.0;
-        } else {
+        const double beta_switch = 0.9999;
+        double gamma43_minus_one = Gamma * Gamma0 * (1.0 - beta * beta0);
+        if (Gamma < beta_switch * Gamma0)
             gamma43_minus_one = Gamma * Gamma0 * \
                             (1.0 / (Gamma0 * Gamma0) + 1.0 / (Gamma * Gamma) - 1.0 / (Gamma * Gamma) / (Gamma0 * Gamma0)) / \
-                            (1 + beta * beta0) - 1.0;
-        }
+                            (1.0 + beta * beta0) - 1.0;
+//        else
+//            gamma43_minus_one = 1.0 - 1.0;
+
+
         return gamma43_minus_one;
     }
 

@@ -214,7 +214,10 @@ private:
                     Output::addVectorToGroup(grp,bw->getData(static_cast<BW::Q>(ivn)), BW::VARNAMES[ivn]);
                 StrDbMap bw_atts {
                     {"E0",bw->getPars()->E0},
+                    {"M0",bw->getPars()->M0},
                     {"Gamma0",bw->getPars()->Gamma0},
+                    {"beta0",bw->getPars()->beta0},
+                    {"mom0",bw->getPars()->mom0},
                     {"R0",bw->getPars()->R0},
                     {"Eint0",bw->getPars()->Eint0},
                     {"Rd",bw->getPars()->Rd},
@@ -531,14 +534,15 @@ private:
 
                 /// save spectra of the reverse shock
                 if (bw->getPars()->do_rs){
+
                     /// save electron spectrum if electrons are numerically evolved
                     if (bw->getPars()->p_syn_a->m_eleMethod!=METHODS_SHOCK_ELE::iShockEleAnalyt)
                         Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->ele.f_all,
                                                  "n_ele_rs");
                     Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->syn.j_all,
-                                             "synch_fs_rs");
+                                             "synch_rs");
                     Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->syn.a_all,
-                                             "ssa_fs_rs");
+                                             "ssa_rs");
                     /// save SSC spectrum
                     if (bw->getPars()->p_syn_a_rs->m_methods_ssc!=METHOD_SSC::inoSSC)
                         Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->ssc.j_all,

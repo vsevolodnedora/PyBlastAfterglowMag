@@ -117,7 +117,7 @@ struct State{
         for (size_t i = 0; i < numbins; i++)
             delta_grid_bar[i] = (delta_grid[i] + delta_grid[i+1])/2.;
 
-        std::cout<<delta_grid_bar<<"\n";
+//        std::cout<<delta_grid_bar<<"\n";
     }
 
 };

@@ -104,7 +104,7 @@ public:
                        * (std::cos(p_pars->theta_a) - std::cos(p_pars->theta_b0))
                        * p_dens->m_rho_
                        * std::pow(p_pars->R0, 3)
-                       / p_pars->ncells;
+                       / p_pars->ncells; // mass accreted by the shock by the time tburst = tburst[0]
         double adi0 = p_eos->getGammaAdi(p_pars->Gamma0,p_pars->beta0);
         double GammaSh0 = EQS::GammaSh(p_pars->Gamma0,adi0);
         // ****************************************
@@ -195,7 +195,7 @@ public:
         // ***************************************
         // -------------- DYNAMICS ---------------
         ic_arr[i + SOL::QS::iR]      = p_pars->R0;//m_tb_arr[0] * beta0 * CGS::c; CO
-        ic_arr[i + SOL::QS::iRsh]    = p_pars->R0;//m_tb_arr[0] * EQS::Beta(GammaSh0) * CGS::c;
+        ic_arr[i + SOL::QS::iRsh]    = p_pars->R0;//m_tb_arr[0] * EQS::Beta(GammaSh0) * CGS::c; # TODO change to Rsh
         ic_arr[i + SOL::QS::itt]     = EQS::init_elapsed_time(p_pars->R0, p_pars->mom0, use_spread);
         ic_arr[i + SOL::QS::itcomov] = EQS::initTComov(p_pars->R0, p_pars->beta0, p_pars->Gamma0);
         ic_arr[i + SOL::QS::iEint2]  = (p_pars->Gamma0 - 1. ) * m_M20 / p_pars->M0;  //TODO Isnt it just E0 / m_M0 ???? As M0 = E0 * cgs.c ** -2 / Gamma0
@@ -219,6 +219,10 @@ public:
                                    + p_pars->epsth_w * p_pars->curr_lacc;
         ic_arr[i + SOL::QS::iWenb] = p_pars->eps_mag_w * p_pars->curr_ldip;
         ic_arr[i + SOL::QS::iWtt]  = ic_arr[i + SOL::QS::itt]; // we assume that also time is the same
+        /// reverse shock
+        if (p_pars->m_type==BW_TYPES::iFSRS){
+            ic_arr[i + SOL::QS::iEint3] = 0.; // assume shell is initially cold #1e-3*ic_arr[i + SOL::QS::iEint2];
+        }
         // ***************************************
         for (size_t v = 0; v < SOL::neq; ++v){
             if (!std::isfinite(ic_arr[i + v])){
@@ -629,8 +633,7 @@ public:
                     Dat[BW::Q::iGamma][it],
                     p_pars->Gamma0,
                     EQS::BetFromMom(Dat[BW::Q::imom][it]),
-                    p_pars->beta0,
-                    0.99995) + 1.0;
+                    p_pars->beta0) + 1.0;
 
             Dat[BW::Q::irho4][it] = EQS::rho4(Dat[BW::Q::iR][it],
                                                  Dat[BW::Q::ideltaR4][it],
@@ -1755,7 +1758,7 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
     double deltaR4= Y[i+ SOL::QS::ideltaR4];
     // ****************************************
     if (Gamma < 1.) {
-//            (*p_log)(LOG_ERR, AT) << " Gamma < 1 Gamma="<<Gamma<<" -> Gamma0="<<p_pars->Gamma0<<"\n";
+        (*p_log)(LOG_ERR, AT) << " Gamma < 1 Gamma="<<Gamma<<" -> Gamma0="<<p_pars->Gamma0<<"\n";
         if (p_pars->prev_idx_x == 0)
             Gamma = p_pars->Gamma0;
         else
@@ -1763,7 +1766,7 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
 //            exit(1);
     }
     if (deltaR4 < 0){
-//            (*p_log)(LOG_ERR, AT) << " deltaR4 < 1 deltaR4="<<deltaR4<<" -> 0\n";
+        (*p_log)(LOG_ERR, AT) << " deltaR4 < 1 deltaR4="<<deltaR4<<" -> 0\n";
         if (p_pars->prev_idx_x == 0)
             deltaR4 = 0;
     }
@@ -1773,11 +1776,11 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
 //            exit(1);
 //        }
     if(Eint3 < 0){
-//            std::cerr << " p_pars->prev_dM3dR = "<<p_pars->prev_dM3dR<<" Eint3="<<" "<<Eint3<<" -> 0\n";
+        std::cerr << " p_pars->prev_dM3dR = "<<p_pars->prev_dM3dR<<" Eint3="<<" "<<Eint3<<" -> 0\n";
         Eint3 = 0.0;
     }
     if(M3 < 0){
-//            std::cerr << " p_pars->prev_dM3dR = "<<p_pars->prev_dM3dR<<" M3="<<" "<<p_pars->prev_idx_x<<" -> 0\n";
+        std::cerr << " p_pars->prev_dM3dR = "<<p_pars->prev_dM3dR<<" M3="<<" "<<p_pars->prev_idx_x<<" -> 0\n";
         if (p_pars->prev_idx_x == 0) {
             M3 = 0;
             Eint3 = 0;
@@ -1801,7 +1804,8 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
     double beta   = Beta(Gamma);
 
     double gamma43_minus_one = EQS::get_gamma43_minus_one(
-            Gamma, p_pars->Gamma0, beta, p_pars->beta0, 0.9999);
+            Gamma, p_pars->Gamma0, beta, p_pars->beta0
+            );
     double gammaAdi3 = p_eos->getGammaAdi(gamma43_minus_one + 1.0,
                                           Beta(gamma43_minus_one + 1.0));
 
