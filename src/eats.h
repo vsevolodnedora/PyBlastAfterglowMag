@@ -1014,7 +1014,7 @@ public:
         double Fcoeff = CGS::cgs2mJy / (4.0 * M_PI * d_l * d_l); // result will be in mJy
         atol_theta = atol/(2*Fcoeff*M_PI);// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
         atol_phi = atol/(2*Fcoeff*M_PI);//  / (2.0 * Fcoeff);
-        fluxdens +=integrate_theta_phi(); // 2. because Integ_0^pi (not 2pi)
+        fluxdens += integrate_theta_phi(); // 2. because Integ_0^pi (not 2pi)
         if (counter_jet){
             parsPars(t_obs, nu_obs, theta_c_l, theta_c_h,
                      0., M_PI, obsAngleCJ);

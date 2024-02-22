@@ -1137,6 +1137,10 @@ public: // -------------------- NUMERIC -------------------------------- //
         vol = r * r * dr;
         vol_p1 = rp1 * rp1 * drp1;
         double dlnVdt = 1. / dt * (1. - vol / vol_p1);
+        if (!std::isfinite(dlnVdt)){
+            (*p_log)(LOG_ERR,AT) << " dlnVdt= "<<dlnVdt<<"\n";
+            exit(1);
+        }
 
         /// number of injected electrons
 //        double N = dm / CGS::mp;// / dt;

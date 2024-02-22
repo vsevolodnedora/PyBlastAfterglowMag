@@ -735,7 +735,8 @@ static void fluxDensAdaptiveWithObs(double & flux_dens, double & r, double & cth
 #endif
 
     if (p_pars->m_type == BW_TYPES::iFSRS) {
-        (*p_pars->p_log)(LOG_ERR,AT) << " not supported her...";
+        (*p_pars->p_log)(LOG_ERR,AT) << " BW type FSRS is not supported for mode of "
+                                        "computing observer radiation without comoving radiation first\n";
         exit(1);
     }
 
@@ -1010,6 +1011,7 @@ public:
             && p_pars->m_method_rad == METHODS_RAD::icomovspec)
             && (p_pars->do_rs
             && (it > 0)
+            && (m_data[BW::Q::ithichness_rs][it+1] > 0) // for numerical electron evolution (otherwise it fails)
             && (m_data[BW::Q::iGammaRsh][it] > 0)
             && (m_data[BW::Q::iU_p3][it] > 0)) )
                 return true;

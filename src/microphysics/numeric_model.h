@@ -154,6 +154,10 @@ private:
             for (size_t j = 0; j < ele.numbins - 1; j++)
                 syn.j[i] += kernel[i][j] * ele.f[j] * ele.de[j];
             syn.j[i] *= 2.3443791412546505e-22 * source.B; // np.sqrt(3) * np.power(e, 3) / h * (h/mec2)
+            if (!std::isfinite(syn.j[i])){
+                std::cerr << AT<< " nan in computeSynSpectrum()\n";
+                exit(1);
+            }
         }
     }
 
@@ -179,6 +183,10 @@ private:
                 syn.a[i] += ele.e[j] * ele.e[j] * ele.de[j] * ele.dfde[j] * kernel[i][j];
             syn.a[i] *= 2.3443791412546505e-22 * source.B; // np.sqrt(3) * np.power(e, 3) / h * (h/mec2)
             syn.a[i] *= -1. / (8. * M_PI * CGS::me * std::pow(syn.e[i]/8.093440820813486e-21, 2));
+            if (!std::isfinite(syn.a[i])){
+                std::cerr << AT<< " nan in computeSSA()\n";
+                exit(1);
+            }
         }
     }
 
@@ -476,6 +484,8 @@ public:
             d[i] = ele.f[i] + source_grid[i] * delta_t;
 
 
+
+
         /// now make a tridiagonal_solver for these terms
 //        TridiagonalSolver tridiagonalSolver = TridiagonalSolver(a,b,c);
 
@@ -545,6 +555,11 @@ public:
 
             /// overall heating/cooling term
             heating_term[i] = syn_term + adi_term + ssc_term;
+
+            if (!std::isfinite(heating_term[i])){
+                std::cerr << AT<< " nan in setHeatCoolTerms()\n";
+                exit(1);
+            }
         }
     }
 
