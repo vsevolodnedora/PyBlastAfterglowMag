@@ -29,13 +29,13 @@ static void tridiagonal_solver(
     /// forward_sweep if Non-zero
     double sum = 0;
     sum = std::accumulate(a.begin(), a.end(), sum);
-    if (sum > 0){
+    if (sum > 0)
         for (size_t i = 1; i < n_grid_points; i++){
             double b_minus_ac = b[i] - a[i] * cprime[i - 1];
             cprime[i] = c_[i] / b_minus_ac;
             dprime[i] = (d_j[i] - a[i] * dprime[i - 1]) / b_minus_ac;
         }
-    }
+
     /// This is the backwards substitution step of the tridiagonal solver.
     d_j_plus_one[n_grid_points-1] = dprime[n_grid_points-1];
     for (int j = (int)n_grid_points - 2; j > -1; j--)
@@ -483,9 +483,6 @@ public:
         for (size_t i = 0; i < n_grid_points; i++)
             d[i] = ele.f[i] + source_grid[i] * delta_t;
 
-
-
-
         /// now make a tridiagonal_solver for these terms
 //        TridiagonalSolver tridiagonalSolver = TridiagonalSolver(a,b,c);
 
@@ -507,11 +504,11 @@ public:
      * @param index
      * @param N
      */
-    void setSourceFunction(double x_min, double x_max, double index, double N){
+    void setSourceFunction(double x_min, double x_max, double index){
         double norm = (1 + index) / (std::pow(x_max, index + 1) - std::pow(x_min, index + 1));
         for (size_t i = 0; i < n_grid_points; i++)
             if ((ele.e[i] > x_min) && (ele.e[i] <= x_max))
-                source_grid[i] = N * norm * std::pow(ele.e[i], index);
+                source_grid[i] = source.N * norm * std::pow(ele.e[i], index);
             else
                 source_grid[i] = 0.;
     }

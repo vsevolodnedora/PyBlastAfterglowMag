@@ -53,7 +53,7 @@ def plot_electrons(pba, pba_an):
         spec_ref = np.array(df["matrix_of_N_array"],dtype=np.float64) \
             .reshape(len(times_ref),len(gams_ref))
 
-# select to plot
+    # select to plot
     indexes = [10,int(len(ts)/3),2*int(len(ts)/3)]
     colors = ["blue", "green", "red"]
 
@@ -149,69 +149,11 @@ def plot_electrons(pba, pba_an):
     ax.tick_params(direction="in", which="both")
 
     ax.legend()
+    plt.savefig(os.getcwd()+'/' + "spectra_ele.png",dpi=256)
     plt.show()
     plt.close()
 
-def plot_spec():
-    gc.collect()
-    # prepare initial data (piecewise and adaptive)
-    struct = {"struct":"tophat", "Eiso_c":1.e53, "Gamma0c": 750., "M0c": -1.,
-              "theta_c": np.pi / 10, "theta_w": np.pi / 10}
-    pba_id = PBA.id_analytic.JetStruct(n_layers_pw=80, n_layers_a=1)
-    # save piece-wise EATS ID
-    id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="piece-wise")
-    pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=curdir+"tophat_grb_id_pw.h5")
-
-    # save adaptive EATS ID
-    id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="adaptive")
-    pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=curdir+"tophat_grb_id_a.h5")
-
-    i_thetaobs = 0.
-
-    PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main",newpars={"theta_obs":i_thetaobs},newopts={},
-                                             parfile="parfile_def.par", newparfile="parfile.par", keep_old=True)
-    PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
-                                             newpars={"gam1":1,"gam2":1e8,"ngam":250},
-                                             newopts={"method_synchrotron_fs":"Dermer09",
-                                                      "method_comp_mode":"comovSpec",
-                                                      "method_eats":"adaptive",
-                                                      "method_ne_fs":"useNe",
-                                                      "method_ele_fs":"mix",
-                                                      "fname_ejecta_id":"tophat_grb_id_a.h5",
-                                                      "fname_spec":"tophat_spec_{}_a.h5",
-                                                      "fname_spectrum":"tophat_{}_a.h5"
-                                             .format( str(i_thetaobs).replace(".",""))},
-                                             parfile="parfile.par", newparfile="parfile.par", keep_old=False)
-    pba_an = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
-    pba_an.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
-
-    # ---w
-
-    PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main",newpars={"theta_obs":i_thetaobs},newopts={},
-                                             parfile="parfile_def.par", newparfile="parfile.par", keep_old=True)
-    PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
-                                             newpars={"gam1":1,"gam2":1e8,"ngam":250},
-                                             newopts={"method_synchrotron_fs":"Dermer09",
-                                                      "method_comp_mode":"comovSpec",
-                                                      "method_eats":"adaptive",
-                                                      "method_ne_fs":"useNe",
-                                                      "method_ele_fs":"numeric",
-                                                      "method_ssc_fs":"numeric",
-                                                      "fname_ejecta_id":"tophat_grb_id_a.h5",
-                                                      "fname_spec":"tophat_spec_{}_num.h5",
-                                                      "fname_spectrum":"tophat_{}_num.h5"
-                                             .format( str(i_thetaobs).replace(".",""))},
-                                             parfile="parfile.par", newparfile="parfile.par", keep_old=False)
-    pba = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
-    pba.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
-
-    # --------
-
-
-    # =========== #
-
-    plot_electrons(pba, pba_an)
-
+def plot_synchrotron(pba, pba_an):
     spec_syn = pba.GRB.get_lc(key="synch_fs",xkey="freqs",ykey="times_freqs",freq=None,time=None,ishell=0,ilayer=0,spec=True)
     spec_ssc = pba.GRB.get_lc(key="ssc_fs",xkey="freqs",ykey="times_freqs",freq=None,time=None,ishell=0,ilayer=0,spec=True)
     spec_ssa = pba.GRB.get_lc(key="ssa_fs",xkey="freqs",ykey="times_freqs",freq=None,time=None,ishell=0,ilayer=0,spec=True)
@@ -235,7 +177,7 @@ def plot_spec():
     spec_ssa_an[~np.isfinite(spec_ssa_an)] = 1e-100
     spec_ssa_an[spec_ssa_an <= 0] = 1e-100
 
-    indexes = [10]
+    indexes = [10,int(len(ts)/3),2*int(len(ts)/3)]
     colors = ["blue", "green", "red"]
 
 
@@ -261,7 +203,8 @@ def plot_spec():
     ax.set_yscale('log')
     ax.set_xlim(freqs[0], freqs[-1])
     ax.set_ylabel(r'$\nu j_{\nu}$ [erg/s]')
-    ax.legend(loc='upper right', prop={'size': 9})  # , bbox_to_anchor=(1.1, 1.1)
+
+
 
     ax = axes[1, 0]
     ax.set_ylim(np.max(freqs ** 2 * spec_ssa[idx, :]) * 1.e-15,
@@ -326,8 +269,73 @@ def plot_spec():
     ax.set_ylim(ts[0], ts[-1])
     fig.colorbar(_c, ax=ax,shrink=0.9,pad=.01,label=r'$\nu^2 a_{\nu}$ [erg/s]')
 
-
+    plt.savefig(os.getcwd()+'/' + "spectra.png",dpi=256)
     plt.show()
+
+def plot_spec():
+    gc.collect()
+    # prepare initial data (piecewise and adaptive)
+    struct = {"struct":"tophat",
+              "Eiso_c":1.e53, "Gamma0c": 750., "M0c": -1.,
+              "theta_c": np.pi / 10, "theta_w": np.pi / 10}
+    pba_id = PBA.id_analytic.JetStruct(n_layers_pw=80, n_layers_a=1)
+    # save piece-wise EATS ID
+    id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="piece-wise")
+    pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=curdir+"tophat_grb_id_pw.h5")
+
+    # save adaptive EATS ID
+    id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="adaptive")
+    pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=curdir+"tophat_grb_id_a.h5")
+
+    i_thetaobs = 0.
+
+    PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main",newpars={"theta_obs":i_thetaobs},newopts={},
+                                             parfile="parfile_def.par", newparfile="parfile.par", keep_old=True)
+    PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
+                                             newpars={"gam1":1,"gam2":1e8,"ngam":250},
+                                             newopts={"method_synchrotron_fs":"Dermer09",
+                                                      "method_comp_mode":"comovSpec",
+                                                      "method_eats":"adaptive",
+                                                      "method_ne_fs":"useNe",
+                                                      "method_ele_fs":"mix",
+                                                      "fname_ejecta_id":"tophat_grb_id_a.h5",
+                                                      "fname_spec":"tophat_spec_{}_a.h5",
+                                                      "fname_spectrum":"tophat_{}_a.h5"
+                                             .format( str(i_thetaobs).replace(".",""))},
+                                             parfile="parfile.par", newparfile="parfile.par", keep_old=False)
+    pba_an = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
+    pba_an.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
+
+    # ---w
+
+    PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main",newpars={"theta_obs":i_thetaobs},newopts={},
+                                             parfile="parfile_def.par", newparfile="parfile.par", keep_old=True)
+    PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
+                                             newpars={"gam1":1,"gam2":1e8,"ngam":250},
+                                             newopts={"method_synchrotron_fs":"Dermer09",
+                                                      "method_comp_mode":"comovSpec",
+                                                      "method_eats":"adaptive",
+                                                      "method_ne_fs":"useNe",
+                                                      "method_ele_fs":"numeric",
+                                                      "method_ssc_fs":"numeric",
+                                                      "fname_ejecta_id":"tophat_grb_id_a.h5",
+                                                      "fname_spec":"tophat_spec_{}_num.h5",
+                                                      "fname_spectrum":"tophat_{}_num.h5"
+                                             .format( str(i_thetaobs).replace(".",""))},
+                                             parfile="parfile.par", newparfile="parfile.par", keep_old=False)
+    pba = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
+    pba.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
+
+    # --------
+
+
+    # =========== #
+
+    plot_electrons(pba, pba_an)
+
+    plot_synchrotron(pba, pba_an)
+
+
 
 # fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(5.6, 4.2))
     # ax = axes
