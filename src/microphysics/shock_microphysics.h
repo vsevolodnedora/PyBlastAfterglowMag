@@ -47,7 +47,7 @@ enum METHOD_LFMAX { iConst, iuseB };
 
 enum METHODS_SSA { iSSAoff, iSSAon };
 
-enum METHOD_NONRELDIST{ inone, iuseGm };
+enum METHOD_NONRELDIST{ inone, iuseGm, iuseAyache };
 
 enum METHOD_NE{ iusenprime, iuseNe };
 
@@ -153,7 +153,7 @@ public:
     double n_protons=-1; // conditionally used on synchrotron emissivity
     double nn=-1; // Ne or nprime depending on the setting 'm_method_ne'
     double eprime=-1.,Gamma=-1,GammaSh=-1, beta=-1.,t_e=-1.;
-    double accel_frac=-1.;
+    double accel_frac=1.;
     double Theta=-1, z_cool=-1, x=-1;
     size_t max_substeps=0; // limit to the number of substeps to evolve electrons
     METHOD_TAU method_tau{}; double beta_min = -1;
@@ -458,12 +458,14 @@ public:
                 val_monreldist = METHOD_NONRELDIST::inone;
             else if(opts.at(opt) == "use_gamma_min")
                 val_monreldist = METHOD_NONRELDIST::iuseGm;
+            else if(opts.at(opt) == "use_Ayache")
+                val_monreldist = METHOD_NONRELDIST::iuseAyache;
             else{
                 (*p_log)(LOG_WARN,AT) << AT << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized. "
                                       << "Possible options: "
-                                      << " none " << " use_gamma_min " << "\n";
+                                      << " none " << " use_Ayache " << " use_gamma_min " << "\n";
                 exit(1);
             }
         }
@@ -491,7 +493,7 @@ public:
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized. "
                                       << "Possible options: "
-                                      << " useU_e " << " useTheta "<< " useBeta " << " useGamma " << "\n";
+                                      << " useU_e " << " useTheta "<< " useBeta " << " useGamma " << "useNumericGamma" << "\n";
                 exit(1);
             }
         }
@@ -806,18 +808,29 @@ protected:
     }
     void computeGammaMin(){
         /// compute injection LF (lower bound of source injection gammaMinFunc)
-        int status = 0; double U_e_prime = -1;
-//        void * pars = (struct ElectronAndRadiaionBase *) this; // this "this" i do not understand myself...
+        int status = 0; double U_e_prime = eprime * eps_e;
+        /// Eq. A18 vanEarten+10 (and Sironi+13)
+        double gamma_min_1 = (p - 2.) / (p - 1.) * U_e_prime / (n_prime * CGS::me * CGS::c * CGS::c);
+        /// Eq.(before 4.) in Nakar&Piran 1102.1020
+        double gamma_min_2 = (p - 2.) / (p - 1.) * (CGS::mp / CGS::me) * eps_e * EQS::Beta2(GammaSh);
+        /// Eq. A3 in J+06
+        double gamma_min_3 = (p - 2.) / (p - 1.) * (eps_e * CGS::mp / CGS::me * (GammaSh - 1.) + 1.);
+        /// downstream electron temperature:
+        Theta = Margalit21::Theta_fun(beta, mu, mu_e, eps_t);
+        /// calculate the (normalized) cooling Lorentz factor (eq. 18, MQ21): NOTE we use mean dynamical time:
+        z_cool = (6.0 * M_PI * CGS::me * CGS::c / (CGS::sigmaT * B * B * t_e)) / Theta;
+        /// Margalit Piran 2022
+        double gamma_min_4 = Margalit21::gamma_m_fun(Theta);
+
         switch (m_methodsLfmin) {
             case igmUprime:
-                U_e_prime = eprime * eps_e;
-                gamma_min = (p - 2.) / (p - 1.) * U_e_prime / (n_prime * CGS::me * CGS::c * CGS::c); // Eq. A18 vanEarten+10 (and Sironi+13)
+                gamma_min = gamma_min_1;
                 break;
             case igmNakarPiran:
-                gamma_min = (p - 2.) / (p - 1.) * (CGS::mp / CGS::me) * eps_e * EQS::Beta2(GammaSh); // Eq.(before 4.) in Nakar&Piran 1102.1020
+                gamma_min = gamma_min_2;
                 break;
             case igmJoh06:
-                gamma_min = (p - 2.) / (p - 1.) * (eps_e * CGS::mp / CGS::me * (GammaSh - 1.) + 1.); // Eq. A3 in J+06
+                gamma_min = gamma_min_3;
                 break;
             case igmNumGamma:
                 /// solve gamma_min fun numerically; use fixed limits and number of iterations
@@ -828,9 +841,7 @@ protected:
                     gamma_min = (p - 2.) / (p - 1.) * (eps_e * CGS::mp / CGS::me * (GammaSh - 1.) + 1.);
                 break;
             case igmMAG21:
-                /// downstream electron temperature:
-                Theta = Margalit21::Theta_fun(beta, mu, mu_e, eps_t);
-                gamma_min = Margalit21::gamma_m_fun(Theta);
+                gamma_min = gamma_min_4;
                 break;
         }
 
@@ -840,17 +851,14 @@ protected:
             exit(1);
         }
 
-        /// limit the min lf to 1
-        if ((lim_gm_to_1) && (gamma_min < 1.))
-            gamma_min = 1.; // Sironi et al 2013 suggestion to limi gm=1. for Deep Newtinoan regime # TODO to be removed. I did no understand it
+        /// Sironi et al 2013 suggestion to limi gm=1. for Deep Newtinoan regime # TODO to be removed. I did no understand it
+//        if ((lim_gm_to_1) && (gamma_min < 1.))
+//            gamma_min = 1.;
 
-        /// calculate the (normalized) cooling Lorentz factor (eq. 18, MQ21): NOTE we use mean dynamical time:
-        z_cool = (6.0 * M_PI * CGS::me * CGS::c / (CGS::sigmaT * B * B * t_e)) / Theta;
-
-        if (!std::isfinite(z_cool)){
-            (*p_log)(LOG_ERR,AT) << AT << " Theta = " << Theta << " z_cool="<<z_cool<<"\n";
-            exit(1);
-        }
+//        if (!std::isfinite(z_cool)){
+//            (*p_log)(LOG_ERR,AT) << AT << " Theta = " << Theta << " z_cool="<<z_cool<<"\n";
+//            exit(1);
+//        }
     }
     void computeGammaCool(){
         switch (m_methodsLfcool) {
@@ -861,27 +869,34 @@ protected:
                 gamma_c = 6. * CGS::pi * CGS::me * CGS::c / (CGS::sigmaT * t_e * B * B) / Gamma; // Eq. A19 in vanEarten+10
                 break;
             case iuseTcomov:
-                gamma_c = ((6. * CGS::pi * me * c) / (CGS::sigmaT * B * B * (tcomov - (tcomov0-1.e-6))));
+                gamma_c = ((6. * CGS::pi * me * c) / (CGS::sigmaT * B * B * (tcomov))); // (tcomov0-1.e-6)
                 break;
         }
+        gamma_c = std::min(gamma_c, gamma_max);
     }
     /// for semi-neutonian regime, where gm ->
     void computeNonRelativisticFlattening(){
         switch (m_method_nonreldist) {
-            case inone:
-                break;
             case iuseGm:
-                if (lim_gm_to_1) {
-                    (*p_log)(LOG_ERR, AT) << " 'method_nonreldist' is incopatible with 'lim_gm_to_1' \n";
-                    exit(1);
+                if (gamma_min < 2.){
+                    accel_frac = gamma_min;
+                    gamma_min = 2.;
                 }
-                accel_frac = (std::pow(gamma_max, 2-p) - std::pow(gamma_min-1, 2-p))
-                           / (std::pow(gamma_max,2-p) - 1.)
-                           * (std::pow(gamma_max,1-p)-1.) / (std::pow(gamma_max,1-p)
-                           - std::pow(gamma_min-1, 1-p));
+                break;
+            case iuseAyache:
+                accel_frac = (std::pow(gamma_max, 2 - p) - std::pow(gamma_min - 1., 2.-p))
+                           / (std::pow(gamma_max,2. - p) - 1.)
+                           * (std::pow(gamma_max,1. - p) - 1.) / (std::pow(gamma_max,1.-p)
+                           - std::pow(gamma_min - 1., 1.-p));
                 if (accel_frac > 1.)
                     accel_frac = 1.;
                 break;
+            case inone:
+                break;
+        }
+        if (!std::isfinite(accel_frac)){
+            (*p_log)(LOG_ERR,AT) << "Value Error: accel_frac=" << accel_frac << "\n";
+            exit(1);
         }
     }
 };
@@ -893,6 +908,7 @@ class ElectronAndRadiation : public ElectronAndRadiaionBase{
     Source source{};
     SynKernel syn_kernel{};//std::unique_ptr<SSCKernel> ssc_kernel = nullptr;
     SSCKernel ssc_kernel{};//std::unique_ptr<SynKernel> syn_kernel = nullptr;
+
 //    double vol=-1.;
 //    double vol_p1=-1.;
 //    double n_inj=-1.;
@@ -1020,6 +1036,7 @@ public: // ---------------- ANALYTIC -------------------------- //
     }
 
 public: // -------------------- NUMERIC -------------------------------- //
+    bool is_distribution_initialized = false; // if the analytic profile for the first iteration is set
     /// Analytic electron spectrum, power-law
     void powerLawElectronDistributionAnalytic(double tcomov0_, double n_ele_inj, Vector & N_ele){
 //        /// prevent gamma_max to go beyond the electron grid
@@ -1027,11 +1044,11 @@ public: // -------------------- NUMERIC -------------------------------- //
 //            gamma_max = 0.99 * ele.e[ele.numbins-1];
 
 //        double gamma_c_ = 6. * CGS::pi * CGS::me * CGS::c / (CGS::sigmaT * dt * B * B) / Gamma; // Eq. A19 in vanEarten+10
-        gamma_c = ((6. * CGS::pi * me * c) / (CGS::sigmaT * B * B * (tcomov0_ - (tcomov0-1.e-6))));
-//        gamma_c = std::max(gamma_c,gamma_max);
-
+//        gamma_c = ((6. * CGS::pi * me * c) / (CGS::sigmaT * B * B * (tcomov0_ - (tcomov0-1.e-6))));
+//        gamma_c = std::min(gamma_c, gamma_max);
+        double K_s=0.,K_f=0.;
         if (gamma_min > gamma_c) { // fast cooling regime
-            double K_f = n_ele_inj / (
+            K_f = n_ele_inj / (
                     pow(gamma_min, 1. - p) * (1. / gamma_c - 1. / gamma_min)
                     + 1. / p * (pow(gamma_min, -p) - pow(gamma_max, -p))
                     );
@@ -1046,7 +1063,7 @@ public: // -------------------- NUMERIC -------------------------------- //
             }
         }
         else if (gamma_c > gamma_min) { // slow cooling regime
-            double K_s = n_ele_inj / (
+            K_s = n_ele_inj / (
                     (1. / (1. - p)) * (pow(gamma_c, 1. - p)
                     - pow(gamma_min, 1 - p))
                     - gamma_c / p * (pow(gamma_max, -p)
@@ -1062,6 +1079,7 @@ public: // -------------------- NUMERIC -------------------------------- //
                     N_ele[i] = K_s * gamma_c * pow(gamma, -p - 1.);
             }
         }
+//        int x = 0;
     }
 
     void allocateForNumericSpectra(StrDbMap & pars, size_t nr){
@@ -1110,9 +1128,14 @@ public: // -------------------- NUMERIC -------------------------------- //
 
     }
 
+    void initializeElectronDistribution(double tcomov, double m2){
+        double n_inj = m2 / CGS::mp;
+        powerLawElectronDistributionAnalytic(tcomov, n_inj, ele.f);
+        is_distribution_initialized = true;
+    }
 
     void evaluateElectronDistributionNumeric(
-            double tcomov, double tcomov_1, double m2, double m2_1,
+            double tcomov, double tcomov_1, double m_m1, double m,
             double r, double rp1, double dr, double drp1){
 
         /// check parameters
@@ -1127,19 +1150,20 @@ public: // -------------------- NUMERIC -------------------------------- //
         }
 
 //        /// prevent gamma_max to go beyond the electron grid
-//        if (gamma_max > 0.99 * ele.e[ele.numbins-1])
-//            gamma_max = 0.99 * ele.e[ele.numbins-1];
-
+        if (gamma_max > 0.99 * ele.e[ele.numbins-1])
+            gamma_max = 0.99 * ele.e[ele.numbins-1];
+        if (gamma_c > gamma_max)
+            gamma_c = gamma_max;
         /// compute analytical electron spectrum
-        double n_inj = (m2_1 - m2) / CGS::mp;
-
+        double n_inj = (m - m_m1) / CGS::mp;
+        n_inj *= accel_frac;
         double n_ele_an=0.;
         Vector tmp (ele.numbins,0.);
-        powerLawElectronDistributionAnalytic(tcomov, n_inj, tmp);
+        powerLawElectronDistributionAnalytic(tcomov, m/CGS::mp, tmp);
         /// check continouity
         for (size_t i = 0; i < ele.numbins-1; i++)
             n_ele_an += tmp[i] * ele.de[i];
-
+        double ratio_an = m/CGS::mp / n_ele_an;
 
         double dt = tcomov_1 - tcomov;
         /// for adiabatic cooling of electron distribution
@@ -1179,7 +1203,7 @@ public: // -------------------- NUMERIC -------------------------------- //
         source.dlnVdt = dlnVdt;
         source.r = r;
         source.dr = dr;
-        source.N = n_inj / dt; // number of injected electrons per timestep
+        source.N = n_inj / dt;//n_inj / dt; // number of injected electrons per timestep
         double n_ele_num = 0.;
         ChangCooper model = ChangCooper(source, ele, syn, ssc, syn_kernel, ssc_kernel);
 
@@ -1225,14 +1249,15 @@ public: // -------------------- NUMERIC -------------------------------- //
             for (size_t i = 0; i < ele.numbins-1; i++)
                 n_ele_num += ele.f[i] * ele.de[i];
         }
+        double ratio_num = n_inj / n_ele_num;
         /// Update photon field during electron evolution
         model.update_radiation(); // saves photon density in syn.n[] -> used in ssc cooling next iteration
 
         /// check continouity
         (*p_log)(LOG_INFO,AT) << "tcomov="<<tcomov
             <<" n_substeps="<<n_substeps
-            <<" Ninj/Nan="<< n_inj / n_ele_an
-            <<" Ninj/Nnum="<< n_inj / n_ele_num
+            <<" Ninj/Nan="<< ratio_an
+            <<" Ninj/Nnum="<< ratio_num
             <<"\n";
         /// clear array (resets everything!)
         model.resetSolver();
