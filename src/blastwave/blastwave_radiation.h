@@ -1065,8 +1065,9 @@ public:
                                                                        m_data[BW::Q::ithichness_rs][it]);
                     else{
                         if (not p_mphys_rs->is_distribution_initialized)
-                            p_mphys_rs->initializeElectronDistribution(
-                                    m_data[BW::Q::itcomov][it],m_data[BW::Q::iM3][it]);
+                            p_mphys_rs->is_distribution_initialized = true;
+//                            p_mphys_rs->initializeElectronDistribution(
+//                                    m_data[BW::Q::itcomov][it],m_data[BW::Q::iM3][it]);
                         else
                             p_mphys_rs->evaluateElectronDistributionNumeric(
                                     m_data[BW::Q::itcomov][it-1], m_data[BW::Q::itcomov][it],

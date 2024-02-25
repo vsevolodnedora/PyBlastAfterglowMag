@@ -851,6 +851,20 @@ protected:
             exit(1);
         }
 
+        /// prevent gamma_max to go beyond the electron grid
+        if (m_eleMethod != METHODS_SHOCK_ELE::iShockEleAnalyt) {
+            if (gamma_max > 0.99 * ele.e[ele.numbins - 1])
+                gamma_max = 0.99 * ele.e[ele.numbins - 1];
+            if (gamma_c > gamma_max)
+                gamma_c = gamma_max;
+            if (gamma_min < 1.01 * ele.e[ele.numbins]) {
+                accel_frac = gamma_min;
+                gamma_min = 1.01 * ele.e[ele.numbins];
+            }
+            if (gamma_c > gamma_max)
+                gamma_c = gamma_max;
+        }
+
         /// Sironi et al 2013 suggestion to limi gm=1. for Deep Newtinoan regime # TODO to be removed. I did no understand it
 //        if ((lim_gm_to_1) && (gamma_min < 1.))
 //            gamma_min = 1.;
@@ -876,28 +890,28 @@ protected:
     }
     /// for semi-neutonian regime, where gm ->
     void computeNonRelativisticFlattening(){
-        switch (m_method_nonreldist) {
-            case iuseGm:
-                if (gamma_min < 2.){
-                    accel_frac = gamma_min;
-                    gamma_min = 2.;
-                }
-                break;
-            case iuseAyache:
-                accel_frac = (std::pow(gamma_max, 2 - p) - std::pow(gamma_min - 1., 2.-p))
-                           / (std::pow(gamma_max,2. - p) - 1.)
-                           * (std::pow(gamma_max,1. - p) - 1.) / (std::pow(gamma_max,1.-p)
-                           - std::pow(gamma_min - 1., 1.-p));
-                if (accel_frac > 1.)
-                    accel_frac = 1.;
-                break;
-            case inone:
-                break;
-        }
-        if (!std::isfinite(accel_frac)){
-            (*p_log)(LOG_ERR,AT) << "Value Error: accel_frac=" << accel_frac << "\n";
-            exit(1);
-        }
+//        switch (m_method_nonreldist) {
+//            case iuseGm:
+//                if (gamma_min < 2.){
+//                    accel_frac = gamma_min;
+//                    gamma_min = 2.;
+//                }
+//                break;
+//            case iuseAyache:
+//                accel_frac = (std::pow(gamma_max, 2 - p) - std::pow(gamma_min - 1., 2.-p))
+//                           / (std::pow(gamma_max,2. - p) - 1.)
+//                           * (std::pow(gamma_max,1. - p) - 1.) / (std::pow(gamma_max,1.-p)
+//                           - std::pow(gamma_min - 1., 1.-p));
+//                if (accel_frac > 1.)
+//                    accel_frac = 1.;
+//                break;
+//            case inone:
+//                break;
+//        }
+//        if (!std::isfinite(accel_frac)){
+//            (*p_log)(LOG_ERR,AT) << "Value Error: accel_frac=" << accel_frac << "\n";
+//            exit(1);
+//        }
     }
 };
 
@@ -996,11 +1010,11 @@ public: // ---------------- ANALYTIC -------------------------- //
                 SynchrotronAnalytic(gamma_min,gamma_c,gamma_max,B,p,do_ssa,p_log);
 
         if (m_sychMethod == METHODS_SYNCH::iJOH06)
-            syn_an.computeAnalyticSynchJOH06(em, abs, nuprime, ne_);
+            syn_an.computeAnalyticSynchJOH06(em, abs, nuprime, ne_*accel_frac);
         else if (m_sychMethod == METHODS_SYNCH::iWSPN99)
-            syn_an.computeAnalyticSynchWSPN99(em, abs, nuprime, ne_);
+            syn_an.computeAnalyticSynchWSPN99(em, abs, nuprime, ne_*accel_frac);
         else if (m_sychMethod == METHODS_SYNCH::iDER06)
-            syn_an.computeAnalyticSynchDER06(em, abs, nuprime, ne_);
+            syn_an.computeAnalyticSynchDER06(em, abs, nuprime, ne_*accel_frac);
         else if (m_sychMethod == METHODS_SYNCH::iMARG21)
             syn_an.computeAnalyticSynchMARG21(em, abs, nuprime, ne_,
                                               delta,Theta,z_cool,accel_frac);
@@ -1149,17 +1163,13 @@ public: // -------------------- NUMERIC -------------------------------- //
             exit(1);
         }
 
-//        /// prevent gamma_max to go beyond the electron grid
-        if (gamma_max > 0.99 * ele.e[ele.numbins-1])
-            gamma_max = 0.99 * ele.e[ele.numbins-1];
-        if (gamma_c > gamma_max)
-            gamma_c = gamma_max;
+
         /// compute analytical electron spectrum
         double n_inj = (m - m_m1) / CGS::mp;
         n_inj *= accel_frac;
         double n_ele_an=0.;
         Vector tmp (ele.numbins,0.);
-        powerLawElectronDistributionAnalytic(tcomov, m/CGS::mp, tmp);
+        powerLawElectronDistributionAnalytic(tcomov, (m*accel_frac)/CGS::mp, tmp);
         /// check continouity
         for (size_t i = 0; i < ele.numbins-1; i++)
             n_ele_an += tmp[i] * ele.de[i];
