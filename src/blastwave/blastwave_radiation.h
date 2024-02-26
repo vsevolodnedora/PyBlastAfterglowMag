@@ -44,9 +44,8 @@ static void fluxDensPieceWiseWithComov(
     /// save the result in image
     ctheta = interpSegLin(ia, ib, ta, tb, t_obs, m_data[BW::Q::ictheta]);
 
-    if (p_pars->m_type == BW_TYPES::iFSRS) {
-        if (p_pars->do_rs &&
-            !((m_data[BW::Q::ithichness_rs][ia] == 0) || (m_data[BW::Q::ithichness_rs][ib] == 0))) {
+    if (p_pars->m_type == BW_TYPES::iFSRS && p_pars->do_rs_radiation) {
+        if (m_data[BW::Q::ithichness_rs][ia] > 0 and m_data[BW::Q::ithichness_rs][ib] > 0) {
 
             double GammaShock_rs = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::iGamma43]);
             double dr_rs = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::ithichness_rs]);
@@ -108,10 +107,8 @@ static void fluxDensAdaptiveWithComov(
     ctheta = interpSegLin(ia, ib, t_e, tburst, Dt[BW::Q::ictheta]);
     theta = interpSegLin(ia, ib, t_e, tburst, Dt[BW::Q::itheta]);
 
-    if (p_pars->m_type == BW_TYPES::iFSRS) {
-        if (p_pars->do_rs &&
-            !(Dt[BW::Q::ithichness_rs][ia] == 0 || Dt[BW::Q::ithichness_rs][ib] == 0)) {
-
+    if (p_pars->m_type == BW_TYPES::iFSRS && p_pars->do_rs_radiation) {
+        if (Dt[BW::Q::ithichness_rs][ia]>0 and Dt[BW::Q::ithichness_rs][ib]>0) {
             double GammaShock_rs = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::iGammaRsh]);
             double dr_rs = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::ithichness_rs]);
             double ne_rs = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::iM3]) / CGS::mp;
@@ -123,7 +120,6 @@ static void fluxDensAdaptiveWithComov(
             flux_dens += flux_dens_rs;
         }
     }
-
 }
 
 
@@ -821,7 +817,7 @@ public:
         /// Set Electron And Radiation Model
         p_pars->p_syn_a->setPars(pars, opts, p_pars->nr,
                                  EQS::initTComov(p_pars->R0, p_pars->beta0, p_pars->Gamma0));
-        if (p_pars->do_rs)
+        if (p_pars->do_rs_radiation)
             p_pars->p_syn_a_rs->setPars(pars, opts, p_pars->nr,
                                         EQS::initTComov(p_pars->R0, p_pars->beta0, p_pars->Gamma0));
 
@@ -1009,7 +1005,7 @@ public:
         /// compute electron distribution in reverse shock TODO remove "comov" req. add method to EATS integrator
         if ( ( p_pars->m_type == BW_TYPES::iFSRS
             && p_pars->m_method_rad == METHODS_RAD::icomovspec)
-            && (p_pars->do_rs
+            && (p_pars->do_rs_radiation
             && (it > 0)
             && (m_data[BW::Q::ithichness_rs][it-1] > 0) // for numerical electron evolution (otherwise it fails)
             && (m_data[BW::Q::iGammaRsh][it] > 0)

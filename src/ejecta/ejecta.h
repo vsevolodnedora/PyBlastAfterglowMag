@@ -69,7 +69,7 @@ public:
                 computeSaveEjectaLightCurveAnalytic_new(
                         working_dir,
                         getStrOpt("fname_light_curve", m_opts, AT, p_log, "", true),
-                        getStrOpt("fname_light_curve_layers", m_opts, AT, p_log, "", true),
+//                        getStrOpt("fname_light_curve_layers", m_opts, AT, p_log, "", true),
                         lc_times, lc_freqs, main_pars, m_pars, lc_freq_to_time);
 //                    (*p_log)(LOG_INFO, AT) << "jet analytic synch. light curve finished [" << timer.checkPoint() << " s]" << "\n";
             }
@@ -533,7 +533,7 @@ private:
                                              "ssc_fs");
 
                 /// save spectra of the reverse shock
-                if (bw->getPars()->do_rs){
+                if (bw->getPars()->do_rs_radiation){
 
                     /// save electron spectrum if electrons are numerically evolved
                     if (bw->getPars()->p_syn_a->m_eleMethod!=METHODS_SHOCK_ELE::iShockEleAnalyt)
@@ -604,8 +604,113 @@ private:
         file.close();
     }
 
+    void saveDenseLightCurves(VecVector & out, Vector & times, Vector & freqs,
+                              StrDbMap & main_pars, StrDbMap & ej_pars,
+                              std::string & workingdir, std::string & fname){
+
+//        std::string fpath_layers = workingdir + fname.replace(fname.end()-3,fname.end(),"_layers.h5");
+        std::string fpath_layers = workingdir + fname;
+        Output::remove_file_if_existis(fpath_layers,p_log);
+        H5::H5File file_layers(fpath_layers, H5F_ACC_TRUNC); // "/home/m/Desktop/tryout/file.h5"
+
+        /// add light curves for each shell / layer separately (dense output)
+        size_t ii = 0;
+        for (size_t ish = 0; ish < nshells(); ish++) {
+            for (size_t il = 0; il < nlayers(); il++) {
+                std::string group_name = "shell=" + std::to_string(ish) + " layer=" + std::to_string(il);
+                H5::Group grp(file_layers.createGroup(group_name));
+                Output::addVectorToGroup(grp,out[ii],"fluxdens");
+                auto &bw = getShells()[il]->getBW(ish);
+                StrDbMap bw_atts {
+                        {"E0",bw->getPars()->E0},
+                        {"M0",bw->getPars()->M0},
+                        {"Gamma0",bw->getPars()->Gamma0},
+                        {"beta0",bw->getPars()->beta0},
+                        {"mom0",bw->getPars()->mom0},
+                        {"R0",bw->getPars()->R0},
+                        {"Eint0",bw->getPars()->Eint0},
+                        {"Rd",bw->getPars()->Rd},
+                        {"t0",bw->getPars()->tb0},
+                        {"theta_b0",bw->getPars()->theta_b0},
+                        {"theta_a",bw->getPars()->theta_a}
+                };
+                Output::addStrDbMap(bw_atts, grp);
+                ii++;
+            }
+        }
+        Output::addVector(times,"times",file_layers);
+        Output::addVector(freqs,"freqs",file_layers);
+        /// save model parameters as attributes to the file
+        std::unordered_map<std::string,double> attrs{ {"nshells", nshells()},
+                                                      {"nlayers", nlayers()} };
+        for (auto& [key, value]: main_pars) { attrs[key] = value; }
+        for (auto& [key, value]: ej_pars) { attrs[key] = value; }
+        Output::addStrDbMap(attrs, file_layers);
+    }
+
+    void saveTotalLightCurves(VecVector & out, Vector & times, Vector & freqs,
+                              StrDbMap & main_pars, StrDbMap & ej_pars,
+                              std::string & workingdir, std::string fname){
+
+        std::string fpath = workingdir + fname;
+        Output::remove_file_if_existis(fname,p_log);
+        H5::H5File file(fpath, H5F_ACC_TRUNC); // "/home/m/Desktop/tryout/file.h5"
+
+        /// Collect total_rad flux at a given time/freq from all shells/layers
+        Vector total_fluxes (times.size(), 0.0);
+        for (size_t itnu = 0; itnu < times.size(); ++itnu) {
+            size_t ii = 0;
+            for (size_t ish = 0; ish < nshells(); ish++) {
+                for (size_t il = 0; il < nlayers(); il++) {
+                    std::string group_name = "shell=" + std::to_string(ish) + " layer=" + std::to_string(il);
+                    H5::Group grp(file.createGroup(group_name));
+                    Output::addVectorToGroup(grp,out[ii],"fluxdens");
+                    total_fluxes[itnu] += out[ii][itnu];
+                    ii++;
+                }
+            }
+        }
+
+        Output::addVector(times,"times",file);
+        Output::addVector(freqs,"freqs",file);
+        Output::addVector(total_fluxes, "fluxdens", file);
+
+        /// save the total_rad fluxes (sparse output)
+        std::unordered_map<std::string,double> attrs{ {"nshells", nshells()},
+                                                      {"nlayers", nlayers()} };
+        for (auto& [key, value]: main_pars) { attrs[key] = value; }
+        for (auto& [key, value]: ej_pars) { attrs[key] = value; }
+        Output::addStrDbMap(attrs, file);
+    }
+
     /// OUTPUT light curves
     void computeSaveEjectaLightCurveAnalytic_new(
+            std::string workingdir, std::string fname,
+//            std::string fname_shells_layers,
+            Vector lc_times, Vector lc_freqs, StrDbMap & main_pars, StrDbMap & ej_pars, bool lc_freq_to_time){
+
+        Vector _times, _freqs;
+        cast_times_freqs(lc_times,lc_freqs,_times,_freqs,lc_freq_to_time,p_log);
+        (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta light curve with analytic synchrotron...\n";
+
+        VecVector lcs{}; // [ish*il][it*inu]
+        lcs.resize(nshells() * nlayers());
+        for (auto & arr : lcs)
+            arr.resize(_times.size(), 0.);
+
+        evalEjectaLightCurves(lcs, _times, _freqs);
+
+        /// save dense output (for each shell, layer)
+        saveDenseLightCurves(lcs, _times, _freqs, main_pars, ej_pars, workingdir, fname);
+
+        /// save total light curve TODO decide if you need it
+//        saveTotalLightCurves(lcs, _times, _freqs, main_pars, ej_pars, workingdir, fname);
+
+    }
+
+
+    /// OUTPUT light curves
+    void computeSaveEjectaLightCurveAnalytic_old(
             std::string workingdir, std::string fname, std::string fname_shells_layers,
             Vector lc_times, Vector lc_freqs, StrDbMap & main_pars, StrDbMap & ej_pars, bool lc_freq_to_time){
 
@@ -636,7 +741,8 @@ private:
         VecVector out_data {_times, _freqs, total_fluxes};
 
         /// save the total_rad fluxes (sparse output)
-        std::unordered_map<std::string,double> attrs{ {"nshells", nshells()}, {"nlayers", nlayers()} };
+        std::unordered_map<std::string,double> attrs{ {"nshells", nshells()},
+                                                      {"nlayers", nlayers()} };
         for (auto& [key, value]: main_pars) { attrs[key] = value; }
         for (auto& [key, value]: ej_pars) { attrs[key] = value; }
         p_out->VectorOfVectorsH5(out_data, other_names, workingdir+fname,  attrs);

@@ -407,6 +407,15 @@ public:
             (*p_log)(LOG_ERR,AT)<<" if do_rs = yes, the rhs_type should be 'fsrs' \n";
             exit(1);
         }
+        p_pars->do_rs_radiation = getBoolOpt("do_rs_radiation", opts, AT,p_log, false, true);
+        if (p_pars->do_rs_radiation && p_pars->m_type!=BW_TYPES::iFSRS){
+            (*p_log)(LOG_ERR,AT)<<" if do_rs_radiation = yes, the rhs_type should be 'fsrs' \n";
+            exit(1);
+        }
+        if (p_pars->do_rs_radiation and not p_pars->do_rs){
+            (*p_log)(LOG_ERR,AT)<<" if do_rs_radiation = yes, the do_rs should be 'yes' \n";
+            exit(1);
+        }
 
         p_pars->adiabLoss_rs =
                 getBoolOpt("use_adiabLoss_rs", opts, AT,p_log,true, false);
@@ -419,6 +428,7 @@ public:
             p_pars->min_Gamma0_for_rs = 0;
         if (p_pars->Gamma0 < p_pars->min_Gamma0_for_rs) {
             p_pars->do_rs = false;
+            p_pars->do_rs_radiation = false;
             p_pars->shutOff = true;
             p_pars->m_type = BW_TYPES::iFS;
         }

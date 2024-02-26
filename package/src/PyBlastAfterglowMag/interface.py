@@ -17,7 +17,7 @@ pip uninstall --no-cache-dir PyBlastAfterglowMag & pip install .
 
 
 class Base:
-    def __init__(self,workingdir : str,readparfileforpaths : str,parfile : str,verbose : str):
+    def __init__(self,workingdir : str,readparfileforpaths : bool,parfile : str,verbose : bool):
         self.parfile = parfile
         self.workingdir = workingdir
         self.res_dir = workingdir
@@ -81,7 +81,6 @@ class Base:
             self.skymap_dfile.close()
             self.skymap_dfile = None
 
-
 class Skymap:
     def __init__(self, dfile : h5py.Group):
         self.flux = dfile.attrs["flux"]
@@ -102,7 +101,7 @@ class Skymap:
 
 
 class Ejecta(Base):
-    def __init__(self,workingdir : str, readparfileforpaths : str, parfile : str, type : str, verbose : str):
+    def __init__(self,workingdir : str, readparfileforpaths : bool, parfile : str, type : str, verbose : bool):
         super().__init__(workingdir=workingdir,readparfileforpaths=readparfileforpaths,parfile=parfile,verbose=verbose)
 
         if not os.path.isdir(workingdir):
@@ -131,17 +130,18 @@ class Ejecta(Base):
         else:
             raise KeyError("not implemented")
 
-    # ejecta id file
+            # ejecta id file
     def _ckeck_if_loaded_id_obj(self):
         if (self.fpath_id is None):
             raise IOError("self.fpath_id is not set")
         if (self.id_dfile is None):
-            self.id_dfile = h5py.File(self.fpath_id)
+            self.id_dfile = h5py.File(self.fpath_id, "r")
     def _ckeck_if_loaded_dyn_obj(self):
         if (self.fpath_dyn is None):
             raise IOError("self.fpath_kn_dyn is not set")
         if (self.dyn_dfile is None):
             self.dyn_dfile = h5py.File(self.fpath_dyn)
+
     # ejecta spectrum
     def _check_if_loaded_spec(self):
         if (self.fpath_spec is None):
@@ -225,72 +225,7 @@ class Ejecta(Base):
         self._ckeck_if_loaded_dyn_obj()
         return self._get_1d_or_2d_array(self.get_dyn_obj(),v_n=v_n,ishell=ishell,ilayer=ilayer)
 
-    # --------- Comov.Spectrum ---------
-    #
-    # def get_spec_obj(self) -> h5py.File:
-    #     self._check_if_loaded_spec()
-    #     return self.spec_dfile
-    #
-    # def get_spec_times(self, unique : bool = True)->np.ndarray:
-    #     dfile = self.get_spec_obj()
-    #     arr = np.array(dfile["tburst"])
-    #     if not unique:
-    #         return arr
-    #     else:
-    #         arr_u = np.unique(arr)
-    #         if len(arr_u) == 0:
-    #             raise ValueError("no unique times found in array \n {}".format(arr))
-    #         return arr_u
-    #
-    # def get_spec_freqs(self, unique : bool = True)->np.ndarray:
-    #
-    #     dfile = self.get_spec_obj()
-    #     arr = np.array(dfile["freqs"])
-    #     if not unique:
-    #         return arr
-    #     else:
-    #         arr_u = np.unique(arr)
-    #         if len(arr_u) == 0:
-    #             raise ValueError("no unique freqs found in array \n {}".format(arr))
-    #         return arr_u
-    #
-    # def get_spec(self, time : float or None,
-    #              key : str, ishell : int or None, ilayer : int or None)->np.ndarray:
-    #
-    #     res = self._get_1d_or_2d_array(self.get_spec_obj(),v_n=key,ishell=ishell,ilayer=ilayer)
-    #
-    #     utimes = self.get_spec_times(unique=True)
-    #     ufreqs = self.get_spec_freqs(unique=True)
-    #
-    #     def _get_time() -> float:
-    #         if (not time in utimes):
-    #             if (time > utimes.max()):
-    #                 raise ValueError(f"requested time={time} > dfile times.max()={utimes.max()}")
-    #             if (time < utimes.min()):
-    #                 raise ValueError(f"requested time={time} < dfile times.min()={utimes.min()}")
-    #             _time = utimes[find_nearest_index(utimes, time)]
-    #             if self.verb:
-    #                 print(f"Warning: time={time} is not in {utimes} Using time={_time}")
-    #         else:
-    #             _time = utimes[int(np.where(utimes==time)[0])]
-    #         return _time
-    #
-    #     if res.ndim == 1:
-    #         if (time is None):
-    #             arr = np.reshape(res,newshape=(len(utimes),len(ufreqs)))
-    #             return arr
-    #         else:
-    #             _time = _get_time()
-    #             arr = res[np.where(self.get_spec_times(unique=False) == _time)]
-    #             return arr
-    #     elif res.ndim == 2:
-    #         raise NotImplementedError("Not implemented")
-    #     else:
-    #         raise ValueError(f"Incorrect value of ndim={res.ndim}")
-
-
-
-    # --------- Light Curves ---------
+    # --------- Light Curves & Spectra ---------
 
     def get_lc_obj(self, spec : bool = False) -> h5py.File:
         if spec:
@@ -359,7 +294,7 @@ class Ejecta(Base):
             _val = uvals[int(np.where(uvals==val)[0])]
         return _val
 
-    def get_lc_totalflux(self, freq : float or None = None, time : float or None = None, spec : bool = False) -> np.ndarray:
+    def OLD_get_lc_totalflux(self, freq : float or None = None, time : float or None = None, spec : bool = False) -> np.ndarray:
         dfile = self.get_lc_obj(spec=spec)
         utimes = self.get_lc_times(spec=spec,unique=True)
         ufreqs = self.get_lc_freqs(spec=spec,unique=True)
@@ -483,7 +418,7 @@ class Ejecta(Base):
         return arr
 
     def _get_lc_for_mask(self, key:str, mask:np.ndarray, x_arr:np.ndarray, 
-                         ishell:int or None, ilayer:int or None, spec=False):
+                         ishell:int or None, ilayer:int or None, spec=False, sum_shells_layers=False):
 
         dfile = self.get_lc_obj(spec=spec)
         if not ("nlayers" in dfile.attrs.keys()):
@@ -494,20 +429,43 @@ class Ejecta(Base):
         nshells = int(dfile.attrs["nshells"])
         # compute the array of a required shape
         if not ishell is None and not ilayer is None:
-            return self._get_lc_shell_layer(key=key,ishell=ishell, ilayer=ilayer, spec=spec)[mask]
+            res = self._get_lc_shell_layer(key=key,ishell=ishell, ilayer=ilayer, spec=spec)[mask]
+            return res
         elif ishell is None and not ilayer is None:
             res = [self._get_lc_shell_layer(key=key,ishell=i, ilayer=ilayer, spec=spec)[mask] for i in range(nshells)]
-            return np.reshape(np.array(res),newshape=(nshells,len(x_arr)))
+            res = np.reshape(np.array(res),newshape=(nshells,len(x_arr)))
+            if sum_shells_layers: res = np.sum(res,axis=(0))
+            return res
         elif not ishell is None and ilayer is None:
             res = [self._get_lc_shell_layer(key=key,ishell=ishell, ilayer=i, spec=spec)[mask] for i in range(nlayers)]
-            return np.reshape(np.array(res),newshape=(nlayers,len(x_arr)))
+            res = np.reshape(np.array(res),newshape=(nlayers, len(x_arr)))
+            if sum_shells_layers: res = np.sum(res,axis=(0))
+            return res
         else:
             res = [self._get_lc_shell_layer(key=key,ishell=i, ilayer=j, spec=spec)[mask]
                    for i in range(nshells) for j in range(nlayers)]
-            return np.reshape(np.array(res),newshape=(nshells,nlayers,len(x_arr)))
+            res= np.reshape(np.array(res),newshape=(nshells,nlayers,len(x_arr)))
+            if sum_shells_layers: res = np.sum(res,axis=(0,1))
+            return res
 
-    def get_lc(self, key:str, xkey="freqs", ykey="times_freqs",
-               freq=None, time=None, ishell=None, ilayer=None, spec=False):
+    def get_lc(self,
+               key:str="fluxdens", xkey:str="freqs", ykey:str="times",
+               freq:float or None = None, time:float or None=None,
+               ishell:int or None=None, ilayer:int or None=None, sum_shells_layers:bool=True,
+               spec:bool=False):
+        """
+
+        :param key: str. Options(spec=True): n_ele, synch, ssa, ssc. Options (spec=False): fluxdens
+        :param xkey: str. Options(spec=True): gams, freqs. Options (spec=False): freqs
+        :param ykey: str. Options(spec=True): times_gams, times_freqs. Options (spec=False): times
+        :param freq: float or None (frequency) [hz]
+        :param time: float or None (time) [s]
+        :param ishell: int or None : number of the shell (velocity structure)
+        :param ilayer: int or None : number of the layer (angualr structure)
+        :param sum_shells_layers: bool (if ishell or ilayer = None, sum the spectra/lcs over them)
+        :param spec: bool (use spectral dfile or lc dfile)
+        :return: np.ndarray
+        """
         dfile = self.get_lc_obj(spec=spec)
         if not xkey in dfile.keys():
             raise KeyError(f"xkey={xkey} is not recognized. Avaialble: {dfile.keys()}")
@@ -522,7 +480,9 @@ class Ejecta(Base):
             # get mask for this freq
             mask = np.array(self.get_grid(key=xkey,spec=spec,unique=False) == _freq,dtype=bool)
             # get light curve for this mask and for this shell and layer
-            return self._get_lc_for_mask(key=key,mask=mask, x_arr=utimes, ishell=ishell, ilayer=ilayer, spec=spec)
+            res = self._get_lc_for_mask(key=key,mask=mask, x_arr=utimes, ishell=ishell, ilayer=ilayer, spec=spec,
+                                        sum_shells_layers=sum_shells_layers)
+            return res
 
         # spectrum
         if (not time is None) and (freq is None):
@@ -531,11 +491,24 @@ class Ejecta(Base):
             # get mask for this fre,q
             mask = np.array(self.get_grid(key=ykey, spec=spec,unique=False) == _time,dtype=bool)
             # get spectrum for this mask and for this shell and layer
-            return self._get_lc_for_mask(key=key, mask=mask, x_arr=ufreqs, ishell=ishell, ilayer=ilayer, spec=spec)
+            res = self._get_lc_for_mask(key=key, mask=mask, x_arr=ufreqs, ishell=ishell, ilayer=ilayer, spec=spec,
+                                        sum_shells_layers=sum_shells_layers)
+            return res
 
         if (time is None and freq is None) and (not ishell is None) and (not ilayer is None):
-            return np.reshape(self._get_lc_shell_layer(key=key,ishell=ishell, ilayer=ilayer, spec=spec),
-                              newshape=(len(utimes),len(ufreqs)))
+            if xkey=="gams":
+                res = np.reshape(self._get_lc_shell_layer(key=key, ishell=ishell, ilayer=ilayer, spec=spec),
+                                  newshape=(len(utimes),len(ufreqs)))
+            else:
+                res = np.reshape(self._get_lc_shell_layer(key=key,ishell=ishell, ilayer=ilayer, spec=spec),
+                                  newshape=(len(ufreqs),len(utimes)))
+                if sum_shells_layers: res = np.sum(res,axis=(0,1))
+            return res
+
+        # total spectrum from all shells/layers
+        # if (time is None and freq is None) and (ishell is None) and (ilayer is None):
+        #     res = self._get_lc_for_mask()
+
 
         raise ValueError("Either time of freq must be specified to compute lc/spec")
 
@@ -862,7 +835,7 @@ class Ejecta(Base):
 
 
 class Magnetar:
-    def __init__(self,workingdir:str,readparfileforpaths:str,parfile:str,verbose:str):
+    def __init__(self,workingdir:str,readparfileforpaths:bool,parfile:str,verbose:bool):
         self.parfile = parfile
         self.workingdir = workingdir
         self.res_dir = workingdir
@@ -921,6 +894,8 @@ class PyBlastAfterglow:
 
         if readparfileforpaths:
             self.main_pars, self.main_opts = self.read_main_part_parfile( self.parfile )
+
+
 
     def read_main_part_parfile(self, parfile : str = "parfile.par") -> tuple[dict,dict]:
         main_pars, main_opts = read_parfile(workingdir=self.workingdir,fname=parfile,comment="#",

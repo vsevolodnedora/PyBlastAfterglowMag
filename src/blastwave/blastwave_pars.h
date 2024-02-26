@@ -184,6 +184,7 @@ struct Pars{
     // --------- RS ---------------
     double rs_Gamma0_frac_no_exceed = 0.98;
     bool do_rs = false;
+    bool do_rs_radiation = false;
     bool shutOff = false; /// include Reverse shock now?
     bool adiabLoss_rs = false;
     double tprompt = 0.;

@@ -53,12 +53,14 @@ im_max_theta = 1.57
 tprompt = 1e3
 a = 0.0
 fraction_of_Gamma0_when_spread = 0.1
+rs_shutOff_criterion_rho = 1e-50 # criterion when to shut down the reverse shock
+mom0_frac_when_start_spread = 0.
 
-eps_e = 0.1
-eps_b = 0.01
-eps_t = 0.
-p = 2.2
-ksi_n = 1.
+eps_e_fs = 0.1
+eps_b_fs = 0.01
+eps_t_fs = 0.
+p_fs = 2.2
+ksi_n_fs = 1.
 
 gam1 = 1
 gam2 = 100000000.0
@@ -82,11 +84,13 @@ do_spec = no
 save_spec = no
 do_lc = yes
 do_skymap = no
+skymap_remove_mu = no
 
 do_rs = no
 bw_type = fs
 method_collision = none # none
 method_eats = adaptive # piece-wise
+method_comp_mode = comovSpec # observFlux
 allow_termination = no
 use_rs = no
 
@@ -105,31 +109,50 @@ load_r0 = no
 
 tprompt = 0.
 epsilon_rad_rs = 0.
-rs_shutOff_criterion_rho = 1e-50 # criterion when to shut down the reverse shock
 
 method_spread = None
+method_limit_spread = Gamma0Frac # Gamma0Frac`
 method_dgdr = our
 method_eos = Nava13
-method_GammaFsh = useGammaShock
-method_Up = useEint2
-method_Delta = useJoh06
 use_adiabLoss = yes
-method_Rsh = useGammaSh
 method_dmdr = usingdthdr
-method_shock_vel = sameAsBW
-use_dens_prof_behind_jet_for_ejecta = no
-method_synchrotron = GSL
-method_ssc = none
-method_shock_ele = numeric
-method_lf_min = useU_e
-method_ne = useNe # usenprime
-method_tau = smooth
-use_ssa = no
-emissivity = em
-absorption = abs
-method_comp_mode = comovSpec # "comovSpec"
-method_quad = CADRE
 
-skymap_remove_mu = no
+use_dens_prof_behind_jet_for_ejecta = no
+
+# --- Forward Shock ---
+method_radius_fs = useGammaSh
+method_Gamma_fs = useGammaShock
+method_Up_fs = useEint2
+method_thickness_fs = useJoh06
+method_vel_fs = shockVel
+method_ele_fs = numeric
+method_ne_fs = useNe
+method_nonrel_dist_fs = none
+method_gamma_min_fs = useU_e
+method_gamma_c_fs = useTe
+method_gamma_max_fs = useB
+method_B_fs = useU_b
+method_synchrotron_fs = Dermer09
+use_ssa_fs = no
+method_ssc_fs = none
+method_tau_fs = smooth
+
+# --- Reverse Shock ---
+method_radius_rs = useGammaSh
+method_Gamma_rs = useGammaShock
+method_Up_rs = useEint2
+method_thickness_rs = useJoh06
+method_vel_rs = shockVel
+method_ele_rs = analytic
+method_ne_rs = usenprime
+method_nonrel_dist_rs = none
+method_gamma_min_rs = useU_e
+method_gamma_c_rs = useTe
+method_gamma_max_rs = useB
+method_B_rs = useU_b
+method_synchrotron_rs = Joh06
+use_ssa_rs = no
+method_ssc_rs = none
+method_tau_rs = smooth
 
 # --------------------------- END ---------------------------
