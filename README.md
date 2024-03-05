@@ -1,13 +1,21 @@
-# PyBlastAfterglowMag
+# PyBlastAfterglow
 
-Semi-analytic model for computing GRB and kilonova afterglow written in C++ with python class for postprocessing and plotting the results. 
+PyBlastAfterglow is a numerical, C++ code designed to model electromagnetic signatures (light curves, spectra, sky maps) of gamma-ray bursts and kilonova afterglows. The model approximates the hydrodynamics of the fluid flow by treating each fluid element as an independent element, a system comprised of forward shock, contact discontinuity, and reverse shock. These shocks are collisionless shocks that form when ejecta propagates through the interstellar medium. At these shocks injected electrons are accelerated and seed magnetic fields are amplified. The code numerically follows the evolution of electron distribution in shocks downstream, accounting for radiation and adiabatic cooling. Afterwards, the comoving synchrotron and synchrotron self-Compton (SSC)  emission are computed numerically. Finally, the observed emission is obtained via equal-time arrival surface integration. 
+The code is modular and designed so that new physics (e.g., new radiation methods, energy injection) can be easily incorporated. 
+_In summation:- PyBlastAfterglow stands in between full numeric radiation relativistic hydrodynamics codes (e.g., GAMMA, JET) and semi-analytic codes (e.g., afterglowpy). It has much more physics than the latter and is faster than the former. 
+__The code is under active development and is not yet released__.  
+_Current work areas:_ 
+- code paper: finalize test cases, cross-check methods and results; compare with analytic solutions; write; 
+- synchrotron self-Compton emission: last stage of development; not tested; time to finish ~1-2 month; 
+- reverse shock dynamics and emission: developed; testing; time to finish <1 month. 
 
-The code is design for easy implementation of new physics and numerical methods. Specifically, the code suppoerts several formulations of a blast-wave evolution, blast-wave lateral spreading, analytic electron distribution and symchrotron emission approximants. 
+## Repository structure
 
-The code is inspired by [Gavin. P.~Lamb](https://doi.org/10.1093/mnras/stab2879) and [J.~Ryan](https://iopscience.iop.org/article/10.3847/1538-4357/ab93cf) afterglow models. 
-Overall, the code discretises ejecta into angular and velocity elements. Then, considering each of them as a part of a spherical blastwave propageting through ambient medium, it solves a system of ODEs for energy consdervation. After that, the code computes doppler-corrected synchrotron emission and integrates the observed flux via EATS integration.  
+The C++ source code is located in `/src/`  
+The Python interface and processing tools are located in `/package/`  
+The test cases are located in `/tst/` for GRB and kilonova afterglows.
 
-# Installation  
+## Installation  
 
 To install C++ code base, `g++` with lhdf5 is required.  
 C++ requirements are noted in `Makefile`. Then, execute  
@@ -18,20 +26,23 @@ or
 `make alterantive`  
 depending on how h5lib was installed, it might be tricky to complile. 
 
-Once combilation was done successfully, and `src/pba.out` was generated, install the python interface that allows an easy use of the code output. 
-Python requirements noted in `package/requirements.py`. Separate conda environment is advised. Installation of the package is done via `pip` as:  
+Once compilation was done successfully, and `src/pba.out` was generated, install the python interface that allows easy use of the code output. 
+Python requirements are noted in `package/requirements.py`. A separate conda environment is advised. Installation of the package is done via `pip` as:  
 `cd package/`  
 `pip uninstall --no-cache-dir PyBlastAfterglowMag & pip install .` 
 
 
-# Usage  
+## Sources
 
-To run the code requires a parfile. Examples of a parfile can be found in `tst/` and `projects/` directoris. Depending on the usage, a parfile can differ a lot. For common GRB afterglow application see `projects/grbgauss_mcmc/` and `\projects/grbtophat_parallel/` . 
-For all possible applications see `/tst/`.  
-The jupyter notebook section with better examples is coming soon. 
+The code is inspired by [Gavin. P.~Lamb](https://doi.org/10.1093/mnras/stab2879) and [J.~Ryan](https://iopscience.iop.org/article/10.3847/1538-4357/ab93cf) afterglow models. 
 
-# Attribution  
-If you use the code, please cite  
+## Usage  
+
+To run the code requires a parfile. Examples of a profile can be found in `/tst/` directory. 
+
+
+## Attribution  
+If you use the code, please consider citing  
 ```
 @ARTICLE{2023MNRAS.tmp..259N,
        author = {{Nedora}, Vsevolod and {Dietrich}, Tim and {Shibata}, Masaru and {Pohl}, Martin and {Menegazzi}, Ludovica Crosato},
