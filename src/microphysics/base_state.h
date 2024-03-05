@@ -51,14 +51,6 @@ struct State{
     /// allocate output vectors of the size numbins * num_timesteps
     void allocate_output(size_t nx, size_t nt){
         size_t nn = nx * nt;
-//        Vector tmp = TOOLS::MakeLogspaceVec(std::log10(x1_),std::log10(x2_), (int)nx);
-//        e_all.resize(nn, 0.);
-//        size_t ii = 0;
-//        for (size_t i_ = 0; i_ < nt; i_++) // time steps or radial steps
-//            for (size_t j_ = 0; j_ < nx; j_++) {// freq or gam steps
-//                e_all[ii] = tmp[j_];
-//                ii++;
-//            }
         f_all.resize(nn, 0.);
         j_all.resize(nn, 0.);
         a_all.resize(nn, 0.);
@@ -132,32 +124,55 @@ struct State{
  * @param acc
  */
 void dfdx(Vector & df, Vector & x, Vector & f, int acc){
-    double dx=0;
-    size_t i = 0;
-    if (acc == 1){
-        /// 1st order accuracy
-        for (i = 1; i < x.size()-1; i++){
-            dx = x[i + 1] - x[i];
-            df[i] = (f[i + 1] - f[i - 1]) / (2. * dx);
-        }
-        /// one-sided stencils for boundaries
-        i = 0;
-        df[i] = (-3. * f[i] + 4. * f[i + 1] - f[i + 2]) / (2. * (x[i + 1] - x[i]));
-        i = x.size() - 1;
-        df[i] = (3. * f[i] - 4. * f[i - 1] + f[i - 2]) / (2. * (x[i] - x[i - 1]));
+    double dx = 0; size_t i = 0;
+//    for (i = 1; i < x.size(); i++){
+//        dx = x[i] - x[i - 1]; // dx for backward or forward difference
+//        df[i] = (f[i] - f[i - 1]) / dx; // backward difference
+//    }
+//    df[0] = df[1];
+
+    for (i = 1; i < x.size()-1; i++){
+        dx = x[i] - x[i - 1];
+        df[i] = 0.5 * (f[i + 1] - f[i - 1]) / dx;
     }
-    else if (acc == 2){
-        /// 2nd order accuracy
-        dx = x[i + 1] - x[i];
-        df[i] = (-f[i + 2] + 8. * f[i + 1] - 8. * f[i - 1] + f[i - 2]) / (12. * dx);
-        /// one-sided stencils for boundaries
-        for (i = 0; i < 2; i++)
-            df[i] = (-3. * f[i] + 4. * f[i + 1] - f[i + 2]) / (2. * (x[i + 1] - x[i]));
-        for (i = x.size()-3; i < x.size()-1; i++)
-            df[i] = (3. * f[i] - 4. * f[i - 1] + f[i - 2]) / (2. * (x[i] - x[i - 1]));
-    }
-    else
-        throw std::runtime_error("Not implemented");
+    i = 0;
+    df[i] = -1.5 * f[i] + 2. * f[i+1] - 0.5 * f[i+2];
+    i = x.size()-1;
+    df[i] = 1.5 * f[i] - 2. * f[i-1] + 0.5 * f[i-2];
+
+//    i = 0;
+//    double dx = 0;
+//    size_t i = 0;
+//    if (acc == 1){
+//        // Assuming second-order central differencing in the comment was a mistake,
+//        // and aiming for first-order accuracy in the interior points,
+//        // the loop should correctly calculate differences for a first-order scheme.
+//        for (i = 1; i < x.size(); i++){
+//            dx = x[i] - x[i - 1]; // dx for backward or forward difference
+//            df[i] = (f[i] - f[i - 1]) / dx; // backward difference
+//        }
+//        df[0] = df[1];
+////        // one-sided stencils for boundaries
+////        i = 0;
+////        dx = x[i + 1] - x[i]; // Correct dx calculation for the first boundary
+////        df[i] = (-3. * f[i] + 4. * f[i + 1] - f[i + 2]) / (2. * dx);
+////        i = x.size() - 1;
+////        dx = x[i] - x[i - 1]; // Correct dx calculation for the last boundary
+////        df[i] = (3. * f[i] - 4. * f[i - 1] + f[i - 2]) / (2. * dx);
+//    }
+////    else if (acc == 2){
+////        /// 2nd order accuracy
+////        dx = x[i + 1] - x[i];
+////        df[i] = (-f[i + 2] + 8. * f[i + 1] - 8. * f[i - 1] + f[i - 2]) / (12. * dx);
+////        /// one-sided stencils for boundaries
+////        for (i = 0; i < 2; i++)
+////            df[i] = (-3. * f[i] + 4. * f[i + 1] - f[i + 2]) / (2. * (x[i + 1] - x[i]));
+////        for (i = x.size()-3; i < x.size()-1; i++)
+////            df[i] = (3. * f[i] - 4. * f[i - 1] + f[i - 2]) / (2. * (x[i] - x[i - 1]));
+////    }
+////    else
+////        throw std::runtime_error("Not implemented");
+////    int _x = 1;
 }
 
 #endif //SRC_BASE_STATE_H

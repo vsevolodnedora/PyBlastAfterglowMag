@@ -121,7 +121,7 @@ public:
     /**
  * Update radiation fields for current electron distribution
  */
-    void update_radiation(){
+    void update_radiation(bool do_ssa, bool do_ssc){
         /// 1. Update synchrotron kernel for current B
         synKernel.evalSynKernel(ele, syn, source.B);
 
@@ -129,13 +129,15 @@ public:
         computeSynSpectrum();
 
         /// 3. compute SSA
-        computeSSA();
+        if (do_ssa)
+            computeSSA();
 
         /// 4. compute photon density
         computePhotonDensity();
 
         /// 5. Compute SSC spectrum
-        computeSSCSpectrum();
+        if (do_ssc)
+            computeSSCSpectrum();
     }
 
 private:
@@ -151,10 +153,10 @@ private:
         std::fill(syn.j.begin(), syn.j.end(), 0.);
 
         for (size_t i = 0; i < syn.numbins-1; i++) {
-            for (size_t j = 0; j < ele.numbins - 1; j++)
+            for (size_t j = 0; j < ele.numbins -1; j++)
                 syn.j[i] += kernel[i][j] * ele.f[j] * ele.de[j];
             syn.j[i] *= 2.3443791412546505e-22 * source.B; // np.sqrt(3) * np.power(e, 3) / h * (h/mec2)
-            if (!std::isfinite(syn.j[i])){
+            if (!std::isfinite(syn.j[i]) || syn.j[i] < 0.){
                 std::cerr << AT<< " nan in computeSynSpectrum()\n";
                 exit(1);
             }
@@ -185,7 +187,7 @@ private:
             syn.a[i] *= -1. / (8. * M_PI * CGS::me * std::pow(syn.e[i]/8.093440820813486e-21, 2));
             if (!std::isfinite(syn.a[i])){
                 std::cerr << AT<< " nan in computeSSA()\n";
-                exit(1);
+//                exit(1);
             }
         }
     }
@@ -211,7 +213,6 @@ private:
             syn.n[i] = (syn.j[i] / (2.3443791412546505e-22 * source.B)); // undo part from emissivity; only kernel needed
             syn.n[i] *= constant * T / volume / (CGS::h * syn.e[i] / 8.093440820813486e-21);
         }
-
     }
 
     /**
@@ -480,8 +481,13 @@ public:
         /// set up the right side of the tridiagonal equation.
         /// This is the current distribution plus the source
         /// unless it is zero
-        for (size_t i = 0; i < n_grid_points; i++)
+        for (size_t i = 0; i < n_grid_points; i++) {
             d[i] = ele.f[i] + source_grid[i] * delta_t;
+            if (!std::isfinite(ele.f[i]) || ele.f[i] < 0.){
+                std::cerr << AT<< " nan in computeSynSpectrum()\n";
+                exit(1);
+            }
+        }
 
         /// now make a tridiagonal_solver for these terms
 //        TridiagonalSolver tridiagonalSolver = TridiagonalSolver(a,b,c);
@@ -490,6 +496,8 @@ public:
 //        tridiagonalSolver.solve(d, ele.f);
 
         tridiagonal_solver(d, ele.f, a, b, c);
+
+
 
         /// increase the run iterator and the current time
         iterations += 1;

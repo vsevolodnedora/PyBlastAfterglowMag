@@ -397,7 +397,7 @@ private:
 
         /// evaluate light curve
 //        auto spectrum = evalEjectaSpectrum();
-        auto & spec_freqs = p_cumShells[0]->getBW(0)->getPars()->p_syn_a->m_freq_arr;
+        auto & spec_freqs = p_cumShells[0]->getBW(0)->getPars()->p_mphys->m_freq_arr;
         if (spec_freqs.size()<1){
             (*p_log)(LOG_INFO,AT) << " m_freq_arr is not initialized for a BW. Cannot compute comoving spectrum \n ";
             exit(1);
@@ -420,13 +420,13 @@ private:
             for (size_t ishell = 0; ishell < nshells(); ++ishell) {
                 for (size_t ilayer = 0; ilayer < nlayers(); ++ilayer) {
                     if (var == "em")
-                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syn_a->out_spectrum[itnu];
+                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_mphys->out_spectrum[itnu];
                     else if (var == "abs")
-                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syn_a->out_specturm_ssa[itnu];
+                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_mphys->out_specturm_ssa[itnu];
                     else if (var == "em_rs")
-                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syn_a_rs->out_spectrum[itnu];
+                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_mphys_rs->out_spectrum[itnu];
                     else if (var == "abs_rs")
-                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syn_a_rs->out_specturm_ssa[itnu];
+                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_mphys_rs->out_specturm_ssa[itnu];
                     else{
                         (*p_log)(LOG_INFO,AT) << " spec_var_out is not recognized. Possible options: "
                                               << " em "<< " abs "<<" em_rs " <<" abs_rs "<<" Givem="<<var<<"\n";
@@ -461,17 +461,17 @@ private:
             for (size_t ilayer = 0; ilayer < nlayers(); ++ilayer) {
                 group_names.emplace_back("shell=" + std::to_string(ishell) + " layer=" + std::to_string(ilayer));
                 total_fluxes_shell_layer[ii].resize(n,0.);
-                auto & spectrum = p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syn_a->out_spectrum;
+                auto & spectrum = p_cumShells[ilayer]->getBW(ishell)->getPars()->p_mphys->out_spectrum;
                 for (size_t ifnu = 0; ifnu < n; ifnu++) {
 
                     if (var == "em")
-                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syn_a->out_spectrum[ifnu];
+                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_mphys->out_spectrum[ifnu];
                     else if (var == "abs")
-                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syn_a->out_specturm_ssa[ifnu];
+                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_mphys->out_specturm_ssa[ifnu];
                     else if (var == "em_rs")
-                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syn_a_rs->out_spectrum[ifnu];
+                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_mphys_rs->out_spectrum[ifnu];
                     else if (var == "abs_rs")
-                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_syn_a_rs->out_specturm_ssa[ifnu];
+                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_mphys_rs->out_specturm_ssa[ifnu];
                     else{
                         (*p_log)(LOG_INFO,AT) << " spec_var_out is not recognized. Possible options: "
                                               << " em "<< " abs "<<" em_rs " <<" abs_rs "<<" Givem="<<var<<"\n";
@@ -519,33 +519,33 @@ private:
                 H5::Group grp(file.createGroup(group_name));
                 auto &bw = getShells()[il]->getBW(ish);
                 /// save electron spectrum if electrons are numerically evolved
-                if (bw->getPars()->p_syn_a->m_eleMethod!=METHODS_SHOCK_ELE::iShockEleAnalyt)
-                    Output::addVectorToGroup(grp, bw->getPars()->p_syn_a->ele.f_all,
+                if (bw->getPars()->p_mphys->m_eleMethod != METHODS_SHOCK_ELE::iShockEleAnalyt)
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ele.f_all,
                                              "n_ele_fs");
                 /// save synchrotron spectra for forward shock
-                Output::addVectorToGroup(grp, bw->getPars()->p_syn_a->syn.j_all,
+                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.j_all,
                                          "synch_fs");
-                Output::addVectorToGroup(grp, bw->getPars()->p_syn_a->syn.a_all,
+                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.a_all,
                                          "ssa_fs");
                 /// save SSC spectrum
-                if (bw->getPars()->p_syn_a->m_methods_ssc!=METHOD_SSC::inoSSC)
-                    Output::addVectorToGroup(grp, bw->getPars()->p_syn_a->ssc.j_all,
+                if (bw->getPars()->p_mphys->m_methods_ssc != METHOD_SSC::inoSSC)
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ssc.j_all,
                                              "ssc_fs");
 
                 /// save spectra of the reverse shock
                 if (bw->getPars()->do_rs_radiation){
 
                     /// save electron spectrum if electrons are numerically evolved
-                    if (bw->getPars()->p_syn_a->m_eleMethod!=METHODS_SHOCK_ELE::iShockEleAnalyt)
-                        Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->ele.f_all,
+                    if (bw->getPars()->p_mphys->m_eleMethod != METHODS_SHOCK_ELE::iShockEleAnalyt)
+                        Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ele.f_all,
                                                  "n_ele_rs");
-                    Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->syn.j_all,
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.j_all,
                                              "synch_rs");
-                    Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->syn.a_all,
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.a_all,
                                              "ssa_rs");
                     /// save SSC spectrum
-                    if (bw->getPars()->p_syn_a_rs->m_methods_ssc!=METHOD_SSC::inoSSC)
-                        Output::addVectorToGroup(grp, bw->getPars()->p_syn_a_rs->ssc.j_all,
+                    if (bw->getPars()->p_mphys_rs->m_methods_ssc != METHOD_SSC::inoSSC)
+                        Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ssc.j_all,
                                                  "ssc_rs");
                 }
                 grp.close();
@@ -554,16 +554,16 @@ private:
 
         /// add time and frequency. Note: specta are 1D and loop is for t in time, { for freq in freqs { } }
         auto &bw0 = getShells()[0]->getBW(0);
-        size_t nn = bw0->get_tburst().size() * bw0->getPars()->p_syn_a->total_rad.numbins;
+        size_t nn = bw0->get_tburst().size() * bw0->getPars()->p_mphys->total_rad.numbins;
 
         /// make vectors for time and freq with the same structure as emissivity and absorption
         Vector _times_for_freq(nn, 0.);
         Vector _freqs(nn, 0.);
         size_t ii=0;
         for (size_t it = 0; it < bw0->get_tburst().size(); it++) {
-            for (size_t ifreq = 0; ifreq < bw0->getPars()->p_syn_a->total_rad.numbins; ifreq++){
+            for (size_t ifreq = 0; ifreq < bw0->getPars()->p_mphys->total_rad.numbins; ifreq++){
                 _times_for_freq[ii]=bw0->get_tburst()[it];
-                _freqs[ii]=bw0->getPars()->p_syn_a->total_rad.e[ifreq];
+                _freqs[ii]=bw0->getPars()->p_mphys->total_rad.e[ifreq];
                 ii++;
             }
         }
@@ -572,14 +572,14 @@ private:
 
 
         /// make vectors for time and freq with the same structure as emissivity and absorption
-        if (bw0->getPars()->p_syn_a->m_eleMethod!=METHODS_SHOCK_ELE::iShockEleAnalyt){
-            Vector _times_freq_gam(bw0->get_tburst().size() * bw0->getPars()->p_syn_a->ele.numbins, 0.);
-            Vector _gams (bw0->get_tburst().size() * bw0->getPars()->p_syn_a->ele.numbins, 0.);
+        if (bw0->getPars()->p_mphys->m_eleMethod != METHODS_SHOCK_ELE::iShockEleAnalyt){
+            Vector _times_freq_gam(bw0->get_tburst().size() * bw0->getPars()->p_mphys->ele.numbins, 0.);
+            Vector _gams (bw0->get_tburst().size() * bw0->getPars()->p_mphys->ele.numbins, 0.);
             ii=0;
             for (size_t it = 0; it < bw0->get_tburst().size(); it++) {
-                for(size_t igam = 0; igam < bw0->getPars()->p_syn_a->ele.numbins; igam++) {
+                for(size_t igam = 0; igam < bw0->getPars()->p_mphys->ele.numbins; igam++) {
                     _times_freq_gam[ii]=bw0->get_tburst()[it];
-                    _gams[ii] = bw0->getPars()->p_syn_a->ele.e[igam];
+                    _gams[ii] = bw0->getPars()->p_mphys->ele.e[igam];
                     ii++;
                 }
             }

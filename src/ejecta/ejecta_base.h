@@ -708,8 +708,6 @@ public:
         size_t nlayers_ = nlayers();
         // ------------------------
 
-        double rtol = 1.e-6;
-
         (*p_log)(LOG_INFO,AT)  << " Computing skymap with N layers=" << nlayers_ << " and N sublayers=" << nsublayers_ << "\n";
 
         /// locate the extend of the jet at a given time (for further grid creation)
@@ -734,7 +732,7 @@ public:
         for (size_t ilayer = 0; ilayer < nlayers_; ++ilayer) {
             auto &bw_rad = p_cumShells[ilayer]->getBW(0)->getFsEATS();
 //            double theta_l = p_cumShells[ilayer]->getBW(0)->getPars()->theta_c_l;
-            double atol = tot_flux * rtol / (double) nlayers_;
+            double atol = tot_flux * bw_rad->rtol_theta / (double) nlayers_;
             double layer_flux = bw_rad->evalFluxDensA(obs_time, obs_freq, atol);
             tot_flux += layer_flux;
             im.fluxes_shells[ilayer] = layer_flux;
@@ -1157,6 +1155,7 @@ public:
                             << " EJECTA LC ntimes=" << obs_times.size()
                             << " vel_shell=" << ishell << "/" << nshells() - 1
                             << " theta_layer=" << ilayer << "/" << nlayers()
+                            << " rtol_theta = " << bw->getFsEATS()->rtol_theta
                             << "\n";
                     bw->getFsEATS()->evalLightCurve(out[ii], id->method_eats, obs_times, obs_freqs);
                 }

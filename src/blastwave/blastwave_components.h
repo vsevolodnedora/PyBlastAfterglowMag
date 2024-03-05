@@ -31,12 +31,16 @@ inline namespace EQS{
 //        return sqrt(1.0 - pow(Gamma, -2)); || std::sqrt(1.-std::pow(Gamma*Gamma,-2.))
         return (1. / Gamma) * sqrt( (Gamma - 1.) * (Gamma + 1.) );
     }
+
     double BetaFromGammaM1(double const &GammaM1){
 //        return sqrt(1.0 - pow(Gamma, -2)); || std::sqrt(1.-std::pow(Gamma*Gamma,-2.))
         return (1. / (GammaM1 + 1.0)) * sqrt( GammaM1 * (GammaM1 + 2.0) );
     }
-    double Beta2(double const &Gamma){
-        return (Gamma-1.) * (Gamma+1.) / ( Gamma * Gamma );
+    long double Beta2(long double const &Gamma){
+        return (Gamma-1.0) * (Gamma+1.0) / ( Gamma * Gamma );
+    }
+    long double Beta2FromGammamM1(long double const Gamma_m1){
+        return Gamma_m1 * (Gamma_m1 + 2.0) / ( (Gamma_m1 + 1.0) * (Gamma_m1 + 1.0) );
     }
 //    Vector Be/ta(Vector &Gamma){
 //        return sqrt(1.0 - (1.0 / (Gamma * Gamma)) );
@@ -100,11 +104,11 @@ inline namespace EQS{
     /*
      * Evolution equation for the lorentz factor (see Peer+2012)
      */
-    double dgdr(double const &M0, double const &Gamma, double const &beta,
+    double dgdr(double const &M0, double const &Gamma, long double const &beta,
                 double const &mm, double const &gamma_adi, const double dmdr){
-        double numerator = -(gamma_adi * (Gamma * Gamma - 1.0) - (gamma_adi - 1.0) * Gamma * beta * beta);
-        double denominator = M0 + mm * (2.0 * gamma_adi * Gamma - (gamma_adi - 1) * (1. + std::pow(Gamma, -2)));
-        return (numerator / denominator) * dmdr;
+        long double numerator = -(gamma_adi * (Gamma * Gamma - 1.0) - (gamma_adi - 1.0) * Gamma * beta * beta);
+        long double denominator = M0 + mm * (2.0 * gamma_adi * Gamma - (gamma_adi - 1) * (1. + std::pow(Gamma, -2)));
+        return (double)(numerator / denominator) * dmdr;
     }
 
     /*
@@ -252,9 +256,14 @@ inline namespace EQS{
 //        return m2or3 / (2 * CGS::pi * one_min_costheta * rhoprime * Gamma * R * R)
 //    }
 
+
+
     /// simple argument for shock thickness (delta R) See e.g., vanEerten+2010
     double shock_delta(const double & R, const double & Gamma) {
         return R / (12. * Gamma * Gamma);
+    }
+    double shock_delta_lu(const double & R, const double & Gamma) {
+        return R / Gamma;
     }
 
     /// shock thickness from the considerations of non-uniform ISM (see Johannesson+06)
@@ -275,7 +284,15 @@ inline namespace EQS{
 
     /// From Rankie-Hugonoid Jump Conditions (See Zhang Book)
     double GammaSh(const double & Gamma, const double & adi){
-        return (Gamma+1.)*(adi*(Gamma-1.)+1.) / ( adi * (2.-adi)*(Gamma-1.) + 2. );
+        return (Gamma+1.0)*(adi*(Gamma-1.0)+1.0) / ( adi * (2.0-adi)*(Gamma-1.0) + 2.0);
+    }
+
+    double dRsh_dt (const double Gamma, const long double beta, const double GammaSh){
+        long double betaSh = EQS::Beta2(GammaSh);
+        long double dRsh_dt_old = betaSh * CGS::c;
+//        long double dRsh_dt_new = betaSh / (Gamma * GammaSh * (1. - beta * betaSh)) * CGS::c;// / Gamma;
+        return (double)dRsh_dt_old;
+//        std::cout << "dr= " << dRsh_dt_old << " !/ " << dRsh_dt_new << "\n";
     }
 
     // *************************** NAVA et al 2013 *******************
@@ -326,33 +343,30 @@ inline namespace EQS{
     /*
      * Adiabatic index in the 3rd region (See Nava+2013)
      */
-    inline double get_gamma43_minus_one(const double Gamma,
-                                        const double Gamma0,
-                                        const double beta,
-                                        const double beta0){
+    inline long double get_Gamma43(const double Gamma,
+                                   const double Gamma0,
+                                   const long double beta,
+                                   const long double beta0){
         /*
          * Idea:
          *
-         * gamma43_minus_one = Gamma * Gamma0 * (1 - beta * beta0)
+         * Gamma43 = Gamma * Gamma0 * (1 - beta * beta0)
          * However, this is numerically... difficult, as 1-beta*beta0 is subjected to truncation error a lot
          * Using expansions we write
          *
-         * gamma43_minus_one = Gamma*Gamma0 - np.sqrt(Gamma0**2 - 1) * np.sqrt(Gamma**2 - 1) # -- wolfram. Creats jump
+         * Gamma43 = Gamma*Gamma0 - np.sqrt(Gamma0**2 - 1) * np.sqrt(Gamma**2 - 1) # -- wolfram. Creats jump
          * if beta < 0.999:
-         * gamma43_minus_one = Gamma * Gamma0 * (1 - beta * beta0)
+         * Gamma43 = Gamma * Gamma0 * (1 - beta * beta0)
          *
          */
-        const double beta_switch = 0.9999;
-        double gamma43_minus_one = Gamma * Gamma0 * (1.0 - beta * beta0);
-        if (Gamma < beta_switch * Gamma0)
-            gamma43_minus_one = Gamma * Gamma0 * \
-                            (1.0 / (Gamma0 * Gamma0) + 1.0 / (Gamma * Gamma) - 1.0 / (Gamma * Gamma) / (Gamma0 * Gamma0)) / \
-                            (1.0 + beta * beta0) - 1.0;
-//        else
-//            gamma43_minus_one = 1.0 - 1.0;
-
-
-        return gamma43_minus_one;
+        const long double beta_switch = 0.9999;
+        long double Gamma43 = Gamma * Gamma0 * (1.0 - beta * beta0); // Eq.(B8) in Nava+13
+        long double Gamma43_ = Gamma * Gamma0 * (1.0 / (Gamma0 * Gamma0)
+                                                + 1.0 / (Gamma * Gamma)
+                                                - 1.0 / (Gamma * Gamma) / (Gamma0 * Gamma0)) / (1.0 + beta * beta0);
+//        if (Gamma < beta_switch * Gamma0)
+//            conn
+        return Gamma43_;
     }
 
     inline double get_dgamma43dGamma(const double &Gamma0, const double &Gamma){
@@ -368,10 +382,10 @@ inline namespace EQS{
 
     inline double get_dGammaEff3dGamma(const double &Gamma,
                                        const double &gammaAdi3,
-                                       const double &dgamma43dGamma,
-                                       const double &gamma43){
-        return gammaAdi3 * (1.0 + 1.0 / (Gamma * Gamma)) - dgamma43dGamma / 3.0 / gamma43*gamma43 *
-                                                           (Gamma - 1.0 / Gamma) - 1.0/(Gamma * Gamma);
+                                       const long double &dgamma43dGamma,
+                                       const long double &gamma43){
+        return gammaAdi3 * (1.0 + 1.0 / (Gamma * Gamma))
+              - dgamma43dGamma / 3.0 / gamma43*gamma43 * (Gamma - 1.0 / Gamma) - 1.0/(Gamma * Gamma);
 
     }
 
@@ -380,9 +394,9 @@ inline namespace EQS{
      */
     double get_dGammadR_fs_rs(const double &Gamma, const double &Gamma0, const double &gammaAdi,
                               const double &dlnrho1dR, const double &M2, const double &dM2dR,
-                              const double &dlnrho4dR, const double &M3, const double &dM3dR,
+                              const double &dlnrho4dR, const double &M3, const long double &dM3dR,
                               const double &Eint2, const double &Eint3, const double &gammaAdi3,
-                              const double &gamma43_m1){
+                              const long double &Gamma43){
 
         // Using asymptotic approximation of beta
         // 0.5 / Gamma0 + 0.5 / Gamma ** 2 * (0.5 / Gamma0 - Gamma0 - 3. * Gamma0 / 8. / Gamma ** 2)
@@ -391,8 +405,8 @@ inline namespace EQS{
         // (gammaAdi3 * Gamma ** 2 - gammaAdi3 + 1) / Gamma # (gammaAdi * Gamma ** 2. - gammaAdi + 1.) / Gamma
         long double GammaEff3 = get_GammaEff(Gamma, gammaAdi3);
 
-        // gammaAdi3 * (1. + Gamma ** -2) - dgamma43dGamma / 3. / (gamma43_m1 + 1.) ** 2 * (Gamma - 1. / Gamma) - Gamma ** -2
-        long double dGammaEff3dGamma = get_dGammaEff3dGamma(Gamma, gammaAdi3, dgamma43dGamma, gamma43_m1 + 1.0);
+        // gammaAdi3 * (1. + Gamma ** -2) - dgamma43dGamma / 3. / (Gamma43 + 1.) ** 2 * (Gamma - 1. / Gamma) - Gamma ** -2
+        long double dGammaEff3dGamma = get_dGammaEff3dGamma(Gamma, gammaAdi3, dgamma43dGamma, Gamma43);
 
         // 4. / 3. + 1. / Gamma ** 2. / 3. + 2. / Gamma ** 3. / 3.
         double dGammaEffdGamma = get_dGammaEffdGamma(Gamma, gammaAdi);
@@ -401,13 +415,14 @@ inline namespace EQS{
         double f_2 = GammaEff * (gammaAdi - 1.0) * Eint2 / Gamma;
         double h_2 = GammaEff * (gammaAdi - 1.0) * Eint2 * (dM2dR / M2 - dlnrho1dR);
 
-        double fh_factor3 = GammaEff3 * (gammaAdi3 - 1.0) * Eint3;
-        double f_3 = fh_factor3 / (gamma43_m1 + 1.0) * dgamma43dGamma;
-        double h_3 = 0.0;
+        long double fh_factor3 = GammaEff3 * (gammaAdi3 - 1.0) * Eint3;
+        long double f_3 = fh_factor3 / (Gamma43) * dgamma43dGamma;
+        long double h_3 = 0.0;
         if (Eint3 != 0)
             h_3 = fh_factor3 * (dM3dR / M3 - dlnrho4dR);
 
-        long double dGammadR = -((Gamma - 1.0) * (GammaEff + 1.0) * dM2dR + (Gamma - Gamma0 + GammaEff3 * gamma43_m1) * dM3dR - h_2 - h_3)
+        long double dGammadR = -((Gamma - 1.0) * (GammaEff + 1.0) * dM2dR
+                                + (Gamma - Gamma0 + GammaEff3 * (Gamma43 - 1.0)) * dM3dR - h_2 - h_3)
                                / ((M2 + M3) + Eint2 * dGammaEffdGamma + Eint3 * dGammaEff3dGamma + f_2 + f_3);
 //        if (dGammadR > 0 and Gamma > .95 * Gamma0){
 //            std::cerr << " error dGammadR > 0 and Gamma > .59 * Gamma0 \n";
@@ -900,7 +915,7 @@ public:
     enum METHODS { iPeer12, iNava13 };
     EOSadi() = default;
     void setPars( METHODS method ){ m_method = method; }
-    double getGammaAdi(const double Gamma, const double beta){
+    double getGammaAdi(const double Gamma, const long double beta){
         double gammaAdi;
         switch (m_method) {
 
@@ -917,7 +932,7 @@ private:
     /*
     * Adiabatic index of an ideal gas (informed by NR simulations, see Peer+2012)
     */
-    static double AdiabaticIndexPeer(const double Gamma, const double beta){
+    static double AdiabaticIndexPeer(const double Gamma, const long double beta){
         double mom = Gamma * beta;
         double theta = mom / 3.0 * (mom + 1.07 * mom * mom) / (1.0 + mom + 1.07 * mom * mom); // momentrum
         double zz = theta / (0.24 + theta);

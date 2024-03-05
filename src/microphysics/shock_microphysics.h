@@ -65,12 +65,59 @@ inline double optical_depth(const double abs_lab, const double dr,
 }
 
 /// Compute the I = emission/absorption * ( 1 - tau^{-absorption * thickness})
-double computeIntensity(const double em_lab, double dtau, METHOD_TAU m_tau){
+double computeIntensity(const double em_lab, double dtau, METHOD_TAU m_tau) {
+
+    if (dtau == 0)
+        return em_lab;
+
+    /// thick: Special case: use the optically thick limit *everywhere*
+    double intensity_thick = em_lab / dtau ? dtau > 0 : 0.;
+
+    /// from Dermer+09 book
+    double u = 1. / 2. + exp(-dtau) / dtau - (1 - exp(-dtau)) / (dtau * dtau);
+    double intensity_approx = em_lab * (3. * u / dtau) ? dtau > 1.e-3 : em_lab;
+
+    // correction factor to emissivity from absorption
+    // ( 1 - e^(-tau) ) / tau  (on front face)
+    // back face has extra factor ~ e^-beta_shock/(mu-beta_shock)
+    // for now ignoring shadowing by the front face.
+    double abs_fac;
+    if (dtau > 0.0) abs_fac = -std::expm1(-dtau) / dtau; // exp(x) - 1.
+    else abs_fac = std::expm1(dtau) / dtau; //* exp(//abs * DR * beta_shock*mu / (mu - beta_shock));
+    double intensity_smooth = em_lab * abs_fac;
+
+    // Apply self-absorption "simply".
+    // Compute flux in optically thick limit,
+    // use in final result if less than optically thin calculation.
+    // e.g. use tau->infty limit if tau > 1.0
+    double intensity_sharp = em_lab;
+    if (dtau > 1.0) intensity_sharp = em_lab / dtau;   // "Forward" face
+    else if (dtau < -1.0) intensity_sharp = 0.0;  // "Back" face --> assume shadowed by front
+
+    double intensity = em_lab;
+    switch (m_tau) {
+
+        case iAPPROX:
+            intensity = intensity_approx;
+            break;
+        case iTHICK:
+            intensity = intensity_thick;
+            break;
+        case iSMOOTH:
+            intensity = intensity_smooth;
+            break;
+        case iSHARP:
+            intensity = intensity_sharp;
+            break;
+    }
+    return intensity;
+}
+double computeIntensity_OLD(const double em_lab, double dtau, METHOD_TAU m_tau){
 
     if ( dtau == 0 )
         return em_lab;
-
     double intensity = em_lab;
+
 
     // (Signed) Optical depth through this shell.
     // if negative, face is oriented away from observer.
@@ -112,10 +159,9 @@ double computeIntensity(const double em_lab, double dtau, METHOD_TAU m_tau){
         if(dtau == 0.0)
             abs_fac = 1.0;
         else if(dtau > 0.0)
-            abs_fac = -expm1(-dtau) / dtau;
+            abs_fac = -std::expm1(-dtau) / dtau; // exp(x) - 1.
         else {
-            abs_fac = expm1(dtau) / dtau; //* exp(
-            //abs * DR * beta_shock*mu / (mu - beta_shock));
+            abs_fac = std::expm1(dtau) / dtau; //* exp(//abs * DR * beta_shock*mu / (mu - beta_shock));
         }
 
         intensity *= abs_fac;
@@ -157,15 +203,15 @@ public:
     double Theta=-1, z_cool=-1, x=-1;
     size_t max_substeps=0; // limit to the number of substeps to evolve electrons
     METHOD_TAU method_tau{}; double beta_min = -1;
-    METHODS_SHOCK_ELE m_eleMethod{};
+    METHODS_SHOCK_ELE m_eleMethod{}; bool num_ele_use_adi_loss = false;
     METHOD_NE m_method_ne{};
 //    bool do_ssa{};
     METHODS_SHOCK_VEL method_shock_vel{};
     METHODS_Up_sh m_method_up{};
     METHOD_thickness_sh m_method_Delta{};
-    METHOD_Gamma_sh m_method_gamma_fsh{};
-    METHOD_Gamma_sh m_method_gamma_rsh{};
-    METHOD_R_sh m_method_r_sh{};
+//    METHOD_Gamma_sh m_method_gamma_fsh{};
+//    METHOD_Gamma_sh m_method_gamma_rsh{};
+//    METHOD_R_sh m_method_r_sh{};
     /// --------------------------------------
     void setBasePars( StrDbMap & pars, StrStrMap & opts ){
 //        n_layers = nlayers;
@@ -193,68 +239,68 @@ public:
         std::string opt;
 
         /// method for shock radius
-        opt = "method_radius" + fs_or_rs;
-        METHOD_R_sh method_r_sh;
-        if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            method_r_sh = METHOD_R_sh::isameAsR;
-        }
-        else{
-            if(opts.at(opt) == "sameAsR")
-                method_r_sh = METHOD_R_sh::isameAsR;
-            else if(opts.at(opt) == "useGammaSh")
-                method_r_sh = METHOD_R_sh::iuseGammaSh;
-            else{
-                (*p_log)(LOG_ERR,AT) << " option for: " << opt
-                                     <<" given: " << opts.at(opt)
-                                     << " is not recognized "
-                                     << " Possible options: "
-                                     << " sameAsR " << " useGammaSh "
-                                     << " Exiting...\n";
-//                std::cerr << AT << "\n";
-                exit(1);
-            }
-        }
-        m_method_r_sh = method_r_sh;
+//        opt = "method_radius" + fs_or_rs;
+//        METHOD_R_sh method_r_sh;
+//        if ( opts.find(opt) == opts.end() ) {
+//            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+//            method_r_sh = METHOD_R_sh::isameAsR;
+//        }
+//        else{
+//            if(opts.at(opt) == "sameAsR")
+//                method_r_sh = METHOD_R_sh::isameAsR;
+////            else if(opts.at(opt) == "useGammaSh")
+////                method_r_sh = METHOD_R_sh::iuseGammaSh;
+//            else{
+//                (*p_log)(LOG_ERR,AT) << " option for: " << opt
+//                                     <<" given: " << opts.at(opt)
+//                                     << " is not recognized "
+//                                     << " Possible options: "
+//                                     << " sameAsR " //<< " useGammaSh "
+//                                     << " Exiting...\n";
+////                std::cerr << AT << "\n";
+//                exit(1);
+//            }
+//        }
+//        m_method_r_sh = method_r_sh;
 
         /// method for shock velocity
-        opt = "method_Gamma" + fs_or_rs;
-        METHOD_Gamma_sh method_gamma_fsh;
-        if ( opts.find(opt) == opts.end() ) {
-            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
-            method_gamma_fsh = METHOD_Gamma_sh::iuseGammaShock;
-        }
-        else{
-            if(opts.at(opt) == "useJustGamma")
-                method_gamma_fsh = METHOD_Gamma_sh::iuseJustGamma;
-            else if(opts.at(opt) == "useGammaShock")
-                method_gamma_fsh = METHOD_Gamma_sh::iuseGammaShock;
-            else if(opts.at(opt) == "useJustGammaRel") {
-//                if (!(m_type == BW_TYPES::iFS_DENSE || m_type == BW_TYPES::iFS_PWN_DENSE)){
-//                    (*p_log)(LOG_ERR,AT)<<" Cannot use "<<opt<<" = useJustGammaRel "<< " if bw_type ="<<p_pars->m_type<<"\n";
-//                    exit(1);
-//                }
-                method_gamma_fsh = METHOD_Gamma_sh::iuseJustGammaRel;
-            }
-            else if(opts.at(opt) == "useGammaRelShock") {
-//                if (!(p_pars->m_type == BW_TYPES::iFS_DENSE || p_pars->m_type == BW_TYPES::iFS_PWN_DENSE)){
-//                    (*p_log)(LOG_ERR,AT)<<" Cannot use "<<opt<<" = useGammaRelShock "<< " if bw_type ="<<p_pars->m_type<<"\n";
-//                    exit(1);
-//                }
-                method_gamma_fsh = METHOD_Gamma_sh::iuseGammaRelShock;
-            }
-            else{
-                (*p_log)(LOG_ERR,AT) << " option for: " << opt
-                                     <<" given: " << opts.at(opt)
-                                     << " is not recognized "
-                                     << " Possible options: "
-                                     << " useGammaShock " << " useJustGamma "
-                                     << " Exiting...\n";
-//                std::cerr << AT << "\n";
-                exit(1);
-            }
-        }
-        m_method_gamma_fsh = method_gamma_fsh;
+//        opt = "method_Gamma" + fs_or_rs;
+//        METHOD_Gamma_sh method_gamma_fsh;
+//        if ( opts.find(opt) == opts.end() ) {
+//            (*p_log)(LOG_WARN,AT) << " Option for '" << opt << "' is not set. Using default value.\n";
+//            method_gamma_fsh = METHOD_Gamma_sh::iuseGammaShock;
+//        }
+//        else{
+//            if(opts.at(opt) == "useJustGamma")
+//                method_gamma_fsh = METHOD_Gamma_sh::iuseJustGamma;
+//            else if(opts.at(opt) == "useGammaShock")
+//                method_gamma_fsh = METHOD_Gamma_sh::iuseGammaShock;
+//            else if(opts.at(opt) == "useJustGammaRel") {
+////                if (!(m_type == BW_TYPES::iFS_DENSE || m_type == BW_TYPES::iFS_PWN_DENSE)){
+////                    (*p_log)(LOG_ERR,AT)<<" Cannot use "<<opt<<" = useJustGammaRel "<< " if bw_type ="<<p_pars->m_type<<"\n";
+////                    exit(1);
+////                }
+//                method_gamma_fsh = METHOD_Gamma_sh::iuseJustGammaRel;
+//            }
+//            else if(opts.at(opt) == "useGammaRelShock") {
+////                if (!(p_pars->m_type == BW_TYPES::iFS_DENSE || p_pars->m_type == BW_TYPES::iFS_PWN_DENSE)){
+////                    (*p_log)(LOG_ERR,AT)<<" Cannot use "<<opt<<" = useGammaRelShock "<< " if bw_type ="<<p_pars->m_type<<"\n";
+////                    exit(1);
+////                }
+//                method_gamma_fsh = METHOD_Gamma_sh::iuseGammaRelShock;
+//            }
+//            else{
+//                (*p_log)(LOG_ERR,AT) << " option for: " << opt
+//                                     <<" given: " << opts.at(opt)
+//                                     << " is not recognized "
+//                                     << " Possible options: "
+//                                     << " useGammaShock " << " useJustGamma "
+//                                     << " Exiting...\n";
+////                std::cerr << AT << "\n";
+//                exit(1);
+//            }
+//        }
+//        m_method_gamma_fsh = method_gamma_fsh;
 
         /// method for energy density behind shock
         opt = "method_Up" + fs_or_rs;
@@ -300,7 +346,7 @@ public:
                                      <<" given: " << opts.at(opt)
                                      << " is not recognized "
                                      << " Possible options: "
-                                     << " useJoh06 " << " useVE12 " << "None"
+                                     << " useJoh06 " << " useVE12 " << " None "
                                      << " Exiting...\n";
 //                std::cerr << AT << "\n";
                 exit(1);
@@ -355,6 +401,8 @@ public:
             }
         }
         m_eleMethod = val_ele;
+
+        num_ele_use_adi_loss = getBoolOpt("num_ele_use_adi_loss"+fs_or_rs,opts,AT,p_log,true,false);
 
         /// how to compute number of electrons that are emitting
         opt = "method_ne" + fs_or_rs;
@@ -461,7 +509,7 @@ public:
             else if(opts.at(opt) == "use_Ayache")
                 val_monreldist = METHOD_NONRELDIST::iuseAyache;
             else{
-                (*p_log)(LOG_WARN,AT) << AT << " option for: " << opt
+                (*p_log)(LOG_WARN,AT) << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized. "
                                       << "Possible options: "
@@ -690,6 +738,51 @@ public:
         computeGammaCool();
     }
 
+    double inline get_shock_thickness(double R, double M2, double theta, double Gamma, double rho2, double ncells) const {
+        double thickness;
+        double delta_joh06 = shock_delta_joh06(R,M2,theta,Gamma,rho2,ncells);
+        double delta_ve12 = shock_delta(R, Gamma);
+        switch (m_method_Delta) {
+            case iuseJoh06:
+                thickness = delta_joh06;
+                break;
+            case iuseVE12:
+                thickness = delta_ve12;
+                break;
+            case iNoDelta:
+                thickness = 1.;
+                break;
+        }
+        if (!std::isfinite(thickness)){
+            (*p_log)(LOG_ERR,AT) << " shock thickness = " << thickness << "\n";
+            exit(1);
+        }
+        return thickness;
+    }
+
+    double inline get_shock_Up(double GammaShock, double rho2, double m2, double Eint2){
+        if (Eint2 == 0 || m2 == 0)
+            return 0.;
+        double up; //comoving energy density (MF)
+        //        double rhoprim = 4. * rho * Gamma ;     // comoving density
+        double V2 = m2 / rho2 ; // comoving volume
+        double U_p = Eint2 / V2 ; // comoving energy density (electrons)
+        double up_from_internal_energy = U_p;
+        double up_from_lorentz_factor = (GammaShock - 1.) * rho2 * CGS::c * CGS::c;;
+        switch(m_method_up){
+            case iuseEint2:
+                up = up_from_internal_energy;
+                break;
+            case iuseGamma:
+                up = up_from_lorentz_factor;
+                break;
+        }
+        if (up < 0 || !std::isfinite(up)){
+            (*p_log)(LOG_ERR,AT) << " wrong value Up = "<<up<<"\n";
+            exit(1);
+        }
+        return up;
+    }
 
     /// ---
     [[nodiscard]] ElectronAndRadiaionBase const * getThis() const { return this; }
@@ -798,13 +891,17 @@ protected:
     }
     void computeGammaMax(){
         /// get electron distribution boundaries (has ot be set BEFORE gamma_min)
+        double gamma_max_1 = sqrt(6.0 * CGS::pi * CGS::qe / CGS::sigmaT / B); // Kumar+14
         switch (m_methodsLfmax) {
             case iConst:
                 break;
             case iuseB:
-                gamma_max = sqrt(6.0 * CGS::pi * CGS::qe / CGS::sigmaT / B); // Kumar+14
+                gamma_max = gamma_max_1;
                 break;
         }
+        if (m_eleMethod != METHODS_SHOCK_ELE::iShockEleAnalyt)
+            if (gamma_max > 0.99 * ele.e[ele.numbins - 1])
+                gamma_max = 0.99 * ele.e[ele.numbins - 1];
     }
     void computeGammaMin(){
         /// compute injection LF (lower bound of source injection gammaMinFunc)
@@ -835,7 +932,7 @@ protected:
             case igmNumGamma:
                 /// solve gamma_min fun numerically; use fixed limits and number of iterations
                 gamma_min = Bisect(ElectronAndRadiaionBase::gammaMinFunc,
-                                   1, 1e8, 0, .001, 100, this, status);
+                                   1., 1.e8, 0., .001, 100, this, status);
                 /// If numerical solution failed, use simple analytical solution
                 if (status < 0)
                     gamma_min = (p - 2.) / (p - 1.) * (eps_e * CGS::mp / CGS::me * (GammaSh - 1.) + 1.);
@@ -851,19 +948,16 @@ protected:
             exit(1);
         }
 
+//        printf("gamma_min to %.2e GammaSh=%.2e eprime=%.2e p=%.2f gamma_max=%.2e ", gamma_min, GammaSh, eprime, p, gamma_max);
+
         /// prevent gamma_max to go beyond the electron grid
-        if (m_eleMethod != METHODS_SHOCK_ELE::iShockEleAnalyt) {
-            if (gamma_max > 0.99 * ele.e[ele.numbins - 1])
-                gamma_max = 0.99 * ele.e[ele.numbins - 1];
-            if (gamma_c > gamma_max)
-                gamma_c = gamma_max;
-            if (gamma_min < 1.01 * ele.e[ele.numbins]) {
+        if (m_eleMethod != METHODS_SHOCK_ELE::iShockEleAnalyt)
+            if (gamma_min < 1.01 * ele.e[0]) {
                 accel_frac = gamma_min;
-                gamma_min = 1.01 * ele.e[ele.numbins];
-            }
-            if (gamma_c > gamma_max)
-                gamma_c = gamma_max;
+                gamma_min = 1.01 * ele.e[0];
+
         }
+//        printf("gamma_min to %.2e GammaSh=%.2e eprime=%.2e p=%.2f gamma_max=%.2e ", gamma_min, GammaSh, eprime, p, gamma_max);
 
         /// Sironi et al 2013 suggestion to limi gm=1. for Deep Newtinoan regime # TODO to be removed. I did no understand it
 //        if ((lim_gm_to_1) && (gamma_min < 1.))
@@ -875,18 +969,33 @@ protected:
 //        }
     }
     void computeGammaCool(){
-        switch (m_methodsLfcool) {
+        // Eq. A19 in vanEarten+10
+        double gamma_c_1 = 6. * CGS::pi * CGS::me * CGS::c / (CGS::sigmaT * B * B) * t_e / Gamma;
 
+        double gamma_c_2 = ((6. * CGS::pi * me * c) / (CGS::sigmaT * B * B * (tcomov))); // (tcomov0-1.e-6)
+
+        switch (m_methodsLfcool) {
             case iuseConst:
                 break;
             case iuseTe:
-                gamma_c = 6. * CGS::pi * CGS::me * CGS::c / (CGS::sigmaT * t_e * B * B) / Gamma; // Eq. A19 in vanEarten+10
+                gamma_c = gamma_c_1;
                 break;
             case iuseTcomov:
-                gamma_c = ((6. * CGS::pi * me * c) / (CGS::sigmaT * B * B * (tcomov))); // (tcomov0-1.e-6)
+                gamma_c = gamma_c_2;
                 break;
         }
-        gamma_c = std::min(gamma_c, gamma_max);
+//        if (gamma_c < 1. || !std::isfinite(gamma_c)){
+//            (*p_log)(LOG_ERR,AT)<<" gamma_c="<<gamma_c<<"\n";
+//            exit(1);
+//        }
+//        if (gamma_c >= gamma_max)
+//            gamma_c = 0.999 * gamma_max;
+        if (gamma_c <= 1.)
+            gamma_c = 1.001;
+        if (m_eleMethod != METHODS_SHOCK_ELE::iShockEleAnalyt)
+            if (gamma_c > gamma_max)
+                gamma_c = gamma_max;
+
     }
     /// for semi-neutonian regime, where gm ->
     void computeNonRelativisticFlattening(){
@@ -922,8 +1031,10 @@ class ElectronAndRadiation : public ElectronAndRadiaionBase{
     Source source{};
     SynKernel syn_kernel{};//std::unique_ptr<SSCKernel> ssc_kernel = nullptr;
     SSCKernel ssc_kernel{};//std::unique_ptr<SynKernel> syn_kernel = nullptr;
+    double n_ele_out = 0.;
+    double theta_h = 0;
 
-//    double vol=-1.;
+    //    double vol=-1.;
 //    double vol_p1=-1.;
 //    double n_inj=-1.;
     /// Analytical Synchrotron Sectrum; BPL;
@@ -952,13 +1063,15 @@ public: // ---------------- ANALYTIC -------------------------- //
     ElectronAndRadiation(int loglevel, bool _is_rs) :
         ElectronAndRadiaionBase(loglevel, _is_rs){}
 
-    void setPars( StrDbMap & pars, StrStrMap & opts, size_t nr, double tcomov0_ ){
+    void setPars( StrDbMap & pars, StrStrMap & opts, size_t nr,
+                  double theta_h_, double tcomov0_ ){
         setBasePars(pars, opts);
         if (tcomov0_<=0.){
             (*p_log)(LOG_ERR,AT) << "Bad value: tcomov="<<tcomov0_<<"\n";
             exit(1);
         }
         tcomov0 = tcomov0_;
+        theta_h = theta_h_;
         /// allocate memory for spectra to be used in EATS interpolation
         if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleAnalyt)
             allocateForAnalyticSpectra(pars, opts, nr);
@@ -1025,7 +1138,7 @@ public: // ---------------- ANALYTIC -------------------------- //
 
         checkEmssivityAbsorption(em, abs, nuprime);
 
-        /// get emissivity and absorption per particle (for EATS)
+        // get emissivity and absorption per particle (for EATS)
         if (m_method_ne == METHOD_NE::iuseNe){
             em /= n_protons; // /= (source.r * source.r * source.dr); // /= n_protons;
             abs /= n_protons; // /= (source.r * source.r * source.dr);// /= n_protons;
@@ -1050,6 +1163,7 @@ public: // ---------------- ANALYTIC -------------------------- //
     }
 
 public: // -------------------- NUMERIC -------------------------------- //
+
     bool is_distribution_initialized = false; // if the analytic profile for the first iteration is set
     /// Analytic electron spectrum, power-law
     void powerLawElectronDistributionAnalytic(double tcomov0_, double n_ele_inj, Vector & N_ele){
@@ -1074,9 +1188,14 @@ public: // -------------------- NUMERIC -------------------------------- //
 
                 else if ((gamma_min < gamma) && (gamma <= gamma_max))
                     N_ele[i] = K_f * pow(gamma, -p - 1.);
+
+                if (!std::isfinite(N_ele[i]) || N_ele[i] < 0.){
+                    (*p_log)(LOG_ERR,AT)<< " N_ele() = "<< N_ele[i]<< "\n";
+                    exit(1);
+                }
             }
         }
-        else if (gamma_c > gamma_min) { // slow cooling regime
+        else{//else if (gamma_c > gamma_min) { // slow cooling regime
             K_s = n_ele_inj / (
                     (1. / (1. - p)) * (pow(gamma_c, 1. - p)
                     - pow(gamma_min, 1 - p))
@@ -1091,6 +1210,11 @@ public: // -------------------- NUMERIC -------------------------------- //
 
                 else if ((gamma_c <= gamma) && (gamma <= gamma_max))
                     N_ele[i] = K_s * gamma_c * pow(gamma, -p - 1.);
+
+                if (!std::isfinite(N_ele[i]) || N_ele[i] < 0.){
+                    (*p_log)(LOG_ERR,AT)<< " N_ele() = "<< N_ele[i]<< "\n";
+                    exit(1);
+                }
             }
         }
 //        int x = 0;
@@ -1170,23 +1294,23 @@ public: // -------------------- NUMERIC -------------------------------- //
         double n_ele_an=0.;
         Vector tmp (ele.numbins,0.);
         powerLawElectronDistributionAnalytic(tcomov, (m*accel_frac)/CGS::mp, tmp);
+
         /// check continouity
         for (size_t i = 0; i < ele.numbins-1; i++)
             n_ele_an += tmp[i] * ele.de[i];
+        n_ele_out = n_ele_an;
         double ratio_an = m/CGS::mp / n_ele_an;
 
         double dt = tcomov_1 - tcomov;
-        /// for adiabatic cooling of electron distribution
+        /// for adiabatic cooling of electron distribution (Note it may be turned off)
         double vol = r * r * dr;
         double vol_p1 = rp1 * rp1 * drp1;
-        double dlnVdt = 1. / dt * (1. - vol / vol_p1);
+        double dlnVdt = num_ele_use_adi_loss ? 1. / dt * (1. - vol / vol_p1) : 0.;
         if (!std::isfinite(dlnVdt)){
             (*p_log)(LOG_ERR,AT) << " dlnVdt= "<<dlnVdt<<"\n";
             exit(1);
         }
 
-        /// number of injected electrons
-//        double N = n_inj / CGS::mp;// / dt;
 
         /// compute substepping to account for electron cooling timescales
         double dlog_gam = ((ele.e[1]-ele.e[0])/ele.e[0]);
@@ -1194,8 +1318,8 @@ public: // -------------------- NUMERIC -------------------------------- //
         double delta_t_adi = (gamma_max*gamma_max-1.)/(3.*gamma_max*gamma_max)*dlnVdt;
         double delta_t = dlog_gam / (delta_t_syn + delta_t_adi);
         size_t n_substeps = 0;
+
         /// if cooling is too slow, we still need to evolve distribution
-//        max_substeps = 1;
         size_t min_substeps = 2;
         if (delta_t >= dt/(double)min_substeps) {
             delta_t = dt/(double)min_substeps;
@@ -1258,16 +1382,21 @@ public: // -------------------- NUMERIC -------------------------------- //
             /// check continouity
             for (size_t i = 0; i < ele.numbins-1; i++)
                 n_ele_num += ele.f[i] * ele.de[i];
+            n_ele_out = n_ele_num;
         }
         double ratio_num = n_inj / n_ele_num;
         /// Update photon field during electron evolution
-        model.update_radiation(); // saves photon density in syn.n[] -> used in ssc cooling next iteration
+        bool do_ssa = m_methods_ssa == METHODS_SSA::iSSAon;
+        bool do_ssc = m_methods_ssc == METHOD_SSC::iNumSSC;
+        model.update_radiation(do_ssa, do_ssc); // saves photon density in syn.n[] -> used in ssc cooling next iteration
 
         /// check continouity
-        (*p_log)(LOG_INFO,AT) << "tcomov="<<tcomov
-            <<" n_substeps="<<n_substeps
-            <<" Ninj/Nan="<< ratio_an
-            <<" Ninj/Nnum="<< ratio_num
+        (*p_log)(LOG_INFO,AT) << "t="<<tcomov
+            <<" n="<<n_substeps
+            <<" inj/an="<< ratio_an
+            <<" inj/num="<< ratio_num
+            <<" gm="<< gamma_min
+            <<" gM="<<gamma_max
             <<"\n";
         /// clear array (resets everything!)
         model.resetSolver();
@@ -1275,14 +1404,18 @@ public: // -------------------- NUMERIC -------------------------------- //
 
     void storeSynchrotronSpectrumNumeric(size_t it){
 
-        /// Normalize to get emissivity per particle (for EATS)
-        for (size_t i = 0; i < syn.numbins; i++) {
-            syn.j[i] /= n_protons;
-            syn.a[i] /= n_protons;
-        }
-        for (size_t i = 0; i < ssc.numbins; i++) {
-            ssc.j[i] /= n_protons;
-            ssc.a[i] /= n_protons;
+        // Normalize to get emissivity per particle (for EATS)
+        for (size_t i = 0; i < syn.numbins; i++)
+            syn.j[i] /= n_ele_out;
+        if (m_methods_ssa != METHODS_SSA::iSSAoff)
+            for (size_t i = 0; i < syn.numbins; i++)
+                syn.a[i] /= n_ele_out;
+        if (m_methods_ssc != METHOD_SSC::inoSSC) {
+            for (size_t i = 0; i < ssc.numbins; i++)
+                ssc.j[i] /= n_ele_out;
+            if (m_methods_ssa != METHODS_SSA::iSSAoff)
+                for (size_t i = 0; i < ssc.numbins; i++)
+                    ssc.a[i] /= n_ele_out;
         }
 
         /// store electron spectrum
@@ -1295,17 +1428,266 @@ public: // -------------------- NUMERIC -------------------------------- //
         }
     }
 
-public: // ---------------------- EATS -------------------------------- //
+public: // ---------------------- FOR EATS -------------------------------- //
 
-    double fixMe(double & em_prime, double & abs_prime, double Gamma, double GammaSh,
-                 double mu, double r, double dr, double n_prime, double ne){
-//    double flux_dens = 0.;
-//        auto * p_pars = (struct Pars *) params;
-
-        double beta = EQS::Beta(Gamma);
+    double computeFluxDensity(
+            EjectaID2::STUCT_TYPE eats_method,
+            double & em_prime, double & abs_prime, double Gamma, double GammaSh,
+            double mu, double r, double rsh, double dr, double n_prime, double ne, double theta, double ncells) {
+        /// compute beaming and doppler factor
+        double beta = (double) EQS::Beta2(Gamma);
         double a = 1.0 - beta * mu; // beaming factor
         double delta_D = Gamma * a; // doppler factor
+        /// convert to the laboratory frame
+        double em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
+        double abs_lab = abs_prime * delta_D; // conversion of absorption (see vanEerten+2010)
+        /// compute shock velocity
+        double beta_shock;
+        switch (method_shock_vel) {
+            case isameAsBW:
+                beta_shock = EQS::Beta(Gamma);
+                break;
+            case ishockVel:
+                beta_shock = EQS::Beta(GammaSh);
+                break;
+        }
+//        double dr_tau = dr; //EQS::shock_delta(r,GammaSh);
+        /// mass in the shock downstream
+        double m2 = ne * CGS::mp;
+        /// Using Johannesson paper 2006 Eq.33
+        dr = m2 / (2. * CGS::pi * CGS::mp * r * r * (1. - cos(theta) / ncells) * Gamma * n_prime);
+//        double dr = r / (12. * Gamma * Gamma); // for optical depth; (see vanEerten+2010)
+//        dr_/=(1. - cos(theta) / ncells);
+//        std::cout << "dr="<<dr<<" dr_="<<dr_<<" dr/dr_="<<dr/dr_<<"\n";
+        /// compute shock optical depth along the line of sight
+        // (Signed) Optical depth through the shell.
+        // if negative, face is oriented away from observer.
+        double dtau;
+        if (mu == beta_shock) dtau = 1.0e100; // HUGE VAL, just in case
+        else dtau = abs_lab * dr * (1. - mu * beta_shock) / (mu - beta_shock); // correct for abberation
+        /// compute intensity
+        double intensity = computeIntensity(em_lab, dtau, method_tau);
+        if ((intensity < 0) || (!std::isfinite(intensity))) {
+            (*p_log)(LOG_ERR, AT) << "intensity = " << intensity << "\n";
+            exit(1);
+        }
+        double ashock = (1.0 - mu * beta_shock); // shock velocity beaming factor (See vanEerten+2010 paper, Eq.A9)
+        double luminocity = 0.;
+        switch (m_method_ne) {
+            case iusenprime:
+                luminocity = intensity * r * r * dr / ashock;
+                break;
+            case iuseNe:
+                luminocity = intensity
+                             * ne
+                             / (2. * CGS::pi * (1. - std::cos(theta) / ncells))
+                             / Gamma
+                             / (1.0 - mu * beta_shock);
+//                if (eats_method==EjectaID2::STUCT_TYPE::iadaptive)
+//                    luminocity /= (2. * CGS::pi * (1. - std::cos(theta_h)/ncells));
+//                else
+//                    luminocity /= (2. * CGS::pi * (1. - std::cos(theta)/ncells));
+                break;
+        }
 
+        if (luminocity < 0 || !std::isfinite(luminocity)) {
+            (*p_log)(LOG_ERR, AT) << "flux_dens_rs = " << luminocity << "\n";
+            exit(1);
+        }
+
+        return luminocity;
+    }
+#if 0
+    double computeFluxDensity_new(
+            EjectaID2::STUCT_TYPE eats_method,
+            double & em_prime, double & abs_prime, double Gamma, double GammaSh,
+            double mu, double r, double rsh, double dr, double n_prime, double ne, double theta, double ncells) {
+        /// compute beaming and doppler factor
+        double beta = (double)EQS::Beta2(Gamma);
+        double a = 1.0 - beta * mu; // beaming factor
+        double delta_D = Gamma * a; // doppler factor
+        /// convert to the laboratory frame
+        double em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
+        double abs_lab = abs_prime * delta_D; // conversion of absorption (see vanEerten+2010)
+        /// compute shock velocity
+        long double beta_shock = EQS::Beta2(GammaSh);
+//        double beta_shock = EQS::Beta2(GammaSh);
+
+        /// Shock thicnkness using Johannesson paper 2006 Eq.33
+        dr = (ne * CGS::mp) / (2. * CGS::pi * CGS::mp * r * r * (1. - cos(theta) / ncells) * Gamma * n_prime);
+//        dr = r / (12. * Gamma * Gamma); // Van Earten
+        /// compute optical depth along line of sight
+        double dtau;
+        if(mu == beta_shock) dtau = 1.0e100; // HUGE VAL, just in case
+        else dtau = abs_lab * dr * (1. - mu * beta_shock) / (mu - beta_shock);
+        /// compute observer intensity
+        double intensity = computeIntensity(em_lab, dtau, method_tau);
+        /// compute flux density
+        double flux_dens=0., ashock=0.;
+        switch (m_method_ne) {
+            case iusenprime:
+//                m2 = ne * CGS::mp;
+//                dr = m2 / (2. * CGS::pi * CGS::mp * r * r * (1. - cos(theta) / ncells) * Gamma * n_prime);
+                ashock = (1.0 - mu * beta_shock); // shock velocity beaming factor (See vanEerten+2010 paper, Eq.A9)
+//                dr_scaled = dr / ashock; // / Gamma; // moved from thicknesss
+                flux_dens = intensity * r * r * dr / ashock;
+                break;
+            case iuseNe:
+                /// combine dr equation with F = I * r * r * dr / ashock
+                flux_dens = intensity
+                            * ne
+                            / Gamma
+                            / (1.0 - mu * beta_shock);
+                if (eats_method == EjectaID2::STUCT_TYPE::ipiecewise)
+                    /// from Johanesson dr equation
+                    flux_dens /= (2. * CGS::pi * (1. - std::cos(theta)/ncells));
+                break;
+        }
+        return flux_dens;
+    }
+
+
+    double computeFluxDensity_(
+            EjectaID2::STUCT_TYPE eats_method,
+            double & em_prime, double & abs_prime, double Gamma, double GammaSh,
+            double mu, double r, double rsh, double dr, double n_prime, double ne, double theta, double ncells){
+        /// compute beaming and doppler factor
+        double beta = (double)EQS::Beta2(Gamma);
+        double a = 1.0 - beta * mu; // beaming factor
+        double delta_D = Gamma * a; // doppler factor
+        /// convert to the laboratory frame
+        double em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
+        double abs_lab = abs_prime * delta_D; // conversion of absorption (see vanEerten+2010)
+        /// compute shock velocity
+        double beta_shock;
+        switch (method_shock_vel) {
+            case isameAsBW:
+                beta_shock = EQS::Beta(Gamma);
+                break;
+            case ishockVel:
+                beta_shock = EQS::Beta(GammaSh);
+                break;
+        }
+        double dr_tau = dr; //EQS::shock_delta(r,GammaSh);
+        /// mass in the shock downstream
+        double m2 = ne * CGS::mp;
+        /// Using Johannesson paper 2006 Eq.33
+        dr = m2 / (2. * CGS::pi * CGS::mp * r * r * (1. - cos(theta) / ncells) * Gamma * n_prime);
+//        double dr_ = r / (12. * Gamma * Gamma);
+//        dr_/=(1. - cos(theta) / ncells);
+//        std::cout << "dr="<<dr<<" dr_="<<dr_<<" dr/dr_="<<dr/dr_<<"\n";
+        /// compute shock optical depth along the line of sight
+        // (Signed) Optical depth through the shell.
+        // if negative, face is oriented away from observer.
+        double dtau;
+        if(mu == beta_shock) dtau = 1.0e100; // HUGE VAL, just in case
+        else dtau = abs_lab * dr * (1. - mu * beta_shock) / (mu - beta_shock); // correct for abberation
+        /// compute intensity
+        double intensity = computeIntensity(em_lab, dtau, method_tau);
+        if ((intensity < 0) || (!std::isfinite(intensity))) {
+            (*p_log)(LOG_ERR, AT) << "intensity = " << intensity << "\n";
+            exit(1);
+        }
+        double ashock = (1.0 - mu * beta_shock); // shock velocity beaming factor (See vanEerten+2010 paper, Eq.A9)
+        double flux_dens=0.;
+        switch (m_method_ne) {
+            case iusenprime:
+                flux_dens = intensity * r * r * dr / ashock;
+                break;
+            case iuseNe:
+                flux_dens = intensity
+                          * ne
+                          / (2. * CGS::pi * (1. - std::cos(theta)/ncells))
+                          / Gamma
+                          / (1.0 - mu * beta_shock);
+//                if (eats_method==EjectaID2::STUCT_TYPE::iadaptive)
+//                    flux_dens /= (2. * CGS::pi * (1. - std::cos(theta_h)/ncells));
+//                else
+//                    flux_dens /= (2. * CGS::pi * (1. - std::cos(theta)/ncells));
+                break;
+        }
+
+        if (flux_dens < 0 || !std::isfinite(flux_dens)) {
+            (*p_log)(LOG_ERR, AT) << "flux_dens_rs = " << flux_dens << "\n";
+            exit(1);
+        }
+
+        return flux_dens;
+
+        switch (p_pars->m_method_eats) {
+        case EjectaID2::iadaptive:
+            switch (p_pars->m_method_rad) {
+                // fluxDensAdaptiveWithComov()
+                case icomovspec:
+                    switch (p_pars->p_mphys->m_method_ne) {
+                        case iusenprime:
+                            flux_dens = intensity * r * r * dr; //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+                            break;
+                        case iuseNe:
+                            flux_dens = intensity * r * r * dr * n_prime;
+                            break;
+                    }
+                    break;
+                case iobservflux:
+                    switch (p_pars->p_mphys->m_method_ne){
+                        case iusenprime:
+                            flux_dens = (intensity * r * r * dr);
+                            break;
+                        case iuseNe:
+                            flux_dens = intensity * r * r * dr / ne * n_prime;
+                            break;
+                    }
+                    break;
+            }
+            break;
+        case EjectaID2::ipiecewise:
+            switch (p_pars->m_method_rad) {
+                case icomovspec:
+                    switch (p_pars->p_mphys->m_method_ne) {
+                        case iusenprime:
+                            flux_dens = intensity * r * r * dr; //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
+                            break;
+                        case iuseNe:
+                            flux_dens = intensity * r * r * dr * n_prime;
+                            break;
+                    }
+                    break;
+                case iobservflux:
+
+                    switch (p_pars->p_mphys->m_method_ne){
+                        case iusenprime:
+                            flux_dens = (intensity * r * r * dr);
+                            break;
+                        case iuseNe:
+                            flux_dens = intensity * r * r * dr / ne * n_prime;
+                            break;
+                    }
+                    break;
+            }
+            break;
+    }
+
+//        return flux_dens;
+    }
+
+
+    double computeFluxDensity_old(
+            EjectaID2::STUCT_TYPE eats_method,
+            double & em_prime, double & abs_prime, double Gamma, double GammaSh,
+            double mu, double r, double rsh, double dr, double n_prime, double ne, double theta, double ncells){
+
+
+        /// Using Johannesson paper 2006 Eq.33
+//        double m2 = ne * CGS::mp;
+//        std::cout << " dr = "<< dr << " r-rsh =" << rsh - r << "\n";
+//        theta = 0.1;
+//        dr = std::abs(rsh - r);
+
+
+        /// compute beaming and doppler factor
+        double beta = (double)EQS::Beta2(Gamma);
+        double a = 1.0 - beta * mu; // beaming factor
+        double delta_D = Gamma * a; // doppler factor
         /// convert to the laboratory frame
         double em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
         double abs_lab = abs_prime * delta_D; // conversion of absorption (see vanEerten+2010)
@@ -1322,12 +1704,17 @@ public: // ---------------------- EATS -------------------------------- //
                 beta_shock = EQS::Beta(GammaSh);//us / sqrt(1. + us * us);
                 break;
         }
-        double ashock = (1.0 - mu * beta_shock); // shock velocity beaming factor
-        dr /= ashock;
-
-        double dr_tau = EQS::shock_delta(r,GammaSh);
-        dr_tau /= ashock;
-        double dtau = optical_depth(abs_lab, dr_tau, mu, beta_shock);
+//        beta_shock = EQS::Beta(Gamma);
+        double dr_tau = dr; //EQS::shock_delta(r,GammaSh);
+//        double tmp_ = dr / dr_tau;
+//        dr_tau /= ashock;
+        double m2 = ne * CGS::mp;
+        dr = m2 / (2. * CGS::pi * CGS::mp * r * r * (1. - cos(theta) / ncells) * Gamma * n_prime);
+        double dtau;
+        if(mu == beta_shock)
+            dtau = 1.0e100; // HUGE VAL, just in case
+        else
+            dtau = abs_lab * dr * (1. - mu * beta_shock) / (mu - beta_shock);
         double intensity = computeIntensity(em_lab, dtau, method_tau);
 
         if ((intensity < 0) || (!std::isfinite(intensity))) {
@@ -1337,17 +1724,30 @@ public: // ---------------------- EATS -------------------------------- //
 
 //        double flux_dens = intensity * r * r * dr;
 
+//        if (eats_method == EjectaID2::STUCT_TYPE::iadaptive)
+//            intensity = std::abs(mu * beta_shock) * intensity / (1.0 - mu * beta_shock);
+
+        double ashock = (1.0 - mu * beta_shock); // shock velocity beaming factor (See vanEerten+2010 paper, Eq.A9)
         double flux_dens=0.;
         switch (m_method_ne) {
             case iusenprime:
-                flux_dens = intensity * r * r * dr;
+                flux_dens = intensity * r * r * dr / ashock;
                 break;
             case iuseNe:
                 // TODO this nprime / ne is so that results afree with when we use nprime not Ne option
-                flux_dens = intensity * r * r * dr
-                          * n_prime;// / ne;
+//                double m2 = ne * CGS::mp;
+//                dr = m2 / (2. * CGS::pi * CGS::mp * r * r * (1. - cos(theta) / ncells) * Gamma * n_prime);
+//                flux_dens = intensity
+//                          * r * r * dr / ashock
+//                          * n_prime;// / ne;
+                flux_dens = intensity
+                          * ne
+                          / (2. * CGS::pi * (1. - std::cos(theta)/ncells))
+                          / Gamma
+                          / (1.0 - mu * beta_shock);
                 break;
         }
+//        flux_dens = intensity / ashock;
 
         if (flux_dens < 0 || !std::isfinite(flux_dens)) {
             (*p_log)(LOG_ERR, AT) << "flux_dens_rs = " << flux_dens << "\n";
@@ -1361,7 +1761,7 @@ public: // ---------------------- EATS -------------------------------- //
             switch (p_pars->m_method_rad) {
                 // fluxDensAdaptiveWithComov()
                 case icomovspec:
-                    switch (p_pars->p_syn_a->m_method_ne) {
+                    switch (p_pars->p_mphys->m_method_ne) {
                         case iusenprime:
                             flux_dens = intensity * r * r * dr; //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
                             break;
@@ -1371,7 +1771,7 @@ public: // ---------------------- EATS -------------------------------- //
                     }
                     break;
                 case iobservflux:
-                    switch (p_pars->p_syn_a->m_method_ne){
+                    switch (p_pars->p_mphys->m_method_ne){
                         case iusenprime:
                             flux_dens = (intensity * r * r * dr);
                             break;
@@ -1385,7 +1785,7 @@ public: // ---------------------- EATS -------------------------------- //
         case EjectaID2::ipiecewise:
             switch (p_pars->m_method_rad) {
                 case icomovspec:
-                    switch (p_pars->p_syn_a->m_method_ne) {
+                    switch (p_pars->p_mphys->m_method_ne) {
                         case iusenprime:
                             flux_dens = intensity * r * r * dr; //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
                             break;
@@ -1396,7 +1796,7 @@ public: // ---------------------- EATS -------------------------------- //
                     break;
                 case iobservflux:
 
-                    switch (p_pars->p_syn_a->m_method_ne){
+                    switch (p_pars->p_mphys->m_method_ne){
                         case iusenprime:
                             flux_dens = (intensity * r * r * dr);
                             break;
@@ -1411,9 +1811,13 @@ public: // ---------------------- EATS -------------------------------- //
 #endif
 //        return flux_dens;
     }
+#endif
 
-    double fluxDens(size_t ia, size_t ib, double freq, double Gamma, double GammaSh,
-                    double mu, double r, double dr, double n_prime, double ne, Vector & r_arr){
+
+    double fluxDens(
+            EjectaID2::STUCT_TYPE eats_method, double theta, double ncells,
+            size_t ia, size_t ib, double freq, double Gamma, double GammaSh,
+            double mu, double r, double rsh, double dr, double n_prime, double ne, Vector & r_arr){
 
         Vector & freq_arr = total_rad.e;
         if (freq >= freq_arr[total_rad.numbins-1]){
@@ -1440,9 +1844,9 @@ public: // ---------------------- EATS -------------------------------- //
         double abs_prime = int_abs.InterpolateBilinear(freq, r, ia_nu, ib_nu, ia, ib);
 
         /// compute flux density
-        return fixMe(em_prime,abs_prime, Gamma,GammaSh,mu,r,dr,n_prime,ne);
+        return computeFluxDensity(eats_method,em_prime, abs_prime, Gamma, GammaSh,
+                                  mu, r, rsh, dr, n_prime, ne, theta, ncells);
     }
-
 };
 
 

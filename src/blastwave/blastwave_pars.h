@@ -30,8 +30,8 @@ struct Pars{
         p_log = std::make_unique<logger>(std::cout,std::cerr,loglevel,"Pars");
     }
 
-    std::unique_ptr<ElectronAndRadiation> p_syn_a = nullptr;
-    std::unique_ptr<ElectronAndRadiation> p_syn_a_rs = nullptr;
+    std::unique_ptr<ElectronAndRadiation> p_mphys = nullptr;
+    std::unique_ptr<ElectronAndRadiation> p_mphys_rs = nullptr;
 
 //    std::unique_ptr<ShockMicrophysics> & p_fs;
 //    std::unique_ptr<ShockMicrophysics> & p_rs;
@@ -209,8 +209,8 @@ namespace BW{
         itcomov, itburst, itt, ithickness, iadi, irho2, iGammaFsh,
         igm, igc, igM, iB, iTheta, iz_cool, ix, inprime, iacc_frac,
         /// additional quantities for RS
-        iEint3, iErad3, iEad3, iEsh3, iM3, ideltaR4, iGamma43, iadi3, irho4, irho3, iGammaRsh,
-        ithichness_rs, iU_p3,
+        iEint3, iErad3, iEad3, iEsh3, iM3, ideltaR4, iGamma43, iadi3, irho4, irho3, iGammaRsh, iRrsh,
+        ithickness_rs, iU_p3,
         igm_rs, igc_rs, igM_rs, iB3, iTheta_rs, iz_cool_rs, ix_rs,
         inprime_rs, iacc_frac_rs,
         /// additional quantities for pre-accelerated upstream
@@ -230,7 +230,7 @@ namespace BW{
             "gamma_min", "gamma_c", "gamma_max", "B", "ThetaTherm", "z_cool", "x",
             "nprime", "accel_frac",
             /// additional quantities for RS
-            "Eint3", "Erad3", "iEad3", "Esh3", "M3", "deltaR4", "Gamma43", "adi3", "rho4", "rho3","GammaRsh",
+            "Eint3", "Erad3", "iEad3", "Esh3", "M3", "deltaR4", "Gamma43", "adi3", "rho4", "rho3","GammaRsh", "Rsh_rs",
             "thichness_rs", "U_p3",
             "gamma_min_rs", "gamma_c_rs", "gamma_max_rs", "B_rs", "ThetaTherm_rs", "z_cool_rs", "x_rs",
             "nprime_rs", "accel_frac_rs",
@@ -244,7 +244,7 @@ namespace BW{
             "WR", "Wmom", "Wenb", "Wepwn", "Wtt", "Wb", "WGamma", "Wdr",
     }; // 82
     /// total_rad mumber of variables
-    constexpr unsigned TOTAL_VARS = 83;
+    constexpr unsigned TOTAL_VARS = 84;
     /// what varaibles to allocate memory for
     static std::unordered_map<BW_TYPES,std::vector<std::size_t>> VARS {
             {BW_TYPES::iFS,
@@ -258,10 +258,10 @@ namespace BW{
              {
                      iR, iRsh, irho, idrhodr, iGammaREL,
                      iGamma, ibeta, imom, iEint2, iU_p, itheta, ictheta, iErad2, iEsh2, iEad2, iM2,
-                     itcomov, itburst, itt, ithickness, iadi, irho2, iGammaFsh, iGammaRsh,
+                     itcomov, itburst, itt, ithickness, iadi, irho2, iGammaFsh, iGammaRsh, iRrsh,
                      igm, igc, igM, iB, iTheta, iz_cool, ix, inprime, iacc_frac,
                      iEint3, iErad3, iEad3, iEsh3, iM3, ideltaR4, iGamma43, iadi3, irho4, irho3,
-                     ithichness_rs, iU_p3,
+                     ithickness_rs, iU_p3,
                      igm_rs, igc_rs, igM_rs, iB3, iTheta_rs, iz_cool_rs, ix_rs,
                      inprime_rs, iacc_frac_rs,
              }},
@@ -300,14 +300,14 @@ namespace SOL{
 //                                    "Rw", "momW", "enbW", "EpwnW", "ttW"};
 
     enum QS { iR, iRsh, itt, itcomov, iGamma, iEint2, iEint3, itheta,
-            iErad2, iErad3, iEsh2, iEsh3, iEad2, iEad3, iM2, iM3, ideltaR4,
+            iRrsh, iErad2, iErad3, iEsh2, iEsh3, iEad2, iEad3, iM2, iM3, ideltaR4,
         iRw, iWmom, iWenb, iWepwn, iWtt};
     std::vector<std::string> vars { "R", "Rsh", "tt", "tcomov", "Gamma",
-                                    "Eint2", "Eint3", "theta",
+                                    "Eint2", "Eint3", "theta", "Rsh_rs",
                                     "Erad2", "Erad3", "Esh2", "Esh3", "Ead2", "Ead3", "M2", "M3", "deltaR4",
                                     "Rw", "momW", "enbW", "EpwnW", "ttW"};
 
-    const static int neq = 22;
+    const static int neq = 23;
 }
 
 #endif //SRC_BLASTWAVE_PARS_H

@@ -286,7 +286,6 @@ class EATS {
 
     // --- for adaptive quad. method
     int nmax_phi=-1, nmax_theta=-1;
-    double rtol_theta=-1., rtol_phi=-1.;
     double atol_theta=-1., atol_phi=-1.;
     int error = 0;
     double current_phi_hi=-1.;
@@ -395,46 +394,37 @@ class EATS {
                              void* params ){
 
         auto * p_pars = (struct EATS *) params; // removing EATS_pars for simplicity
-//        auto & p_syn_a = p_pars->p_syn_a;//->getAnSynch();
-//        auto * p_log = p_ params;
-//        auto & m_data = p_pars->m_data;
-        auto & tburst = p_pars->m_tburst;//m_data[BW::Q::itburst];
-        auto & r_arr = p_pars->m_r;//m_data[BW::Q::itburst];
-        auto & mu_arr = p_pars->m_mu;//m_data[BW::Q::itburst];
-
-        if (r_arr[0] == 0.0 && r_arr[p_pars->m_i_end_r - 1] == 0.0){
+        if (p_pars->m_r[0] == 0.0 && p_pars->m_r[p_pars->m_i_end_r - 1] == 0.0){
             (*p_pars->p_log)(LOG_WARN, AT)
                     << " blast wave not evolved, flux=0 [ishell=" << p_pars->ishell << ", ilayer=" << p_pars->ilayer << "]\n";
             return 0.0;
         }
 
+        /// current theta
         double a_theta = arccos(i_cos_theta);
         mu = p_pars->obsangle(a_theta, i_phi, p_pars->theta_obs);
-
         p_pars->theta = a_theta;
-//        p_pars->o_phi = i_phi;
-//        p_pars->o_theta = a_theta;
-//        p_pars->o_mu = mu;
 
-//        double dFnu = 0.;
-        size_t ia = findIndex(mu, mu_arr, p_pars->m_i_end_r);
+        /// find indeces of the BW dynamics that correspond to this EATS time
+        size_t ia = findIndex(mu, p_pars->m_mu, p_pars->m_i_end_r);
         size_t ib = ia + 1;
-        /// interpolate the time in comobing frame that corresponds to the t_obs in observer frame
-        double t_e = interpSegLin(ia, ib, mu, mu_arr, tburst);
-        t_e = check_emission_time(t_e, mu, p_pars->t_obs, mu_arr, (int) p_pars->m_i_end_r);
-        if (t_e < 0.0||!std::isfinite(t_e)) {
+
+        /// interpolate the time in burster frame that corresponds to the t_obs in observer frame
+        double t_e = interpSegLin(ia, ib, mu, p_pars->m_mu, p_pars->m_tburst);
+        t_e = check_emission_time(t_e, mu, p_pars->t_obs, p_pars->m_mu, (int) p_pars->m_i_end_r);
+        if ((t_e < 0.0)||(!std::isfinite(t_e))) {
             // REMOVING LOGGER
             (*p_pars->p_log)(LOG_ERR,AT) << " t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";
 //            std::cerr << AT  << "Error t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";
             return 0.;
         }
         /// -----------------------------------------
-        double flux_dens = 0; //r = 0, ctheta=0.;
+        double flux_dens = 0;
         p_pars->fluxFuncA(flux_dens, r, ctheta, a_theta, i_phi,
                           ia, ib, mu, t_e, p_pars->t_obs, p_pars->nu_obs, p_pars->m_params);
-//        std::cout<<"fluxdens="<<flux_dens<<"\n";
+
         /// ----------------------------------------
-        gam = interpSegLog(ia, ib, t_e, tburst, p_pars->m_gam);
+        gam = interpSegLog(ia, ib, t_e, p_pars->m_tburst, p_pars->m_gam);
 
 #if 0
         /// Observed flux density evaluation (interpolate comoving spectrum)
@@ -517,7 +507,7 @@ class EATS {
             dr_tau /= ashock;
             double dtau = ElectronAndRadiaionBase::optical_depth(abs_lab,dr_tau, mu, beta_shock);
             double intensity = ElectronAndRadiaionBase::computeIntensity(em_lab, dtau,
-                                                               p_syn_a->getPars()->method_tau);
+                                                               p_mphys->getPars()->method_tau);
             double flux_dens = (intensity * r * r * dr); //* (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
             dFnu+=flux_dens;
             /// save the result in image
@@ -894,6 +884,9 @@ class EATS {
     }
 
 public:
+
+    double rtol_theta=-1., rtol_phi=-1.;
+
     /// ---------------------------------------------------------------------------
 
     EATS(Vector & tburst, Vector & tt, Vector & r, Vector & theta, Vector & m_gam, Vector & m_bet,
@@ -942,10 +935,12 @@ public:
         // set parameters
         nmax_phi = (int)getDoublePar("nmax_phi", pars, AT, p_log,1000, false);//pars.at("nmax_phi");
         nmax_theta = (int)getDoublePar("nmax_theta", pars, AT, p_log,1000, false);//pars.at("nmax_theta");
-        rtol_theta = getDoublePar("rtol_theta", pars, AT, p_log,1e-2, false);//pars.at("rtol_theta");
-        rtol_phi = getDoublePar("rtol_phi", pars, AT, p_log,1e-2, false);//pars.at("rtol_phi");
-        atol_theta = getDoublePar("atol_theta", pars, AT, p_log,1e-2, false);//pars.at("atol_theta");
-        atol_phi = getDoublePar("atol_phi", pars, AT, p_log,1e-2, false);//pars.at("atol_phi");
+//        rtol_theta = getDoublePar("rtol_theta", pars, AT, p_log,1e-2, false);//pars.at("rtol_theta");
+//        rtol_phi = getDoublePar("rtol_phi", pars, AT, p_log,1e-2, false);//pars.at("rtol_phi");
+//        atol_theta = getDoublePar("atol_theta", pars, AT, p_log,1e-2, false);//pars.at("atol_theta");
+//        atol_phi = getDoublePar("atol_phi", pars, AT, p_log,1e-2, false);//pars.at("atol_phi");
+        rtol_phi = getDoublePar("rtol_phi", pars, AT, p_log,1e-15, true);;
+        rtol_theta = getDoublePar("rtol_theta", pars, AT, p_log,1e-15, true);;
         theta_obs = getDoublePar("theta_obs", pars, AT, p_log,-1, true);//pars.at("theta_obs");
         d_l = getDoublePar("d_l", pars, AT, p_log,-1, true);//pars.at("d_l");
         z = getDoublePar("z", pars, AT, p_log,-1, true);//pars.at("z");
@@ -978,7 +973,7 @@ public:
         method_quad = methodsQuadratures;
 
         /// set synchrotron parameters
-//            p_syn_a->setPars(pars, opts);
+//            p_mphys->setPars(pars, opts);
         skymap_remove_mu = getBoolOpt("skymap_remove_mu", opts, AT, p_log,true, true);
 
     }
@@ -986,13 +981,12 @@ public:
 
     /// eval light curve using Adapitve or Piece-Wise EATS method
     void evalLightCurve(Vector & out, EjectaID2::STUCT_TYPE m_method_eats, Vector & times, Vector & freqs ){
-        double rtol = 1e-10;
         VecVector empty{};
         for (size_t it = 0; it < times.size(); it++) {
             if (m_method_eats == EjectaID2::STUCT_TYPE::ipiecewise)
                 out[it] = evalSkyMapPW(empty, times[it], freqs[it], 0);
             else{
-                double atol = out[it] * rtol / (double)nlayers;
+                double atol = out[it] * rtol_theta / (double)nlayers;
                 out[it] += evalFluxDensA(times[it], freqs[it], atol);
             }
         }
@@ -1012,15 +1006,17 @@ public:
                  0., M_PI, obsAngle);
         check_pars();
         double Fcoeff = CGS::cgs2mJy / (4.0 * M_PI * d_l * d_l); // result will be in mJy
-        atol_theta = atol/(2*Fcoeff*M_PI);// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
-        atol_phi = atol/(2*Fcoeff*M_PI);//  / (2.0 * Fcoeff);
+//        rtol_theta = rtol;
+//        rtol_phi = rtol;
+        atol_theta = atol/(2.*Fcoeff*M_PI);// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
+        atol_phi = atol/(2.*Fcoeff*M_PI);//  / (2.0 * Fcoeff);
         fluxdens += integrate_theta_phi(); // 2. because Integ_0^pi (not 2pi)
         if (counter_jet){
             parsPars(t_obs, nu_obs, theta_c_l, theta_c_h,
                      0., M_PI, obsAngleCJ);
             check_pars();
-            atol_theta = atol;// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
-            atol_phi = atol;//  / (2.0 * Fcoeff);
+//            atol_theta = atol/(2.*Fcoeff*M_PI);// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
+//            atol_phi = atol/(2.*Fcoeff*M_PI);//  / (2.0 * Fcoeff);
             fluxdens += integrate_theta_phi();
         }
         return fluxdens;

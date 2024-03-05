@@ -864,7 +864,7 @@ struct PWNPars{
     std::unique_ptr<Ejecta> & p_ej;
     std::unique_ptr<Magnetar> & p_mag;
     std::unique_ptr<MagnetarSynchrotron> p_syn = nullptr;
-//        std::unique_ptr<SynchrotronAnalytic> p_syn_a = nullptr;
+//        std::unique_ptr<SynchrotronAnalytic> p_mphys = nullptr;
     std::unique_ptr<logger> p_log;
     Vector m_freq_arr{}; Vector m_time_arr{}; Vector m_r_arr{};
     Vector m_synch_em{}; Vector m_synch_abs{}; Vector m_spectrum{};
@@ -1722,10 +1722,10 @@ public:
         double tburst= interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::itburst]);
         ctheta = p_pars->ctheta0;
         // double GammaSh = ( Interp1d(m_data[BW::Q::iR], m_data[BW::Q::iGammaFsh] ) ).Interpolate(r, mth );
-        /// computeSynchrotronEmissivityAbsorptionAnalytic Doppler factor
+        /// compute Doppler factor
         double a = 1.0 - beta * mu; // beaming factor
         double delta_D = Gamma * a; // doppler factor
-        /// computeSynchrotronEmissivityAbsorptionAnalytic the comoving obs. frequency from given one in obs. frame
+        /// compute the comoving obs. frequency from given one in obs. frame
         double nuprime = (1.0 + p_pars->z) * nu_obs * delta_D;
         if (nuprime < p_pars->m_freq_arr[0]) {
             (*p_pars->p_log)(LOG_WARN, AT) << " freqprime=" << nuprime << " < freq_arr[0]="
@@ -1774,13 +1774,17 @@ public:
         /// computeSynchrotronEmissivityAbsorptionAnalytic optical depth (for this shock radius and thickness are needed)
         double GammaShock = interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::iGammaTermShock]);
         double dr = interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::idr]);
-        double dr_tau = EQS::shock_delta(r, GammaShock); // TODO this is added becasue in Johanneson Eq. I use ncells
+        double dr_tau = dr;////EQS::shock_delta(r, GammaShock); // TODO this is added becasue in Johanneson Eq. I use ncells
 
         double beta_shock = EQS::Beta(GammaShock);
         double ashock = (1.0 - mu * beta_shock); // shock velocity beaming factor
         dr /= ashock; // TODO why is this here? What it means? Well.. Without it GRB LCs do not work!
         dr_tau /= ashock;
-        double dtau = optical_depth(abs_lab, dr_tau, mu, beta_shock);
+        double dtau;
+        if(mu == beta_shock)
+            dtau = 1.0e100; // HUGE VAL, just in case
+        else
+            dtau = abs_lab * dr * (1. - mu * beta_shock) / (mu - beta_shock);
         double intensity = computeIntensity(em_lab, dtau, METHOD_TAU::iSMOOTH);
         flux_dens = (intensity/* * r * r * dr*/) * (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
 
