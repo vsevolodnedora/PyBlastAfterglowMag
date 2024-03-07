@@ -10,6 +10,8 @@ import itertools
 
 from .utils import cgs, get_beta, find_nearest_index
 
+
+
 def get_str_val(v_n, val):
     # if v_n == "theta_obs":
     #     val = "{:.0f}".format(val * 180.0 / np.pi) # rad -> deg
@@ -353,3 +355,210 @@ def modify_parfile_par_opt(workingdir : str, part : str, newpars : dict, newopts
     copyfile(workingdir+"tmp_mod_{}".format(newparfile),workingdir+newparfile)
     os.remove(workingdir+"tmp_{}".format(newparfile))
     os.remove(workingdir+"tmp_mod_{}".format(newparfile))
+
+class Defaults:
+
+    parfile_main_part = dict(
+        pars=dict(
+            tb0 = 1.e3,     # [numeric] start of the time grid (burster frame) [s]
+            tb1 = 1.e12,    # [numeric] end of the time grid (burster frame) [s]
+            ntb = 1000,     # [numeric] number of grid points for ODE solver
+            iout = 1,       # [numeric] keep (store) solution at 'iout'th iteration
+            rtol = 1e-8,    # [numeric] relative tolerance for ODE solver
+            nmax = 1000,    # [numeric] maximum number of iteration for adaptive ODE solver
+            A0 = -1,        # [ISM] wind environment constant, keep =0 for uniform ISM
+            s = -1,         # [ISM] wind environment slope, keep =0 for uniform ISM
+            r_ej = -1,      # [ISM] radius at which first break in density profile [cm]
+            r_ism = -1,     # [ISM] radius at which second break in density profile [cm]
+            n_ism = 10.,    # [ISM] ism number density if it is constnat [cm^-3]
+            d_l = 3.09e26,  # [source] luminocity distance to the source
+            z = 0.028,      # [source] redshift of the source
+            theta_obs = 0   # [source] observer angle with respect to the polar axis
+        ),
+        opts=dict(
+            do_average_solution = "no", # [numeric] store only averaged ODE result for 'n_store_substeps' (see below)
+            lc_freqs = "array 1e9 1e18", # [obs] frequencies to compute light curve [Hz]
+            lc_times = "array logspace 3.e3 1.e10 100", # [obs] times to compute light curve [s]
+            lc_use_freq_to_time = "no", # [obs] assume freq-to-time 1-1 relation (lc=len(times)*len(freqs) otherwise)
+            skymap_freqs = "array 1e9 1e18", # [obs] frequencies to compute skymap [Hz]
+            skymap_times = "array logspace 8.e5 2e9 50", # [obs] times to compute skymaps [s]
+            integrator = "DOP853E", # [numeric] ODE solver (DOP853E uses adaptive step-size)
+        )
+    )
+    parfile_grb_part = dict(
+        pars=dict(
+            # Forward Shock Microphysics
+            eps_e_fs = 0.1,
+            eps_b_fs = 0.01,
+            eps_t_fs = 0.,
+            p_fs = 2.2,
+            ksi_n_fs = 1.,
+            # Comoving spectra settings
+            gam1 = 1.,      # [numeric] lower lim for comoving electron spectrum
+            gam2 = 1.e8,    # [numeric] upper lim for comoving electron spectrum
+            ngam = 250,     # [numeric] size of the electron grid points for Chang-Cooper scheme
+            freq1 = 1.e5,   # [numeric] lower lim for comoving synchrotron spectrum
+            freq2 = 1.e22,  # [numeric] upper lim for comoving synchrotron spectrum
+            nfreq = 200,    # [numeric] size of the freq. grid points for Chang-Cooper scheme
+            # -------------------
+            n_store_substeps = 10,  # use n steps of ODE solver to average over and store (used if iout >> 1)
+            tprompt = 1e3,          # [RS] duration of the ejection (for RS initial width Delta=tprompt*c)
+            a = 0,                  # [spread] if method_spread="AA", controls dtheta/dR power
+            rs_shutOff_criterion_rho = 1e-50, # [RS] criterion for rho4 when to shut down the reverse shock
+            mom0_frac_when_start_spread = 0.9, # [spread] frac, when to allow spread, \Gamma\beta < frac * Gamma\beta_0
+            save_dyn_every_it = 10, # [numeric] if to save dynamics, save every it'th iteration,
+            rtol_phi = 1e-6,        # [eats] relative tolerance for adaptive quadrature for EATS integration
+            rtol_theta = 1e-6,      # [eats] relative tolerance for adaptive quadrature for EATS integration
+        ),
+        opts=dict(
+            run_bws = "yes",        # [task] evolve the blastwaves (if no, expected that load_dynamics=yes)
+            save_dynamics = "no",   # [task] save blastwaves evolution history
+            load_dynamics = "no",   # [task] load the blastwave dynamics from a file
+            do_ele = "yes",         # [task] compute comoving electron spectrum (numerically or analytically)
+            do_spec = "no",         # [task] compute comoving synchrotron/SSC spectrum (numerically or analytically)
+            save_spec = "no",       # [task] save comoving ele/synchrotron/SSC spectrum (numerically or analytically)
+            do_lc = "yes",          # [task] compute & save light curves
+            do_skymap = "no",       # [task] compute & save raw skymaps
+            skymap_remove_mu = "no",# [task] remove 'mu' from skymap calculation
+
+            do_rs = "no",               # [RS] include RS into consideration (main switch)
+            bw_type = "fs",             # [numeric] type pf the blastwave RHS to use, e.g. fs - forward shock only
+            method_collision = "none",  # [numeric] include blastwave collision (UNFINISHED)
+            method_eats = "adaptive",   # [numeric] main switch for blastwave discretezation (piece-wise or adaptive)
+            method_quad = "CADRE",      # [numeric] EATS quadrature method (CADRE is adaptive)
+            method_comp_mode = "comovSpec", # [numeric] interpolated comoving spectra, or compute in-situe
+            allow_termination = "no",   # [numerc] continue if one of the blastwaves fails (ODE solver fails)
+
+            do_thermrad_loss = "no",    # [numeric] include thermal radiation from ejecta (UNFINISHED)
+
+            use_1d_id = "yes",          # [I/O] type of the initail data, if 'yes' expects 1D arrays with E,Gamma...
+            fname_ejecta_id = "id.h5",  # [I/O] file name (in working_dir) with initial data
+            load_r0 = "no",             # [I/O] use R0 from the file instead of computing it as R0=beta0 * tb0 * c
+            fname_dyn = "dyn.h5",       # [I/O] file name (in working_dir) to save dynamics
+            fname_light_curve = "lc.h5",# [I/O] file name (in working_dir) to save light curve
+            fname_sky_map = "skymap.h5",# [I/O] file name (in working_dir) to save raw light curve
+
+            do_nucinj = "no", # [numeric] include r-process heating in ejecta (UNFINISHED)
+
+            method_spread = "AFGPY",            # [spread] method for lateral spreading
+            method_limit_spread = "Mom0Frac",   # [numeric] how to limit spreading of the blastwave
+            method_dgdr = "our",                # [numeric] choice of equation for BW dynamical evolution dGamma/dR
+            method_eos = "Nava13",              # [numeric] choice of EOS for the blast wave
+            use_adiabLoss = "yes",              # [numeric] include blast wave adiabatic lossess
+            method_dmdr = "usingdthdr",         # [numeric] choice of equation for accreted mass dm/dr
+
+            use_dens_prof_behind_jet_for_ejecta = "no", # [numeric] include jet in ejecta mode (UNFINISHED)
+
+            # --- Forward Shock ---
+            # method_radius_fs = "useGammaR",       # [numeric] how to ge radius for forward shock (use GammaShock or not)
+            method_Gamma_fs = "useGammaShock",  # [numeric] compute GammaShock via EOS or assume = to Gamma
+            method_Up_fs = "useEint2",          # [numeric] compute internal energy from Eint2 or Gamma
+            method_thickness_fs = "useJoh06",   # [numeric] compute shock thickness dR, as 1/Gamma^2 or Johannesson paper
+            method_vel_fs = "shockVel",         # [numeric] in EATS, compute abberation using GammaShock or Gamma
+            method_ele_fs = "numeric",         # [numeric] assume analytical electron profile or evolve
+            method_ne_fs = "useNe",             # [numeric] compute emissivities using Ne or nprime
+            method_nonrel_dist_fs = "none",     # [numeric] include Deep Newtonian regime for electron dist.
+            method_gamma_min_fs = "useNumericGamma",     # [numeric] how to compute gamma_min
+            method_gamma_c_fs = "useTcomov",    # [numeric] how to compute gamma_c
+            method_gamma_max_fs = "useB",       # [numeric] how to compute gamma_max
+            method_B_fs = "useU_b" ,            # [numeric] how to compute magnetic field
+            method_synchrotron_fs = "Dermer09", # [numeric] method for the synchrotron radiation
+            use_ssa_fs = "no",                  # [numeric] include SSA
+            method_ssc_fs = "none",             # [numeric] method for SSC
+            method_tau_fs = "smooth",           # [numeric] method for optical depth calculation in shock
+
+            # --- Reverse Shock ---
+            # method_radius_rs = "sameAsR",     # [numeric] how to ge radius for reverse shock (use GammaShock or not)
+            method_Gamma_rs = "useGammaShock",  # [numeric] compute GammaShock via EOS or assume = to Gamma
+            method_Up_rs = "useEint2",          # [numeric] compute internal energy from Eint2 or Gamma
+            method_thickness_rs = "useJoh06",   # [numeric] compute shock thickness dR, as 1/Gamma^2 or Johannesson paper
+            method_vel_rs = "shockVel",         # [numeric] compute shock thickness dR, as 1/Gamma^2 or Johannesson paper
+            method_ele_rs = "numeric",         # [numeric] assume analytical electron profile or evolve
+            method_ne_rs = "useNe",             # [numeric] compute emissivities using Ne or nprime
+            method_nonrel_dist_rs = "none",     # [numeric] include Deep Newtonian regime for electron dist.
+            method_gamma_min_rs = "useNumericGamma",     # [numeric] how to compute gamma_min
+            method_gamma_c_rs = "useTcomov",        # [numeric] how to compute gamma_c
+            method_gamma_max_rs = "useB",       # [numeric] how to compute gamma_max
+            method_B_rs = "useU_b",             # [numeric] how to compute magnetic field
+            method_synchrotron_rs = "Dermer09", # [numeric] method for the synchrotron radiation
+            use_ssa_rs = "no",                  # [numeric] include SSA
+            method_ssc_rs = "none",             # [numeric] method for SSC
+            method_tau_rs = "smooth",           # [numeric] method for optical depth calculation in shock
+        )
+    )
+
+    parfile_kn_part = dict(
+        pars = dict(),
+        opts = dict()
+    )
+
+    parfile_mag_part = dict(
+        pars = dict(),
+        opts = dict()
+    )
+
+def _create_parfile_part(lines:list,part:str,sep1:str,sep2:str,default:dict,new:dict):
+    sep_pars = "* Parameters"
+    sep_opts = "* Settings"
+    # update main parameters if they are in the 'P'
+    if part in new.keys():
+        # update if needed
+        for k, v in new[part].items():
+            # check parameters
+            if k in default["pars"].keys():
+                default["pars"][k] = v
+            elif k in default["opts"].keys():
+                default["opts"][k] = v
+            else:
+                raise KeyError("key = {} is not in the {} parameters: {} \n or  options: {} \n"
+                               .format(k,part,default["pars"].keys(), default["opts"].keys()))
+    # Creat Main Section of the Parfile
+    lines.append("\n"); lines.append(sep1)
+    lines.append("\n"); lines.append(sep_pars); lines.append("\n")
+    for k, v in default["pars"].items():
+        lines.append(f"{k} = {v}")
+    lines.append("\n"); lines.append(sep_opts); lines.append("\n")
+    for k, v in default["opts"].items():
+        lines.append(f"{k} = {v}")
+    lines.append("\n"); lines.append(sep2); lines.append("\n")
+    return lines
+def create_parfile(working_dir : str, P : dict):
+    if not os.path.isdir(working_dir):
+        os.mkdir(working_dir)
+    lines = []
+    lines = _create_parfile_part(lines=lines,part="main",
+                         sep1="# -------------------------- main ---------------------------",
+                         sep2="# --------------------------- END ---------------------------",
+                         default=copy.deepcopy(Defaults.parfile_main_part),
+                         new=P)
+
+    if ("grb" in P.keys()):
+        lines = _create_parfile_part(
+            lines=lines,part="grb",
+            sep1="# ---------------------- GRB afterglow ----------------------",
+            sep2="# --------------------------- END ---------------------------",
+            default=copy.deepcopy(Defaults.parfile_grb_part),
+            new=P
+        )
+
+    if ("kn" in P.keys()):
+        lines = _create_parfile_part(
+            lines=lines,part="kn",
+            sep1="# ----------------------- kN afterglow ----------------------",
+            sep2="# --------------------------- END ---------------------------",
+            default=copy.deepcopy(Defaults.parfile_kn_part),
+            new=P
+        )
+
+    if ("magnetar" in P.keys()):
+        _create_parfile_part(
+            lines=lines,part="magnetar",
+            sep1="# ------------------------ Magnetar -------------------------",
+            sep2="# --------------------------- END ---------------------------",
+            default=copy.deepcopy(Defaults.parfile_mag_part),
+            new=P
+        )
+
+    with open(working_dir+"parfile.par", 'w') as f:
+        for line in lines:
+            f.write(f"{line}\n")

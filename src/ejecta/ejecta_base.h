@@ -182,7 +182,7 @@ public:
             for (auto & arr : status)
                 arr.resize(nshells(), '-');
             tobs_ej_max.resize(nlayers(),0.);
-            im_max_theta = getDoublePar("im_max_theta", m_pars, AT, p_log, CGS::pi/2., true);
+            im_max_theta = getDoublePar("im_max_theta", m_pars, AT, p_log, CGS::pi/2., false);
             if (im_max_theta <= 0.)
                 im_max_theta = id->theta_wing;
         }

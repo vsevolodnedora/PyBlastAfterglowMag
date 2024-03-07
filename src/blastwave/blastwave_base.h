@@ -228,9 +228,15 @@ public:
             if(opts.at(opt) == "None") {
                 method_limit_spread = METHOD_LIMIT_SPREAD::iNone;
             }
-            else if(opts.at(opt) == "Gamma0Frac") {
+            else if(opts.at(opt) == "Mom0Frac") {
                 p_pars->fraction_of_mom0_when_spread_start =
                         (double)getDoublePar("mom0_frac_when_start_spread",pars, AT,p_log,.75, true);
+                if (p_pars->fraction_of_mom0_when_spread_start <=0. or p_pars->fraction_of_mom0_when_spread_start > 1.){
+                    (*p_log)(LOG_ERR,AT) << " Bad Value. mom0_frac_when_start_spread = "
+                        << p_pars->fraction_of_mom0_when_spread_start
+                        << "\n";
+                    exit(1);
+                }
                 method_limit_spread = METHOD_LIMIT_SPREAD::iGamma0Frac;
             }
             else if(opts.at(opt) == "GammaVal") {

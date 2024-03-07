@@ -187,7 +187,7 @@ private:
             syn.a[i] *= -1. / (8. * M_PI * CGS::me * std::pow(syn.e[i]/8.093440820813486e-21, 2));
             if (!std::isfinite(syn.a[i])){
                 std::cerr << AT<< " nan in computeSSA()\n";
-//                exit(1);
+                exit(1);
             }
         }
     }

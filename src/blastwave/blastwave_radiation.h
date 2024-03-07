@@ -94,13 +94,13 @@ static void fluxDensAdaptiveWithComov(
                                      << "\n";
         return;
     }
-    double Gamma = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::iGamma]);
-    double beta = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::ibeta]);
-    double GammaShock = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::iGammaFsh]);
-    double dr = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::ithickness]);
-    double ne = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::iM2]) / CGS::mp;
-    double n_prime = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::irho2]) / CGS::mp;
-    double rsh = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::iRsh]);
+    double Gamma = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::iGamma]);
+    double beta = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::ibeta]);
+    double GammaShock = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::iGammaFsh]);
+    double dr = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::ithickness]);
+    double ne = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::iM2]) / CGS::mp;
+    double n_prime = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::irho2]) / CGS::mp;
+    double rsh = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::iRsh]);
 
     /// compute Doppler factor
     double a = 1.0 - beta * mu; // beaming factor
@@ -110,8 +110,8 @@ static void fluxDensAdaptiveWithComov(
     double nuprime = (1.0 + p_pars->z ) * nu_obs * delta_D;
 
     /// save the result in image
-    ctheta = interpSegLin(ia, ib, t_e, tburst, Dt[BW::Q::ictheta]);
-    theta = interpSegLin(ia, ib, t_e, tburst, Dt[BW::Q::itheta]);
+    ctheta = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::ictheta]);
+    theta = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::itheta]);
 
     flux_dens = p_pars->p_mphys->fluxDens(
             EjectaID2::STUCT_TYPE::iadaptive, theta, p_pars->ncells,
@@ -120,11 +120,11 @@ static void fluxDensAdaptiveWithComov(
 
     if (p_pars->m_type == BW_TYPES::iFSRS && p_pars->do_rs_radiation) {
         if (Dt[BW::Q::ithickness_rs][ia] > 0 and Dt[BW::Q::ithickness_rs][ib] > 0) {
-            double GammaShock_rs = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::iGammaRsh]);
-            double dr_rs = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::ithickness_rs]);
-            double ne_rs = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::iM3]) / CGS::mp;
-            double n_prime_rs = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::irho3]) / CGS::mp;
-            double r_rsh = interpSegLog(ia, ib, t_e, tburst, Dt[BW::Q::iRrsh]);
+            double GammaShock_rs = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::iGammaRsh]);
+            double dr_rs = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::ithickness_rs]);
+            double ne_rs = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::iM3]) / CGS::mp;
+            double n_prime_rs = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::irho3]) / CGS::mp;
+            double r_rsh = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::iRrsh]);
 
             double flux_dens_rs = p_pars->p_mphys_rs->fluxDens(
                     EjectaID2::STUCT_TYPE::iadaptive, theta, p_pars->ncells,
@@ -1086,13 +1086,14 @@ public:
                                                                        m_data[BW::Q::ithickness_rs][it]);
                     else{
                         if (not p_mphys_rs->is_distribution_initialized)
-                            p_mphys_rs->is_distribution_initialized = true;
-//                            p_mphys_rs->initializeElectronDistribution(
-//                                    m_data[BW::Q::itcomov][it],m_data[BW::Q::iM3][it]);
+//                            p_mphys_rs->is_distribution_initialized = true;
+                            p_mphys_rs->initializeElectronDistribution(
+                                    m_data[BW::Q::itcomov][it],m_data[BW::Q::iM3][it]);
                         else
                             p_mphys_rs->evaluateElectronDistributionNumeric(
                                     m_data[BW::Q::itcomov][it-1], m_data[BW::Q::itcomov][it],
                                     m_data[BW::Q::iM3][it-1], m_data[BW::Q::iM3][it],
+                                    m_data[BW::Q::irho3][it-1], m_data[BW::Q::irho3][it],
                                     m_data[BW::Q::iR][it-1], m_data[BW::Q::iR][it],
                                     m_data[BW::Q::ithickness_rs][it - 1], m_data[BW::Q::ithickness_rs][it]);
                         if (p_mphys_rs->is_distribution_initialized)
@@ -1139,6 +1140,7 @@ public:
                         p_mphys->evaluateElectronDistributionNumeric(
                                 m_data[BW::Q::itcomov][it-1], m_data[BW::Q::itcomov][it],
                                 m_data[BW::Q::iM2][it-1], m_data[BW::Q::iM2][it],
+                                m_data[BW::Q::irho2][it-1], m_data[BW::Q::irho2][it],
                                 m_data[BW::Q::iR][it-1], m_data[BW::Q::iR][it],
                                 m_data[BW::Q::ithickness][it-1], m_data[BW::Q::ithickness][it]);
                     if (p_mphys->is_distribution_initialized)

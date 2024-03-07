@@ -222,7 +222,7 @@ public:
         else
             fs_or_rs += "_fs";
 
-        ksi_n = getDoublePar("ksi_n" + fs_or_rs, pars, AT, p_log, 1., false);//pars.at("ksi_n");
+//        ksi_n = getDoublePar("ksi_n" + fs_or_rs, pars, AT, p_log, 1., false);//pars.at("ksi_n");
         eps_e = getDoublePar("eps_e" + fs_or_rs, pars, AT, p_log, -1, true);//pars.at("eps_e");
         eps_b = getDoublePar("eps_b" + fs_or_rs, pars, AT, p_log, -1, true);//pars.at("eps_b");
         eps_t = getDoublePar("eps_t" + fs_or_rs, pars, AT, p_log, 0., true);//pars.at("eps_t");
@@ -666,8 +666,8 @@ public:
         beta = EQS::Beta(Gamma_shock); // for bisect solver
         t_e = t_e_; // for bisect solver
         tcomov = tcomov_; // for bisect solver
-        n_prime = ksi_n * n_prime_; //  for bisect solver
-        n_protons = ksi_n * n_protons_;
+        n_prime = n_prime_; //  for bisect solver
+        n_protons = n_protons_;
 //        r = r_;
 //        dr = dr_;
 
@@ -803,7 +803,7 @@ protected:
     double tcomov0=-1.;
     double tcomov=-1;
     /// --------------------------------------
-    double eps_e=-1, eps_b=-1, eps_t=-1, p=-1, ksi_n=-1;
+    double eps_e=-1, eps_b=-1, eps_t=-1, p=-1;// ksi_n=-1;
     double mu=-1, mu_e=-1;
     bool lim_gm_to_1= true;
     /// --------------------------------------
@@ -849,10 +849,10 @@ protected:
             (*p_log)(LOG_ERR,AT) << " eps_e is not set (eps_e="<<p<<")\n";
             exit(1);
         }
-        if (ksi_n <= 0){
-            (*p_log)(LOG_ERR,AT)<< " ksi_n is not set (ksi_n="<<ksi_n<<")\n";
-            exit(1);
-        }
+//        if (ksi_n <= 0){
+//            (*p_log)(LOG_ERR,AT)<< " ksi_n is not set (ksi_n="<<ksi_n<<")\n";
+//            exit(1);
+//        }
         if (n_prime <= 0){
             (*p_log)(LOG_ERR,AT) << " n_prime is not set (n_prime="<<n_prime<<")\n";
             exit(1);
@@ -934,8 +934,8 @@ protected:
                 gamma_min = Bisect(ElectronAndRadiaionBase::gammaMinFunc,
                                    1., 1.e8, 0., .001, 100, this, status);
                 /// If numerical solution failed, use simple analytical solution
-                if (status < 0)
-                    gamma_min = (p - 2.) / (p - 1.) * (eps_e * CGS::mp / CGS::me * (GammaSh - 1.) + 1.);
+                if (status < 0 || gamma_min <= 0.)
+                    gamma_min = gamma_min_3;
                 break;
             case igmMAG21:
                 gamma_min = gamma_min_4;
@@ -1111,7 +1111,7 @@ public: // ---------------- ANALYTIC -------------------------- //
         em=0., abs=0.;
 
 //        nn = n_protons;
-        nn *= ksi_n;// TODO this is not included in normalization obs.flux
+//        nn *= ksi_n;// TODO this is not included in normalization obs.flux
 
         // defined in Margalit+21 arXiv:2111.00012
         double delta = eps_e / eps_t;
@@ -1270,10 +1270,15 @@ public: // -------------------- NUMERIC -------------------------------- //
         double n_inj = m2 / CGS::mp;
         powerLawElectronDistributionAnalytic(tcomov, n_inj, ele.f);
         is_distribution_initialized = true;
+        double n_ele_num = 0;
+        for (size_t i = 0; i < ele.numbins-1; i++)
+            n_ele_num += ele.f[i] * ele.de[i];
+        n_ele_out = n_ele_num;
     }
 
     void evaluateElectronDistributionNumeric(
-            double tcomov, double tcomov_1, double m_m1, double m,
+            double tc, double tc_p1, double m, double m_p1,
+            double rho_prime, double rho_prime_p1,
             double r, double rp1, double dr, double drp1){
 
         /// check parameters
@@ -1289,24 +1294,26 @@ public: // -------------------- NUMERIC -------------------------------- //
 
 
         /// compute analytical electron spectrum
-        double n_inj = (m - m_m1) / CGS::mp;
+        double n_inj = (m_p1 - m) / CGS::mp;
         n_inj *= accel_frac;
         double n_ele_an=0.;
         Vector tmp (ele.numbins,0.);
-        powerLawElectronDistributionAnalytic(tcomov, (m*accel_frac)/CGS::mp, tmp);
+        powerLawElectronDistributionAnalytic(tc, (m_p1 * accel_frac) / CGS::mp, tmp);
 
         /// check continouity
         for (size_t i = 0; i < ele.numbins-1; i++)
             n_ele_an += tmp[i] * ele.de[i];
         n_ele_out = n_ele_an;
-        double ratio_an = m/CGS::mp / n_ele_an;
+        double ratio_an = m_p1 / CGS::mp / n_ele_an;
 
-        double dt = tcomov_1 - tcomov;
+        double dt = tc_p1 - tc;
         /// for adiabatic cooling of electron distribution (Note it may be turned off)
-        double vol = r * r * dr;
-        double vol_p1 = rp1 * rp1 * drp1;
+        double vol = m / rho_prime;//r * r * dr;
+//        double vol = r * r * dr;
+        double vol_p1 = m_p1 / rho_prime_p1;//rp1 * rp1 * drp1;
+//        double vol_p1 = rp1 * rp1 * drp1;
         double dlnVdt = num_ele_use_adi_loss ? 1. / dt * (1. - vol / vol_p1) : 0.;
-        if (!std::isfinite(dlnVdt)){
+        if ((!std::isfinite(dlnVdt)) || (dlnVdt < 0)){
             (*p_log)(LOG_ERR,AT) << " dlnVdt= "<<dlnVdt<<"\n";
             exit(1);
         }
@@ -1391,7 +1398,7 @@ public: // -------------------- NUMERIC -------------------------------- //
         model.update_radiation(do_ssa, do_ssc); // saves photon density in syn.n[] -> used in ssc cooling next iteration
 
         /// check continouity
-        (*p_log)(LOG_INFO,AT) << "t="<<tcomov
+        (*p_log)(LOG_INFO,AT) << "t=" << tc
             <<" n="<<n_substeps
             <<" inj/an="<< ratio_an
             <<" inj/num="<< ratio_num
@@ -1403,7 +1410,10 @@ public: // -------------------- NUMERIC -------------------------------- //
     }
 
     void storeSynchrotronSpectrumNumeric(size_t it){
-
+        if (n_ele_out <= 0){
+            (*p_log)(LOG_ERR,AT) << " n_ele_out = "<<n_ele_out<<"\n";
+            exit(1);
+        }
         // Normalize to get emissivity per particle (for EATS)
         for (size_t i = 0; i < syn.numbins; i++)
             syn.j[i] /= n_ele_out;

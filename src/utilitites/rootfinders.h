@@ -25,17 +25,17 @@ double Bisect(double (*f)(const double&, void*), double xa, double xb,
 
     if (fa*fb > 0) {
         status = -1;
-        std::cerr<< "[ Error ] rootfinder :: fa*fb=0\n";
+//        std::cerr<< "[ Error ] rootfinder :: fa*fb=0\n";
         return 0.;
     }
     if (fa == 0) {
         status = -1;
-        std::cerr<< "[ Error ] rootfinder :: fa=0\n";
+//        std::cerr<< "[ Error ] rootfinder :: fa=0\n";
         return xa;
     }
     if (fb == 0) {
         status = -1;
-        std::cerr<< "[ Error ] rootfinder :: fb=0\n";
+//        std::cerr<< "[ Error ] rootfinder :: fb=0\n";
         return xb;
     }
     dm = xb - xa;

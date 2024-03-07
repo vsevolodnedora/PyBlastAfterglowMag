@@ -409,8 +409,11 @@ class EATS {
         size_t ia = findIndex(mu, p_pars->m_mu, p_pars->m_i_end_r);
         size_t ib = ia + 1;
 
-        /// interpolate the time in burster frame that corresponds to the t_obs in observer frame
         double t_e = interpSegLin(ia, ib, mu, p_pars->m_mu, p_pars->m_tburst);
+
+
+        /// interpolate the time in burster frame that corresponds to the t_obs in observer frame
+//        double t_e = interpSegLin(ia, ib, mu, p_pars->m_mu, p_pars->m_tburst);
         t_e = check_emission_time(t_e, mu, p_pars->t_obs, p_pars->m_mu, (int) p_pars->m_i_end_r);
         if ((t_e < 0.0)||(!std::isfinite(t_e))) {
             // REMOVING LOGGER
@@ -1095,7 +1098,7 @@ private:
         obsangle = obs_angle;
         // ---
         if (m_tburst.empty()){
-            std::cerr << AT<< " isEmpty array\n";
+            (*p_log)(LOG_ERR,AT) << " m_tburst is empty\n";
             exit(1);
         }
 //            nr = m_tburst.size();
