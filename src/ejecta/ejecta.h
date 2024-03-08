@@ -295,13 +295,11 @@ private:
             /// compute skymaps
             for (size_t it = 0; it < times.size(); ++it) {
                 ims.emplace_back( ImageExtend(times[it], freqs[ifreq], nshells_, nlayers_, m_loglevel) );
-                if (id->method_eats == EjectaID2::STUCT_TYPE::ipiecewise) {
+
+                if (id->method_eats == EjectaID2::STUCT_TYPE::ipiecewise)
                     computeEjectaSkyMapPW(ims[itinu], times[it], freqs[ifreq]);
-                } else if (id->method_eats == EjectaID2::STUCT_TYPE::iadaptive) {
-                    computeEjectaSkyMapA(ims[itinu], times[it], freqs[ifreq],
-                                         (size_t) getDoublePar("ntheta", ej_pars, AT, p_log, 100, true),
-                                         (size_t) getDoublePar("nphi", ej_pars, AT, p_log, 200, true));
-                }
+                else if (id->method_eats == EjectaID2::STUCT_TYPE::iadaptive)
+                    computeEjectaSkyMapA(ims[itinu], times[it], freqs[ifreq]);
 
                 if (getBoolOpt("save_raw_skymap", ej_opts, AT, p_log, false, false))
                     saveRawImage(ims[itinu], itinu,workingdir, main_pars,ej_pars,p_log);

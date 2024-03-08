@@ -225,7 +225,7 @@ namespace BW{
     const std::vector<std::string> VARNAMES{
             /// Blast Wave with a forward shock
             "R", "Rsh", "rho", "drhodr", "GammaRel",
-            "Gamma", "beta", "mom", "Eint2", "U_p", "theta", "ctheta", "Erad2", "Esh2", "Ead2", "M2",
+            "Gamma", "betaSh", "mom", "Eint2", "U_p", "theta", "ctheta", "Erad2", "Esh2", "Ead2", "M2",
             "tcomov", "tburst", "tt", "thickness", "adi", "rho2", "GammaFsh",
             "gamma_min", "gamma_c", "gamma_max", "B", "ThetaTherm", "z_cool", "x",
             "nprime", "accel_frac",

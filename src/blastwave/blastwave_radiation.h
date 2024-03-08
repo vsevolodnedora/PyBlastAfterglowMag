@@ -149,7 +149,7 @@ static double shock_synchrotron_flux_density(
     auto & p_syna = p_pars->p_mphys;//->getAnSynch();
 
     /// relativistic effects on the emitting region
-    double beta = EQS::Beta(Gamma);
+    double beta = EQS::BetaFromGamma(Gamma);
     double a = 1.0 - beta * mu; // beaming factor
     double delta_D = Gamma * a; // doppler factor
 
@@ -450,10 +450,10 @@ static void fluxDensPieceWiseWithObs(
         Interp1d::METHODS mth = Interp1d::iLagrangeLinear;
 
         double Gamma = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::iGamma]);
-        double beta = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::ibeta]);
+        double betaSh = interpSegLog(ia, ib, ta, tb, t_obs, m_data[BW::Q::ibeta]);
         // double GammaSh = ( Interp1d(m_data[BW::Q::iR], m_data[BW::Q::iGammaFsh] ) ).Interpolate(r, mth );
         /// computeSynchrotronEmissivityAbsorptionAnalytic Doppler factor
-        double a = 1.0 - beta * mu; // beaming factor
+        double a = 1.0 - betaSh * mu; // beaming factor
         double delta_D = Gamma * a; // doppler factor
         /// computeSynchrotronEmissivityAbsorptionAnalytic the comoving obs. frequency from given one in obs. frame
         double nuprime = (1.0 + p_pars->z) * nu_obs * delta_D;
@@ -923,7 +923,7 @@ public:
 
         if (p_pars->m_type == BW_TYPES::iFS_DENSE || p_pars->m_type == BW_TYPES::iFS_PWN_DENSE) {
             if (m_data[BW::Q::iGammaREL][it] > 0.)
-                beta_ = EQS::Beta(m_data[BW::Q::iGammaREL][it]);
+                beta_ = EQS::BetaFromGamma(m_data[BW::Q::iGammaREL][it]);
             else
                 beta_ = m_data[BW::Q::ibeta][it];
         }
@@ -1185,11 +1185,11 @@ public:
         double delta_ej = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iEJdelta]);
         double rho_ej = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iEJrho]);
         double Gamma = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::iGamma]);
-        double beta = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::ibeta]);
+        double betaSh = interpSegLog(ia, ib, t_obs, ttobs, m_data[BW::Q::ibeta]);
         ctheta = interpSegLin(ia, ib, t_obs, ttobs, m_data[BW::Q::ictheta]);
 
         /// account for relativistic motion of the shell
-        double a = 1.0 - beta * mu; // beaming factor
+        double a = 1.0 - betaSh * mu; // beaming factor
         double delta_D = Gamma * a; // doppler factor
         double nuprime = (1.0 + p_pars->z ) * nu_obs * delta_D;
         double nu_erg = nu_obs*4.1356655385381E-15*CGS::EV_TO_ERG;

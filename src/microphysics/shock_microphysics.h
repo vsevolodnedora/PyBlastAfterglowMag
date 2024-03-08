@@ -47,7 +47,7 @@ enum METHOD_LFMAX { iConst, iuseB };
 
 enum METHODS_SSA { iSSAoff, iSSAon };
 
-enum METHOD_NONRELDIST{ inone, iuseGm, iuseAyache };
+enum METHOD_NONRELDIST{ inone, iuseGm, iuseAyache, iuseSironi };
 
 enum METHOD_NE{ iusenprime, iuseNe };
 
@@ -198,7 +198,7 @@ public:
     double n_prime=-1; // used in B and gamma_min
     double n_protons=-1; // conditionally used on synchrotron emissivity
     double nn=-1; // Ne or nprime depending on the setting 'm_method_ne'
-    double eprime=-1.,Gamma=-1,GammaSh=-1, beta=-1.,t_e=-1.;
+    double eprime=-1.,Gamma=-1,GammaSh=-1, betaSh=-1.,t_e=-1.;
     double accel_frac=1.;
     double Theta=-1, z_cool=-1, x=-1;
     size_t max_substeps=0; // limit to the number of substeps to evolve electrons
@@ -392,7 +392,7 @@ public:
             else if(opts.at(opt) == "mix")
                 val_ele = METHODS_SHOCK_ELE::iShockEleMix;
             else{
-                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized. "
                                       << "Possible options: "
@@ -454,7 +454,7 @@ public:
 //            else if(opts.at(opt) == "Bretta")
 //                val_synch = SynchrotronAnalytic::METHODS_SYNCH::iBerrettaSynch;
             else{
-                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized. "
                                       << "Possible options: "
@@ -485,7 +485,7 @@ public:
 //                do_ssa = true;
             }
             else{
-                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized. "
                                       << "Possible options: "
@@ -508,12 +508,14 @@ public:
                 val_monreldist = METHOD_NONRELDIST::iuseGm;
             else if(opts.at(opt) == "use_Ayache")
                 val_monreldist = METHOD_NONRELDIST::iuseAyache;
+            else if(opts.at(opt) == "use_Sironi")
+                val_monreldist = METHOD_NONRELDIST::iuseSironi;
             else{
-                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized. "
                                       << "Possible options: "
-                                      << " none " << " use_Ayache " << " use_gamma_min " << "\n";
+                                      << " none " << " use_Ayache " << " use_Sironi " << " use_gamma_min " << "\n";
                 exit(1);
             }
         }
@@ -537,7 +539,7 @@ public:
             else if(opts.at(opt) == "useTheta")
                 val_lfmin = METHODS_LFMIN::igmMAG21;
             else{
-                (*p_log)(LOG_WARN,AT) << AT << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << AT << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized. "
                                       << "Possible options: "
@@ -561,7 +563,7 @@ public:
             else if(opts.at(opt) == "useGammaSh")
                 methodsB = METHODS_B::iBuseGammaSh;
             else{
-                (*p_log)(LOG_WARN,AT) << AT << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << AT << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized. "
                                       << "Possible options: "
@@ -586,7 +588,7 @@ public:
                 methodLfmax = METHOD_LFMAX::iConst;
             }
             else{
-                (*p_log)(LOG_WARN,AT) << AT << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << AT << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized. "
                                       << "Possible options: "
@@ -613,7 +615,7 @@ public:
                 methodLfcool = METHOD_LFCOOL::iuseConst;
             }
             else{
-                (*p_log)(LOG_WARN,AT) << AT << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << AT << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized. "
                                       << "Possible options: "
@@ -643,7 +645,7 @@ public:
             else if(opts.at(opt) == "approx")
                 methodTau = METHOD_TAU::iAPPROX;
             else{
-                (*p_log)(LOG_WARN,AT) << " option for: " << opt
+                (*p_log)(LOG_ERR,AT) << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized. "
                                       << " Possible options: "
@@ -663,7 +665,7 @@ public:
         GammaSh = Gamma_shock; // for bisect solver
         eprime = e_prime; // for bisect solver
         Gamma = Gamma_; // for bisect solver
-        beta = EQS::Beta(Gamma_shock); // for bisect solver
+        betaSh = EQS::BetaFromGamma(Gamma_shock); // for bisect solver
         t_e = t_e_; // for bisect solver
         tcomov = tcomov_; // for bisect solver
         n_prime = n_prime_; //  for bisect solver
@@ -726,15 +728,11 @@ public:
 
         if (not checkParams())
             return;
-
+        /// compute comoving magnetic field
         computeMagneticField();
-
+        /// compute limits of electron spectrum
         computeGammaMax();
-
         computeGammaMin();
-
-        computeNonRelativisticFlattening();
-
         computeGammaCool();
     }
 
@@ -815,7 +813,7 @@ protected:
     bool checkParams(){
 
         /// if velocity is too small shock may not be possible TODO update it with proper sound speed check
-        if (beta < beta_min)
+        if (betaSh < beta_min)
             return false;
 
 
@@ -881,7 +879,7 @@ protected:
         double B2 = std::sqrt( 32. * M_PI * eps_b * (GammaSh - 1.)
                        * (GammaSh + 3. / 4) * n_prime * CGS::mp * CGS::c2);
         double B3 = sqrt(9.0 * M_PI * eps_b * n_prime * mu * CGS::mp)
-            * (beta * CGS::c);
+            * (betaSh * CGS::c);
 
         switch (m_methodsB) {
             case iBuseUb:       B=B1; break;
@@ -909,16 +907,16 @@ protected:
         /// Eq. A18 vanEarten+10 (and Sironi+13)
         double gamma_min_1 = (p - 2.) / (p - 1.) * U_e_prime / (n_prime * CGS::me * CGS::c * CGS::c);
         /// Eq.(before 4.) in Nakar&Piran 1102.1020
-        double gamma_min_2 = (p - 2.) / (p - 1.) * (CGS::mp / CGS::me) * eps_e * EQS::Beta2(GammaSh);
+        double gamma_min_2 = (p - 2.) / (p - 1.) * (CGS::mp / CGS::me) * eps_e * EQS::BetaFromGamma(GammaSh);
         /// Eq. A3 in J+06
         double gamma_min_3 = (p - 2.) / (p - 1.) * (eps_e * CGS::mp / CGS::me * (GammaSh - 1.) + 1.);
         /// downstream electron temperature:
-        Theta = Margalit21::Theta_fun(beta, mu, mu_e, eps_t);
+        Theta = Margalit21::Theta_fun(betaSh, mu, mu_e, eps_t);
         /// calculate the (normalized) cooling Lorentz factor (eq. 18, MQ21): NOTE we use mean dynamical time:
         z_cool = (6.0 * M_PI * CGS::me * CGS::c / (CGS::sigmaT * B * B * t_e)) / Theta;
         /// Margalit Piran 2022
         double gamma_min_4 = Margalit21::gamma_m_fun(Theta);
-
+        /// switch
         switch (m_methodsLfmin) {
             case igmUprime:
                 gamma_min = gamma_min_1;
@@ -933,18 +931,45 @@ protected:
                 /// solve gamma_min fun numerically; use fixed limits and number of iterations
                 gamma_min = Bisect(ElectronAndRadiaionBase::gammaMinFunc,
                                    1., 1.e8, 0., .001, 100, this, status);
-                /// If numerical solution failed, use simple analytical solution
-                if (status < 0 || gamma_min <= 0.)
-                    gamma_min = gamma_min_3;
+                /// If numerical solution failed for expected large gamma_min, use simple analytical solution
+                if ((status < 0) && (gamma_min_1 > 1.5) ) {
+                    (*p_log)(LOG_ERR,AT) << "Bisect for gamma_min failed. Obtained = " << gamma_min
+                        << " while gamma_min_1 = "<< gamma_min_1
+                        << " \n";
+                    gamma_min = gamma_min_1;
+                }
                 break;
             case igmMAG21:
                 gamma_min = gamma_min_4;
                 break;
         }
 
+        // Deep Newtonian Phase
+        if ((gamma_min < 1.) || (status < 0)) {
+            switch (m_method_nonreldist) {
+                case inone:
+                    accel_frac = 1;
+                    break;
+                case iuseGm:
+                    accel_frac = gamma_min;
+                    break;
+                case iuseAyache:
+                    accel_frac = (std::pow(gamma_max, 2 - p) - std::pow(gamma_min - 1., 2. - p))
+                                 / (std::pow(gamma_max, 2. - p) - 1.)
+                                 * (std::pow(gamma_max, 1. - p) - 1.) / (std::pow(gamma_max, 1. - p)
+                                                                         - std::pow(gamma_min - 1., 1. - p));
+                    break;
+                case iuseSironi: // Sironi et al 2013
+                    accel_frac = (p - 2.0) / (p - 1.0) * eps_e * CGS::mp / CGS::me * (GammaSh - 1.0) / 1.;
+                    break;
+            }
+            gamma_min = 1.;
+            accel_frac = accel_frac > 1. ? 1 : accel_frac;
+        }
+
         /// check
-        if (!std::isfinite(gamma_min)){
-            (*p_log)(LOG_ERR,AT) << " error gm nan \n";
+        if (!std::isfinite(gamma_min) || (!std::isfinite(accel_frac))){
+            (*p_log)(LOG_ERR,AT) << " Wrong value gamma_min="<<gamma_min<<" accel_frac="<<accel_frac<<"\n";
             exit(1);
         }
 
@@ -952,21 +977,12 @@ protected:
 
         /// prevent gamma_max to go beyond the electron grid
         if (m_eleMethod != METHODS_SHOCK_ELE::iShockEleAnalyt)
-            if (gamma_min < 1.01 * ele.e[0]) {
-                accel_frac = gamma_min;
-                gamma_min = 1.01 * ele.e[0];
+            if (gamma_min < ele.e[0]) {
+                gamma_min = ele.e[0];
 
         }
 //        printf("gamma_min to %.2e GammaSh=%.2e eprime=%.2e p=%.2f gamma_max=%.2e ", gamma_min, GammaSh, eprime, p, gamma_max);
 
-        /// Sironi et al 2013 suggestion to limi gm=1. for Deep Newtinoan regime # TODO to be removed. I did no understand it
-//        if ((lim_gm_to_1) && (gamma_min < 1.))
-//            gamma_min = 1.;
-
-//        if (!std::isfinite(z_cool)){
-//            (*p_log)(LOG_ERR,AT) << AT << " Theta = " << Theta << " z_cool="<<z_cool<<"\n";
-//            exit(1);
-//        }
     }
     void computeGammaCool(){
         // Eq. A19 in vanEarten+10
@@ -997,31 +1013,7 @@ protected:
                 gamma_c = gamma_max;
 
     }
-    /// for semi-neutonian regime, where gm ->
-    void computeNonRelativisticFlattening(){
-//        switch (m_method_nonreldist) {
-//            case iuseGm:
-//                if (gamma_min < 2.){
-//                    accel_frac = gamma_min;
-//                    gamma_min = 2.;
-//                }
-//                break;
-//            case iuseAyache:
-//                accel_frac = (std::pow(gamma_max, 2 - p) - std::pow(gamma_min - 1., 2.-p))
-//                           / (std::pow(gamma_max,2. - p) - 1.)
-//                           * (std::pow(gamma_max,1. - p) - 1.) / (std::pow(gamma_max,1.-p)
-//                           - std::pow(gamma_min - 1., 1.-p));
-//                if (accel_frac > 1.)
-//                    accel_frac = 1.;
-//                break;
-//            case inone:
-//                break;
-//        }
-//        if (!std::isfinite(accel_frac)){
-//            (*p_log)(LOG_ERR,AT) << "Value Error: accel_frac=" << accel_frac << "\n";
-//            exit(1);
-//        }
-    }
+
 };
 
 
@@ -1108,29 +1100,22 @@ public: // ---------------- ANALYTIC -------------------------- //
 
         // TODO WARNING I did replace n_prime with ne is absorption, but this might not be correct!!!
 
-        em=0., abs=0.;
-
-//        nn = n_protons;
-//        nn *= ksi_n;// TODO this is not included in normalization obs.flux
-
-        // defined in Margalit+21 arXiv:2111.00012
-        double delta = eps_e / eps_t;
-        double ne_ = mu_e * nn;
-
-        bool do_ssa = m_methods_ssa == METHODS_SSA::iSSAon;
-
         SynchrotronAnalytic syn_an =
-                SynchrotronAnalytic(gamma_min,gamma_c,gamma_max,B,p,do_ssa,p_log);
-
+                SynchrotronAnalytic(gamma_min, gamma_c, gamma_max, B, p,
+                                    m_methods_ssa == METHODS_SSA::iSSAon,
+                                    p_log);
+        em=0., abs=0.;
         if (m_sychMethod == METHODS_SYNCH::iJOH06)
-            syn_an.computeAnalyticSynchJOH06(em, abs, nuprime, ne_*accel_frac);
+            syn_an.computeAnalyticSynchJOH06(em, abs, nuprime, nn*accel_frac);
         else if (m_sychMethod == METHODS_SYNCH::iWSPN99)
-            syn_an.computeAnalyticSynchWSPN99(em, abs, nuprime, ne_*accel_frac);
+            syn_an.computeAnalyticSynchWSPN99(em, abs, nuprime, nn*accel_frac);
         else if (m_sychMethod == METHODS_SYNCH::iDER06)
-            syn_an.computeAnalyticSynchDER06(em, abs, nuprime, ne_*accel_frac);
-        else if (m_sychMethod == METHODS_SYNCH::iMARG21)
-            syn_an.computeAnalyticSynchMARG21(em, abs, nuprime, ne_,
-                                              delta,Theta,z_cool,accel_frac);
+            syn_an.computeAnalyticSynchDER06(em, abs, nuprime, nn*accel_frac);
+        else if (m_sychMethod == METHODS_SYNCH::iMARG21) {
+            // defined in Margalit+21 arXiv:2111.00012
+            syn_an.computeAnalyticSynchMARG21(em, abs, nuprime, mu_e * nn,
+                                              eps_e / eps_t, Theta, z_cool, accel_frac);
+        }
         else{
             (*p_log)(LOG_ERR,AT)<<" analytic synchrotron method is not supported \n";
             exit(1);
@@ -1286,9 +1271,10 @@ public: // -------------------- NUMERIC -------------------------------- //
             (*p_log)(LOG_ERR,AT) << " electon grid is not initialized\n";
             exit(1);
         }
-        if (B <= 0 || gamma_min <= 0 || gamma_max <= 0){
-            (*p_log)(LOG_ERR,AT) << "wrong value, cannot evolve electrons: "
-                                    "B="<<B<<" gm="<<gamma_min<<" gM="<<gamma_max<<"\n";
+        if ((B <= 0) || (gamma_min < 1.) || (gamma_max <= 1.) || (gamma_min >= gamma_max) || (accel_frac > 1.)){
+            (*p_log)(LOG_ERR,AT)
+                << "wrong value, cannot evolve electrons: "
+                << "B="<<B<<" gm="<<gamma_min<<" gM="<<gamma_max<<" accel_frac="<<accel_frac<<"\n";
             exit(1);
         }
 
@@ -1304,7 +1290,7 @@ public: // -------------------- NUMERIC -------------------------------- //
         for (size_t i = 0; i < ele.numbins-1; i++)
             n_ele_an += tmp[i] * ele.de[i];
         n_ele_out = n_ele_an;
-        double ratio_an = m_p1 / CGS::mp / n_ele_an;
+        double ratio_an = (m_p1 * accel_frac) / CGS::mp / n_ele_an;
 
         double dt = tc_p1 - tc;
         /// for adiabatic cooling of electron distribution (Note it may be turned off)
@@ -1445,7 +1431,7 @@ public: // ---------------------- FOR EATS -------------------------------- //
             double & em_prime, double & abs_prime, double Gamma, double GammaSh,
             double mu, double r, double rsh, double dr, double n_prime, double ne, double theta, double ncells) {
         /// compute beaming and doppler factor
-        double beta = (double) EQS::Beta2(Gamma);
+        double beta = EQS::BetaFromGamma(Gamma);
         double a = 1.0 - beta * mu; // beaming factor
         double delta_D = Gamma * a; // doppler factor
         /// convert to the laboratory frame
@@ -1455,10 +1441,10 @@ public: // ---------------------- FOR EATS -------------------------------- //
         double beta_shock;
         switch (method_shock_vel) {
             case isameAsBW:
-                beta_shock = EQS::Beta(Gamma);
+                beta_shock = EQS::BetaFromGamma(Gamma);
                 break;
             case ishockVel:
-                beta_shock = EQS::Beta(GammaSh);
+                beta_shock = EQS::BetaFromGamma(GammaSh);
                 break;
         }
 //        double dr_tau = dr; //EQS::shock_delta(r,GammaSh);
@@ -1513,8 +1499,8 @@ public: // ---------------------- FOR EATS -------------------------------- //
             double & em_prime, double & abs_prime, double Gamma, double GammaSh,
             double mu, double r, double rsh, double dr, double n_prime, double ne, double theta, double ncells) {
         /// compute beaming and doppler factor
-        double beta = (double)EQS::Beta2(Gamma);
-        double a = 1.0 - beta * mu; // beaming factor
+        double betaSh = (double)EQS::Beta2(Gamma);
+        double a = 1.0 - betaSh * mu; // beaming factor
         double delta_D = Gamma * a; // doppler factor
         /// convert to the laboratory frame
         double em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
@@ -1562,8 +1548,8 @@ public: // ---------------------- FOR EATS -------------------------------- //
             double & em_prime, double & abs_prime, double Gamma, double GammaSh,
             double mu, double r, double rsh, double dr, double n_prime, double ne, double theta, double ncells){
         /// compute beaming and doppler factor
-        double beta = (double)EQS::Beta2(Gamma);
-        double a = 1.0 - beta * mu; // beaming factor
+        double betaSh = (double)EQS::Beta2(Gamma);
+        double a = 1.0 - betaSh * mu; // beaming factor
         double delta_D = Gamma * a; // doppler factor
         /// convert to the laboratory frame
         double em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
@@ -1695,8 +1681,8 @@ public: // ---------------------- FOR EATS -------------------------------- //
 
 
         /// compute beaming and doppler factor
-        double beta = (double)EQS::Beta2(Gamma);
-        double a = 1.0 - beta * mu; // beaming factor
+        double betaSh = (double)EQS::Beta2(Gamma);
+        double a = 1.0 - betaSh * mu; // beaming factor
         double delta_D = Gamma * a; // doppler factor
         /// convert to the laboratory frame
         double em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)

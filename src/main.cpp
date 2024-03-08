@@ -212,7 +212,7 @@ int main(int argc, char** argv) {
     /// ------------------------------------------------------
     if (argc<4){
         // test cases || GRG
-        working_dir = "../tst/grb/compare_with_jetsim/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../tst/grb/compare_jetsim_afgpy/tmp1/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 
         // test cases || GRG
 //        working_dir = "../tst/grb/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO; // gauss, skymap

@@ -62,7 +62,7 @@ public:
 //        double gam1 = EQS::GamFromMom( Y[bw1->getPars()->ii_eq + SOL::QS::imom] );
         double gam1 = Y[bw1->getPars()->ii_eq + SOL::QS::iGamma];
 //        double beta1 = EQS::BetFromMom( Y[bw1->getPars()->ii_eq + SOL::QS::imom] );
-        double beta1 = Beta( Y[bw1->getPars()->ii_eq + SOL::QS::iGamma] );
+        double beta1 = EQS::BetaFromGamma( Y[bw1->getPars()->ii_eq + SOL::QS::iGamma] );
         double m0_1 = bw1->getPars()->M0;
         double m2_1 = Y[bw1->getPars()->ii_eq + SOL::QS::iM2];
         double m2_1_ = m2_1 * m0_1;
@@ -73,7 +73,7 @@ public:
 //        double gam2 = EQS::GamFromMom( Y[bw2->getPars()->ii_eq + SOL::QS::imom] );
         double gam2 = Y[bw2->getPars()->ii_eq + SOL::QS::iGamma];
 //        double beta2 = EQS::BetFromMom( Y[bw2->getPars()->ii_eq + SOL::QS::imom] );
-        double beta2 = Beta( Y[bw2->getPars()->ii_eq + SOL::QS::iGamma] );
+        double beta2 = EQS::BetaFromGamma( Y[bw2->getPars()->ii_eq + SOL::QS::iGamma] );
         double m0_2 = bw2->getPars()->M0;
         double m2_2 = Y[bw2->getPars()->ii_eq + SOL::QS::iM2];
         double m2_2_ = m2_2 * m0_2;
@@ -103,7 +103,7 @@ public:
         double m2_c = (1 * (m2_1 + 1) / (m0_2/m0_1 + 1)) + (1 * (m2_2 + 1) / (1 + m0_1/m0_2));
         if (m2_c==1)
             m2_c = m2_1 + m2_2;
-        double mom_c = i_gM * EQS::Beta(i_gM);
+        double mom_c = i_gM * EQS::BetaFromGamma(i_gM);
         double gam_c = i_gM;
         /// update the shell composition (mass averaged)
         double ye_c = (bw1->getPars()->Ye0 * bw1->getPars()->M0 + bw2->getPars()->Ye0 * bw2->getPars()->M0)
@@ -286,7 +286,7 @@ private:
         double gM = x[0];
         double eM = x[1];
 //        double em = x[1];
-        double gAdiM = pp->p_eos->getGammaAdi(gM, EQS::Beta(gM));
+        double gAdiM = pp->p_eos->getGammaAdi(gM, EQS::BetaFromGamma(gM));
         /// total_rad mass conservation
         double mM = pp->m_mass1 + pp->m_mass2;
         /// total_rad energy consercation (Ek + Eint)
@@ -339,14 +339,14 @@ private:
         if (info<0){
             (*p_log)(LOG_ERR,AT)<< "\tFsolve failed (try setting 'tol' lower). "
                                    "Using initial guess values. New shell has "
-                                <<"Gamma="<<iGamma<<" beta="<<EQS::Beta(iGamma)<<" Eint="<<iEint<<" im="<<im<<"\n";
+                                <<"Gamma="<<iGamma<<" betaSh="<<EQS::BetaFromGamma(iGamma)<<" Eint="<<iEint<<" im="<<im<<"\n";
 //                i_gM = x[0];
 //                i_eM = x[1];
         }
         else{
             (*p_log)(LOG_INFO,AT)<< "Fsolve successful. New shell has "
                                  <<"Gamma="<<x[0]
-                                 <<" beta="<<EQS::Beta(x[0])
+                                 <<" betaSh="<<EQS::BetaFromGamma(x[0])
                                  <<" Eint="<<x[1]<<"\n";
             iGamma = x[0];
             iEint = x[1];

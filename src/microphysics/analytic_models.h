@@ -39,7 +39,7 @@ struct Margalit21 {
 
         Parameters
         __________
-        beta : float
+        betaSh : float
             Shock velocity / c
         mu : float, optional
             Mean molecular weight, default is 0.62

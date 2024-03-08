@@ -469,10 +469,10 @@ class EATS {
                 return 0.;
             }
             double Gamma = interpSegLog(ia, ib, t_e, tburst, p_pars->m_gam);
-            double beta = interpSegLog(ia, ib, t_e, tburst, p_pars->m_bet);
+            double betaSh = interpSegLog(ia, ib, t_e, tburst, p_pars->m_bet);
             // double GammaSh = ( Interp1d(m_data[BW::Q::iR], m_data[BW::Q::iGammaFsh] ) ).Interpolate(r, mth );
             /// evaluateShycnhrotronSpectrum Doppler factor
-            double a = 1.0 - beta * mu; // beaming factor
+            double a = 1.0 - betaSh * mu; // beaming factor
             double delta_D = Gamma * a; // doppler factor
 
             /// evaluateShycnhrotronSpectrum the comoving obs. frequency from given one in obs. frame
@@ -538,7 +538,7 @@ class EATS {
 //                (*p_log)(LOG_ERR,AT) << "Mu     " << _mu << "\n";
 //                (*p_log)(LOG_ERR,AT) << "tt     " << _tt << "\n";
 //                (*p_log)(LOG_ERR,AT) << "tburst " << _tburst << "\n";
-//                (*p_log)(LOG_ERR,AT) << "beta   " << _beta << "\n";
+//                (*p_log)(LOG_ERR,AT) << "betaSh   " << _beta << "\n";
 
 
                 // REMOVING LOGGER
@@ -568,7 +568,7 @@ class EATS {
                                         m_data[BW::Q::iGamma]);
             double GammaSh = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst],
                                           m_data[BW::Q::iGammaFsh]);
-            double beta = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::ibeta]);
+            double betaSh = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::ibeta]);
             double U_p = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst], m_data[BW::Q::iU_p]);
 //        double M2    = interpSegLog(ia, ib, t_e, p_pars->t_arr_burst, p_pars->dyn(BWDyn::iM2));
             double theta = interpSegLog(ia, ib, t_e, m_data[BW::Q::itburst],

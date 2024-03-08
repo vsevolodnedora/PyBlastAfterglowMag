@@ -255,7 +255,7 @@ public:
                 /// If ID is not correct, skip this blastwave initiialization (will not be evolved)
                 if (id->get(ish,il,EjectaID2::Q::ir) <= 0 ||
                     id->get(ish,il,EjectaID2::Q::iek) <= 0 ||
-                    EQS::Beta(EQS::GamFromMom(id->get(ish,il,EjectaID2::Q::imom))) <= 1.e-6 ||
+                    EQS::BetaFromGamma(EQS::GamFromMom(id->get(ish,il,EjectaID2::Q::imom))) <= 1.e-6 ||
                     id->get(ish,il,EjectaID2::Q::imass) <= 0){
                     empty_bws[il]+=" "+std::to_string(ish);
                     n_unitinitilized_shells++;
@@ -551,15 +551,19 @@ public:
         }
     }
 
-    bool _computeEjectaSkyMapA(std::vector<VecVector> & row_data,
+    bool _computeEjectaSkyMapA(std::vector<VecVector> & raw_data,
                                double obs_time, double obs_freq,
                                size_t & nsublayers, size_t & nrestarts,
                                Vector & th_b_layers, double th_jet_max){
 
-        size_t min_sublayers = 3;
-        double frac_to_increase = 1.5;
-        size_t max_restarts = 10;
-        size_t min_non_zero_cells = 3;
+        size_t min_sublayers = (size_t) getDoublePar("min_sublayers", m_pars, AT, p_log, 3, true);
+        double frac_to_increase = getDoublePar("frac_to_increase", m_pars, AT, p_log, 1.5, true);
+        size_t max_restarts = (size_t) getDoublePar("max_restarts", m_pars, AT, p_log, 10, true);
+        size_t min_non_zero_cells = (size_t) getDoublePar("min_non_zero_cells", m_pars, AT, p_log, 3, true);
+//        size_t min_sublayers = 10;
+//        double frac_to_increase = 1.5;
+//        size_t max_restarts = 20;
+//        size_t min_non_zero_cells = 10;
 
         /// allocate memory for angular grid for this shell
         Vector theta_pw(nsublayers + 1);
@@ -572,7 +576,7 @@ public:
         size_t nlayers_ = nlayers();
         for (size_t ilayer = 0; ilayer < nlayers_; ++ilayer) {
             /// get data conter for this time/freq/shell
-            auto & out = row_data[ilayer];
+            auto & out = raw_data[ilayer];
             /// rotate index to the next time/freq/shell
             size_t ncells = 0;
 
@@ -594,12 +598,14 @@ public:
             }
             if (sublayers_l.size() < min_sublayers) {
                 auto nsublayers_new = size_t((double)nsublayers * frac_to_increase);
-                (*p_log)(LOG_WARN, AT) << "\t restarting skymap [il="<<ilayer<<"] "
-                                       <<" Reason: nsublayers="<<sublayers_l.size()<<" < "<<"min_sublayers="<<min_sublayers<<" [restarts="<<nrestarts<<"]"
-                                       <<" Increasing nsublayers="<<nsublayers<<"->"<<nsublayers_new<<"\n";
+                (*p_log)(LOG_WARN, AT)
+                    << "\t restarting skymap #"<<nrestarts<<"/"<<max_restarts<< " [il="<<ilayer<<"] "
+                    <<" Reason: nsublayers="<<sublayers_l.size()<<" < "<<"min_sublayers="<<min_sublayers
+                    <<" Increasing nsublayers="<<nsublayers<<"->"<<nsublayers_new<<"\n";
                 if (nrestarts>max_restarts){
-                    (*p_log)(LOG_ERR, AT)<<" maximum number of restarts exceeded for [il="<<ilayer<<"] "
-                                         << " nrestarts=" << nrestarts << " sublayers=" << nsublayers <<"\n";
+                    (*p_log)(LOG_ERR, AT)
+                        <<" maximum number of restarts exceeded for [il="<<ilayer<<"] "
+                        << " nrestarts=" << nrestarts << " sublayers=" << nsublayers <<"\n";
                     exit(1);
                 }
                 nsublayers = nsublayers_new;
@@ -702,13 +708,15 @@ public:
     }
 
     /// Compute Skymap for adaptive EATS
-    void computeEjectaSkyMapA(ImageExtend & im, double obs_time, double obs_freq, size_t nsublayers_, size_t nphi ){
+    void computeEjectaSkyMapA(ImageExtend & im, double obs_time, double obs_freq){
 
         /// out is [i_vn][ish][itheta_iphi]
         size_t nlayers_ = nlayers();
         // ------------------------
-
-        (*p_log)(LOG_INFO,AT)  << " Computing skymap with N layers=" << nlayers_ << " and N sublayers=" << nsublayers_ << "\n";
+        size_t nsublayers_ = (size_t) getDoublePar("nsublayers", m_pars, AT, p_log, 3, true);
+        (*p_log)(LOG_INFO,AT)
+            << " Computing skymap with N layers=" << nlayers_
+            << " and N sublayers=" << nsublayers_ << "\n";
 
         /// locate the extend of the jet at a given time (for further grid creation)
         double th_l_prev = 0.;

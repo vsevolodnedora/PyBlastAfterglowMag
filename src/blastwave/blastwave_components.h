@@ -12,7 +12,7 @@
 
 inline namespace EQS{
     inline double MomFromGam(const double gam){
-        return std::sqrt(gam*gam - 1.);
+        return std::sqrt(gam * gam - 1.);
     }
     inline double GamFromMom(const double mom){
         return std::sqrt(1.0+mom*mom);
@@ -21,47 +21,23 @@ inline namespace EQS{
         return mom / EQS::GamFromMom(mom);
     }
     inline double MomFromBeta(const double beta){
-        return beta*beta/std::sqrt(1.-beta*beta);
+        return beta * beta / std::sqrt(1.0 - beta * beta);
+    }
+    inline double BetaFromGamma(const double Gamma){
+        /// return sqrt(1.0 - pow(Gamma, -2)); || std::sqrt(1.-std::pow(Gamma*Gamma,-2.))
+        /// return (1. / Gamma) * sqrt( (Gamma - 1.) * (Gamma + 1.) );
+        return BetFromMom(MomFromGam(Gamma));
+    }
+    inline double GammaFromBeta(const double beta){
+        /// return sqrt(1. + (betaSh * betaSh / (1. - betaSh * betaSh)));
+        /// return sqrt(1.0 / (1.0 - (betaSh * betaSh)));
+        return GamFromMom(MomFromBeta(beta));
     }
 
-    /*
- * Compute velocity in [c] from Lorentz Factor 'iGamma'
- */
-    double Beta(double const &Gamma){
-//        return sqrt(1.0 - pow(Gamma, -2)); || std::sqrt(1.-std::pow(Gamma*Gamma,-2.))
-        return (1. / Gamma) * sqrt( (Gamma - 1.) * (Gamma + 1.) );
-    }
-
-    double BetaFromGammaM1(double const &GammaM1){
-//        return sqrt(1.0 - pow(Gamma, -2)); || std::sqrt(1.-std::pow(Gamma*Gamma,-2.))
-        return (1. / (GammaM1 + 1.0)) * sqrt( GammaM1 * (GammaM1 + 2.0) );
-    }
-    long double Beta2(long double const &Gamma){
-        return (Gamma-1.0) * (Gamma+1.0) / ( Gamma * Gamma );
-    }
-    long double Beta2FromGammamM1(long double const Gamma_m1){
-        return Gamma_m1 * (Gamma_m1 + 2.0) / ( (Gamma_m1 + 1.0) * (Gamma_m1 + 1.0) );
-    }
-//    Vector Be/ta(Vector &Gamma){
-//        return sqrt(1.0 - (1.0 / (Gamma * Gamma)) );
-//        return (1. / Gamma) * sqrt( (Gamma - 1.) * (Gamma + 1.) );
-//    }
-
-    double Gamma(const double & beta){
-//        return sqrt(1.0 / (1.0 - (beta * beta)));
-        return sqrt(1. + (beta * beta / (1. - beta * beta)));
-    }
-    Vector Gamma(Vector & beta){
-//        return sqrt(1.0 / (1.0 - (beta * beta)));
-        Vector res ( beta.size() );
-        for(size_t i = 0; i < beta.size(); i++)
-            res[i] = Gamma(beta[i]);
-        return std::move( res );
-    }
 
     double GammaRel(const double Gamma1, const double Gamma2){
 //        return Gamma1 * Gamma2 * (1. - EQS::Beta(Gamma1) * EQS::Beta(Gamma2));
-        return Gamma1 * Gamma2 - sqrt(Gamma1*Gamma1-1.) * sqrt(Gamma2*Gamma2-1.);
+        return Gamma1 * Gamma2 - sqrt(Gamma1 * Gamma1 - 1.) * sqrt(Gamma2 * Gamma2 - 1.);
     }
     double BetaRel(const double beta1, const double beta2){
         return (1. - beta1 * beta2) * sqrt(1./(1.-beta1*beta1)) * sqrt(1./(1.-beta2*beta2));
@@ -173,7 +149,7 @@ inline namespace EQS{
             dttdr = 1. / (CGS::c * beta) * sqrt(1. + R * R * dthetadr * dthetadr) - (1. / CGS::c);
         else
             dttdr = 1. / (CGS::c * xx * (1. + beta));
-//        double dttdr = 1. / (CGS::c * xx * (1. + beta));
+//        double dttdr = 1. / (CGS::c * xx * (1. + betaSh));
         return dttdr;
     }
 
@@ -198,7 +174,7 @@ inline namespace EQS{
             // considering lateral spreading
             dthetadr[0] = 0.0;
             for (unsigned int j = 1; j < n; j++) {
-                double beta = Beta(Gammas[j]);
+                double beta = BetaFromGamma(Gammas[j]);
                 dthetadr[j] = (thetas[j] - thetas[j - 1]) / (Rs[j] - Rs[j - 1]);
                 integrand[j] = 1.0 / (CGS::c * beta) * sqrt(1. + Rs[j] * Rs[j] * dthetadr[j] * dthetadr[j]) - 1. / (CGS::c);
             }
@@ -207,7 +183,7 @@ inline namespace EQS{
         } else {
             // No spreading
             for (unsigned int j = 1; j < n; j++) {
-                double beta = Beta(Gammas[j]);
+                double beta = BetaFromGamma(Gammas[j]);
                 integrand[j] = 1.0 / (CGS::c * Gammas[j] * Gammas[j] * beta * (1.0 + beta));
             }
             auto func = [&](double x){ return ( Interp1d(Rs,integrand)).Interpolate(x, Interp1d::iLagrangeLinear); };
@@ -288,9 +264,9 @@ inline namespace EQS{
     }
 
     double dRsh_dt (const double Gamma, const long double beta, const double GammaSh){
-        long double betaSh = EQS::Beta2(GammaSh);
+        long double betaSh = EQS::BetaFromGamma(GammaSh);
         long double dRsh_dt_old = betaSh * CGS::c;
-//        long double dRsh_dt_new = betaSh / (Gamma * GammaSh * (1. - beta * betaSh)) * CGS::c;// / Gamma;
+//        long double dRsh_dt_new = betaSh / (Gamma * GammaSh * (1. - betaSh * betaSh)) * CGS::c;// / Gamma;
         return (double)dRsh_dt_old;
 //        std::cout << "dr= " << dRsh_dt_old << " !/ " << dRsh_dt_new << "\n";
     }
@@ -350,13 +326,13 @@ inline namespace EQS{
         /*
          * Idea:
          *
-         * Gamma43 = Gamma * Gamma0 * (1 - beta * beta0)
-         * However, this is numerically... difficult, as 1-beta*beta0 is subjected to truncation error a lot
+         * Gamma43 = Gamma * Gamma0 * (1 - betaSh * beta0)
+         * However, this is numerically... difficult, as 1-betaSh*beta0 is subjected to truncation error a lot
          * Using expansions we write
          *
          * Gamma43 = Gamma*Gamma0 - np.sqrt(Gamma0**2 - 1) * np.sqrt(Gamma**2 - 1) # -- wolfram. Creats jump
-         * if beta < 0.999:
-         * Gamma43 = Gamma * Gamma0 * (1 - beta * beta0)
+         * if betaSh < 0.999:
+         * Gamma43 = Gamma * Gamma0 * (1 - betaSh * beta0)
          *
          */
         const long double beta_switch = 0.9999;
@@ -398,7 +374,7 @@ inline namespace EQS{
                               const double &Eint2, const double &Eint3, const double &gammaAdi3,
                               const long double &Gamma43){
 
-        // Using asymptotic approximation of beta
+        // Using asymptotic approximation of betaSh
         // 0.5 / Gamma0 + 0.5 / Gamma ** 2 * (0.5 / Gamma0 - Gamma0 - 3. * Gamma0 / 8. / Gamma ** 2)
         long double dgamma43dGamma = get_dgamma43dGamma(Gamma0, Gamma);
 
@@ -790,7 +766,7 @@ public:
             std::cerr << " Sedov profile: vv > vshock \n";
             std::cerr << AT "\n";
         }
-        return EQS::Gamma( vint * vshock * (2. / (p_pars->gamma + 1.)) );
+        return EQS::GammaFromBeta( vint * vshock * (2. / (p_pars->gamma + 1.)) );
     }
 
     double pressure_profile_int(double r, double r_shock, double p_shock){ // p' = -(gamAdi -1)Eint2/V2
@@ -992,8 +968,8 @@ private:
     [[nodiscard]] double dthetadr_Adi(const double Gamma, const double R, const double gammaAdi, const double theta) const {
         //    vperp = np.sqrt(gammaAdi * (gammaAdi - 1) * (Gamma - 1) / (1 + gammaAdi * (Gamma - 1))) * cgs.c
         double vperp = sqrt(gammaAdi * (gammaAdi - 1.0) * (Gamma - 1.0) / (1.0 + gammaAdi * (Gamma - 1.0))) * CGS::c;
-        //        return vperp / R / Gamma / beta / cgs.c if (theta < thetamax) & useSpread else 0.
-        double beta = EQS::Beta(Gamma);
+        //        return vperp / R / Gamma / betaSh / cgs.c if (theta < thetamax) & useSpread else 0.
+        double beta = EQS::BetaFromGamma(Gamma);
         return (theta < m_theta_max) ? (vperp / R / Gamma / beta / CGS::c) : 0.0;
     }
 
@@ -1009,7 +985,7 @@ private:
         //1. / (R * Gamma ** (1. + aa) * theta ** (aa)) if (theta < thetamax) & useSpread else 0.
         double Q0 = 2.;
         double g = Gamma;
-        double beta = EQS::Beta(Gamma);
+        double beta = EQS::BetaFromGamma(Gamma);
         double u = Gamma * beta;
         double thC = m_thetaC;
         double thW = m_thetaW;
@@ -1067,7 +1043,7 @@ private:
         }
         double Q0 = 2.0;
         double Q = sqrt(2.0)*3.0;
-        double beta = EQS::Beta(Gamma);
+        double beta = EQS::BetaFromGamma(Gamma);
         double g = Gamma;
         double u = Gamma * beta;
         double thC = m_thetaC;

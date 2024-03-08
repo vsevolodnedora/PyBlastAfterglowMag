@@ -26,7 +26,7 @@ class Magnetar_OLD{
         double viscous_time = -1;
         double mu = -1; // G cm^3
         double omega_c = -1; // critical freq. (collapse)
-        double ns_crit_beta = -1; // initial condition for EOS; beta = T/|W| parameter (Gompertz 2014)
+        double ns_crit_beta = -1; // initial condition for EOS; betaSh = T/|W| parameter (Gompertz 2014)
         double omega_kep = -1;
 
         double omega0=-1;
@@ -214,7 +214,7 @@ public:
     }
     inline double torque_propeller(double omega, double fastness, double r_mag, double mdot){
         double e_rot = 0.5*p_pars->eos_i*omega*omega; // Rotational energy of the NS
-        double beta = e_rot / std::abs(p_pars->e_bind); // beta = T/|W| parameter (Gompertz 2014)
+        double beta = e_rot / std::abs(p_pars->e_bind); // betaSh = T/|W| parameter (Gompertz 2014)
         /// computeSynchrotronEmissivityAbsorptionAnalytic accretion torque ( Accretion torque, taking into account the propeller model ) Eq (6-7) of Gompertz et al. 2014
         double n_acc = 0.;
         if ((omega > p_pars->omega_c) and (beta < p_pars->ns_crit_beta)){
@@ -259,7 +259,7 @@ public:
 
 //        double e_rot = 0.5*p_pars->eos_i*omega*omega; // Rotational energy of the NS
 
-//        double beta = e_rot / std::abs(p_pars->e_bind); // beta = T/|W| parameter (Gompertz 2014)
+//        double betaSh = e_rot / std::abs(p_pars->e_bind); // betaSh = T/|W| parameter (Gompertz 2014)
 
         /// Compute Dipole spindown torque. Eq (8) of Zhang and Meszaros 2001
         double n_dip = torque_dipol(omega, r_lc, r_mag);
@@ -596,7 +596,7 @@ public:
         double ns_sigma = getDoublePar("NS_sigma_cond",pars,AT,p_log, -1,true);
         double ns_char_length = getDoublePar("NS_char_length",pars,AT,p_log, -1,true);
         double ns_char_edens = getDoublePar("NS_char_edens",pars,AT,p_log, -1,true);
-        /// Auxiliary quantity beta as defined in eq. (72) of Pons & Vigano (2019).
+        /// Auxiliary quantity betaSh as defined in eq. (72) of Pons & Vigano (2019).
         double beta_ax = 1.0 / 4.0 * std::pow(ns_radius, 6.) / (ns_inertia * CGS::c*CGS::c*CGS::c);
         /// Dimensionless coefficients k_0, k_1, k_2 for a force-free magnetosphere
         /// taken from Spitkovsky (2006) and Philippov et al. (2014).
@@ -774,7 +774,7 @@ namespace PWN{
 
     };
     std::vector<std::string> m_vnames{
-            "tburst", "tt", "Rw", "mom", "theta", "Gamma", "beta", "Enebula", "Epwn", "B", "GammaTermShock", "dr"
+            "tburst", "tt", "Rw", "mom", "theta", "Gamma", "betaSh", "Enebula", "Epwn", "B", "GammaTermShock", "dr"
     };
 }
 
@@ -1008,13 +1008,13 @@ public:
 
 //        p_pars->temp_ej_curr= temp[0];
         if (p_pars->v_ej_curr > CGS::c){
-            (*p_log)(LOG_ERR,AT) << " p_pars->v_ej_curr > c beta[0]="<<beta[0]<<"\n";
+            (*p_log)(LOG_ERR,AT) << " p_pars->v_ej_curr > c betaSh[0]="<<beta[0]<<"\n";
             exit(1);
         }
 //        std::cout << rho[0] << " "
 //                  << tau[0] << " "
 //                  << r[0] << " "
-//                  << beta[0] * CGS::c
+//                  << betaSh[0] * CGS::c
 //                  << "\n";
 //        int x = 1;
     }
@@ -1030,13 +1030,13 @@ public:
 
 //        p_pars->temp_ej_curr= temp[0];
         if (p_pars->v_ej_curr > CGS::c){
-            (*p_log)(LOG_ERR,AT) << " p_pars->v_ej_curr > c beta="<<beta<<"\n";
+            (*p_log)(LOG_ERR,AT) << " p_pars->v_ej_curr > c betaSh="<<beta<<"\n";
             exit(1);
         }
 //        std::cout << rho[0] << " "
 //                  << tau[0] << " "
 //                  << r[0] << " "
-//                  << beta[0] * CGS::c
+//                  << betaSh[0] * CGS::c
 //                  << "\n";
 //        int x = 1;
     }
@@ -1665,8 +1665,8 @@ public:
 
 //        std::cout << "tburst="<<tburst<<" ldip="<<l_dip<<" lacc="<<l_acc<<"\n";
 
-        double beta = EQS::Beta(Gamma);
-        double a = 1.0 - beta * mu; // beaming factor
+        double betaSh = EQS::Beta(Gamma);
+        double a = 1.0 - betaSh * mu; // beaming factor
         double delta_D = Gamma * a; // doppler factor
         double nuprime = ( 1.0 + p_pars->z ) * nu_obs * delta_D;
         double nu_erg = nu_obs*4.1356655385381E-15*CGS::EV_TO_ERG;
@@ -1776,7 +1776,7 @@ public:
         double dr = interpSegLog(ia, ib, ta, tb, t_obs, m_data[PWN::Q::idr]);
         double dr_tau = dr;////EQS::shock_delta(r, GammaShock); // TODO this is added becasue in Johanneson Eq. I use ncells
 
-        double beta_shock = EQS::Beta(GammaShock);
+        double beta_shock = EQS::BetaFromGamma(GammaShock);
         double ashock = (1.0 - mu * beta_shock); // shock velocity beaming factor
         dr /= ashock; // TODO why is this here? What it means? Well.. Without it GRB LCs do not work!
         dr_tau /= ashock;

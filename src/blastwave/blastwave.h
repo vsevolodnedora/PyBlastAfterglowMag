@@ -38,7 +38,7 @@ public:
                 p_pars->Ye0,
                 p_pars->M0 * (double)EjectaID2::CellsInLayer(p_pars->ilayer), // m_iso ( for eps_th )
 //                EQS::BetFromMom( sol[ p_pars->ii_eq + SOL::QS::imom ] ),
-                EQS::Beta( sol[ p_pars->ii_eq + SOL::QS::iGamma ] ),
+                EQS::BetaFromGamma( sol[ p_pars->ii_eq + SOL::QS::iGamma ] ),
                 t,
                 sol[ p_pars->ii_eq + SOL::QS::iR ],
                 p_pars->s0
@@ -84,7 +84,7 @@ public:
             return;
         }
 //        p_pars->Gamma0 = EQS::GamFromMom(p_pars->mom0);
-        p_pars->beta0 = Beta(p_pars->Gamma0);
+        p_pars->beta0 = EQS::BetaFromGamma(p_pars->Gamma0);
         // ****************************************
 //        p_pars->R0    = p_pars->tb0 * beta0 * CGS::c;
 
@@ -267,9 +267,9 @@ public:
         Dat[BW::Q::iR][it]        = sol[i + SOL::QS::iR]; // TODO you do not need 'i' -- this is p_pars->ii_eq
         Dat[BW::Q::iRsh][it]      = sol[i + SOL::QS::iRsh];
         Dat[BW::Q::itt][it]       = sol[i + SOL::QS::itt];
-        Dat[BW::Q::imom][it]      = MomFromGam(sol[i + SOL::QS::iGamma]);
+        Dat[BW::Q::imom][it]      = EQS::MomFromGam(sol[i + SOL::QS::iGamma]);
         Dat[BW::Q::iGamma][it]    = sol[i + SOL::QS::iGamma];
-        Dat[BW::Q::ibeta][it]     = (double)Beta2(sol[i + SOL::QS::iGamma]);//sol[i+QS::iGamma];
+        Dat[BW::Q::ibeta][it]     = EQS::BetaFromGamma(sol[i + SOL::QS::iGamma]);//sol[i+QS::iGamma];
         Dat[BW::Q::itheta][it]    = sol[i + SOL::QS::itheta];
         Dat[BW::Q::iM2][it]       = sol[i + SOL::QS::iM2];
         Dat[BW::Q::itcomov][it]   = sol[i + SOL::QS::itcomov];
@@ -368,12 +368,12 @@ public:
 //        double mom = sol[i + SOL::QS::imom];
         double igamma = sol[i+SOL::QS::iGamma];//EQS::GamFromMom(mom);
 //        double igamma = EQS::GamFromMom(mom);
-        double ibeta = EQS::Beta(igamma);//EQS::BetFromMom(mom);
+        double ibeta = EQS::BetaFromGamma(igamma);//EQS::BetFromMom(mom);
         double iEint2 = sol[i + SOL::QS::iEint2];
         bool do_terminate = false;
         if (!p_pars->end_evolution) {
             /// if BW is too slow numerical issues arise (Gamma goes below 1) # TODO rewrite ALL eqs in terms of GammaBeta
-//            double beta = EQS::Beta(igamma);
+//            double betaSh = EQS::Beta(igamma);
             if ((iEint2 <= 0.)||(!std::isfinite(iEint2))||(igamma < 1.)||(ibeta < 0)){
                 do_terminate = true;
                 (*p_log)(LOG_ERR,AT)
@@ -386,7 +386,7 @@ public:
                 (*p_log)(LOG_ERR,AT)
                         << " Terminating evolution at ix="<<ix
                         << " [ishell=" << p_pars->ishell << " ilayer=" << p_pars->ilayer << "] "
-                        << " REASON :: beta < beta_min or NAN ("<<ibeta<<") with beta_min= "
+                        << " REASON :: betaSh < beta_min or NAN ("<<ibeta<<") with beta_min= "
                         << p_pars->min_beta_terminate<<"\n";
             }
             if (do_terminate) {
@@ -397,7 +397,7 @@ public:
                                        << " \n";
                 (*p_log)(LOG_WARN, AT) << " i=Current" << " Eint2=" << string_format("%.9e", sol[i + SOL::QS::iEint2])
                                        << " Gamma=" << string_format("%.9e", igamma)
-                                       << " beta=" << string_format("%.9f", ibeta)
+                                       << " betaSh=" << string_format("%.9f", ibeta)
                                        << " M2=" << string_format("%.9e", sol[i + SOL::QS::iM2])
                                        << " rho=" << string_format("%.9e", p_dens->m_rho_)
                                        << " \n";
@@ -405,7 +405,7 @@ public:
                     (*p_log)(LOG_WARN, AT) << " ix=" << ix - j << " Eint2="
                                            << string_format("%.9e", mDtmp[BW::Q::iEint2][j])
                                            << " Gamma=" << string_format("%.9e", mDtmp[BW::Q::iGamma][j])
-                                           << " beta=" << string_format("%.9f", mDtmp[BW::Q::ibeta][j])
+                                           << " betaSh=" << string_format("%.9f", mDtmp[BW::Q::ibeta][j])
                                            << " M2=" << string_format("%.9e", mDtmp[BW::Q::iM2][j])
                                            << " rho=" << string_format("%.9e", mDtmp[BW::Q::irho][j])
                                            << " \n";
@@ -468,11 +468,11 @@ public:
 //        double mom0 = p_pars->Gamma0 * EQS::Beta(p_pars->Gamma0);
         double igamma = sol[i+SOL::QS::iGamma];
 //        double igamma = EQS::GamFromMom(mom);
-        double ibeta = EQS::Beta(igamma);//EQS::BetFromMom(mom);
+        double ibeta = EQS::BetaFromGamma(igamma);//EQS::BetFromMom(mom);
 //        double ibeta = EQS::BetFromMom(mom);
         if (!p_pars->end_evolution) {
             /// if BW is too slow numerical issues arise (Gamma goes below 1) # TODO rewrite ALL eqs in terms of GammaBeta
-            double beta   = EQS::Beta(igamma);
+            double beta   = EQS::BetaFromGamma(igamma);
             if ((igamma < 1.) || (beta < 0)) {
                 (*p_log)(LOG_ERR,AT)  << AT << " \n"
                                       << " Gamma < 1. ishell="<<p_pars->ishell<<" ilayer="<<p_pars->ilayer
@@ -482,7 +482,7 @@ public:
                     (*p_log)(LOG_WARN, AT) << " ix=" << ix - j << " Eint2="
                                            << string_format("%.9e", mDtmp[BW::Q::iEint2][j])
                                            << " Gamma=" << string_format("%.9e", mDtmp[BW::Q::iGamma][j])
-                                           << " beta=" << string_format("%.9f", mDtmp[BW::Q::ibeta][j])
+                                           << " betaSh=" << string_format("%.9f", mDtmp[BW::Q::ibeta][j])
                                            << " M2=" << string_format("%.9e", mDtmp[BW::Q::iM2][j])
                                            << " rho=" << string_format("%.9e", mDtmp[BW::Q::irho][j])
                                            << " \n";
@@ -624,7 +624,8 @@ public:
                                                  p_pars->theta_b0);
 
             Dat[BW::Q::iadi3][it] = p_eos->getGammaAdi(
-                    Dat[BW::Q::iGamma43][it], Beta(Dat[BW::Q::iGamma43][it]));
+                    Dat[BW::Q::iGamma43][it],
+                    EQS::BetaFromGamma(Dat[BW::Q::iGamma43][it]));
 
             Dat[BW::Q::irho3][it] = EQS::rho2t(
                     Dat[BW::Q::iGamma43][it],
@@ -933,9 +934,9 @@ public:
                 exit(1);
             }
 
-            double adi = p_eos->getGammaAdi(GammaCMB,EQS::Beta(GammaCMB));//5/3.;
+            double adi = p_eos->getGammaAdi(GammaCMB,EQS::BetaFromGamma(GammaCMB));//5/3.;
             double cscbm = sqrt(adi * P / rho) / CGS::c; // sound speed
-            double mcbm = sqrt(rho * EQS::Beta(GammaREL) * EQS::Beta(GammaREL) * CGS::c * CGS::c / adi / P); // mach number
+            double mcbm = sqrt(rho * EQS::BetaFromGamma(GammaREL) * EQS::BetaFromGamma(GammaREL) * CGS::c * CGS::c / adi / P); // mach number
 
 //            double ej_Gamma_prev = getVal(BW::Q::iGamma, (int)prev_ix - 1);
 //            double GammaCMB_prev = getVal(BW::Q::iGammaCBM, (int)prev_ix - 1);
@@ -1547,17 +1548,17 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
 //        dlnrho1dR /= p_pars->M0;
 //        double _rhoi = p_pars->rho/p_pars->M0;
     // ****************************************
-    long double beta   = EQS::Beta2(Gamma);
-//    double dRdt = beta * CGS::c; // TODO this is beta_sh ! ...
+    double beta   = EQS::BetaFromGamma(Gamma);
+//    double dRdt = betaSh * CGS::c; // TODO this is beta_sh ! ...
     double gammaAdi  = p_eos->getGammaAdi(Gamma, beta);
     double GammaSh = EQS::GammaSh(Gamma,gammaAdi);
 //    long double betaSh = EQS::Beta2(GammaSh);
 //    long double dRshdt = betaSh * CGS::c;
-////    double dRdtcomov = 1.0 / beta / Gamma / CGS::c;
-//    double dRshdt_ = betaSh / (Gamma * Gamma * (1. - beta * betaSh)) * CGS::c;// / Gamma;
+////    double dRdtcomov = 1.0 / betaSh / Gamma / CGS::c;
+//    double dRshdt_ = betaSh / (Gamma * Gamma * (1. - betaSh * betaSh)) * CGS::c;// / Gamma;
 //    std::cout << "dr= " << dRshdt << " !/ " << dRshdt_ << "\n";
     double dRshdt = EQS::dRsh_dt(Gamma, beta, GammaSh);
-    auto dRdt = (double)(beta * CGS::c);
+    double dRdt = beta * CGS::c;
 
 //    std::cout << " drdt = " << dRdt << " drsh_dt = " << dRshdt << "\n";
 
@@ -1618,7 +1619,7 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
             break;
     }
 //        double dmomdR = dGammadR * (Gamma / std::sqrt(Gamma * Gamma - 1.0));
-//        double dmomdR = dGammadR / beta;
+//        double dmomdR = dGammadR / betaSh;
 
 
 //        if (dGammadR > 0){
@@ -1640,10 +1641,10 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
 #if 0
     double dttdr = 0.;
         if (p_spread->m_method != LatSpread::METHODS_SYNCH::iNULL)
-            dttdr = 1. / (CGS::c * beta) * sqrt(1. + R * R * dthetadr * dthetadr) - (1. / CGS::c);
+            dttdr = 1. / (CGS::c * betaSh) * sqrt(1. + R * R * dthetadr * dthetadr) - (1. / CGS::c);
         else
-            dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
-        dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
+            dttdr = 1. / (CGS::c * Gamma * Gamma * betaSh * (1. + betaSh));
+        dttdr = 1. / (CGS::c * Gamma * Gamma * betaSh * (1. + betaSh));
 #endif
     bool spread = p_spread->m_method != LatSpread::METHODS::iNULL;
     double dttdr = EQS::evalElapsedTime(R, EQS::MomFromGam(Gamma),dthetadr,spread);
@@ -1692,8 +1693,8 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
         exit(1);
     }
 
-    out_Y[i + SOL::QS::iR] = dRdt;//1.0 / beta / CGS::c;
-    out_Y[i + SOL::QS::iRsh] = dRshdt;//1.0 / beta / CGS::c;
+    out_Y[i + SOL::QS::iR] = dRdt;//1.0 / betaSh / CGS::c;
+    out_Y[i + SOL::QS::iRsh] = dRshdt;//1.0 / betaSh / CGS::c;
     out_Y[i + SOL::QS::itt] = dRdt * dttdr;
     out_Y[i + SOL::QS::itcomov] = dRdt * dtcomov_dR;
     out_Y[i + SOL::QS::iGamma] = dRdt * dGammadR;//dRdt * dGammadR/Gamma;
@@ -1704,7 +1705,7 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
     out_Y[i + SOL::QS::iEsh2] = dRdt * dEsh2dR;
     out_Y[i + SOL::QS::iEad2] = dRdt * dEad2dR;
     out_Y[i + SOL::QS::iM2] = dRdt * dM2dR;
-//        if (beta>1e-5)  p_pars->end_evolution = true;
+//        if (betaSh>1e-5)  p_pars->end_evolution = true;
     // ****************************************
 //        if (mom+out_Y[i + QS::imom])
 }
@@ -1769,11 +1770,11 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
 ////            exit(1);
 //            theta = p_pars->theta_max;
 //        }
-//        double beta   = BetFromMom(mom);
-    double beta   = Beta(Gamma);
+//        double betaSh   = BetFromMom(mom);
+    double beta   = EQS::BetaFromGamma(Gamma);
 
     long double Gamma43 = EQS::get_Gamma43(Gamma, p_pars->Gamma0, beta, p_pars->beta0);
-    long double beta43 = EQS::Beta2(Gamma43);
+    long double beta43 = EQS::BetaFromGamma(Gamma43);
     double gammaAdi3 = p_eos->getGammaAdi((double)Gamma43, beta43);
 
     double GammaRsh = EQS::GammaSh((double)Gamma43,gammaAdi3);
@@ -1869,19 +1870,19 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
     }
 //        if (dRdt * dGammadR > 0){
 //            std::cerr << AT <<"\n [ Error ] dRdt * dGammadR > 0"
-//                              " Eint2="<<Eint2<<" Gamma="<<Gamma<<" beta="<<EQS::Beta(Gamma)<<" Eint2="<<Eint2
+//                              " Eint2="<<Eint2<<" Gamma="<<Gamma<<" betaSh="<<EQS::Beta(Gamma)<<" Eint2="<<Eint2
 //                      <<" Eint3"<<Eint3<<" M2"<<M2<<" M3"<<M3<<"Exiting...\n";
 //            exit(1);
 //        }
 //        if (!std::isfinite(dGammadR)){
 //            std::cerr << AT <<"\n [ Error ] dGammadR = nan"
-//                              " Eint2="<<Eint2<<" Gamma="<<Gamma<<" beta="<<EQS::Beta(Gamma)<<" Eint2="<<Eint2
+//                              " Eint2="<<Eint2<<" Gamma="<<Gamma<<" betaSh="<<EQS::Beta(Gamma)<<" Eint2="<<Eint2
 //                      <<" Eint3"<<Eint3<<" M2"<<M2<<" M3"<<M3<<" Exiting...\n";
 //            exit(1);
 //        }
 
 ////        double dmomdR = dGammadR * (Gamma / std::sqrt(Gamma * Gamma - 1.0));
-//        double dmomdR = dGammadR / beta;
+//        double dmomdR = dGammadR / betaSh;
 
 
     // -- Energies --
@@ -1915,10 +1916,10 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
 #if 0
     double dttdr = 0.;
         if (p_spread->m_method != LatSpread::METHODS_SYNCH::iNULL)
-            dttdr = 1. / (CGS::c * beta) * sqrt(1. + R * R * dthetadr * dthetadr) - (1. / CGS::c);
+            dttdr = 1. / (CGS::c * betaSh) * sqrt(1. + R * R * dthetadr * dthetadr) - (1. / CGS::c);
         else
-            dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
-        dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
+            dttdr = 1. / (CGS::c * Gamma * Gamma * betaSh * (1. + betaSh));
+        dttdr = 1. / (CGS::c * Gamma * Gamma * betaSh * (1. + betaSh));
 #endif
     bool spread = p_spread->m_method != LatSpread::METHODS::iNULL;
     double dttdr = EQS::evalElapsedTime(R,Gamma*beta,dthetadr,spread);
@@ -1988,13 +1989,13 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
 //            exit(1);
 //        }
 
-    out_Y[i + SOL::QS::iR] = dRdt;//1.0 / beta / CGS::c;
-    out_Y[i + SOL::QS::iRsh] = dRshdt;//1.0 / beta / CGS::c;
+    out_Y[i + SOL::QS::iR] = dRdt;//1.0 / betaSh / CGS::c;
+    out_Y[i + SOL::QS::iRsh] = dRshdt;//1.0 / betaSh / CGS::c;
     out_Y[i + SOL::QS::itt] = dRdt * dttdr;
     out_Y[i + SOL::QS::itcomov] = dRdt * dtcomov_dR;
     out_Y[i + SOL::QS::iGamma] = dRdt * dGammadR;//dRdt * dGammadR/Gamma;
 //        out_Y[i + SOL::QS::imom] = dRdt * dmomdR;//dRdt * dGammadR/Gamma;
-    out_Y[i + SOL::QS::iRrsh] = dRshRshdt;//1.0 / beta / CGS::c;
+    out_Y[i + SOL::QS::iRrsh] = dRshRshdt;//1.0 / betaSh / CGS::c;
     out_Y[i + SOL::QS::iEint2] = dRdt * dEint2dR;
     out_Y[i + SOL::QS::iEint3] = dRdt * dEint3dR;
     out_Y[i + SOL::QS::itheta] = dRdt * dthetadr;
@@ -2007,7 +2008,7 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
     out_Y[i + SOL::QS::iM2] = dRdt * dM2dR;
     out_Y[i + SOL::QS::iM3] = dRdt * dM3dR;
     out_Y[i + SOL::QS::ideltaR4] = dRdt * ddeltaR4dR;
-//        if (beta>1e-5)  p_pars->end_evolution = true;
+//        if (betaSh>1e-5)  p_pars->end_evolution = true;
     p_pars->prev_dM3dR = dRdt * dM3dR;
     p_pars->prev_dGammadR = dRdt * dGammadR;
     p_pars->prev_dRdt = dRdt;
@@ -2036,10 +2037,10 @@ void BlastWave::rhs_fs_dense(double * out_Y, size_t i, double x, double const * 
         (*p_log)(LOG_ERR,AT) << "Error Gamma < 1.\n";
         Gamma = 1. + 1.e-5;
 //            Gamma = EQS::GamFromMom(Y[i+ SOL::QS::imom]);
-//            beta = EQS::BetFromMom(Y[i+ SOL::QS::imom]);
+//            betaSh = EQS::BetFromMom(Y[i+ SOL::QS::imom]);
     }
-    double beta = EQS::Beta(Y[i+ SOL::QS::iGamma]);//EQS::BetFromMom(Y[i+QS::imom]);
-//        double beta = EQS::BetFromMom(Y[i+ SOL::QS::imom]);
+    double beta = EQS::BetaFromGamma(Y[i+ SOL::QS::iGamma]);//EQS::BetFromMom(Y[i+QS::imom]);
+//        double betaSh = EQS::BetFromMom(Y[i+ SOL::QS::imom]);
     // ****************************************
     if (!std::isfinite(R) || !std::isfinite(Gamma) || M2 < 0.
         || !std::isfinite(M2) || !std::isfinite(Eint2) || Eint2<0) {
@@ -2072,7 +2073,7 @@ void BlastWave::rhs_fs_dense(double * out_Y, size_t i, double x, double const * 
 ////            exit(1);
 //            theta = p_pars->theta_max;
 //        }
-//        double beta   = EQS::Beta(Gamma);
+//        double betaSh   = EQS::Beta(Gamma);
 
 
     // ****************************************
@@ -2111,11 +2112,11 @@ void BlastWave::rhs_fs_dense(double * out_Y, size_t i, double x, double const * 
     // ****************************************
     double dRdt = beta * CGS::c; // TODO this is beta_sh ! ...
     double Gamma_ = GammaRel;
-    double beta_ = EQS::Beta(Gamma_);
-    double gammaAdi  = p_eos->getGammaAdi(Gamma_, beta_);//p_eos->getGammaAdi(Gamma, beta);
+    double beta_ = EQS::BetaFromGamma(Gamma_);
+    double gammaAdi  = p_eos->getGammaAdi(Gamma_, beta_);//p_eos->getGammaAdi(Gamma, betaSh);
 
     double GammaSh = EQS::GammaSh(Gamma,gammaAdi);
-    double dRshdt = EQS::Beta(GammaSh) * CGS::c;
+    double dRshdt = EQS::BetaFromGamma(GammaSh) * CGS::c;
 
     double dthetadr = 0.0;
 //        if (theta < (p_pars->theta_max * 0.999999) ) {
@@ -2205,7 +2206,7 @@ void BlastWave::rhs_fs_dense(double * out_Y, size_t i, double x, double const * 
 //            dGammadR = 0.;
 //        }
     //        double dmomdR = dGammadR * (Gamma / std::sqrt(Gamma * Gamma - 1.0));
-//        double dmomdR = dGammadR / beta;
+//        double dmomdR = dGammadR / betaSh;
 
 
 //        drhodr = 0.; // TODO why was this set?! This overrides the derivative
@@ -2229,7 +2230,7 @@ void BlastWave::rhs_fs_dense(double * out_Y, size_t i, double x, double const * 
 //        if (cs_cbm > 100){
 //            int y = 1;
 //        }
-    if ((cs_cbm > EQS::Beta(GammaRel))){//&&(p_pars->comp_ix > p_pars->nr*1e-2))){ // TODO Subsonic flow -- no shock
+    if ((cs_cbm > EQS::BetaFromGamma(GammaRel))){//&&(p_pars->comp_ix > p_pars->nr*1e-2))){ // TODO Subsonic flow -- no shock
         dEsh2dR *= 1e-10;
     }
 //        double dEsh2dR = 0.;
@@ -2252,15 +2253,15 @@ void BlastWave::rhs_fs_dense(double * out_Y, size_t i, double x, double const * 
     double dtcomov_dR = 1.0 / beta / Gamma / CGS::c;
 //        double dttdr;
 //        if (p_spread->m_method != LatSpread::METHODS_SYNCH::iNULL)
-//            dttdr = 1. / (CGS::c * beta) * sqrt(1. + R * R * dthetadr * dthetadr) - (1. / CGS::c);
+//            dttdr = 1. / (CGS::c * betaSh) * sqrt(1. + R * R * dthetadr * dthetadr) - (1. / CGS::c);
 //        else
-//            dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
-//        dttdr = 1. / (CGS::c * Gamma * Gamma * beta * (1. + beta));
+//            dttdr = 1. / (CGS::c * Gamma * Gamma * betaSh * (1. + betaSh));
+//        dttdr = 1. / (CGS::c * Gamma * Gamma * betaSh * (1. + betaSh));
     bool spread = p_spread->m_method != LatSpread::METHODS::iNULL;
     double dttdr = EQS::evalElapsedTime(R,Gamma*beta,dthetadr,spread);
     // ****************************************
 //        if (!std::isfinite(Gamma) ||
-//        !std::isfinite(beta) //||
+//        !std::isfinite(betaSh) //||
 ////        !std::isfinite(Eint2) ||
 ////        !std::isfinite(theta) ||
 ////        !std::isfinite(M2)
@@ -2302,7 +2303,7 @@ void BlastWave::rhs_fs_dense(double * out_Y, size_t i, double x, double const * 
                               << " dGammaRhodR=" << dGammaRhodR //<< "\n"
                               << " drhodr=" << drhodr //<< "\n"
                               << " Gamma="<<Gamma//<< "\n"
-                              << " beta="<<beta//<< "\n"
+                              << " betaSh="<<beta//<< "\n"
                               << " theta"<<theta//<< "\n"
                               << " M2="<<M2//<< "\n"
                               << " Eint2="<<Eint2//<< "\n"
@@ -2357,8 +2358,8 @@ void BlastWave::rhs_fs_dense(double * out_Y, size_t i, double x, double const * 
 ////            Gamma = p_pars->Gamma0;
 //        }
 //        else{
-//            out_Y[i+QS::iR]      = dRdt;//1.0 / beta / CGS::c;
-//            out_Y[i+QS::iRsh]    = dRshdt;//1.0 / beta / CGS::c;
+//            out_Y[i+QS::iR]      = dRdt;//1.0 / betaSh / CGS::c;
+//            out_Y[i+QS::iRsh]    = dRshdt;//1.0 / betaSh / CGS::c;
 //            out_Y[i+QS::itt]     = dRdt * dttdr;
 //            out_Y[i+QS::itcomov] = dRdt * dtcomov_dR;
 //            out_Y[i+QS::iGamma]  = dRdt * dGammadR;
@@ -2369,8 +2370,8 @@ void BlastWave::rhs_fs_dense(double * out_Y, size_t i, double x, double const * 
 //            out_Y[i+QS::iEad2]   = dRdt * dEad2dR;
 //            out_Y[i+QS::iM2]     = dRdt * dM2dR;
 //        }
-    out_Y[i+ SOL::QS::iR]      = dRdt;//1.0 / beta / CGS::c;
-//    out_Y[i+ SOL::QS::iRsh]    = dRshdt;//1.0 / beta / CGS::c;
+    out_Y[i+ SOL::QS::iR]      = dRdt;//1.0 / betaSh / CGS::c;
+//    out_Y[i+ SOL::QS::iRsh]    = dRshdt;//1.0 / betaSh / CGS::c;
     out_Y[i+ SOL::QS::itt]     = dRdt * dttdr;
     out_Y[i+ SOL::QS::itcomov] = dRdt * dtcomov_dR;
 //        out_Y[i+ SOL::QS::imom]    = dRdt * dmomdR; //dRdt * dGammadR / Gamma;
@@ -2383,8 +2384,8 @@ void BlastWave::rhs_fs_dense(double * out_Y, size_t i, double x, double const * 
     out_Y[i+ SOL::QS::iEad2]   = dRdt * dEad2dR;
     out_Y[i+ SOL::QS::iM2]     = dRdt * dM2dR;
 //        if (Gamma)
-//        out_Y[i+QS::iR]      = dRdt;//1.0 / beta / CGS::c;
-//        out_Y[i+QS::iRsh]    = dRshdt;//1.0 / beta / CGS::c;
+//        out_Y[i+QS::iR]      = dRdt;//1.0 / betaSh / CGS::c;
+//        out_Y[i+QS::iRsh]    = dRshdt;//1.0 / betaSh / CGS::c;
 //        out_Y[i+QS::itt]     = dRdt * dttdr;
 //        out_Y[i+QS::itcomov] = dRdt * dtcomov_dR;
 //        out_Y[i+QS::iGamma]  = dRdt * dGammadR;
@@ -2395,7 +2396,7 @@ void BlastWave::rhs_fs_dense(double * out_Y, size_t i, double x, double const * 
 //        out_Y[i+QS::iEad2]   = dRdt * dEad2dR;
 //        out_Y[i+QS::iM2]     = dRdt * dM2dR;
     // ****************************************
-//        if (beta<1e-5)  p_pars->end_evolution = true;
+//        if (betaSh<1e-5)  p_pars->end_evolution = true;
 }
 
 /// RHS with ODEs for dGammadR modified for pre-accelerated ISM with energy injection
@@ -2410,8 +2411,8 @@ void BlastWave::rhs_fs_dense_pwn(double * out_Y, size_t i, double x, double cons
     double theta  = Y[i+ SOL::QS::itheta];
     double M2     = Y[i+ SOL::QS::iM2];
 //        double Gamma  = EQS::GamFromMom(Y[i+ SOL::QS::imom]);
-//        double beta   = EQS::BetFromMom(Y[i+ SOL::QS::imom]);
-    double beta   = Beta(Gamma);
+//        double betaSh   = EQS::BetFromMom(Y[i+ SOL::QS::imom]);
+    double beta   = BetaFromGamma(Gamma);
     /// ---- PWN ---
     double r_w   = Y[i+ SOL::QS::iRw];
     double e_nb  = Y[i+ SOL::QS::iWenb];
@@ -2423,8 +2424,8 @@ void BlastWave::rhs_fs_dense_pwn(double * out_Y, size_t i, double x, double cons
         (*p_log)(LOG_ERR,AT) << "Error mom < 0! Resetting to default \n";
         Gamma = 1. + 1e-5;
 //            Gamma = EQS::GamFromMom(Y[i+ SOL::QS::imom]);
-//            beta = EQS::BetFromMom(Y[i+ SOL::QS::imom]);
-        beta = Beta(Gamma);
+//            betaSh = EQS::BetFromMom(Y[i+ SOL::QS::imom]);
+        beta = BetaFromGamma(Gamma);
     }
     if ((!std::isfinite(R)) || (!std::isfinite(Gamma)) ||
         (M2 < 0.) || (!std::isfinite(M2)) || (!std::isfinite(Eint2)) || (Eint2<0)) {
@@ -2536,10 +2537,10 @@ void BlastWave::rhs_fs_dense_pwn(double * out_Y, size_t i, double x, double cons
     // ***| Update BW state |********************************
     double dRdt = beta * CGS::c; // TODO this is beta_sh ! ...
     double Gamma_ = GammaRel;
-    double beta_ = EQS::Beta(Gamma_);
-    double gammaAdi  = p_eos->getGammaAdi(Gamma_, beta_);//p_eos->getGammaAdi(Gamma, beta);
+    double beta_ = EQS::BetaFromGamma(Gamma_);
+    double gammaAdi  = p_eos->getGammaAdi(Gamma_, beta_);//p_eos->getGammaAdi(Gamma, betaSh);
     double GammaSh = EQS::GammaSh(Gamma,gammaAdi);
-    double dRshdt = EQS::Beta(GammaSh) * CGS::c;
+    double dRshdt = EQS::BetaFromGamma(GammaSh) * CGS::c;
     double dthetadr = 0.0; // NO lateral expansion for this BW
 
     double dM2dR = 0.;
@@ -2593,7 +2594,7 @@ void BlastWave::rhs_fs_dense_pwn(double * out_Y, size_t i, double x, double cons
     double denum2 = Eint2 * dGammaEffdGamma;
     double denom3 = GammaEff * (gammaAdi - 1.) * Eint2 * dGammaRelDGamma / GammaRel;
     double dGammadR = -1. * (num1 + num2 + num3) / (denum1+denum2+denom3);
-//        double dmomdR = dGammadR / beta;
+//        double dmomdR = dGammadR / betaSh;
 
     // Adiabatic energy loss
     double dlnV2dR  = dM2dR / M2 - drhodr / rho - (1. / GammaRel) * dGammaRelDGamma * dGammadR + dGammaRhodR / GammaRho;// + 3./R;
@@ -2604,7 +2605,7 @@ void BlastWave::rhs_fs_dense_pwn(double * out_Y, size_t i, double x, double cons
 
     // Energy generation at the shock
     double dEsh2dR = (GammaRel - 1.0) * dM2dR;
-    if ((cs_cbm > EQS::Beta(GammaRel))){//&&(p_pars->comp_ix > p_pars->nr*1e-2))){ // TODO Subsonic flow -- no shock
+    if ((cs_cbm > EQS::BetaFromGamma(GammaRel))){//&&(p_pars->comp_ix > p_pars->nr*1e-2))){ // TODO Subsonic flow -- no shock
         dEsh2dR *= 1e-10;
     }
 
@@ -2644,7 +2645,7 @@ void BlastWave::rhs_fs_dense_pwn(double * out_Y, size_t i, double x, double cons
                               << " dGammaRhodR=" << dGammaRhodR //<< "\n"
                               << " drhodr=" << drhodr //<< "\n"
                               << " Gamma="<<Gamma//<< "\n"
-                              << " beta="<<beta//<< "\n"
+                              << " betaSh="<<beta//<< "\n"
                               << " theta"<<theta//<< "\n"
                               << " M2="<<M2//<< "\n"
                               << " Eint2="<<Eint2//<< "\n"
@@ -2656,8 +2657,8 @@ void BlastWave::rhs_fs_dense_pwn(double * out_Y, size_t i, double x, double cons
 
     // ***| Save the state |***********************
     p_pars->prev_x = x;
-    out_Y[i+ SOL::QS::iR]      = dRdt;//1.0 / beta / CGS::c;
-//    out_Y[i+ SOL::QS::iRsh]    = dRshdt;//1.0 / beta / CGS::c;
+    out_Y[i+ SOL::QS::iR]      = dRdt;//1.0 / betaSh / CGS::c;
+//    out_Y[i+ SOL::QS::iRsh]    = dRshdt;//1.0 / betaSh / CGS::c;
     out_Y[i+ SOL::QS::itt]     = dRdt * dttdr;
     out_Y[i+ SOL::QS::itcomov] = dRdt * dtcomov_dR;
 //        out_Y[i+ SOL::QS::imom]    = dRdt * dmomdR; //?dRdt * dGammadR / Gamma;

@@ -46,7 +46,7 @@ class CumulativeShell{
 public:
     enum Q { irEj, irhoEj, ibetaEj, idelta, ivol, idtau, itaucum, itaucum0, ieth, itemp, ilum, itdiff };
     std::vector<std::string> m_vnames{
-            "r", "rho", "beta", "delta", "vol", "dtau", "taucum", "taucum0", "eth", "temp", "lum", "tdiff"
+            "r", "rho", "betaSh", "delta", "vol", "dtau", "taucum", "taucum0", "eth", "temp", "lum", "tdiff"
     };
     CumulativeShell(Vector t_grid, size_t nshells, int ilayer, size_t n_substeps, BW_TYPES type, int loglevel){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "CumulativeShell");
@@ -669,7 +669,7 @@ public:
 
             ///store also velocity
 //            double m_beta = EQS::BetFromMom( Y[bw->getPars()->ii_eq + SOL::QS::imom] );
-            double m_beta = Beta( Y[bw->getPars()->ii_eq + SOL::QS::iGamma] );
+            double m_beta = EQS::BetaFromGamma( Y[bw->getPars()->ii_eq + SOL::QS::iGamma] );
             if (m_beta > 1){
                 (*p_log)(LOG_ERR,AT) << " m_beta="<<m_beta<<"\n";
                 exit(1);
