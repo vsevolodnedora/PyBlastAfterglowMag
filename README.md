@@ -4,10 +4,6 @@ PyBlastAfterglow is a numerical, C++ code designed to model electromagnetic sign
 The code is modular and designed so that new physics (e.g., new radiation methods, energy injection) can be easily incorporated. 
 _In summation:- PyBlastAfterglow stands in between full numeric radiation relativistic hydrodynamics codes (e.g., GAMMA, JET) and semi-analytic codes (e.g., afterglowpy). It has much more physics than the latter and is faster than the former. 
 __The code is under active development and is not yet released__.  
-_Current work areas:_ 
-- code paper: finalize test cases, cross-check methods and results; compare with analytic solutions; write; 
-- synchrotron self-Compton emission: last stage of development; not tested; time to finish ~1-2 month; 
-- reverse shock dynamics and emission: developed; testing; time to finish <1 month. 
 
 ## Repository structure
 
