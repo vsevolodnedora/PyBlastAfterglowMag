@@ -72,6 +72,7 @@ struct Pars{
     double ncells = -1.; // number of cells that this blast wave contains (PW discretization)
     double ctheta0 = -1.; // initial center of the blastwave
 //        double theta_h0 = -1;
+    double theta_c = -1.; // center openning angle of the segment (A discretization)
     double theta_c_l = -1.; // lower openning angle of the segment (A discretization)
     double theta_c_h = -1.; // upper openning angle of the segment (A discretization)
     double theta_w = -1.; // wing angle (jet edge)
@@ -225,7 +226,7 @@ namespace BW{
     const std::vector<std::string> VARNAMES{
             /// Blast Wave with a forward shock
             "R", "Rsh", "rho", "drhodr", "GammaRel",
-            "Gamma", "betaSh", "mom", "Eint2", "U_p", "theta", "ctheta", "Erad2", "Esh2", "Ead2", "M2",
+            "Gamma", "beta", "mom", "Eint2", "U_p", "theta", "ctheta", "Erad2", "Esh2", "Ead2", "M2",
             "tcomov", "tburst", "tt", "thickness", "adi", "rho2", "GammaFsh",
             "gamma_min", "gamma_c", "gamma_max", "B", "ThetaTherm", "z_cool", "x",
             "nprime", "accel_frac",

@@ -827,6 +827,7 @@ public:
         p_pars->theta_obs = getDoublePar("theta_obs", pars, AT, p_log,-1, true);//pars.at("theta_obs");
         p_pars->d_l = getDoublePar("d_l", pars, AT, p_log,-1, true);//pars.at("d_l");
         p_pars->z = getDoublePar("z", pars, AT, p_log,-1, true);//pars.at("z");
+        p_pars->theta_c = id->get(ish,il,EjectaID2::Q::itheta_c);
         p_pars->theta_c_l = id->get(ish,il,EjectaID2::Q::itheta_c_l);
         p_pars->theta_c_h = id->get(ish,il,EjectaID2::Q::itheta_c_h);
         p_pars->theta_max = getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false);

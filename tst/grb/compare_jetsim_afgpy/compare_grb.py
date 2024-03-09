@@ -1,51 +1,28 @@
 # import PyBlastAfterglowMag
 import copy
 import shutil
-
 import numpy as np
-import h5py
-from scipy.integrate import ode
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
-from scipy import interpolate
-# import pytest
-from pathlib import Path
-from matplotlib.colors import Normalize, LogNorm
-from matplotlib import cm
 import os
 
-# try:
-#     from PyBlastAfterglowMag.interface import modify_parfile_par_opt
-#     from PyBlastAfterglowMag.interface import PyBlastAfterglow
-#     from PyBlastAfterglowMag.interface import (distribute_and_run, get_str_val, set_parlists_for_pars)
-#     from PyBlastAfterglowMag.utils import latex_float, cgs, get_beta, get_Gamma
-#     from PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
-# except ImportError:
-#     try:
-#         from package.src.PyBlastAfterglowMag.interface import modify_parfile_par_opt
-#         from package.src.PyBlastAfterglowMag.interface import PyBlastAfterglow
-#         from package.src.PyBlastAfterglowMag.interface import (distribute_and_parallel_run, get_str_val, set_parlists_for_pars)
-#         from package.src.PyBlastAfterglowMag.utils import (latex_float, cgs, get_beta, get_Gamma)
-#         from package.src.PyBlastAfterglowMag.id_maker_analytic import prepare_grb_ej_id_1d, prepare_grb_ej_id_2d
-#     except ImportError:
-#         raise ImportError("Cannot import PyBlastAfterglowMag")
-
-# try:
-#     import package.src.PyBlastAfterglowMag as PBA
-# except ImportError:
-#     try:
-#         import PyBlastAfterglowMag as PBA
-#     except:
-#         raise ImportError("Cannot import PyBlastAfterglowMag")
 import package.src.PyBlastAfterglowMag as PBA
-afterglowpy = True
+
 try:
     import afterglowpy as grb
 except:
-    afterglowpy = False
     print("Error! could not import afteglowpy")
 
 curdir = os.getcwd() + '/' #"/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglow_dev/PyBlastAfterglow/src/PyBlastAfterglow/tests/dyn/"
+
+try:
+    import jetsimpy
+except:
+    print("Error! could not import jetsim")
+
+# temprary dir to save PyBlastAfterglow output into
+working_dir = os.getcwd() + '/tmp1/'
+fig_dir = os.getcwd() + '/figs/'
 
 def run(working_dir:str, struct:dict, P:dict, type:str="a") -> PBA.PyBlastAfterglow:
     # clean he temporary direcotry
@@ -55,7 +32,7 @@ def run(working_dir:str, struct:dict, P:dict, type:str="a") -> PBA.PyBlastAfterg
 
     # generate initial data for blast waves
     pba_id = PBA.id_analytic.JetStruct(n_layers_pw=80,
-                                       n_layers_a=1 if struct["struct"]=="tophat" else 20)
+                                       n_layers_a=1 if struct["struct"]=="tophat" else s0)
 
     # save piece-wise EATS ID
     id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="piece-wise")
@@ -75,12 +52,12 @@ def run(working_dir:str, struct:dict, P:dict, type:str="a") -> PBA.PyBlastAfterg
     # run the code with given parfile
     pba.run(
         path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",
-        loglevel="info"
+        loglevel="err"
     )
 
     # process skymap
     if (pba.GRB.opts["do_skymap"]=="yes"):
-        conf = {"nx":128, "ny":64, "extend_grid":1, "fwhm_fac":0.5, "lat_dist_method":"integ",
+        conf = {"nx":128, "ny":64, "extend_grid":1.1, "fwhm_fac":0.5, "lat_dist_method":"integ",
                 "intp_filter":{ "type":'gaussian', "sigma":2, "mode":'reflect' }, # "gaussian"
                 "hist_filter":{ "type":'gaussian', "sigma":2, "mode":'reflect' }}
         prep = PBA.skymap_process.ProcessRawSkymap(conf=conf, verbose=False)
@@ -125,7 +102,6 @@ def run_afgpy(freq:float, struct:dict, pba:PBA.PyBlastAfterglow):
 def run_jetsim(freq:float, struct:dict, pba:PBA.PyBlastAfterglow):
     # pba_ = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
 
-    import jetsimpy
     P = dict(
         Eiso = struct["Eiso_c"],        # (Jet) Isotropic equivalent energy
         lf = struct["Gamma0c"],           # (Jet) Lorentz factor
@@ -156,13 +132,35 @@ def run_jetsim(freq:float, struct:dict, pba:PBA.PyBlastAfterglow):
     else:
         raise KeyError("structure is not recognized")
 
+    if pba.GRB.opts["save_dynamics"] == "yes":
+        jet1 = jetsimpy.Afterglow(
+            theta,           # array of theta
+            Eiso,            # array of isotropic equivalent energy
+            lf,              # array of initial lorentz factor
+            # 0.,
+            P["A"],          # scale of wind density
+            P["n0"],         # constant number density
+            tmin=pba.main_pars["tb0"],
+            tmax=pba.main_pars["tb1"],
+            spread=pba.GRB.opts["method_spread"] != "None",    # (default = True) with/without spreading effect
+            coast=True,      # (default = True) with/without coasting. If this is "False", the initial lorentz factor data will be omitted.
+        )
+        # t_arr = np.logspace(np.log10(pba.main_pars["tb0"]),
+        #                     np.log10(pba.main_pars["tb1"]),
+        #                     pba.main_pars["ntb"])
+        # mom = jet1.beta_gamma(t_arr,)
+        return jet1
+
     if pba.GRB.opts["do_lc"] == 'yes':
         jet1 = jetsimpy.Afterglow(
             theta,           # array of theta
             Eiso,            # array of isotropic equivalent energy
             lf,              # array of initial lorentz factor
+            # 0.,
             P["A"],          # scale of wind density
             P["n0"],         # constant number density
+            tmin=pba.main_pars["tb0"],
+            tmax=pba.main_pars["tb1"],
             spread=pba.GRB.opts["method_spread"] != "None",    # (default = True) with/without spreading effect
             coast=True,      # (default = True) with/without coasting. If this is "False", the initial lorentz factor data will be omitted.
         )
@@ -243,7 +241,7 @@ def plot_jetsim_skymap(ax, image):
 
     # plot intensity
     im = ax.imshow(Inorm, interpolation='gaussian', cmap="inferno", origin='lower', extent=[-width, width, -width, width])
-    im.set_clim(vmin=0.0, vmax=1)
+    im.set_clim(vmin=0.01, vmax=1)
 
     # offset and scale
     xc = centroid
@@ -254,13 +252,12 @@ def plot_jetsim_skymap(ax, image):
     ax.add_patch(Ellipse((xc, yc), sigmax * 2, sigmay * 2, edgecolor="white", fill=False,   linestyle="--", linewidth=1))
 
 
+
 def compare_lcs(struct:dict, pp:dict, plot:dict):
 
     fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(5.6, 4.2))
     ax = axes
 
-    working_dir = os.getcwd() + '/tmp1/'
-    fig_dir = os.getcwd() + '/figs/'
     # prepare initial data (piecewise and adaptive)
 
     lls, lbls = [], []
@@ -274,32 +271,37 @@ def compare_lcs(struct:dict, pp:dict, plot:dict):
 
     for iter in plot["iters"]:
         i_freq,i_thetaobs,i_ls = iter["freq"], iter["theta_obs"], iter["ls"]
+
         # default : Analytic
-        pba = run(working_dir=working_dir,struct=struct, type="a", P=mrg(pp,{
-            "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
-            "grb":{"method_ele_fs":"analytic",
-                   "method_synchrotron_fs":"WSPN99"}}))
-        ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
-                pba.GRB.get_lc(freq=i_freq), color='pink', ls=i_ls, lw=1.,
-                label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+        if plot["plot_analytic"]:
+            pba = run(working_dir=working_dir,struct=struct, type="a", P=mrg(pp,{
+                "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
+                "grb":{"method_ele_fs":"analytic",
+                       "method_synchrotron_fs":"WSPN99"}}))
+            ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
+                    pba.GRB.get_lc(freq=i_freq), color='red', ls=i_ls, lw=1.,
+                    label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
 
         # default : Semi-Analytic
-        pba = run(working_dir=working_dir,struct=struct, type="a", P=mrg(pp,{
-            "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
-            "grb":{"method_ele_fs":"mix"}}))
-        ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
-                pba.GRB.get_lc(freq=i_freq), color='blue', ls=i_ls, lw=1.,
-                label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+        if plot["plot_semi_analytic"]:
+            pba = run(working_dir=working_dir,struct=struct, type="a", P=mrg(pp,{
+                "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
+                "grb":{"method_ele_fs":"mix"}}))
+            ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
+                    pba.GRB.get_lc(freq=i_freq), color='green', ls=i_ls, lw=1.,
+                    label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
 
         # default : Numeric
-        # pba = run(working_dir=working_dir,struct=struct, type="a", P=mrg(pp,{
-        #     "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
-        #     "grb":{}}))
-        # ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
-        #         pba.GRB.get_lc(freq=i_freq), color='green', ls=i_ls, lw=1.,
-        #         label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+        if plot["plot_numeric"]:
+            pba = run(working_dir=working_dir,struct=struct, type="a", P=mrg(pp,{
+                "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
+                "grb":{}}))
+            ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
+                    pba.GRB.get_lc(freq=i_freq), color='blue', ls=i_ls, lw=1.,
+                    label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
 
         ''' -------------------- REFERENCES --------------- '''
+
         t_, f_ = run_afgpy(i_freq, struct, pba)
         _ll, = ax.plot(t_ / PBA.utils.cgs.day, f_, color='black', ls=i_ls, lw=.8)
 
@@ -591,17 +593,24 @@ def compare_lcs(struct:dict, pp:dict, plot:dict):
 
     l11, = ax.plot([-1., -1.], [-2., -2.], color='gray', ls='-', lw=1.)
     l12, = ax.plot([-1., -1.], [-2., -2.], color='black', ls='-', lw=1.)
-    l13, = ax.plot([-1., -1.], [-2., -2.], color='green', ls='-',  lw=1.)
-    l14, = ax.plot([-1., -1.], [-2., -2.], color='blue', ls='-',  lw=1.)
-    # l13, = ax.plot([-1., -1.], [-2., -2.], color='pink', ls='-',  lw=0.5, label=r"\texttt{afterglowpy}")
-
-    legend1 = plt.legend([l11, l12, l14],
-                         # [r"\& J\'{o}hannesson+06", r"\& WSPN+99", r"\texttt{afterglowpy}"],
-                         [r"\texttt{jetsim}", r"\texttt{afterglopy}", r"\texttt{PyBlastAfterglow}*"],
-                         loc="center", bbox_to_anchor=(0.78, 0.56), fancybox=False, shadow=False, ncol=1,
+    l13, = ax.plot([-1., -1.], [-2., -2.], color='red', ls='-',  lw=1.)
+    l14, = ax.plot([-1., -1.], [-2., -2.], color='green', ls='-',  lw=1.)
+    l15, = ax.plot([-1., -1.], [-2., -2.], color='blue', ls='-',  lw=1.)
+    lines, labels = [l11, l12], [r"\texttt{jetsimpy}", r"\texttt{afterglopy}"]
+    if plot["plot_analytic"]:
+        lines.append(l13)
+        labels.append(r"\texttt{PyBlastAfterglow}*")
+    if plot["plot_semi_analytic"]:
+        lines.append(l14)
+        labels.append(r"\texttt{PyBlastAfterglow}")
+    if plot["plot_numeric"]:
+        lines.append(l15)
+        labels.append(r"\texttt{PyBlastAfterglow}")
+    legend1 = plt.legend(lines, labels,
+                         loc="center", bbox_to_anchor=plot["bbox_to_anchor_1"], fancybox=False, shadow=False, ncol=1,
                          fontsize=10, framealpha=0, borderaxespad=0., frameon=False)
     legend2 = plt.legend(lls, lbls,
-                         loc="center", bbox_to_anchor=(0.4, 0.16), fancybox=False, shadow=False, ncol=1,
+                         loc="center", bbox_to_anchor=plot["bbox_to_anchor_2"], fancybox=False, shadow=False, ncol=1,
                          fontsize=10, framealpha=0, borderaxespad=0., frameon=False)
 
     ax.add_artist(legend1)
@@ -611,26 +620,133 @@ def compare_lcs(struct:dict, pp:dict, plot:dict):
     # ax.set_title(r"Comparison with afterglowpy (e.g. Fig.2)")
     ax.tick_params(axis='both', which='both', labelleft=True,
                    labelright=False, tick1On=True, tick2On=True,
-                   # labelsize=plotdic["fontsize"],
+                   labelsize=13,
                    direction='in',
                    bottom=True, top=True, left=True, right=True)
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.minorticks_on()
-    ax.set_xlabel(r"$t_{\rm obs}$ [day]")
-    ax.set_ylabel(r"$F_{\nu}$ [mJy]")
-    ax.set_xlim(1e-1, 1e3)
-    ax.set_ylim(1e-9, 1e2)
+    ax.set_xlabel(r"$t_{\rm obs}$ [day]",fontsize=13)
+    ax.set_ylabel(r"$F_{\nu}$ [mJy]",fontsize=13)
+    ax.set_xlim(plot["xlim"])
+    ax.set_ylim(plot["ylim"])
     # ax.legend()
     plt.tight_layout()
     # if save_figs: plt.savefig(PAPERPATH + save)
-    if not plot["figname"] is None: plt.savefig(fig_dir+plot["figname"]+".png", dpi=256)
+    if "figname" in plot.keys():
+        plt.savefig(fig_dir+plot["figname"]+'.png',dpi=256)
+        plt.savefig(fig_dir+plot["figname"]+'.pdf')
+    if plot["show"]: plt.show()
 
-    plt.show()
+def compare_dyn(struct:dict, pp:dict, plot:dict):
+    pba = run(working_dir=working_dir,struct=struct,P=pp,type="a")
+    jetsimpy = run_jetsim(freq=-1.,struct=struct,pba=pba)
+    fig,ax = plt.subplots(ncols=1,nrows=1,figsize=(5.5,4.))
 
+    def plot_momentum(ax, color, ilayer):
+        ax.plot(
+            pba.GRB.get_dyn_arr(v_n="tburst",ishell=0,ilayer=ilayer),
+            pba.GRB.get_dyn_arr(v_n="mom",ishell=0,ilayer=ilayer),
+            color=color,ls='-',lw=1.
+        )
+        times = np.logspace(np.log10(jetsimpy.tmin),np.log10(jetsimpy.tmax),200)
+        thetas = np.array(
+            [pba.GRB.get_dyn_arr(v_n="theta",ishell=0,ilayer=ilayer)[
+                 PBA.utils.find_nearest_index(
+                     pba.GRB.get_dyn_arr(v_n="tburst",ishell=0,ilayer=ilayer), t_
+                 )
+             ]
+             for t_ in times]
+        )
+        # mom = jetsimpy.beta_gamma(
+        #     t=times,
+        #     theta=[
+        #         # thetas[0]
+        #         # pba.GRB.get_dyn_obj()[f"shell=0 layer={ilayer}"].attrs["theta_c_l"]
+        #         pba.GRB.get_dyn_obj()[f"shell=0 layer={ilayer}"].attrs["theta_c"]
+        #         +
+        #     ]
+        # )
+        theta_c = pba.GRB.get_dyn_obj()[f"shell=0 layer={ilayer}"].attrs["theta_c"]
+        mom = np.array([jetsimpy.beta_gamma(
+            t_,
+            theta_c + .5 * theta_ - .5 * thetas[0]).flatten() for (t_,theta_) in zip(times,thetas)])
+
+        ax.plot(
+            times,
+            mom,
+            color=color,ls='--',lw=0.7
+        )
+
+    def plot_(ax):
+        if struct['struct'] == 'tophat':
+            plot_momentum(ax,color=plot["colors"],ilayer=plot["layers"])
+        elif struct['struct'] == 'gaussian':
+            pba = run(working_dir=working_dir,struct=struct,P=pp,type="a")
+            jetsimpy = run_jetsim(freq=-1.,struct=struct,pba=pba)
+            for ilayer, color in zip(plot["layers"],plot["colors"]):
+                plot_momentum(ax,color=color,ilayer=ilayer)
+
+    plot_(ax)
+
+    # inset axes....
+    if plot["include_zoom_in"]:
+        x1, x2, y1, y2 = -1.5, -0.9, -2.5, -1.9  # subregion of the original image
+        axins = ax.inset_axes(
+            [0.05, 0.05, 0.45, 0.45],
+            xlim=(x1, x2), ylim=(y1, y2), xticklabels=[], yticklabels=[])
+        plot_(axins)
+        # sub region of the original image
+        x1, x2, y1, y2 = 1e7, 1e9, 1e-1, 5.
+        axins.set_xlim(x1, x2)
+        axins.set_ylim(y1, y2)
+        axins.set_xscale('log')
+        axins.set_yscale('log')
+        axins.set_xticklabels('')
+        axins.set_yticklabels('')
+        axins.minorticks_on()
+        axins.tick_params(axis='both', which='both', labelleft=True,
+                       labelright=False, tick1On=True, tick2On=True,
+                       labelsize=12,
+                       direction='in',
+                       bottom=True, top=True, left=True, right=True)
+        ax.indicate_inset_zoom(axins, edgecolor="black")
+
+    ax.set_xlim(1e3, 1e10)
+    ax.set_ylim(1e-2, 5e2)
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.set_ylabel(r"$\Gamma\beta$", fontsize=12)
+    ax.set_xlabel(r"$t_{\rm burst}$ [s]", fontsize=12)
+    ax.tick_params(axis='both', which='both', labelleft=True,
+                   labelright=False, tick1On=True, tick2On=True,
+                   labelsize=12,
+                   direction='in',
+                   bottom=True, top=True, left=True, right=True)
+    ax.minorticks_on()
+
+    l11, = ax.plot([-1., -1.], [-2., -2.], color='black', ls='--', lw=1.)
+    l12, = ax.plot([-1., -1.], [-2., -2.], color='black', ls='-', lw=1.)
+
+    legend1 = plt.legend([l11, l12],
+                         # [r"\& J\'{o}hannesson+06", r"\& WSPN+99", r"\texttt{afterglowpy}"],
+                         [r"\texttt{jetsimpy}", r"\texttt{PyBlastAfterglow}"],
+                         loc="upper right", # bbox_to_anchor=(0.78, 0.56),
+                         fancybox=False, shadow=False, ncol=1,
+                         fontsize=10, framealpha=0, borderaxespad=0., frameon=False)
+    # legend2 = plt.legend(lls, lbls,
+    #                      loc="center", bbox_to_anchor=(0.4, 0.16), fancybox=False, shadow=False, ncol=1,
+    #                      fontsize=10, framealpha=0, borderaxespad=0., frameon=False)
+
+    ax.add_artist(legend1)
+    # ax.add_artist(legend2)
+    plt.tight_layout()
+    if "figname" in plot.keys():
+        plt.savefig(fig_dir+plot["figname"]+'.png',dpi=256)
+        plt.savefig(fig_dir+plot["figname"]+'.pdf')
+    if plot["show"]: plt.show()
 
 def compare_skymaps(struct:dict, pp:dict, plot:dict):
-    working_dir = os.getcwd() + '/tmp1/'
     pba = run(working_dir=working_dir,struct=struct, type="a", P=mrg(pp,{
         "main":{}, "grb":{}}))
     skymap = pba.GRB.get_skymap(
@@ -640,8 +756,8 @@ def compare_skymaps(struct:dict, pp:dict, plot:dict):
     tmp={
         "type":"hist",
         "cm": {"color": 'cyan', "marker": "+"},
-        "ysize": {"capsize": 2, "color": "cyan", "lw": 0.5},
-        "xsize": {"capsize": 2, "color": "cyan", "lw": 0.5},
+        "ysize": {"capsize": 1, "color": "white", "lw": 0.3},
+        "xsize": {"capsize": 1, "color": "white", "lw": 0.3},
         "pcolormesh": {"cmap": 'inferno', "set_under": None, "set_over": None, "set_rasterized": True,
                        "norm": ("linear", "0.01max", "1max"), "facecolor": 0, "alpha": 1.0, "isnan": 0}
     }
@@ -668,51 +784,93 @@ def compare_skymaps(struct:dict, pp:dict, plot:dict):
     for k in range(len(axes)):
         axes[k].set_xlabel(r"$X$ [mas]", fontsize=12)
         if k == 0: axes[k].set_ylabel(r"$Z$ [mas]", fontsize=12)
-        axes[k].tick_params(axis='both', which='both', labelleft=True,
-                            labelright=False, tick1On=True, tick2On=True,
-                            labelsize=12,
-                            direction='in',
-                            bottom=True, top=True, left=True, right=True)
+        axes[k].tick_params(axis='both', which='both', labelbottom=True,
+                    labelright=False, tick1On=True, tick2On=True,
+                    labelsize=12, color="white",
+                    direction='in',
+                    bottom=True, top=True, left=True, right=True)
         axes[k].minorticks_on()
-        axes[k].axhline(y=0, linestyle=':', linewidth=0.4)
-        axes[k].axvline(x=0, linestyle=':', linewidth=0.4)
+        # axes[k].axhline(y=0, linestyle=':', linewidth=0.4)
+        # axes[k].axvline(x=0, linestyle=':', linewidth=0.4)
         axes[k].set_facecolor('black')
         # axes[k].set_xlim(-1,3)
         # axes[k].set_ylim(-1,3)
+    axes[0].text(.1, .1, r"\texttt{PyBlastAfterglow}*",
+                 color='white',
+                 transform=axes[0].transAxes, fontsize=12)
+    axes[1].text(.1, .1, r"\texttt{jetsimpy}",
+                 color='white',
+                 transform=axes[1].transAxes, fontsize=12)
     plt.tight_layout()
-    plt.show()
+    if "figname" in plot.keys():
+        plt.savefig(fig_dir+plot["figname"]+'.png',dpi=256)
+        plt.savefig(fig_dir+plot["figname"]+'.pdf')
+    if plot["show"]: plt.show()
+
 
 if __name__ == '__main__':
-    # compare_jetsim_afgpy(
-    #     struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
-    #     pp = dict(main=dict(n_ism = 1e-2),
-    #               grb=dict()),
-    #     plot = dict(iters=[
-    #         dict(theta_obs=0.16,freq=1.e9,ls='-'),
-    #         dict(theta_obs=0.0,freq=1.e18,ls='--'),
-    #         dict(theta_obs=0.16,freq=1.e18,ls='-.'),
-    #         dict(theta_obs=0.0,freq=1.e9,ls=':')
-    #     ], figname="fig1")
-    # )
-    # compare_jetsim_afgpy(
-    #     struct = dict(struct="gaussian",Eiso_c=1.e52, Gamma0c= 300., M0c= -1., theta_c= 0.085, theta_w= 0.2618),
-    #     pp = dict(main=dict(n_ism = 0.00031,d_l = 1.27e+26, z = 0.0099),
-    #               grb=dict(eps_e_fs = 0.0708, eps_b_fs = 0.0052, p_fs = 2.16)),
-    #     plot = dict(iters=[
-    #         dict(theta_obs=0.3752,freq=1.e9,ls='-'),
-    #         dict(theta_obs=0.0,freq=1.e18,ls='--'),
-    #         dict(theta_obs=0.3752,freq=1.e18,ls='-.'),
-    #         dict(theta_obs=0.0,freq=1.e9,ls=':')
-    #         ], figname="fig2")
-    # )
+    show = False
+    ''' tophat jet '''
+    compare_dyn(
+        struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
+        pp = dict(main=dict(n_ism = 1e-2),
+                  grb=dict(save_dynamics='yes',do_ele = "no",do_lc = "no")),
+        plot=dict(
+            layers=0,
+            colors='blue',
+            include_zoom_in=False,
+            show=show,
+            figname="dyn_tophat"
+        )
+    )
+    compare_lcs(
+        struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
+        pp = dict(main=dict(n_ism = 1e-2),
+                  grb=dict()),
+        plot = dict(plot_analytic=True,plot_semi_analytic=True,plot_numeric=False,iters=[
+            dict(theta_obs=0.16,freq=1.e9,ls='-'),
+            dict(theta_obs=0.0,freq=1.e18,ls='--'),
+            dict(theta_obs=0.16,freq=1.e18,ls='-.'),
+            dict(theta_obs=0.0,freq=1.e9,ls=':')
+        ], xlim=(1e-1, 1e3), ylim=(1e-9, 5e2),
+                    bbox_to_anchor_2=(0.35, 0.16), bbox_to_anchor_1=(0.78, 0.52), show=show, figname="lcs_tophat")
+    )
+
+    ''' gaussian jet'''
+    compare_dyn(
+        struct = dict(struct="gaussian",Eiso_c=1.e52, Gamma0c= 300., M0c= -1., theta_c= 0.085, theta_w= 0.2618),
+        pp = dict(main=dict(n_ism = 0.00031,d_l = 1.27e+26, z = 0.0099),
+                            grb=dict(eps_e_fs = 0.0708, eps_b_fs = 0.0052, p_fs = 2.16,
+                                     save_dynamics='yes',do_ele = "no",do_lc = "no")),
+        plot=dict(
+            layers=[0,8,16,19],
+            colors=['blue','green','orange','red'],
+            include_zoom_in=True,
+            show=show,
+            figname="dyn_gauss"
+        )
+    )
+    compare_lcs(
+        struct = dict(struct="gaussian",Eiso_c=1.e52, Gamma0c= 300., M0c= -1., theta_c= 0.085, theta_w= 0.2618),
+        pp = dict(main=dict(n_ism = 0.00031,d_l = 1.27e+26, z = 0.0099),
+                  grb=dict(eps_e_fs = 0.0708, eps_b_fs = 0.0052, p_fs = 2.16)),
+        plot = dict(plot_analytic=True,plot_semi_analytic=True,plot_numeric=False,iters=[
+            dict(theta_obs=0.3752,freq=1.e9,ls='-'),
+            dict(theta_obs=0.0,freq=1.e18,ls='--'),
+            dict(theta_obs=0.3752,freq=1.e18,ls='-.'),
+            dict(theta_obs=0.0,freq=1.e9,ls=':')
+            ], xlim=(1e-1, 1e3), ylim=(1e-10, 1e2),
+                    bbox_to_anchor_2=(0.65, 0.16), bbox_to_anchor_1=(0.78, 0.65), show=show, figname="lcs_gauss")
+    )
     compare_skymaps(
         struct = dict(struct="gaussian",Eiso_c=1.e52, Gamma0c= 300., M0c= -1., theta_c= 0.085, theta_w= 0.2618),
         pp = dict(main=dict(n_ism = 0.00031,d_l = 1.27e+26, z = 0.0099, theta_obs = 0.3752,
-                            skymap_freqs=f"array 1.e9", skymap_times=f"array {230.*86400.}"),
+                            skymap_freqs=f"array 1.e9", skymap_times=f"array {75.*86400.}"),
                   grb=dict(eps_e_fs = 0.0708, eps_b_fs = 0.0052, p_fs = 2.16,
                            do_skymap="yes",do_lc="no",
-                           method_ele_fs="analytic",  method_synchrotron_fs="WSPN99")),
-        plot = dict()
+                           method_ele_fs="analytic",  method_synchrotron_fs="WSPN99"
+                           )),
+        plot = dict( show=show, figname="skymaps_gauss" )
     )
 
 

@@ -66,7 +66,7 @@ public:
                         main_pars, m_pars);
 
             if (do_lc) {
-                computeSaveEjectaLightCurveAnalytic_new(
+                computeSaveEjectaLightCurve(
                         working_dir,
                         getStrOpt("fname_light_curve", m_opts, AT, p_log, "", true),
 //                        getStrOpt("fname_light_curve_layers", m_opts, AT, p_log, "", true),
@@ -83,7 +83,7 @@ public:
         }
     }
 
-    /// compute optical depth along the line of sight in ejecta
+    /// compute optical depth along the line of sight in ejecta TODO for magnetar drive ejecta project
     bool evalOptDepthsAlongLineOfSight(double & frac, double & tau_comp, double & tau_BH, double tau_bf,
                                        double ctheta, double rpwn, double phi, double theta,
                                        double phi_obs, double theta_obs, double r_obs, size_t il,
@@ -145,9 +145,7 @@ public:
         }
         return true;
     }
-
 private:
-
     /// COMPUTE electrons
     void evolveElectronDistributionAndRadiation(){//(StrDbMap pars, StrStrMap opts){
         (*p_log)(LOG_INFO,AT) << "Computing Ejecta analytic electron pars...\n";
@@ -167,29 +165,9 @@ private:
             }
 
         is_ejecta_anal_ele_computed = true;
-        is_ejecta_anal_synch_computed = true;
+        is_ejecta_radiation_computed = true;
     }
 
-#if 0
-    /// COMPUTE synchrotron
-    void setPreComputeEjectaAnalyticSynchrotronPars(){//(StrDbMap pars, StrStrMap opts){
-        (*p_log)(LOG_INFO,AT) << "Computing Ejecta analytic synchrotron pars...\n";
-
-        if ((!run_bws)&&(!load_dyn)){
-            (*p_log)(LOG_ERR,AT) << " ejecta BWs were not evolved. Cannot setPreComputeEjectaAnalyticSynchrotronPars electrons (analytic) exiting...\n";
-            exit(1);
-        }
-
-        auto & models = getShells();
-        for (auto & model : models)
-            for (auto & bw : model->getBWs())
-                bw->computeShockRadiation();
-
-        is_ejecta_anal_synch_computed = true;
-    }
-#endif
-
-private:
     /// OUTPUT dynamics/electrons
     void saveEjectaBWsDynamics(
             std::string workingdir, std::string fname, StrDbMap & main_pars, StrDbMap & ej_pars){
@@ -223,8 +201,10 @@ private:
                     {"Rd",bw->getPars()->Rd},
                     {"t0",bw->getPars()->tb0},
                     {"theta_b0",bw->getPars()->theta_b0},
-                    {"theta_a",bw->getPars()->theta_a}
-
+                    {"theta_a",bw->getPars()->theta_a},
+                    {"theta_c",bw->getPars()->theta_c},
+                    {"theta_c_l",bw->getPars()->theta_c_l},
+                    {"theta_c_h",bw->getPars()->theta_c_h}
                 };
                 Output::addStrDbMap(bw_atts, grp);
                 grp.close();
@@ -254,16 +234,17 @@ private:
         if ((!run_bws)&&(!load_dyn))
             return;
 
-        (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta sky image with analytic synchrotron...\n";
+        std::string eats_type = id->method_eats == EjectaID2::STUCT_TYPE::iadaptive ? "[A]" : "[PW]";
+        (*p_log)(LOG_INFO,AT)
+            << "Computing and saving Ejecta sky image with "
+            << eats_type << " EATS\n";
 
-        if (!is_ejecta_anal_synch_computed){
-            std::cerr  << "ejecta analytic electrons were not evolved. Cannot computeSynchrotronEmissivityAbsorptionAnalytic images (analytic) exiting...\n";
-            std::cerr << AT << " \n";
+        if (!is_ejecta_radiation_computed){
+            (*p_log)(LOG_ERR,AT) << "ejecta electrons were not evolved. Cannot computeS images exiting...\n";
             exit(1);
         }
         if (!is_ejecta_obs_pars_set){
-            std::cerr<< "ejecta observer parameters are not set. Cannot computeSynchrotronEmissivityAbsorptionAnalytic image (analytic) exiting...\n";
-            std::cerr << AT << " \n";
+            (*p_log)(LOG_ERR,AT) << "ejecta observer parameters are not set. Cannot compute image exiting...\n";
             exit(1);
         }
 
@@ -284,9 +265,9 @@ private:
         size_t itinu = 0;
         for (size_t ifreq = 0; ifreq < freqs.size(); ifreq++) {
             /// allocate space for the fluxes associated with skymaps
-            Vector tota_flux(times.size(), 0.0);
-            Vector xc(times.size(), 0.0);
-            Vector yc(times.size(), 0.0);
+//            Vector tota_flux(times.size(), 0.0);
+//            Vector xc(times.size(), 0s.0);
+//            Vector yc(times.size(), 0.0);
 
             VecVector total_flux_shell( nshells_ );
             for (auto & total_flux_shel : total_flux_shell)
@@ -365,139 +346,14 @@ private:
 
         }
     }
-#if 0
-    /// OUTPUT spectrum
-    void computeSaveEjectaSpectrumOLD(
-            std::string workingdir,std::string fname, std::string fname_shells_layers,
-            StrDbMap & main_pars, StrDbMap & ej_pars, bool lc_freq_to_time){
 
-        (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta spectrum with analytic synchrotron...\n";
-
-//        size_t nshells = p_cumShells->nshells();
-//        size_t m_nlayers = p_cumShells->m_nlayers();
-//        size_t ncells =  (int)p_cumShells->ncells();
-
-        if (!is_ejecta_anal_synch_computed){
-            (*p_log)(LOG_INFO,AT) << " ejecta analytic electrons were not evolved. Cannot computeSynchrotronEmissivityAbsorptionAnalytic light curve (analytic) exiting...\n";
-            exit(1);
-        }
-        if (!is_ejecta_obs_pars_set){
-            (*p_log)(LOG_INFO,AT) << " ejecta observer parameters are not set. Cannot computeSynchrotronEmissivityAbsorptionAnalytic light curve (analytic) exiting...\n";
-            exit(1);
-        }
-
-//        auto & tmp = getShells()[0]->getBW(0)->getSynchAnPtr();
-
-        std::vector< // layers / shells
-                std::vector< // options
-                        std::vector<double>>> // freqs*times
-        out {};
-
-        /// evaluate light curve
-//        auto spectrum = evalEjectaSpectrum();
-        auto & spec_freqs = p_cumShells[0]->getBW(0)->getPars()->p_mphys->m_freq_arr;
-        if (spec_freqs.size()<1){
-            (*p_log)(LOG_INFO,AT) << " m_freq_arr is not initialized for a BW. Cannot compute comoving spectrum \n ";
-            exit(1);
-        }
-
-        /// save total_rad lightcurve
-        size_t n = t_arr.size() * spec_freqs.size();
-        Vector total_power (n, 0.0);
-        Vector _times, _freqs;
-        cast_times_freqs(t_arr,spec_freqs,_times,_freqs,lc_freq_to_time,p_log);
-
-        std::string var = getStrOpt("spec_var_out",m_opts,AT,p_log,"em", true);
-        if ((var == "em_rs" || var == "abs_rs") && (!p_cumShells[0]->getBW(0)->getPars()->do_rs)){
-            (*p_log)(LOG_INFO,AT) << " cannot ahve 'spec_var_out = 'em_rs or 'abs_rs' if 'do_rs = no' \n ";
-            exit(1);
-        }
-
-        for (size_t itnu = 0; itnu < n; ++itnu) {
-            size_t ishil = 0;
-            for (size_t ishell = 0; ishell < nshells(); ++ishell) {
-                for (size_t ilayer = 0; ilayer < nlayers(); ++ilayer) {
-                    if (var == "em")
-                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_mphys->out_spectrum[itnu];
-                    else if (var == "abs")
-                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_mphys->out_specturm_ssa[itnu];
-                    else if (var == "em_rs")
-                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_mphys_rs->out_spectrum[itnu];
-                    else if (var == "abs_rs")
-                        total_power[itnu] += p_cumShells[ilayer]->getBW(ishell)->getPars()->p_mphys_rs->out_specturm_ssa[itnu];
-                    else{
-                        (*p_log)(LOG_INFO,AT) << " spec_var_out is not recognized. Possible options: "
-                                              << " em "<< " abs "<<" em_rs " <<" abs_rs "<<" Givem="<<var<<"\n";
-                        exit(1);
-                    }
-//                    auto & spectrum = p_cumShells[ilayer]->getBW(ishell)->getPars()->out_spectrum;
-//                    if (spectrum.size()<1){
-//                        (*p_log)(LOG_INFO,AT) << " spectrum is not initialized for a BW \n ";
-//                        exit(1);
-//                    }
-//                    total_power[itnu] += spectrum[itnu];
-                    ishil ++;
-                }
-            }
-        }
-        std::vector<std::string> other_names { "times", "freqs", "total_power" };
-        VecVector out_data {_times, _freqs, total_power};
-
-        std::unordered_map<std::string,double> attrs{ {"nshells", nshells()}, {"nlayers", nlayers()} };
-        for (auto& [key, value]: main_pars) { attrs[key] = value; }
-        for (auto& [key, value]: ej_pars) { attrs[key] = value; }
-        p_out->VectorOfVectorsH5(out_data, other_names, workingdir+fname,  attrs);
-
-
-        /// save light curve for each shell and layer
-        if (fname_shells_layers == "none")
-            return;
-        std::vector<std::string> group_names;
-        VecVector total_fluxes_shell_layer(nshells()*nlayers());
-        size_t ii = 0;
-        for (size_t ishell = 0; ishell < nshells(); ++ishell) {
-            for (size_t ilayer = 0; ilayer < nlayers(); ++ilayer) {
-                group_names.emplace_back("shell=" + std::to_string(ishell) + " layer=" + std::to_string(ilayer));
-                total_fluxes_shell_layer[ii].resize(n,0.);
-                auto & spectrum = p_cumShells[ilayer]->getBW(ishell)->getPars()->p_mphys->out_spectrum;
-                for (size_t ifnu = 0; ifnu < n; ifnu++) {
-
-                    if (var == "em")
-                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_mphys->out_spectrum[ifnu];
-                    else if (var == "abs")
-                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_mphys->out_specturm_ssa[ifnu];
-                    else if (var == "em_rs")
-                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_mphys_rs->out_spectrum[ifnu];
-                    else if (var == "abs_rs")
-                        total_fluxes_shell_layer[ii][ifnu]= p_cumShells[ilayer]->getBW(ishell)->getPars()->p_mphys_rs->out_specturm_ssa[ifnu];
-                    else{
-                        (*p_log)(LOG_INFO,AT) << " spec_var_out is not recognized. Possible options: "
-                                              << " em "<< " abs "<<" em_rs " <<" abs_rs "<<" Givem="<<var<<"\n";
-                        exit(1);
-                    }
-
-//                    total_fluxes_shell_layer[ii][ifnu] = spectrum[ifnu];
-                }
-                ii++;
-            }
-        }
-        total_fluxes_shell_layer.emplace_back(_times);
-        total_fluxes_shell_layer.emplace_back(_freqs);
-        total_fluxes_shell_layer.emplace_back(total_power);
-
-        group_names.emplace_back("times");
-        group_names.emplace_back("freqs");
-        group_names.emplace_back("total_power");
-        p_out->VectorOfVectorsH5(total_fluxes_shell_layer, group_names, workingdir+fname,  attrs);
-    }
-#endif
     /// OUTPUT spectrum
     void computeSaveEjectaSpectrum(
             std::string workingdir,std::string fname, StrDbMap & main_pars, StrDbMap & ej_pars){
 
         (*p_log)(LOG_INFO,AT) << "Computing and saving ejecta spectra...\n";
 
-        if (!is_ejecta_anal_synch_computed){
+        if (!is_ejecta_radiation_computed){
             (*p_log)(LOG_INFO,AT) << " ejecta electrons were not evolved. "
                                                 " Cannot compute light curve exiting...\n";
             exit(1);
@@ -604,7 +460,8 @@ private:
 
     void saveDenseLightCurves(VecVector & out, Vector & times, Vector & freqs,
                               StrDbMap & main_pars, StrDbMap & ej_pars,
-                              std::string & workingdir, std::string & fname){
+                              std::string & workingdir, std::string & fname,
+                              bool save_dense_output){
 
 //        std::string fpath_layers = workingdir + fname.replace(fname.end()-3,fname.end(),"_layers.h5");
         std::string fpath_layers = workingdir + fname;
@@ -612,30 +469,49 @@ private:
         H5::H5File file_layers(fpath_layers, H5F_ACC_TRUNC); // "/home/m/Desktop/tryout/file.h5"
 
         /// add light curves for each shell / layer separately (dense output)
-        size_t ii = 0;
-        for (size_t ish = 0; ish < nshells(); ish++) {
-            for (size_t il = 0; il < nlayers(); il++) {
-                std::string group_name = "shell=" + std::to_string(ish) + " layer=" + std::to_string(il);
-                H5::Group grp(file_layers.createGroup(group_name));
-                Output::addVectorToGroup(grp,out[ii],"fluxdens");
-                auto &bw = getShells()[il]->getBW(ish);
-                StrDbMap bw_atts {
-                        {"E0",bw->getPars()->E0},
-                        {"M0",bw->getPars()->M0},
-                        {"Gamma0",bw->getPars()->Gamma0},
-                        {"beta0",bw->getPars()->beta0},
-                        {"mom0",bw->getPars()->mom0},
-                        {"R0",bw->getPars()->R0},
-                        {"Eint0",bw->getPars()->Eint0},
-                        {"Rd",bw->getPars()->Rd},
-                        {"t0",bw->getPars()->tb0},
-                        {"theta_b0",bw->getPars()->theta_b0},
-                        {"theta_a",bw->getPars()->theta_a}
-                };
-                Output::addStrDbMap(bw_atts, grp);
-                ii++;
+        if (save_dense_output) {
+            size_t ii = 0;
+            for (size_t ish = 0; ish < nshells(); ish++) {
+                for (size_t il = 0; il < nlayers(); il++) {
+                    std::string group_name = "shell=" + std::to_string(ish) + " layer=" + std::to_string(il);
+                    H5::Group grp(file_layers.createGroup(group_name));
+                    Output::addVectorToGroup(grp, out[ii], "fluxdens");
+                    auto &bw = getShells()[il]->getBW(ish);
+                    StrDbMap bw_atts{
+                            {"E0",       bw->getPars()->E0},
+                            {"M0",       bw->getPars()->M0},
+                            {"Gamma0",   bw->getPars()->Gamma0},
+                            {"beta0",    bw->getPars()->beta0},
+                            {"mom0",     bw->getPars()->mom0},
+                            {"R0",       bw->getPars()->R0},
+                            {"Eint0",    bw->getPars()->Eint0},
+                            {"Rd",       bw->getPars()->Rd},
+                            {"t0",       bw->getPars()->tb0},
+                            {"theta_b0", bw->getPars()->theta_b0},
+                            {"theta_a",  bw->getPars()->theta_a}
+                    };
+                    Output::addStrDbMap(bw_atts, grp);
+                    ii++;
+                }
             }
         }
+        else {
+            /// Collect total_rad flux at a given time/freq from all shells/layers
+            Vector total_fluxes(times.size(), 0.0);
+            for (size_t itnu = 0; itnu < times.size(); ++itnu) {
+                size_t ii = 0;
+                for (size_t ish = 0; ish < nshells(); ish++) {
+                    for (size_t il = 0; il < nlayers(); il++) {
+                        std::string group_name = "shell=" + std::to_string(ish) + " layer=" + std::to_string(il);
+                        H5::Group grp(file_layers.createGroup(group_name));
+                        Output::addVectorToGroup(grp, out[ii], "fluxdens");
+                        total_fluxes[itnu] += out[ii][itnu];
+                        ii++;
+                    }
+                }
+            }
+        }
+
         Output::addVector(times,"times",file_layers);
         Output::addVector(freqs,"freqs",file_layers);
         /// save model parameters as attributes to the file
@@ -646,50 +522,14 @@ private:
         Output::addStrDbMap(attrs, file_layers);
     }
 
-    void saveTotalLightCurves(VecVector & out, Vector & times, Vector & freqs,
-                              StrDbMap & main_pars, StrDbMap & ej_pars,
-                              std::string & workingdir, std::string fname){
-
-        std::string fpath = workingdir + fname;
-        Output::remove_file_if_existis(fname,p_log);
-        H5::H5File file(fpath, H5F_ACC_TRUNC); // "/home/m/Desktop/tryout/file.h5"
-
-        /// Collect total_rad flux at a given time/freq from all shells/layers
-        Vector total_fluxes (times.size(), 0.0);
-        for (size_t itnu = 0; itnu < times.size(); ++itnu) {
-            size_t ii = 0;
-            for (size_t ish = 0; ish < nshells(); ish++) {
-                for (size_t il = 0; il < nlayers(); il++) {
-                    std::string group_name = "shell=" + std::to_string(ish) + " layer=" + std::to_string(il);
-                    H5::Group grp(file.createGroup(group_name));
-                    Output::addVectorToGroup(grp,out[ii],"fluxdens");
-                    total_fluxes[itnu] += out[ii][itnu];
-                    ii++;
-                }
-            }
-        }
-
-        Output::addVector(times,"times",file);
-        Output::addVector(freqs,"freqs",file);
-        Output::addVector(total_fluxes, "fluxdens", file);
-
-        /// save the total_rad fluxes (sparse output)
-        std::unordered_map<std::string,double> attrs{ {"nshells", nshells()},
-                                                      {"nlayers", nlayers()} };
-        for (auto& [key, value]: main_pars) { attrs[key] = value; }
-        for (auto& [key, value]: ej_pars) { attrs[key] = value; }
-        Output::addStrDbMap(attrs, file);
-    }
-
     /// OUTPUT light curves
-    void computeSaveEjectaLightCurveAnalytic_new(
+    void computeSaveEjectaLightCurve(
             std::string workingdir, std::string fname,
-//            std::string fname_shells_layers,
             Vector lc_times, Vector lc_freqs, StrDbMap & main_pars, StrDbMap & ej_pars, bool lc_freq_to_time){
 
         Vector _times, _freqs;
         cast_times_freqs(lc_times,lc_freqs,_times,_freqs,lc_freq_to_time,p_log);
-        (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta light curve with analytic synchrotron...\n";
+        (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta light curve\n";
 
         VecVector lcs{}; // [ish*il][it*inu]
         lcs.resize(nshells() * nlayers());
@@ -699,71 +539,9 @@ private:
         evalEjectaLightCurves(lcs, _times, _freqs);
 
         /// save dense output (for each shell, layer)
-        saveDenseLightCurves(lcs, _times, _freqs, main_pars, ej_pars, workingdir, fname);
+        saveDenseLightCurves(lcs, _times, _freqs,
+                             main_pars, ej_pars, workingdir, fname, true);
 
-        /// save total light curve TODO decide if you need it
-//        saveTotalLightCurves(lcs, _times, _freqs, main_pars, ej_pars, workingdir, fname);
-
-    }
-
-
-    /// OUTPUT light curves
-    void computeSaveEjectaLightCurveAnalytic_old(
-            std::string workingdir, std::string fname, std::string fname_shells_layers,
-            Vector lc_times, Vector lc_freqs, StrDbMap & main_pars, StrDbMap & ej_pars, bool lc_freq_to_time){
-
-        Vector _times, _freqs;
-        cast_times_freqs(lc_times,lc_freqs,_times,_freqs,lc_freq_to_time,p_log);
-        (*p_log)(LOG_INFO,AT) << "Computing and saving Ejecta light curve with analytic synchrotron...\n";
-
-        VecVector out{}; // [ish*il][it*inu]
-        out.resize(nshells() * nlayers());
-        for (auto & arr : out)
-            arr.resize(_times.size(), 0.);
-
-        evalEjectaLightCurves(out, _times, _freqs);
-
-        /// Collect total_rad flux at a given time/freq from all shells/layers
-        Vector total_fluxes (_times.size(), 0.0);
-        for (size_t itnu = 0; itnu < _times.size(); ++itnu) {
-            size_t ii = 0;
-            for (size_t ish = 0; ish < nshells(); ish++) {
-                for (size_t il = 0; il < nlayers(); il++) {
-                    total_fluxes[itnu] += out[ii][itnu];
-                    ii++;
-                }
-            }
-        }
-
-        std::vector<std::string> other_names { "times", "freqs", "total_fluxes" };
-        VecVector out_data {_times, _freqs, total_fluxes};
-
-        /// save the total_rad fluxes (sparse output)
-        std::unordered_map<std::string,double> attrs{ {"nshells", nshells()},
-                                                      {"nlayers", nlayers()} };
-        for (auto& [key, value]: main_pars) { attrs[key] = value; }
-        for (auto& [key, value]: ej_pars) { attrs[key] = value; }
-        p_out->VectorOfVectorsH5(out_data, other_names, workingdir+fname,  attrs);
-
-        /// save light curve for each shell and layer (dense output)
-        if (fname_shells_layers == "none")
-            return;
-        std::vector<std::string> group_names;
-//        VecVector total_fluxes_shell_layer(nshells()*nlayers());
-        size_t ii = 0;
-        for (size_t ishell = 0; ishell < nshells(); ++ishell)
-            for (size_t ilayer = 0; ilayer < nlayers(); ++ilayer)
-                group_names.emplace_back("shell=" + std::to_string(ishell) + " layer=" + std::to_string(ilayer));
-
-
-        out.emplace_back(_times);
-        out.emplace_back(_freqs);
-        out.emplace_back(total_fluxes);
-
-        group_names.emplace_back("times");
-        group_names.emplace_back("freqs");
-        group_names.emplace_back("total_fluxes");
-        p_out->VectorOfVectorsH5(out, group_names, workingdir+fname,  attrs);
     }
 
     /// INPUT dynamics

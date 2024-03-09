@@ -73,7 +73,7 @@ public:
     bool do_nuc = false;
     bool is_ejecta_obs_pars_set = false;
     bool is_ejecta_anal_ele_computed = false;
-    bool is_ejecta_anal_synch_computed = false;
+    bool is_ejecta_radiation_computed = false;
     double im_max_theta;
     StrDbMap m_pars; StrStrMap m_opts;
     std::string working_dir{}; std::string parfilename{};
