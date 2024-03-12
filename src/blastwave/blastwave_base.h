@@ -358,7 +358,8 @@ public:
         p_pars->tprompt = getDoublePar("tprompt",pars,AT,p_log,1000.,false);
         p_pars->epsilon_rad_rs = getDoublePar("epsilon_rad_rs",pars,AT,p_log,.0,false);
         p_pars->rs_shutOff_criterion_rho = getDoublePar("rs_shutOff_criterion_rho",pars,AT,p_log,1.e-50,false);
-
+        p_pars->init_deltaR4 = getBoolOpt("init_deltaR4",opts,AT,p_log,false, true);
+        p_pars->exponential_rho4 = getBoolOpt("exponential_rho4",opts,AT,p_log, true, true);
 //        /// RS: method for shock velocity
 //        std::string opt = "method_GammaRsh";
 //        METHOD_Gamma_sh m_method_gamma_rsh;

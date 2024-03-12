@@ -340,9 +340,19 @@ inline namespace EQS{
         long double Gamma43_ = Gamma * Gamma0 * (1.0 / (Gamma0 * Gamma0)
                                                 + 1.0 / (Gamma * Gamma)
                                                 - 1.0 / (Gamma * Gamma) / (Gamma0 * Gamma0)) / (1.0 + beta * beta0);
-//        if (Gamma < beta_switch * Gamma0)
-//            conn
-        return Gamma43_;
+//        if (Gamma43_ < 1. || Gamma43 < 1.)
+//            int x = 1;
+
+//        double gamma43_minus_one;
+//        if (Gamma > beta_switch * Gamma0){
+//            gamma43_minus_one = 1.0 - 1.0;
+//        } else {
+//            gamma43_minus_one = Gamma * Gamma0 * \
+//                            (1.0 / (Gamma0 * Gamma0) + 1.0 / (Gamma * Gamma) - 1.0 / (Gamma * Gamma) / (Gamma0 * Gamma0)) / \
+//                            (1 + beta * beta0) - 1.0;
+//        }
+//        return gamma43_minus_one;
+        return Gamma43_ >= 1. ? Gamma43_ : 1.0;
     }
 
     inline double get_dgamma43dGamma(const double &Gamma0, const double &Gamma){
@@ -411,12 +421,14 @@ inline namespace EQS{
      * Density in the unshocked region of the ejecta (region 4 in Nava+2013)
      */
     double rho4( const double &R, const double &deltaR4, const double &tprompt, const double &beta0,
-                 const double &M0, const double &theta_a, const double &theta_b0){
+                 const double &M0, const double &theta_a, const double &theta_b0, bool use_exp){
         double alpha_of = tprompt * beta0 * CGS::c;
         double rho4_fac_1 = M0 / (2.0 * alpha_of * CGS::pi * (cos(theta_a) - cos(theta_b0)));
         double rho4_fac = rho4_fac_1 / (R * R);
-        double rho4 = rho4_fac * exp(-deltaR4 / alpha_of); // assuming exponential cutoff
-        return rho4 ;
+        if (use_exp)
+            return rho4_fac * exp(-deltaR4 / alpha_of); // assuming exponential cutoff
+        else
+            return rho4_fac;
     }
 
     double get_U_e_rs(const double &Gamma, const double &M3, const double &Eint3, const double &rho4){

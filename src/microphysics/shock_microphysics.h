@@ -761,7 +761,7 @@ public:
     double inline get_shock_Up(double GammaShock, double rho2, double m2, double Eint2){
         if (Eint2 == 0 || m2 == 0)
             return 0.;
-        double up; //comoving energy density (MF)
+        double up; //comoving energy density (MF)%
         //        double rhoprim = 4. * rho * Gamma ;     // comoving density
         double V2 = m2 / rho2 ; // comoving volume
         double U_p = Eint2 / V2 ; // comoving energy density (electrons)

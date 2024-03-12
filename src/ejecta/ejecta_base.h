@@ -44,7 +44,7 @@ BW_TYPES select_bw_type(StrStrMap opts, std::unique_ptr<logger> & p_log){
                                  <<" given: " << opts.at(opt)
                                  << " is not recognized. "
                                  << "Possible options: "
-                                 << " grb_fs "<< " grb_fsrs " << " ej " << " ej_pwn " << "\n";
+                                 << " fs "<< " fsrs " << " fs_dense " << " fs_dense_pwn " << "\n";
 //                std::cerr << AT << "\n";
             exit(1);
         }

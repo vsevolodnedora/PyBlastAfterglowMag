@@ -32,7 +32,7 @@ def run(working_dir:str, struct:dict, P:dict, type:str="a") -> PBA.PyBlastAfterg
 
     # generate initial data for blast waves
     pba_id = PBA.id_analytic.JetStruct(n_layers_pw=80,
-                                       n_layers_a=1 if struct["struct"]=="tophat" else s0)
+                                       n_layers_a=1 if struct["struct"]=="tophat" else 20)
 
     # save piece-wise EATS ID
     id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="piece-wise")
@@ -809,7 +809,7 @@ def compare_skymaps(struct:dict, pp:dict, plot:dict):
 
 
 if __name__ == '__main__':
-    show = False
+    show = True
     ''' tophat jet '''
     compare_dyn(
         struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1),

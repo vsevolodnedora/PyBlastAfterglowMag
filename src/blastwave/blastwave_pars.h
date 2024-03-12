@@ -48,7 +48,7 @@ struct Pars{
     // initial conditions (settings)
 //    bool is_init = false;
     BW_TYPES m_type{};
-
+    bool init_deltaR4 = false;
     METHOD_dmdr m_method_dmdr{};
 //    bool only_last_shell_dmdr= false;
     METHOD_dgdr m_method_dgdr{};
@@ -186,6 +186,7 @@ struct Pars{
     double rs_Gamma0_frac_no_exceed = 0.98;
     bool do_rs = false;
     bool do_rs_radiation = false;
+    bool exponential_rho4 = true;
     bool shutOff = false; /// include Reverse shock now?
     bool adiabLoss_rs = false;
     double tprompt = 0.;

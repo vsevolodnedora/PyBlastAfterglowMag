@@ -106,7 +106,7 @@ public:
                        * std::pow(p_pars->R0, 3)
                        / p_pars->ncells; // mass accreted by the shock by the time tburst = tburst[0]
         double adi0 = p_eos->getGammaAdi(p_pars->Gamma0,p_pars->beta0);
-//        double GammaSh0 = EQS::GammaSh(p_pars->Gamma0,adi0);
+        double GammaSh0 = EQS::GammaSh(p_pars->Gamma0,adi0);
         // ****************************************
         if ((p_pars->mom0 <= 0.) || (!std::isfinite(p_pars->mom0))){
             // REMOVING LOGGER
@@ -188,7 +188,8 @@ public:
             exit(1);
         }
         bool use_spread = p_spread->m_method != LatSpread::METHODS::iNULL;
-        p_pars->Rd = std::pow(3./(4.*CGS::pi) * 1./(CGS::c*CGS::c*CGS::mp) *
+        p_pars->Rd = std::pow(3./(4.*CGS::pi)
+                      * 1./(CGS::c*CGS::c*CGS::mp) *
                               p_pars->E0/( p_dens->m_rho_ / CGS::mp * p_pars->Gamma0*p_pars->Gamma0), 1./3.);
 
         double x = p_pars->Rd / p_pars->R0;
@@ -222,6 +223,8 @@ public:
         /// reverse shock
         if (p_pars->m_type==BW_TYPES::iFSRS){
             ic_arr[i + SOL::QS::iEint3] = 0.; // assume shell is initially cold #1e-3*ic_arr[i + SOL::QS::iEint2];
+            if (p_pars->init_deltaR4)
+                ic_arr[i + SOL::QS::ideltaR4] = CGS::c * p_pars->tprompt * p_pars->beta0;
         }
         // ***************************************
         for (size_t v = 0; v < SOL::neq; ++v){
@@ -448,14 +451,17 @@ public:
         if (p_pars->shutOff || (!p_pars->do_rs))
             return false;
         double iGamma = sol[i + SOL::QS::iGamma];
+        double M3 = sol[i + SOL::QS::iM3];
         double rho4 = EQS::rho4(sol[i + SOL::QS::iR],
                                 sol[i + SOL::QS::ideltaR4],
                                 p_pars->tprompt,
                                 p_pars->beta0,
                                 p_pars->M0,
                                 p_pars->theta_a,
-                                p_pars->theta_b0);
-        if ((iGamma < p_pars->Gamma0) && (rho4 < p_pars->rs_shutOff_criterion_rho)){
+                                p_pars->theta_b0,
+                                p_pars->exponential_rho4);
+        if ((iGamma < p_pars->Gamma0) &&
+            (rho4 < p_pars->rs_shutOff_criterion_rho || M3 >= 1.)){
             p_pars->shutOff = true;
         }
         return p_pars->shutOff;
@@ -621,17 +627,20 @@ public:
                                                  p_pars->beta0,
                                                  p_pars->M0,
                                                  p_pars->theta_a,
-                                                 p_pars->theta_b0);
+                                                 p_pars->theta_b0,
+                                                 p_pars->exponential_rho4);
 
             Dat[BW::Q::iadi3][it] = p_eos->getGammaAdi(
                     Dat[BW::Q::iGamma43][it],
                     EQS::BetaFromGamma(Dat[BW::Q::iGamma43][it]));
 
             Dat[BW::Q::irho3][it] = EQS::rho2t(
-                    Dat[BW::Q::iGamma43][it],
+                    Dat[BW::Q::iGamma][it],
                     Dat[BW::Q::iadi3][it],
-                    Dat[BW::Q::irho4][it]
+                    Dat[BW::Q::irho4][it] // /Dat[BW::Q::iGamma][0] // rho4 -> rho4prime
                     ); // TODO Check if here Gamma and adi3 are used
+//            double rho3prim = 4 * Dat[BW::Q::irho4][it] * Dat[BW::Q::iGamma][it];
+//            std::cout << " " << Dat[BW::Q::irho3][it] << " " << rho3prim << "\n";
 
             /// shock front velocity
             Dat[BW::Q::iGammaRsh][it] = EQS::GammaSh(Dat[BW::Q::iGamma43][it], Dat[BW::Q::iadi3][it]);
@@ -1847,15 +1856,31 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
     long double dM3dR = 0.;
     double rho4 = 0.;
     double dlnrho4dR = 0.;
-    if ((!p_pars->shutOff) && (Gamma < 0.99*p_pars->Gamma0)){ // and (not M3 > 1.):# and (deltaR4 > 0): # the last assures that jet is decelerating
+    if ((!p_pars->shutOff) && (Gamma < 0.999*p_pars->Gamma0)){ // and (not M3 > 1.):# and (deltaR4 > 0): # the last assures that jet is decelerating
         double alpha_of = p_pars->tprompt * p_pars->beta0 * CGS::c;// * EjectaID2::CellsInLayer(p_pars->ilayer);
         ddeltaR4dR = (1.0 / (beta*beta*beta*beta) - 1.0 / (p_pars->beta0*p_pars->beta0*p_pars->beta0*p_pars->beta0)) /
                      (1.0 / beta + 1.0 / p_pars->beta0) / (1.0 / (beta*beta) + 1.0 / (p_pars->beta0*p_pars->beta0)) * p_pars->beta0;
         long double rho4_scale_factor = -deltaR4 / alpha_of;
         // rho4 = rho4_factor * np.exp(rho4_scale_factor)  # Here exp() does not really make a difference
-        dM3dR = (1.0 / alpha_of) * ddeltaR4dR * std::exp(rho4_scale_factor); // [not / m_pars["m_scale"] -- changes everything]
-        // rho3prim = 4 * Gamma * rho4
-        dlnrho4dR = -2.0 / R - ddeltaR4dR / alpha_of;
+        if (p_pars->exponential_rho4) {
+            dM3dR = (1.0 / alpha_of) * ddeltaR4dR *
+                    std::exp(rho4_scale_factor); // [not / m_pars["m_scale"] -- changes everything]
+            // rho3prim = 4 * Gamma * rho4
+            dlnrho4dR = -2.0 / R - ddeltaR4dR / alpha_of;
+        }
+        else{
+            dM3dR = (1.0 / alpha_of) * ddeltaR4dR;
+            dlnrho4dR = -2.0 / R;
+        }
+
+//        double bb0m1 = 0.5 / (Gamma*Gamma)
+//                + 0.5 / (p_pars->Gamma0*p_pars->Gamma0)
+//                + (1./(Gamma*Gamma*Gamma*Gamma)) / 8
+//                + (1/(p_pars->Gamma0*p_pars->Gamma0*p_pars->Gamma0*p_pars->Gamma0)) / 8
+//                - 0.25 / (p_pars->Gamma0*p_pars->Gamma0) / (Gamma*Gamma);
+//        dM3dR = 1 * (p_pars->beta0 *p_pars->beta0 - beta *beta)
+//                 / (p_pars->beta0 + beta) / p_pars->beta0 / p_pars->tprompt / beta / c / bb0m1 ;
+//        dlnrho4dR = -2 / R;
     }
 
     // --- dGammadR ---
