@@ -31,6 +31,7 @@ static void fluxDensPieceWiseWithComov(
     double nprime = interpSegLog(ia, ib, ta, tb, t_e, m_data[BW::Q::irho2]) / CGS::mp;
     double nprotons = interpSegLog(ia, ib, ta, tb, t_e, m_data[BW::Q::iM2]) / CGS::mp;
     double rsh = interpSegLog(ia, ib, ta, tb, t_e, m_data[BW::Q::iRsh]);
+    double acc_fac = interpSegLog(ia, ib, ta, tb, t_e, m_data[BW::Q::iacc_frac]);
 
     /// compute Doppler factor
     double a = 1.0 - beta * mu; // beaming factor
@@ -41,7 +42,7 @@ static void fluxDensPieceWiseWithComov(
 
     flux_dens = p_pars->p_mphys->fluxDens(
             EjectaID2::STUCT_TYPE::ipiecewise, theta, p_pars->ncells,
-            ia, ib, nuprime, Gamma, GammaShock,
+            ia, ib, nuprime, Gamma, GammaShock, acc_fac,
             mu, r, dr, rsh, nprime, nprotons, m_data[BW::Q::iR]
             );
 
@@ -56,10 +57,11 @@ static void fluxDensPieceWiseWithComov(
             double nprime_rs = interpSegLog(ia, ib, ta, tb, t_e, m_data[BW::Q::irho3]) / CGS::mp;
             double ne_rs = interpSegLog(ia, ib, ta, tb, t_e, m_data[BW::Q::iM3]) / CGS::mp;
             double r_rsh = interpSegLog(ia, ib, ta, tb, t_e, m_data[BW::Q::iRrsh]);
+            double acc_fac_rs = interpSegLog(ia, ib, ta, tb, t_e, m_data[BW::Q::iacc_frac_rs]);
 
             double flux_dens_rs = p_pars->p_mphys->fluxDens(
                     EjectaID2::STUCT_TYPE::ipiecewise, theta, p_pars->ncells,
-                    ia, ib, nuprime, Gamma, GammaShock_rs,
+                    ia, ib, nuprime, Gamma, GammaShock_rs, acc_fac_rs,
                     mu, r, r_rsh, dr_rs, nprime_rs, ne_rs, m_data[BW::Q::iR]
                     );
 
@@ -101,6 +103,7 @@ static void fluxDensAdaptiveWithComov(
     double ne = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::iM2]) / CGS::mp;
     double n_prime = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::irho2]) / CGS::mp;
     double rsh = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::iRsh]);
+    double acc_fac = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::iacc_frac]);
 
     /// compute Doppler factor
     double a = 1.0 - beta * mu; // beaming factor
@@ -115,7 +118,7 @@ static void fluxDensAdaptiveWithComov(
 
     flux_dens = p_pars->p_mphys->fluxDens(
             EjectaID2::STUCT_TYPE::iadaptive, theta, p_pars->ncells,
-            ia, ib, nuprime, Gamma, GammaShock,
+            ia, ib, nuprime, Gamma, GammaShock, acc_fac,
             mu, r, rsh, dr, n_prime, ne, r_arr);
 
     if (p_pars->m_type == BW_TYPES::iFSRS && p_pars->do_rs_radiation) {
@@ -125,10 +128,11 @@ static void fluxDensAdaptiveWithComov(
             double ne_rs = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::iM3]) / CGS::mp;
             double n_prime_rs = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::irho3]) / CGS::mp;
             double r_rsh = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::iRrsh]);
+            double acc_fac_rs = interpSegLog(ia, ib, r, r_arr, Dt[BW::Q::iacc_frac_rs]);
 
             double flux_dens_rs = p_pars->p_mphys_rs->fluxDens(
                     EjectaID2::STUCT_TYPE::iadaptive, theta, p_pars->ncells,
-                    ia, ib, nuprime, Gamma, GammaShock_rs,
+                    ia, ib, nuprime, Gamma, GammaShock_rs, acc_fac_rs,
                     mu, r, r_rsh, dr_rs, n_prime_rs, ne_rs, r_arr);
 
             flux_dens += flux_dens_rs;
@@ -140,7 +144,8 @@ static void fluxDensAdaptiveWithComov(
 /// compute local emissivity and absoption from interpolated shock conditions
 static double shock_synchrotron_flux_density(
         EjectaID2::STUCT_TYPE method_eats,
-        double theta, double Gamma, double GammaShock, double nprotons, double nprime, double acc_frac, double B,
+        double theta, double Gamma, double GammaShock, double acc_fac,
+        double nprotons, double nprime, double acc_frac, double B,
         double gm, double gM, double gc, double Theta, double z_cool,
         double t_e, double mu, double R, double Rsh, double dr, double dr_tau,
         double nu_obs, void * params){
@@ -161,7 +166,7 @@ static double shock_synchrotron_flux_density(
                                        B, gm, gM, gc, Theta, z_cool);
     p_syna->computeSynchrotronEmissivityAbsorptionAnalytic(nuprime, em_prime, abs_prime);
     return p_syna->computeFluxDensity(
-            method_eats,em_prime, abs_prime, Gamma, GammaShock, mu, R, Rsh, dr,
+            method_eats,em_prime, abs_prime, Gamma, GammaShock, acc_fac, mu, R, Rsh, dr,
             nprime, nprotons, theta, p_pars->ncells);
 }
 #if 0
@@ -256,6 +261,7 @@ static void fluxDensPieceWiseWithObs(
     double tt = interpSegLog(ia, ib, ta, tb, t_e, m_data[BW::Q::itt]);
     double dr = interpSegLog(ia, ib, ta, tb, t_e, m_data[BW::Q::ithickness]);
     double rsh = interpSegLog(ia, ib, ta, tb, t_e, m_data[BW::Q::iRsh]);
+    double acc_fac = interpSegLog(ia, ib, ta, tb, t_e, m_data[BW::Q::iacc_frac]);
 //            double cs = interpSegLog(ia, ib, ta, tb, t_e, m_data[BW::Q::iCSCBM]);
 
     if ((!std::isfinite(gm))||(!std::isfinite(B))||(!std::isfinite(ne))){
@@ -321,7 +327,7 @@ static void fluxDensPieceWiseWithObs(
     double thick_tau = dr;
     flux_dens = shock_synchrotron_flux_density(
             EjectaID2::STUCT_TYPE::ipiecewise, theta,
-            Gamma, GammaSh, ne, nprime, frac, B, gm, gM, gc,
+            Gamma, GammaSh, acc_fac, ne, nprime, frac, B, gm, gM, gc,
             Theta, z_cool, t_e, mu, r, rsh, thick, thick_tau, nu_obs, p_pars);
 
     flux_dens *= (1.0 + p_pars->z) / (2.0 * p_pars->d_l * p_pars->d_l);
@@ -708,6 +714,7 @@ static void fluxDensAdaptiveWithObs(
     double Theta = interpSegLog(ia, ib, t_e, times, Dt[BW::Q::iTheta]);
     double z_cool = interpSegLog(ia, ib, t_e, times, Dt[BW::Q::iz_cool]);
     double rsh = interpSegLog(ia, ib, t_e, times, Dt[BW::Q::iRsh]);
+    double acc_fac = interpSegLog(ia, ib, t_e, times, Dt[BW::Q::iacc_frac]);
 
     if (rho < 0. || Gamma < 1. || !std::isfinite(Gamma)
         || U_p < 0. || theta <= 0. || nprime < 0. || thick <= 0.) {
@@ -726,7 +733,7 @@ static void fluxDensAdaptiveWithObs(
 
     flux_dens = shock_synchrotron_flux_density(
             EjectaID2::STUCT_TYPE::iadaptive, theta,
-            Gamma, GammaSh, nprotons, nprime,
+            Gamma, GammaSh, acc_fac, nprotons, nprime,
             frac, B, gm, gM, gc, Theta, z_cool,
             t_e, mu, r, rsh, thick, thick, nu_obs, params);
 //            flux_dens*=(p_pars->d_l*p_pars->d_l*2.);

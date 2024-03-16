@@ -37,7 +37,7 @@ enum METHOD_SSC { inoSSC, iNumSSC };
 
 enum METHOD_ELE { iEleAnalytic, iEleNumeric };
 
-enum METHODS_LFMIN { igmNumGamma, igmUprime, igmNakarPiran, igmJoh06, igmMAG21 };
+enum METHODS_LFMIN { igmNum, igmUprime, igmNakarPiran, igmJoh06, igmMAG21 };
 
 enum METHODS_B { iBuseUb, iBasMAG21, iBuseGammaSh };
 
@@ -530,8 +530,8 @@ public:
         else{
             if(opts.at(opt) == "useU_e")
                 val_lfmin = METHODS_LFMIN::igmUprime;
-            else if(opts.at(opt) == "useNumericGamma")
-                val_lfmin = METHODS_LFMIN::igmNumGamma;
+            else if(opts.at(opt) == "useNumeric")
+                val_lfmin = METHODS_LFMIN::igmNum;
             else if(opts.at(opt) == "useBeta")
                 val_lfmin = METHODS_LFMIN::igmNakarPiran;
             else if(opts.at(opt) == "useGamma")
@@ -868,7 +868,7 @@ protected:
         return (pp->p - 1) / (pp->p - 2)
             * (std::pow(pp->gamma_max, -pp->p + 2) - std::pow(x, -pp->p + 2))
             / (std::pow(pp->gamma_max, -pp->p + 1) - std::pow(x, -pp->p + 1))
-            - pp->eps_e * mp / me * (pp->GammaSh - 1);
+            - pp->eps_e * pp->eprime / (pp->n_prime * CGS::me * CGS::c * CGS::c);//* mp / me * (pp->GammaSh - 1);
     }
     /// --------------------------------------
     void computeMagneticField(){
@@ -927,7 +927,7 @@ protected:
             case igmJoh06:
                 gamma_min = gamma_min_3;
                 break;
-            case igmNumGamma:
+            case igmNum:
                 /// solve gamma_min fun numerically; use fixed limits and number of iterations
                 gamma_min = Bisect(ElectronAndRadiaionBase::gammaMinFunc,
                                    1., 1.e8, 0., .001, 100, this, status);
@@ -960,7 +960,8 @@ protected:
                                                                          - std::pow(gamma_min - 1., 1. - p));
                     break;
                 case iuseSironi: // Sironi et al 2013
-                    accel_frac = (p - 2.0) / (p - 1.0) * eps_e * CGS::mp / CGS::me * (GammaSh - 1.0) / 1.;
+//                    accel_frac = (p - 2.0) / (p - 1.0) * eps_e * CGS::mp / CGS::me * (GammaSh - 1.0) / 1.;
+                    accel_frac = (p - 2.0) / (p - 1.0) * eps_e * eprime / (n_prime * CGS::me * CGS::c * CGS::c);
                     break;
             }
             gamma_min = 1.;
@@ -1278,19 +1279,21 @@ public: // -------------------- NUMERIC -------------------------------- //
             exit(1);
         }
 
-
+//        accel_frac = std::max(accel_frac,1.);
         /// compute analytical electron spectrum
         double n_inj = (m_p1 - m) / CGS::mp;
-        n_inj *= accel_frac;
+//        n_inj *= accel_frac;
+//        if (accel_frac < 1.)
+//            int z = 1;
         double n_ele_an=0.;
         Vector tmp (ele.numbins,0.);
-        powerLawElectronDistributionAnalytic(tc, (m_p1 * accel_frac) / CGS::mp, tmp);
+        powerLawElectronDistributionAnalytic(tc, (m_p1) / CGS::mp, tmp);
 
         /// check continouity
         for (size_t i = 0; i < ele.numbins-1; i++)
             n_ele_an += tmp[i] * ele.de[i];
         n_ele_out = n_ele_an;
-        double ratio_an = (m_p1 * accel_frac) / CGS::mp / n_ele_an;
+        double ratio_an = (m_p1) / CGS::mp / n_ele_an;
 
         double dt = tc_p1 - tc;
         /// for adiabatic cooling of electron distribution (Note it may be turned off)
@@ -1377,6 +1380,11 @@ public: // -------------------- NUMERIC -------------------------------- //
                 n_ele_num += ele.f[i] * ele.de[i];
             n_ele_out = n_ele_num;
         }
+
+        /// apply Deep Newtonian limit
+        for (size_t i = 0; i < ele.numbins-1; i++)
+            ele.f[i] *= accel_frac;
+
         double ratio_num = n_inj / n_ele_num;
         /// Update photon field during electron evolution
         bool do_ssa = m_methods_ssa == METHODS_SSA::iSSAon;
@@ -1428,7 +1436,7 @@ public: // ---------------------- FOR EATS -------------------------------- //
 
     double computeFluxDensity(
             EjectaID2::STUCT_TYPE eats_method,
-            double & em_prime, double & abs_prime, double Gamma, double GammaSh,
+            double & em_prime, double & abs_prime, double Gamma, double GammaSh, double acc_fac,
             double mu, double r, double rsh, double dr, double n_prime, double ne, double theta, double ncells) {
         /// compute beaming and doppler factor
         double beta = EQS::BetaFromGamma(Gamma);
@@ -1812,7 +1820,7 @@ public: // ---------------------- FOR EATS -------------------------------- //
 
     double fluxDens(
             EjectaID2::STUCT_TYPE eats_method, double theta, double ncells,
-            size_t ia, size_t ib, double freq, double Gamma, double GammaSh,
+            size_t ia, size_t ib, double freq, double Gamma, double GammaSh, double acc_fac,
             double mu, double r, double rsh, double dr, double n_prime, double ne, Vector & r_arr){
 
         Vector & freq_arr = total_rad.e;
@@ -1840,7 +1848,7 @@ public: // ---------------------- FOR EATS -------------------------------- //
         double abs_prime = int_abs.InterpolateBilinear(freq, r, ia_nu, ib_nu, ia, ib);
 
         /// compute flux density
-        return computeFluxDensity(eats_method,em_prime, abs_prime, Gamma, GammaSh,
+        return computeFluxDensity(eats_method,em_prime, abs_prime, Gamma, GammaSh, acc_fac,
                                   mu, r, rsh, dr, n_prime, ne, theta, ncells);
     }
 };
