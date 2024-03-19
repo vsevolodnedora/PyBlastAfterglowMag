@@ -1026,7 +1026,7 @@ class ElectronAndRadiation : public ElectronAndRadiaionBase{
     SSCKernel ssc_kernel{};//std::unique_ptr<SynKernel> syn_kernel = nullptr;
     double n_ele_out = 0.;
     double theta_h = 0;
-
+    Vector photon_field{}; // syn + ssc Npotones for SSC radiation and cooling
     //    double vol=-1.;
 //    double vol_p1=-1.;
 //    double n_inj=-1.;
@@ -1182,11 +1182,11 @@ public: // -------------------- NUMERIC -------------------------------- //
             }
         }
         else{//else if (gamma_c > gamma_min) { // slow cooling regime
-            K_s = n_ele_inj / (
+            K_s = n_ele_inj /
+                    (
                     (1. / (1. - p)) * (pow(gamma_c, 1. - p)
                     - pow(gamma_min, 1 - p))
-                    - gamma_c / p * (pow(gamma_max, -p)
-                    - pow(gamma_c, -p))
+                    - gamma_c / p * (pow(gamma_max, -p) - pow(gamma_c, -p))
                     );
             for (size_t i = 0; i < ele.numbins; ++i) {
                 double gamma = ele.e[i];
@@ -1243,6 +1243,7 @@ public: // -------------------- NUMERIC -------------------------------- //
             ssc_kernel.allocate(ele, syn, ssc, SSCKernel::sscNava);
             ssc_kernel.evalSSCkernel(ele, syn, ssc);
             ssc_kernel.evalSSCgridIntergral(ele, syn, ssc);
+            photon_field.resize(ssc.numbins, 0.);
         }
 
         /// allocate output for the total_rad emissivity and absorption
@@ -1333,7 +1334,7 @@ public: // -------------------- NUMERIC -------------------------------- //
         source.dlnVdt = dlnVdt;
         source.r = r;
         source.dr = dr;
-        source.N = n_inj / dt;//n_inj / dt; // number of injected electrons per timestep
+        source.N = n_inj / dt; //n_inj / dt; // number of injected electrons per timestep
         double n_ele_num = 0.;
         ChangCooper model = ChangCooper(source, ele, syn, ssc, syn_kernel, ssc_kernel);
 
@@ -1355,7 +1356,7 @@ public: // -------------------- NUMERIC -------------------------------- //
             for (size_t i = 0; i < (size_t) n_substeps; i++) {
 
                 /// Set gamma_dot terms (uses syn.n[] for photon density for SSC from previous solution)
-                model.setHeatCoolTerms(2);
+                model.setHeatCoolTerms(2, photon_field);
 
                 /// Assuming sources change during substepping
 //            model.setSourceFunction(m_data[Q::igm][it], m_data[Q::igM][it], index, N);
@@ -1369,9 +1370,6 @@ public: // -------------------- NUMERIC -------------------------------- //
 
                 /// solve system
                 model.solve(delta_t);
-
-                /// Update photon field during electron evolution
-//            model.update_radiation(); // Too long, if inside
 
 //                model.resetSolver();
             }
@@ -1389,7 +1387,23 @@ public: // -------------------- NUMERIC -------------------------------- //
         /// Update photon field during electron evolution
         bool do_ssa = m_methods_ssa == METHODS_SSA::iSSAon;
         bool do_ssc = m_methods_ssc == METHOD_SSC::iNumSSC;
-        model.update_radiation(do_ssa, do_ssc); // saves photon density in syn.n[] -> used in ssc cooling next iteration
+        model.update_radiation(do_ssa, do_ssc, photon_field);
+
+        /// update photon_filed (N_photons) from Synch & SSC
+        double T = source.dr / CGS::c; // escape time
+
+        double volume_ = 4. * M_PI * source.r * source.r * source.dr;
+        double constant_ = std::sqrt(3.) * CGS::qe * CGS::qe * CGS::qe / CGS::mec2;
+//        for (size_t i = 0; i < syn.numbins; i++){
+//            syn.n[i] = (syn.j[i] / (2.3443791412546505e-22 * source.B)); // undo part from emissivity; only kernel needed
+//            syn.n[i] *= constant * T / volume / (CGS::h * syn.e[i] / 8.093440820813486e-21);
+//        }
+        if ((m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum) && (m_methods_ssc==METHOD_SSC::iNumSSC))
+            for (size_t i = 0; i < syn.numbins; i++){
+                photon_field[i] = 0. ; // clean after previos timestep
+                photon_field[i] += syn.j[i] * dt / vol / (CGS::h * syn.e[i] * CGS::ergToFreq); // add synchrotron
+                photon_field[i] += ssc.j[i] * dt / vol / (CGS::h * ssc.e[i] * CGS::ergToFreq); // add SSC
+            }
 
         /// check continouity
         (*p_log)(LOG_INFO,AT) << "t=" << tc
@@ -1398,6 +1412,8 @@ public: // -------------------- NUMERIC -------------------------------- //
             <<" inj/num="<< ratio_num
             <<" gm="<< gamma_min
             <<" gM="<<gamma_max
+            <<" syn="<< std::accumulate(syn.j.begin(), syn.j.end(),0.)
+            <<" ssc="<< std::accumulate(ssc.j.begin(), ssc.j.end(),0.)
             <<"\n";
         /// clear array (resets everything!)
         model.resetSolver();

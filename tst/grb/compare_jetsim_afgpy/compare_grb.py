@@ -105,7 +105,7 @@ def run_jetsim(freq:float, struct:dict, pba:PBA.PyBlastAfterglow):
     P = dict(
         Eiso = struct["Eiso_c"],        # (Jet) Isotropic equivalent energy
         lf = struct["Gamma0c"],           # (Jet) Lorentz factor
-        theta_c = struct["theta_c"],      # (Jet) half opening angle
+        # theta_c = struct["theta_c"],      # (Jet) half opening angle
         n0 = pba.main_pars["n_ism"],             # (ISM) constant number density
         k = 0.0,            # (ISM) wind power index
         A = 0,              # (ISM) wind amplitude
@@ -123,6 +123,7 @@ def run_jetsim(freq:float, struct:dict, pba:PBA.PyBlastAfterglow):
         theta = np.linspace(0, np.pi, 1000)
         Eiso = np.full_like(theta,P["Eiso"]) # P["Eiso"] * np.exp(- 0.5 * (theta / P["theta_c"]) ** 2)
         lf = np.full_like(theta, P["lf"]) #(P["lf"] - 1) * np.exp(- 0.5 * (theta / P["theta_c"]) ** 2) + 1
+        lf[theta > struct["theta_w"]] = 0.
         Eiso[theta > struct["theta_w"]] = 0.
     elif struct["struct"] == "gaussian":
         theta = np.linspace(0, np.pi, 1000)
@@ -286,7 +287,7 @@ def compare_lcs(struct:dict, pp:dict, plot:dict):
         if plot["plot_semi_analytic"]:
             pba = run(working_dir=working_dir,struct=struct, type="a", P=mrg(pp,{
                 "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
-                "grb":{"method_ele_fs":"mix"}}))
+                "grb":{"method_ele_fs":"mix"}})) # "method_synchrotron_fs":"GSL"
             ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
                     pba.GRB.get_lc(freq=i_freq), color='green', ls=i_ls, lw=1.,
                     label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))

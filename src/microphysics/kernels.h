@@ -317,7 +317,7 @@ public:
 //        double h = 6.6261e-27; // erg*sec
 
         double x = 4. * M_PI * en * (CGS::me*CGS::me) * (CGS::c3)
-                   / (3. * CGS::qe * B * CGS::h * gam*gam);
+                 / (3. * CGS::qe * B * CGS::h * gam*gam);
 
         double term_1_num = 1.808 * std::pow(x, 1. / 3.);
         double term_1_denom = std::sqrt(1 + 3.4 * std::pow(x, 2. / 3.));

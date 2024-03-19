@@ -121,7 +121,7 @@ public:
     /**
  * Update radiation fields for current electron distribution
  */
-    void update_radiation(bool do_ssa, bool do_ssc){
+    void update_radiation(bool do_ssa, bool do_ssc, Vector & photon_filed){
         /// 1. Update synchrotron kernel for current B
         synKernel.evalSynKernel(ele, syn, source.B);
 
@@ -132,12 +132,12 @@ public:
         if (do_ssa)
             computeSSA();
 
-        /// 4. compute photon density
-        computePhotonDensity();
-
-        /// 5. Compute SSC spectrum
+        /// 4. Compute SSC spectrum (using PREVIOUS step syn & ssc spectra)
         if (do_ssc)
-            computeSSCSpectrum();
+            computeSSCSpectrum(photon_filed);
+
+        /// 5. compute photon density
+//        computePhotonDensity(photon_filed);
     }
 
 private:
@@ -151,11 +151,23 @@ private:
 
         /// clear the array
         std::fill(syn.j.begin(), syn.j.end(), 0.);
+        double tmp[ele.numbins];
 
-        for (size_t i = 0; i < syn.numbins-1; i++) {
-            for (size_t j = 0; j < ele.numbins -1; j++)
-                syn.j[i] += kernel[i][j] * ele.f[j] * ele.de[j];
+        for (size_t i = 0; i < syn.numbins - 1; i++) {
+            // --- old integral
+//            double res = 0.;
+//            for (size_t j = 0; j < ele.numbins - 1; j++)
+//                res += kernel[i][j] * ele.f[j] * ele.de[j];
+            // --- new integral
+            for (size_t j = 0; j < ele.numbins; j++)
+                tmp[j] = kernel[i][j] * ele.f[j];
+            double res_ = IntegrateSimpson38(ele.e,tmp);
+
+//            std::cout << res << " " << res_ << " " << res / res_ << "\n";
+
+            syn.j[i] = res_;
             syn.j[i] *= 2.3443791412546505e-22 * source.B; // np.sqrt(3) * np.power(e, 3) / h * (h/mec2)
+
             if (!std::isfinite(syn.j[i]) || syn.j[i] < 0.){
                 std::cerr << AT<< " nan in computeSynSpectrum()\n";
                 exit(1);
@@ -198,17 +210,28 @@ private:
      * O(n) algorithm
      * TODO include SSA; Check with others
      */
-    void computePhotonDensity(){
+    void computePhotonDensity(double delta_t){
 
         /// clear the array
-        /// std::fill(syn.n.begin(), syn.n.end(),0.);
+        std::fill(syn.n.begin(), syn.n.end(),0.);
 
-        /// compute emitting region properties
+        /// add photon photon number from synchrotron radiation
+        for (size_t i = 0; i < syn.numbins; i++)
+            syn.n[i] += delta_t / (CGS::h * syn.e[i] * CGS::ergToFreq) * syn.j[i];
+
+        /// add photon photon number from SSC radiation
+        for (size_t i = 0; i < syn.numbins; i++)
+            syn.n[i] += delta_t / (CGS::h * ssc.e[i] * CGS::ergToFreq) * ssc.j[i];
+
+
+        /// clear the array
+        std::fill(syn.n.begin(), syn.n.end(),0.);
+
+        // compute emitting region properties
         double T = source.dr / CGS::c; // escape time
 
         double volume = 4. * M_PI * source.r * source.r * source.dr;
         double constant = std::sqrt(3.) * CGS::qe * CGS::qe * CGS::qe / CGS::mec2;
-
         for (size_t i = 0; i < syn.numbins; i++){
             syn.n[i] = (syn.j[i] / (2.3443791412546505e-22 * source.B)); // undo part from emissivity; only kernel needed
             syn.n[i] *= constant * T / volume / (CGS::h * syn.e[i] / 8.093440820813486e-21);
@@ -222,7 +245,7 @@ private:
      *
      * O(n*m*q) algorithm
      */
-    void computeSSCSpectrum(){
+    void computeSSCSpectrum(Vector & photon_filed){
 
         std::fill(ssc.j.begin(), ssc.j.end(),0.);
 
@@ -234,22 +257,22 @@ private:
         for (size_t i = 0; i < ssc.numbins; i++) {
 
             // clean the buffer
-            for (size_t i_ = 0; i_ < ele.numbins-1; i_++)
-                inner[i_] = 0.;
+            for (size_t i_ = 0; i_ < ele.numbins-1; i_++) inner[i_] = 0.;
 
             /// Integrate seed photon spectrum [Inner integral]
             auto & kernel = sscKernel.getKernel();
             for (size_t j = 0; j < ele.numbins - 1; j++)
                 for (size_t k = 0; k < syn.numbins; k++)
-                    inner[j] += syn.n[k] / syn.e[k] * syn.de[k] * kernel[i][j][k];
+                    inner[j] += photon_filed[k] / syn.e[k] * syn.de[k] * kernel[i][j][k];
+//                    inner[j] += syn.n[k] / syn.e[k] * syn.de[k] * kernel[i][j][k];
 
             /// Integrate the electron distribution [Outer integral]
             for (size_t j = 0; j < ele.numbins - 1; j++)
                 ssc.j[i] += inner[j] * ele.f[j] / ele.e[j] / ele.e[j] * ele.de[j];
 
             /// add final terms
-            double ssc_freq = ssc.e[i] / 8.093440820813486e-21;
-            ssc.j[i] *= constant * ssc_freq;
+//            double ssc_freq = ssc.e[i] * CGS::ergToFreq;// / 8.093440820813486e-21;
+            ssc.j[i] *= constant * (ssc.e[i] * CGS::ergToFreq);
         }
     }
 };
@@ -539,7 +562,7 @@ public:
      * Compute gamma_dot term in kinteic equation
      * @param cool_index
      */
-    void setHeatCoolTerms(double cool_index=2){
+    void setHeatCoolTerms(double cool_index, Vector & photon_filed){
         /// Assume no dispersion so
         std::fill(dispersion_term.begin(), dispersion_term.end(),0.);
 
@@ -556,7 +579,7 @@ public:
             /// compute SSC term
             double ssc_term=0.;
             if (is_ssc)
-                ssc_term = sscIntegralTerm(i) / ele.half_e[i] / ele.half_e[i];
+                ssc_term = sscIntegralTerm(i, photon_filed) / ele.half_e[i] / ele.half_e[i];
 
             /// overall heating/cooling term
             heating_term[i] = syn_term + adi_term + ssc_term;
@@ -590,7 +613,7 @@ public:
      * @param idx
      * @return
      */
-    double sscIntegralTerm(size_t idx){
+    double sscIntegralTerm(size_t idx, Vector & photon_filed){
 
         /// integrate photon density distribution over electron distribution
         double res = 0;
@@ -598,7 +621,11 @@ public:
 
         /// integrate the seed photon spectrum
         for (size_t j = 0; j < syn.numbins-1; j++) {
-            double tmp = syn.n[j] \
+//            double tmp = syn.n[j] \
+//                       / syn.e[j] \
+//                       * syn.de[j] \
+//                       * kernel[idx][j];
+            double tmp = photon_filed[j] \
                        / syn.e[j] \
                        * syn.de[j] \
                        * kernel[idx][j];

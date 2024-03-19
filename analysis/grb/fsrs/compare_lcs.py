@@ -93,6 +93,7 @@ def plot_burster(struct:dict,pp:dict,plot:dict):
         dict(v_ns=("Gamma", "Gamma43"),ylabel='$\Gamma$',ylim=(1e-1,1e3)),
         # ("GammaFsh", "GammaRsh"),
         dict(v_ns=("gamma_min","gamma_min_rs"),ylabel=r"$\gamma_{\rm m}$",ylim=(1e-1,2e4)),
+        dict(v_ns=("accel_frac","accel_frac_rs"),ylabel=r"$\xi_{\rm DN}$",ylim=(1e-3,2)),
         dict(v_ns=("gamma_c","gamma_c_rs"),ylabel=r"$\gamma_{\rm c}$",ylim=(1.,1e7)),
     )
     xlim=(3e3,1e9)
@@ -144,9 +145,10 @@ def plot_burster(struct:dict,pp:dict,plot:dict):
 
 if __name__ == '__main__':
     plot_burster(struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
-         pp = dict(main=dict(n_ism=10, tb0=3e3, ntb=1000,rtol=1e-7,theta_obs=0),
-                   grb=dict(method_ele_fs='analytic',method_ele_rs='analytic',method_synchrotron_fs='WSPN99',
-                   save_dynamics='yes'
+         pp = dict(main=dict(n_ism=1, tb0=3e3, ntb=1000,rtol=1e-7,theta_obs=0),
+                   grb=dict(
+                       # method_ele_fs='analytic',method_ele_rs='analytic',method_synchrotron_fs='WSPN99',
+                       save_dynamics='yes'
                    #method_spread='None'
                    )),
          plot=dict())

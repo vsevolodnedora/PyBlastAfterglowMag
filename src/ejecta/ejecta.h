@@ -385,6 +385,8 @@ private:
                 if (bw->getPars()->p_mphys->m_methods_ssc != METHOD_SSC::inoSSC)
                     Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ssc.j_all,
                                              "ssc_fs");
+                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->total_rad.j_all,
+                                         "total_fs");
 
                 /// save spectra of the reverse shock
                 if (bw->getPars()->do_rs_radiation){
@@ -401,6 +403,8 @@ private:
                     if (bw->getPars()->p_mphys_rs->m_methods_ssc != METHOD_SSC::inoSSC)
                         Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ssc.j_all,
                                                  "ssc_rs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->total_rad.j_all,
+                                             "total_rs");
                 }
                 grp.close();
             }

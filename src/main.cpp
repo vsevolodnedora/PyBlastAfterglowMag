@@ -212,7 +212,11 @@ int main(int argc, char** argv) {
     /// ------------------------------------------------------
     if (argc<4){
         // test cases || GRG
-        working_dir = "../tst/grb/compare_jetsim_afgpy/tmp1/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/grb/compare_jetsim_afgpy/tmp1/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+
+        // analysis
+//        working_dir = "../analysis/grb/fsrs/tmp1/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_fs__num__ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 
         // test cases || GRG
 //        working_dir = "../tst/grb/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO; // gauss, skymap

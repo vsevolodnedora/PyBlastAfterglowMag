@@ -46,6 +46,57 @@ double Simpson38( double x0, double x1, int n_elements, T & func ){
     return ( 3. * interval_size / 8. ) * sum ;
 }
 
+double IntegrateSimpson38(const std::vector<double>& x, const std::vector<double>& f) {
+    size_t n = x.size();
+    if (n != f.size() || n < 4) {
+        std::cerr << "Error: Invalid input vectors." << std::endl;
+        return 0.0;
+    }
+
+    double integral = 0.0;
+    size_t i = 0;
+
+    // Apply Simpson's 3/8 rule as long as we have groups of 3 points
+    for (; i <= n - 4; i += 3) {
+        double h = (x[i + 3] - x[i]) / 3.0;
+        integral += (3.0 * h / 8.0) * (f[i] + 3*f[i + 1] + 3*f[i + 2] + f[i + 3]);
+    }
+
+    // Handle the remainder using the trapezoidal rule if necessary
+    if (i < n - 1) {
+        for (; i < n - 1; ++i) {
+            integral += 0.5 * (x[i + 1] - x[i]) * (f[i] + f[i + 1]);
+        }
+    }
+
+    return integral;
+}
+double IntegrateSimpson38(const std::vector<double>& x, const double * f) {
+    size_t n = x.size();
+    if (n != x.size() || n < 4) {
+        std::cerr << "Error: Invalid input vectors." << std::endl;
+        return 0.0;
+    }
+
+    double integral = 0.0;
+    size_t i = 0;
+
+    // Apply Simpson's 3/8 rule as long as we have groups of 3 points
+    for (; i <= n - 4; i += 3) {
+        double h = (x[i + 3] - x[i]) / 3.0;
+        integral += (3.0 * h / 8.0) * (f[i] + 3*f[i + 1] + 3*f[i + 2] + f[i + 3]);
+    }
+
+    // Handle the remainder using the trapezoidal rule if necessary
+    if (i < n - 1) {
+        for (; i < n - 1; ++i) {
+            integral += 0.5 * (x[i + 1] - x[i]) * (f[i] + f[i + 1]);
+        }
+    }
+
+    return integral;
+}
+
 //double Simpson38( Vector & x, Vector & func ){
 //    size_t n_elements = func.size();
 //    double sum = func[0] + func[n_elements-1];
