@@ -28,7 +28,7 @@ inline namespace CGS{
     const double &gamma_c_w_fac = 6 * pi * me * c / sigmaT; // Used in gamma_c calculation
     const double &kB = 1.380658e-16; // Boltzmann constant
     const double &hcgs = 6.6260755e-27; // Planck constant in cgs
-    const double &h    = 6.6260755e-27; // erg s
+    const double &h    = 6.6260755e-27; // erg s; E = h*nu -> nu = E / h
     const double &lambda_c = (hcgs / (me * c)); // Compton wavelength
     const double &mec2 = 8.187105649650028e-07;  // erg # electron mass in erg, mass_energy equivalence
     const double &pc = 3.0857e18; // cm
@@ -38,8 +38,9 @@ inline namespace CGS{
     const double &deg2rad = 0.017453292;
     const double &cgs2mJy = 1.e26;
     const double &gravconst = 6.67259e-8;// # cm^3 g^-1 s^-2
-    const double &freqToErg = 8.093440820813486e-21;
-    const double &ergToFreq = 1./8.093440820813486e-21;
+//    const double &freqToErg = 8.093440820813486e-21; // h/me/c/c;
+//    const double &ergToFreq = 1./8.093440820813486e-21;
+    const double &h_by_mec2 = h/me/c/c;
 
     /// --------------------------------
     const double &SI_pc   =3.0856E+16; // m

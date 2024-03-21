@@ -31,7 +31,7 @@ enum METHODS_SHOCK_ELE { iShockEleAnalyt, iShockEleNum, iShockEleMix };
 
 enum METHOD_TAU { iAPPROX, iTHICK, iSMOOTH, iSHARP };
 
-enum METHODS_SYNCH { iWSPN99, iJOH06, iDER06, iMARG21, iNumeric, iGSL };
+enum METHODS_SYNCH { iWSPN99, iJOH06, iDER06, iMARG21, iNumeric, iGSL, iCSYN };
 
 enum METHOD_SSC { inoSSC, iNumSSC };
 
@@ -449,16 +449,20 @@ public:
                     exit(1);
                 }
                 val_synch = METHODS_SYNCH::iGSL;
-
             }
-//            else if(opts.at(opt) == "Bretta")
-//                val_synch = SynchrotronAnalytic::METHODS_SYNCH::iBerrettaSynch;
+            else if(opts.at(opt) == "CSYN") {
+                if (m_eleMethod == METHODS_SHOCK_ELE::iShockEleAnalyt){
+                    (*p_log)(LOG_ERR,AT) << " options synchrotron CSYN and analytic electron evol. are incompatible\n";
+                    exit(1);
+                }
+                val_synch = METHODS_SYNCH::iCSYN;
+            }
             else{
                 (*p_log)(LOG_ERR,AT) << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized. "
                                       << "Possible options: "
-                                      << " Joh06 " << " WSPN99 " << " Marg21 " << " Dermer09 " << " GSL " << "\n";
+                                      << " Joh06 " << " WSPN99 " << " Marg21 " << " Dermer09 " << " GSL " << " CSYN " << "\n";
                 exit(1);
             }
         }
@@ -863,12 +867,23 @@ protected:
         return true;
     }
     /// --------------------------------------
+    /*
+     * Minimum lorentz factor of the injection electron distribution (See Eq.8.76 - 8.85 in Zhang+2018 book)
+     */
     static double gammaMinFunc(const double &x, void * pars){
         auto * pp = (struct ElectronAndRadiaionBase *) pars;
-        return (pp->p - 1) / (pp->p - 2)
+        double gamma_ave = pp->eps_e * pp->eprime / (pp->n_prime * CGS::me * CGS::c * CGS::c);//* mp / me * (pp->GammaSh - 1)
+        if (pp->p == 1)
+            return (pp->gamma_max - pp->gamma_min) / (std::log(pp->gamma_max) - std::log(pp->gamma_min))
+            - gamma_ave;
+        else if (pp->p == 2)
+            return (std::log(pp->gamma_max) - std::log(pp->gamma_min)) / (-1./pp->gamma_max + 1./pp->gamma_min)
+            - gamma_ave;
+        else
+            return (pp->p - 1) / (pp->p - 2)
             * (std::pow(pp->gamma_max, -pp->p + 2) - std::pow(x, -pp->p + 2))
             / (std::pow(pp->gamma_max, -pp->p + 1) - std::pow(x, -pp->p + 1))
-            - pp->eps_e * pp->eprime / (pp->n_prime * CGS::me * CGS::c * CGS::c);//* mp / me * (pp->GammaSh - 1);
+            - gamma_ave;
     }
     /// --------------------------------------
     void computeMagneticField(){
@@ -1082,10 +1097,12 @@ public: // ---------------- ANALYTIC -------------------------- //
                                << " n_freqs=" << nfreq << " by n_radii=" << nr << " Spec. grid="
                                << nfreq * nr << "\n";
 
-        syn.allocate(freq1*CGS::freqToErg, freq2*CGS::freqToErg, nfreq);
+//        syn.allocate(freq1*CGS::freqToErg, freq2*CGS::freqToErg, nfreq);
+        syn.allocate(freq1, freq2, nfreq);
         syn.allocate_output(nfreq,nr);
         if (m_methods_ssc!=METHOD_SSC::inoSSC) {
-            ssc.allocate(freq1 * CGS::freqToErg, freq2 * CGS::freqToErg, nfreq);
+//            ssc.allocate(freq1 * CGS::freqToErg, freq2 * CGS::freqToErg, nfreq);
+            ssc.allocate(freq1, freq2, nfreq);
             ssc.allocate_output(nfreq, nr);
         }
 
@@ -1132,11 +1149,14 @@ public: // ---------------- ANALYTIC -------------------------- //
     }
 
     /// compute spectrum for all freqs and add it to the container
-    void computeSynchrotronSpectrumAnalytic(size_t it, double r, double dr) {
-        source.r = r; source.dr = dr;
+    void computeSynchrotronSpectrumAnalytic(size_t it) {
+//        source.r = r; source.dr = dr;
         for (size_t ifreq = 0; ifreq < syn.numbins; ++ifreq)
+//            computeSynchrotronEmissivityAbsorptionAnalytic(
+//                    syn.e[ifreq] * CGS::ergToFreq, syn.j[ifreq], syn.a[ifreq]
+//            );
             computeSynchrotronEmissivityAbsorptionAnalytic(
-                    syn.e[ifreq] * CGS::ergToFreq, syn.j[ifreq], syn.a[ifreq]
+                    syn.e[ifreq], syn.j[ifreq], syn.a[ifreq]
             );
         /// store the result
         syn.save_to_all(it);
@@ -1221,11 +1241,14 @@ public: // -------------------- NUMERIC -------------------------------- //
         ele.allocate_output(ngams, nr);
         ele.build_grid_chang_cooper(); // build the grid for the implicit solver
 
-        syn.allocate(freq1*CGS::freqToErg, freq2*CGS::freqToErg, nfreq);
+//        syn.allocate(freq1*CGS::freqToErg, freq2*CGS::freqToErg, nfreq);
+        syn.allocate(freq1, freq2, nfreq);
         syn.allocate_output(nfreq, nr);
 
-        if ((m_sychMethod != METHODS_SYNCH::iGSL) and (m_sychMethod != METHODS_SYNCH::iDER06)){
-            (*p_log)(LOG_ERR,AT) << " only GSL or DER06 synchrotron options are "
+        if ((m_sychMethod != METHODS_SYNCH::iGSL)
+            and (m_sychMethod != METHODS_SYNCH::iDER06)
+            and (m_sychMethod != METHODS_SYNCH::iCSYN)){
+            (*p_log)(LOG_ERR,AT) << " only GSL DER06 or CSYN synchrotron options are "
                                     "avaialble when evolving electrons numerically. \n";
             exit(1);
         }
@@ -1233,12 +1256,20 @@ public: // -------------------- NUMERIC -------------------------------- //
         /// allocate memory for synchrotron kernel
         if (m_sychMethod == METHODS_SYNCH::iGSL)
             syn_kernel.allocate(ele, syn, SynKernel::synchGSL);
-        else
+        else if (m_sychMethod == METHODS_SYNCH::iDER06)
             syn_kernel.allocate(ele, syn, SynKernel::synchDermer);
+        else if (m_sychMethod == METHODS_SYNCH::iCSYN)
+            syn_kernel.allocate(ele, syn, SynKernel::cycSynch);
+        else {
+            (*p_log)(LOG_ERR, AT) << " method for synchrotron is not recognized \n";
+            exit(1);
+        }
+
 
         /// allocate memory for SSC structure and kernel
         if (m_methods_ssc == METHOD_SSC::iNumSSC) {
-            ssc.allocate(freq1 * CGS::freqToErg, freq2 * CGS::freqToErg, nfreq);
+//            ssc.allocate(freq1 * CGS::freqToErg, freq2 * CGS::freqToErg, nfreq);
+            ssc.allocate(freq1, freq2, nfreq);
             ssc.allocate_output(nfreq, nr);
             ssc_kernel.allocate(ele, syn, ssc, SSCKernel::sscNava);
             ssc_kernel.evalSSCkernel(ele, syn, ssc);
@@ -1332,8 +1363,8 @@ public: // -------------------- NUMERIC -------------------------------- //
         /// update source properties
         source.B = B;
         source.dlnVdt = dlnVdt;
-        source.r = r;
-        source.dr = dr;
+//        source.r = r;
+//        source.dr = dr;
         source.N = n_inj / dt; //n_inj / dt; // number of injected electrons per timestep
         double n_ele_num = 0.;
         ChangCooper model = ChangCooper(source, ele, syn, ssc, syn_kernel, ssc_kernel);
@@ -1390,9 +1421,9 @@ public: // -------------------- NUMERIC -------------------------------- //
         model.update_radiation(do_ssa, do_ssc, photon_field);
 
         /// update photon_filed (N_photons) from Synch & SSC
-        double T = source.dr / CGS::c; // escape time
+        double T = dr / CGS::c; // escape time
 
-        double volume_ = 4. * M_PI * source.r * source.r * source.dr;
+        double volume_ = 4. * M_PI * r * r * dr;
         double constant_ = std::sqrt(3.) * CGS::qe * CGS::qe * CGS::qe / CGS::mec2;
 //        for (size_t i = 0; i < syn.numbins; i++){
 //            syn.n[i] = (syn.j[i] / (2.3443791412546505e-22 * source.B)); // undo part from emissivity; only kernel needed
@@ -1401,20 +1432,44 @@ public: // -------------------- NUMERIC -------------------------------- //
         if ((m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum) && (m_methods_ssc==METHOD_SSC::iNumSSC))
             for (size_t i = 0; i < syn.numbins; i++){
                 photon_field[i] = 0. ; // clean after previos timestep
-                photon_field[i] += syn.j[i] * dt / vol / (CGS::h * syn.e[i] * CGS::ergToFreq); // add synchrotron
-                photon_field[i] += ssc.j[i] * dt / vol / (CGS::h * ssc.e[i] * CGS::ergToFreq); // add SSC
+//                photon_field[i] += syn.j[i] * dt / vol / (CGS::h * syn.e[i] * CGS::ergToFreq); // add synchrotron
+                photon_field[i] += syn.j[i] * T / vol / (CGS::h * syn.e[i]); // add synchrotron
+//                photon_field[i] += ssc.j[i] * dt / vol / (CGS::h * ssc.e[i] * CGS::ergToFreq); // add SSC
+                photon_field[i] += ssc.j[i] * T / vol / (CGS::h * ssc.e[i]); // add SSC
             }
 
-        /// check continouity
-        (*p_log)(LOG_INFO,AT) << "t=" << tc
-            <<" n="<<n_substeps
-            <<" inj/an="<< ratio_an
-            <<" inj/num="<< ratio_num
-            <<" gm="<< gamma_min
-            <<" gM="<<gamma_max
-            <<" syn="<< std::accumulate(syn.j.begin(), syn.j.end(),0.)
-            <<" ssc="<< std::accumulate(ssc.j.begin(), ssc.j.end(),0.)
-            <<"\n";
+        /// locate spectral limits for reporting and show extended log of the calculation
+        if (m_loglevel>=LOG_INFO) {
+            size_t max_idx;
+            auto [min_iter, max_iter] = std::minmax_element(std::begin(syn.j), std::end(syn.j));
+            max_idx = std::distance(std::begin(syn.j), max_iter);
+            double synch_peak = syn.e[max_idx];
+            double synch_peak_flux = syn.e[max_idx] * syn.j[max_idx];
+
+            size_t max_idx_c = 0;
+            double ssc_peak = 0.;
+            double ssc_peak_flux = 0.;
+            if ((m_eleMethod == METHODS_SHOCK_ELE::iShockEleNum) && (m_methods_ssc == METHOD_SSC::iNumSSC)) {
+                auto [min_iter_c, max_iter_c] =
+                        std::minmax_element(std::begin(ssc.j), std::end(ssc.j));
+                max_idx_c = std::distance(std::begin(ssc.j), max_iter_c);
+                ssc_peak = ssc.e[max_idx_c];
+                ssc_peak_flux = ssc.e[max_idx_c] * ssc.j[max_idx_c];
+            }
+
+            /// log result
+            (*p_log)(LOG_INFO, AT) << "t=" << tc
+                                   << " n=" << n_substeps
+                                   << " inj/an=" << ratio_an
+                                   << " inj/num=" << ratio_num
+                                   << " gm=" << gamma_min
+                                   << " gM=" << gamma_max
+                                   << " syn[" << synch_peak << "]="
+                                   << synch_peak_flux//<< std::accumulate(syn.j.begin(), syn.j.end(),0.)
+                                   << " ssc[" << ssc_peak << "]="
+                                   << ssc_peak_flux//<<" ssc="<< std::accumulate(ssc.j.begin(), ssc.j.end(),0.)
+                                   << "\n";
+        }
         /// clear array (resets everything!)
         model.resetSolver();
     }

@@ -166,7 +166,7 @@ private:
 //            std::cout << res << " " << res_ << " " << res / res_ << "\n";
 
             syn.j[i] = res_;
-            syn.j[i] *= 2.3443791412546505e-22 * source.B; // np.sqrt(3) * np.power(e, 3) / h * (h/mec2)
+//            syn.j[i] *= 2.3443791412546505e-22 * source.B; // np.sqrt(3) * np.power(e, 3) / h * (h/mec2)
 
             if (!std::isfinite(syn.j[i]) || syn.j[i] < 0.){
                 std::cerr << AT<< " nan in computeSynSpectrum()\n";
@@ -195,8 +195,9 @@ private:
         for (size_t i = 0; i < syn.numbins; i++){
             for (size_t j = 0; j < ele.numbins-1; j++)
                 syn.a[i] += ele.e[j] * ele.e[j] * ele.de[j] * ele.dfde[j] * kernel[i][j];
-            syn.a[i] *= 2.3443791412546505e-22 * source.B; // np.sqrt(3) * np.power(e, 3) / h * (h/mec2)
-            syn.a[i] *= -1. / (8. * M_PI * CGS::me * std::pow(syn.e[i]/8.093440820813486e-21, 2));
+//            syn.a[i] *= 2.3443791412546505e-22 * source.B; // np.sqrt(3) * np.power(e, 3) / h * (h/mec2)
+//            syn.a[i] *= -1. / (8. * M_PI * CGS::me * std::pow(syn.e[i]/8.093440820813486e-21, 2));
+            syn.a[i] *= -1. / (8. * M_PI * CGS::me * std::pow(syn.e[i], 2));
             if (!std::isfinite(syn.a[i])){
                 std::cerr << AT<< " nan in computeSSA()\n";
                 exit(1);
@@ -210,33 +211,36 @@ private:
      * O(n) algorithm
      * TODO include SSA; Check with others
      */
-    void computePhotonDensity(double delta_t){
-
-        /// clear the array
-        std::fill(syn.n.begin(), syn.n.end(),0.);
-
-        /// add photon photon number from synchrotron radiation
-        for (size_t i = 0; i < syn.numbins; i++)
-            syn.n[i] += delta_t / (CGS::h * syn.e[i] * CGS::ergToFreq) * syn.j[i];
-
-        /// add photon photon number from SSC radiation
-        for (size_t i = 0; i < syn.numbins; i++)
-            syn.n[i] += delta_t / (CGS::h * ssc.e[i] * CGS::ergToFreq) * ssc.j[i];
-
-
-        /// clear the array
-        std::fill(syn.n.begin(), syn.n.end(),0.);
-
-        // compute emitting region properties
-        double T = source.dr / CGS::c; // escape time
-
-        double volume = 4. * M_PI * source.r * source.r * source.dr;
-        double constant = std::sqrt(3.) * CGS::qe * CGS::qe * CGS::qe / CGS::mec2;
-        for (size_t i = 0; i < syn.numbins; i++){
-            syn.n[i] = (syn.j[i] / (2.3443791412546505e-22 * source.B)); // undo part from emissivity; only kernel needed
-            syn.n[i] *= constant * T / volume / (CGS::h * syn.e[i] / 8.093440820813486e-21);
-        }
-    }
+//    void computePhotonDensity(double delta_t){
+//
+//        /// clear the array
+//        std::fill(syn.n.begin(), syn.n.end(),0.);
+//
+//        /// add photon photon number from synchrotron radiation
+//        for (size_t i = 0; i < syn.numbins; i++)
+////            syn.n[i] += delta_t / (CGS::h * syn.e[i] * CGS::ergToFreq) * syn.j[i];
+//            syn.n[i] += delta_t / (CGS::h * syn.e[i]) * syn.j[i];
+//
+//        /// add photon photon number from SSC radiation
+//        for (size_t i = 0; i < syn.numbins; i++)
+////            syn.n[i] += delta_t / (CGS::h * ssc.e[i] * CGS::ergToFreq) * ssc.j[i];
+//            syn.n[i] += delta_t / (CGS::h * ssc.e[i]) * ssc.j[i];
+//
+//
+//        /// clear the array
+//        std::fill(syn.n.begin(), syn.n.end(),0.);
+//
+//        // compute emitting region properties
+//        double T = source.dr / CGS::c; // escape time
+//
+//        double volume = 4. * M_PI * source.r * source.r * source.dr;
+//        double constant = std::sqrt(3.) * CGS::qe * CGS::qe * CGS::qe / CGS::mec2;
+//        for (size_t i = 0; i < syn.numbins; i++){
+//            syn.n[i] = (syn.j[i] / (2.3443791412546505e-22 * source.B)); // undo part from emissivity; only kernel needed
+//            syn.n[i] *= constant * T / volume / (CGS::h * syn.e[i]);
+////            syn.n[i] *= constant * T / volume / (CGS::h * syn.e[i] / 8.093440820813486e-21);
+//        }
+//    }
 
     /**
      * Compute SSC emissivity by convolving SSC scattering
@@ -249,30 +253,33 @@ private:
 
         std::fill(ssc.j.begin(), ssc.j.end(),0.);
 
-        double inner[ele.numbins-1];
+        double scat_ph_spec_per_ele[ele.numbins - 1];
 
-        double constant = 3. / 4. * CGS::h * CGS::sigmaT * CGS::c;
+//        double constant = 3. / 4. * CGS::h * CGS::sigmaT * CGS::c;
 
         /// Compute SSC spectrum for each photon energy
         for (size_t i = 0; i < ssc.numbins; i++) {
 
             // clean the buffer
-            for (size_t i_ = 0; i_ < ele.numbins-1; i_++) inner[i_] = 0.;
+            for (size_t i_ = 0; i_ < ele.numbins-1; i_++) scat_ph_spec_per_ele[i_] = 0.;
 
             /// Integrate seed photon spectrum [Inner integral]
             auto & kernel = sscKernel.getKernel();
             for (size_t j = 0; j < ele.numbins - 1; j++)
                 for (size_t k = 0; k < syn.numbins; k++)
-                    inner[j] += photon_filed[k] / syn.e[k] * syn.de[k] * kernel[i][j][k];
-//                    inner[j] += syn.n[k] / syn.e[k] * syn.de[k] * kernel[i][j][k];
+                    /// compute scattered photon spectrum per electron (Blumenthal 1970)
+                    scat_ph_spec_per_ele[j] += 3. / 4. * CGS::sigmaT * CGS::c / (ele.e[j] * ele.e[j])
+                                             * photon_filed[k] / syn.e[k] * syn.de[k] * kernel[i][j][k];
+//                    scat_ph_spec_per_ele[j] += syn.n[k] / syn.e[k] * syn.de[k] * kernel[i][j][k];
 
             /// Integrate the electron distribution [Outer integral]
             for (size_t j = 0; j < ele.numbins - 1; j++)
-                ssc.j[i] += inner[j] * ele.f[j] / ele.e[j] / ele.e[j] * ele.de[j];
+                ssc.j[i] += ele.f[j] * CGS::h * ssc.e[i] * scat_ph_spec_per_ele[j] * ele.de[j];
 
             /// add final terms
 //            double ssc_freq = ssc.e[i] * CGS::ergToFreq;// / 8.093440820813486e-21;
-            ssc.j[i] *= constant * (ssc.e[i] * CGS::ergToFreq);
+//            ssc.j[i] *= constant * (ssc.e[i] * CGS::ergToFreq);
+//            ssc.j[i] *= ssc.e[i] * CGS::h;
         }
     }
 };
@@ -584,6 +591,10 @@ public:
             /// overall heating/cooling term
             heating_term[i] = syn_term + adi_term + ssc_term;
 
+//            if (ssc_term != 0 and ssc_term > syn_term){
+//                int z = 1;
+//            }
+
             if (!std::isfinite(heating_term[i])){
                 std::cerr << AT<< " nan in setHeatCoolTerms()\n";
                 exit(1);
@@ -620,21 +631,17 @@ public:
         auto & kernel = sscKernel.getKernelInteg(); // [i_gamma, i_energy_syn]
 
         /// integrate the seed photon spectrum
-        for (size_t j = 0; j < syn.numbins-1; j++) {
-//            double tmp = syn.n[j] \
-//                       / syn.e[j] \
-//                       * syn.de[j] \
-//                       * kernel[idx][j];
-            double tmp = photon_filed[j] \
-                       / syn.e[j] \
-                       * syn.de[j] \
-                       * kernel[idx][j];
-            res += tmp;
-        }
+        for (size_t j = 0; j < syn.numbins-1; j++)
+            res += photon_filed[j] / syn.e[j] * syn.de[j] * kernel[idx][j];
+
+//        if (res != 0){
+//            int z = 1;
+//        }
 
         /// add constant from the paper
-        double constant = 1.826e-08; //  -1. * (1. / (me * c * c)) * (3. * sigmaT * c / 4.)
+        double constant = 3./4. * CGS::h * CGS::sigmaT / CGS::me / CGS::c;
         res *= constant;
+
 
         return res;
     }

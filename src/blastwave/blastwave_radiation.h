@@ -1089,9 +1089,10 @@ public:
                 /// compute comoving spectra
                 if (p_pars->m_method_rad == METHODS_RAD::icomovspec) {
                     if (p_mphys_rs->m_eleMethod == METHODS_SHOCK_ELE::iShockEleAnalyt)
-                        p_mphys_rs->computeSynchrotronSpectrumAnalytic(it,
-                                                                       m_data[BW::Q::iR][it],
-                                                                       m_data[BW::Q::ithickness_rs][it]);
+                        p_mphys_rs->computeSynchrotronSpectrumAnalytic(it
+//                                                                       m_data[BW::Q::iR][it],
+//                                                                       m_data[BW::Q::ithickness_rs][it]
+                                                                       );
                     else{
                         if (not p_mphys_rs->is_distribution_initialized)
 //                            p_mphys_rs->is_distribution_initialized = true;
@@ -1137,9 +1138,10 @@ public:
             /// compute comoving spectra
             if (p_pars->m_method_rad == METHODS_RAD::icomovspec) {
                 if (p_mphys->m_eleMethod == METHODS_SHOCK_ELE::iShockEleAnalyt)
-                    p_mphys->computeSynchrotronSpectrumAnalytic(it,
-                                                                m_data[BW::Q::iR][it],
-                                                                m_data[BW::Q::ithickness][it]);
+                    p_mphys->computeSynchrotronSpectrumAnalytic(it
+//                                                                m_data[BW::Q::iR][it],
+//                                                                m_data[BW::Q::ithickness][it]
+                                                                );
                 else {
                     if (not p_mphys->is_distribution_initialized) // Initialize electron distribution analytically
                         p_mphys->initializeElectronDistribution(
@@ -1150,7 +1152,8 @@ public:
                                 m_data[BW::Q::iM2][it-1], m_data[BW::Q::iM2][it],
                                 m_data[BW::Q::irho2][it-1], m_data[BW::Q::irho2][it],
                                 m_data[BW::Q::iR][it-1], m_data[BW::Q::iR][it],
-                                m_data[BW::Q::ithickness][it-1], m_data[BW::Q::ithickness][it]);
+                                m_data[BW::Q::iGamma][it-1]*m_data[BW::Q::iGamma][it-1]*m_data[BW::Q::ithickness][it-1], // comoving shock thickness...
+                                m_data[BW::Q::iGamma][it]*m_data[BW::Q::iGamma][it]*m_data[BW::Q::ithickness][it]);
                     if (p_mphys->is_distribution_initialized)
                         p_mphys->storeSynchrotronSpectrumNumeric(it);
                 }
