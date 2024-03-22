@@ -1297,7 +1297,7 @@ public: // -------------------- NUMERIC -------------------------------- //
     void evaluateElectronDistributionNumeric(
             double tc, double tc_p1, double m, double m_p1,
             double rho_prime, double rho_prime_p1,
-            double r, double rp1, double dr, double drp1){
+            double r, double rp1, double dr_comov, double drp1_comov){
 
         /// check parameters
         if (ele.e.size() < 1){
@@ -1329,10 +1329,10 @@ public: // -------------------- NUMERIC -------------------------------- //
 
         double dt = tc_p1 - tc;
         /// for adiabatic cooling of electron distribution (Note it may be turned off)
-        double vol = m / rho_prime;//r * r * dr;
-//        double vol = r * r * dr;
-        double vol_p1 = m_p1 / rho_prime_p1;//rp1 * rp1 * drp1;
-//        double vol_p1 = rp1 * rp1 * drp1;
+        double vol = m / rho_prime;//r * r * dr_comov;
+//        double vol = r * r * dr_comov;
+        double vol_p1 = m_p1 / rho_prime_p1;//rp1 * rp1 * drp1_comov;
+//        double vol_p1 = rp1 * rp1 * drp1_comov;
         double dlnVdt = num_ele_use_adi_loss ? 1. / dt * (1. - vol / vol_p1) : 0.;
         if ((!std::isfinite(dlnVdt)) || (dlnVdt < 0)){
             (*p_log)(LOG_ERR,AT) << " dlnVdt= "<<dlnVdt<<"\n";
@@ -1364,7 +1364,7 @@ public: // -------------------- NUMERIC -------------------------------- //
         source.B = B;
         source.dlnVdt = dlnVdt;
 //        source.r = r;
-//        source.dr = dr;
+//        source.dr_comov = dr_comov;
         source.N = n_inj / dt; //n_inj / dt; // number of injected electrons per timestep
         double n_ele_num = 0.;
         ChangCooper model = ChangCooper(source, ele, syn, ssc, syn_kernel, ssc_kernel);
@@ -1421,9 +1421,9 @@ public: // -------------------- NUMERIC -------------------------------- //
         model.update_radiation(do_ssa, do_ssc, photon_field);
 
         /// update photon_filed (N_photons) from Synch & SSC
-        double T = dr / CGS::c; // escape time
+        double T = dr_comov / CGS::c; // escape time (See Huang+2022)
 
-        double volume_ = 4. * M_PI * r * r * dr;
+        double volume_ = 4. * M_PI * r * r * dr_comov;
         double constant_ = std::sqrt(3.) * CGS::qe * CGS::qe * CGS::qe / CGS::mec2;
 //        for (size_t i = 0; i < syn.numbins; i++){
 //            syn.n[i] = (syn.j[i] / (2.3443791412546505e-22 * source.B)); // undo part from emissivity; only kernel needed
@@ -1529,7 +1529,7 @@ public: // ---------------------- FOR EATS -------------------------------- //
 //        double dr_tau = dr; //EQS::shock_delta(r,GammaSh);
         /// mass in the shock downstream
         double m2 = ne * CGS::mp;
-        /// Using Johannesson paper 2006 Eq.33
+        /// Using Johannesson paper 2006 Eq.33 (shock thickness in a burster frame)
         dr = m2 / (2. * CGS::pi * CGS::mp * r * r * (1. - cos(theta) / ncells) * Gamma * n_prime);
 //        double dr = r / (12. * Gamma * Gamma); // for optical depth; (see vanEerten+2010)
 //        dr_/=(1. - cos(theta) / ncells);
@@ -1550,7 +1550,7 @@ public: // ---------------------- FOR EATS -------------------------------- //
         double luminocity = 0.;
         switch (m_method_ne) {
             case iusenprime:
-                luminocity = intensity * r * r * dr / ashock;
+                luminocity = intensity * r * r * (dr / ashock);
                 break;
             case iuseNe:
                 luminocity = intensity

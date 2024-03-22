@@ -1049,7 +1049,6 @@ public:
 
     }
 
-
     void evolveElectronDistAndComputeRadiation(){
 
         (*p_log)(LOG_INFO,AT)
@@ -1100,11 +1099,16 @@ public:
                                     m_data[BW::Q::itcomov][it],m_data[BW::Q::iM3][it]);
                         else
                             p_mphys_rs->evaluateElectronDistributionNumeric(
-                                    m_data[BW::Q::itcomov][it-1], m_data[BW::Q::itcomov][it],
-                                    m_data[BW::Q::iM3][it-1], m_data[BW::Q::iM3][it],
-                                    m_data[BW::Q::irho3][it-1], m_data[BW::Q::irho3][it],
-                                    m_data[BW::Q::iR][it-1], m_data[BW::Q::iR][it],
-                                    m_data[BW::Q::ithickness_rs][it - 1], m_data[BW::Q::ithickness_rs][it]);
+                                    m_data[BW::Q::itcomov][it-1],
+                                    m_data[BW::Q::itcomov][it],
+                                    m_data[BW::Q::iM3][it-1],
+                                    m_data[BW::Q::iM3][it],
+                                    m_data[BW::Q::irho3][it-1],
+                                    m_data[BW::Q::irho3][it],
+                                    m_data[BW::Q::iR][it-1],
+                                    m_data[BW::Q::iR][it],
+                                    m_data[BW::Q::ithickness_rs][it-1]*m_data[BW::Q::iGammaRsh][it-1],  // comoving shock thickness
+                                    m_data[BW::Q::ithickness_rs][it]*m_data[BW::Q::iGammaRsh][it-1]);
                         if (p_mphys_rs->is_distribution_initialized)
                             p_mphys_rs->storeSynchrotronSpectrumNumeric(it);
                     }
@@ -1148,12 +1152,16 @@ public:
                                 m_data[BW::Q::itcomov][it],m_data[BW::Q::iM2][it]);
                     else // Evolve electron distribution numerically (or analytically)
                         p_mphys->evaluateElectronDistributionNumeric(
-                                m_data[BW::Q::itcomov][it-1], m_data[BW::Q::itcomov][it],
-                                m_data[BW::Q::iM2][it-1], m_data[BW::Q::iM2][it],
-                                m_data[BW::Q::irho2][it-1], m_data[BW::Q::irho2][it],
-                                m_data[BW::Q::iR][it-1], m_data[BW::Q::iR][it],
-                                m_data[BW::Q::iGamma][it-1]*m_data[BW::Q::iGamma][it-1]*m_data[BW::Q::ithickness][it-1], // comoving shock thickness...
-                                m_data[BW::Q::iGamma][it]*m_data[BW::Q::iGamma][it]*m_data[BW::Q::ithickness][it]);
+                                m_data[BW::Q::itcomov][it-1],
+                                m_data[BW::Q::itcomov][it],
+                                m_data[BW::Q::iM2][it-1],
+                                m_data[BW::Q::iM2][it],
+                                m_data[BW::Q::irho2][it-1],
+                                m_data[BW::Q::irho2][it],
+                                m_data[BW::Q::iR][it-1],
+                                m_data[BW::Q::iR][it],
+                                m_data[BW::Q::ithickness][it-1]*m_data[BW::Q::iGammaFsh][it-1], // comoving shock thickness dR' = dR * Gamma... (Granot + 1999)
+                                m_data[BW::Q::ithickness][it]*m_data[BW::Q::iGammaFsh][it]);
                     if (p_mphys->is_distribution_initialized)
                         p_mphys->storeSynchrotronSpectrumNumeric(it);
                 }
@@ -1174,11 +1182,13 @@ public:
                     << " iterations starting from it=" << p_pars->i0_failed_elecctrons<<"\n";
         }
 
-        double _gm_max = * std::max_element(m_data[BW::Q::igm].begin(), m_data[BW::Q::igm].end());
-        double _gm_min = * std::min_element(m_data[BW::Q::igm].begin(), m_data[BW::Q::igm].end());
-        if (_gm_max == _gm_min){
-            (*p_log)(LOG_ERR,AT) << " min(gm) == max(gm) = " << _gm_min << "\n";
-            exit(1);
+        if (p_pars->loglevel >= LOG_WARN) {
+            double _gm_max = *std::max_element(m_data[BW::Q::igm].begin(), m_data[BW::Q::igm].end());
+            double _gm_min = *std::min_element(m_data[BW::Q::igm].begin(), m_data[BW::Q::igm].end());
+            if (_gm_max == _gm_min) {
+                (*p_log)(LOG_WARN, AT) << " min(gm) == max(gm) = " << _gm_min << "\n";
+                exit(1);
+            }
         }
     }
 

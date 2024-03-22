@@ -630,17 +630,30 @@ public:
         double res = 0;
         auto & kernel = sscKernel.getKernelInteg(); // [i_gamma, i_energy_syn]
 
-        /// integrate the seed photon spectrum
+        /// integrate the seed photon spectrum (using pre-computed inner integral)
         for (size_t j = 0; j < syn.numbins-1; j++)
             res += photon_filed[j] / syn.e[j] * syn.de[j] * kernel[idx][j];
 
-//        if (res != 0){
-//            int z = 1;
+        /// full integral (very slow...)
+//        auto & kernel_ = sscKernel.getKernel(); // [i_nu_ssc, i_gam, i_nu_syn]
+//        double integ = 0;
+//        for (size_t k = 0; k < ssc.numbins-1; k++) {
+//            double inner = 0;
+//            for (size_t j = 0; j < syn.numbins-1; j++){
+//                inner+=syn.de[j]/syn.e[j]*photon_filed[j]*kernel_[k][idx][j];
+//            }
+//            integ+=inner*ssc.e[k]*ssc.de[k];
 //        }
+//        if (std::abs(res/integ) > 10 || std::abs(res/integ) < 0.1){
+//            std::cerr << " res="<<res<<" integ="<<integ<<" ratio="<<res/integ<<"\n";
+//        }
+//        res= integ;
+
 
         /// add constant from the paper
         double constant = 3./4. * CGS::h * CGS::sigmaT / CGS::me / CGS::c;
         res *= constant;
+
 
 
         return res;
