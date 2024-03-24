@@ -197,7 +197,7 @@ private:
                 syn.a[i] += ele.e[j] * ele.e[j] * ele.de[j] * ele.dfde[j] * kernel[i][j];
 //            syn.a[i] *= 2.3443791412546505e-22 * source.B; // np.sqrt(3) * np.power(e, 3) / h * (h/mec2)
 //            syn.a[i] *= -1. / (8. * M_PI * CGS::me * std::pow(syn.e[i]/8.093440820813486e-21, 2));
-            syn.a[i] *= -1. / (8. * M_PI * CGS::me * std::pow(syn.e[i], 2));
+            syn.a[i] *= -1. / (8. * M_PI * CGS::me * syn.e[i] * syn.e[i]); //std::pow(syn.e[i], 2));
             if (!std::isfinite(syn.a[i])){
                 std::cerr << AT<< " nan in computeSSA()\n";
                 exit(1);

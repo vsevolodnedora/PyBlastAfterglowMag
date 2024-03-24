@@ -381,6 +381,8 @@ private:
                                          "synch_fs");
                 Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.a_all,
                                          "ssa_fs");
+                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.i_all,
+                                         "int_fs");
                 /// save SSC spectrum
                 if (bw->getPars()->p_mphys->m_methods_ssc != METHOD_SSC::inoSSC)
                     Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ssc.j_all,
@@ -399,6 +401,8 @@ private:
                                              "synch_rs");
                     Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.a_all,
                                              "ssa_rs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.i_all,
+                                             "int_rs");
                     /// save SSC spectrum
                     if (bw->getPars()->p_mphys_rs->m_methods_ssc != METHOD_SSC::inoSSC)
                         Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ssc.j_all,

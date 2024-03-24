@@ -18,14 +18,14 @@ struct State{
     double x2=-1;
     size_t numbins=0;
     /// arrays
-    Vector e{}, de{}, half_e{}, j{}, a{}, n{}, f{};
+    Vector e{}, de{}, half_e{}, j{}, a{}, n{}, f{}, intensity{};
     Vector dfde{}; /// For SSA calcualtions
 
     /// for chang cooper scheme
     Vector delta_grid{}, delta_grid_bar{};
 
     /// output vectors
-    Vector j_all{}, a_all{}, f_all{};
+    Vector j_all{}, a_all{}, f_all{}, i_all{};
 
     State() = default;
 
@@ -47,13 +47,15 @@ struct State{
         n.resize(numbins);
         f.resize(numbins);
         dfde.resize(numbins);
+        intensity.resize(numbins);
     }
     /// allocate output vectors of the size numbins * num_timesteps
     void allocate_output(size_t nx, size_t nt){
-        size_t nn = nx * nt;
+        size_t nn = nx * nt; // space * time (total array size)
         f_all.resize(nn, 0.);
         j_all.resize(nn, 0.);
         a_all.resize(nn, 0.);
+        i_all.resize(nn,0);
     }
     /// store the current state for this timestep in total_rad vector
     void save_to_all(size_t it){
@@ -61,6 +63,7 @@ struct State{
             f_all[i_ + numbins * it] = f[i_];
             j_all[i_ + numbins * it] = j[i_];
             a_all[i_ + numbins * it] = a[i_];
+            i_all[i_ + numbins * it] = intensity[i_];
         }
     }
 
@@ -73,6 +76,7 @@ struct State{
             f_all[i_ + numbins * it] += other.f[i_];
             j_all[i_ + numbins * it] += other.j[i_];
             a_all[i_ + numbins * it] += other.a[i_];
+            i_all[i_ + numbins * it] += other.intensity[i_];
         }
     }
 

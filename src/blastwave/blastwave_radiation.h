@@ -1110,7 +1110,7 @@ public:
                                     m_data[BW::Q::ithickness_rs][it-1]*m_data[BW::Q::iGammaRsh][it-1],  // comoving shock thickness
                                     m_data[BW::Q::ithickness_rs][it]*m_data[BW::Q::iGammaRsh][it-1]);
                         if (p_mphys_rs->is_distribution_initialized)
-                            p_mphys_rs->storeSynchrotronSpectrumNumeric(it);
+                            p_mphys_rs->storeSynchrotronSpectrumNumericMixed(it);
                     }
                 }
             }
@@ -1163,7 +1163,7 @@ public:
                                 m_data[BW::Q::ithickness][it-1]*m_data[BW::Q::iGammaFsh][it-1], // comoving shock thickness dR' = dR * Gamma... (Granot + 1999)
                                 m_data[BW::Q::ithickness][it]*m_data[BW::Q::iGammaFsh][it]);
                     if (p_mphys->is_distribution_initialized)
-                        p_mphys->storeSynchrotronSpectrumNumeric(it);
+                        p_mphys->storeSynchrotronSpectrumNumericMixed(it);
                 }
             }
         }

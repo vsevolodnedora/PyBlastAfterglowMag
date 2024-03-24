@@ -75,7 +75,7 @@ double computeIntensity(const double em_lab, double dtau, METHOD_TAU m_tau) {
 
     /// from Dermer+09 book
     double u = 1. / 2. + exp(-dtau) / dtau - (1 - exp(-dtau)) / (dtau * dtau);
-    double intensity_approx = em_lab * (3. * u / dtau) ? dtau > 1.e-3 : em_lab;
+    double intensity_approx = dtau > 1.e-3 ? em_lab * (3. * u / dtau) : em_lab;
 
     // correction factor to emissivity from absorption
     // ( 1 - e^(-tau) ) / tau  (on front face)
@@ -1042,6 +1042,7 @@ class ElectronAndRadiation : public ElectronAndRadiaionBase{
     double n_ele_out = 0.;
     double theta_h = 0;
     Vector photon_field{}; // syn + ssc Npotones for SSC radiation and cooling
+    double dr_comov;
     //    double vol=-1.;
 //    double vol_p1=-1.;
 //    double n_inj=-1.;
@@ -1297,7 +1298,7 @@ public: // -------------------- NUMERIC -------------------------------- //
     void evaluateElectronDistributionNumeric(
             double tc, double tc_p1, double m, double m_p1,
             double rho_prime, double rho_prime_p1,
-            double r, double rp1, double dr_comov, double drp1_comov){
+            double r, double rp1, double dr_comov_, double drp1_comov){
 
         /// check parameters
         if (ele.e.size() < 1){
@@ -1310,6 +1311,8 @@ public: // -------------------- NUMERIC -------------------------------- //
                 << "B="<<B<<" gm="<<gamma_min<<" gM="<<gamma_max<<" accel_frac="<<accel_frac<<"\n";
             exit(1);
         }
+        dr_comov = dr_comov_;
+
 
 //        accel_frac = std::max(accel_frac,1.);
         /// compute analytical electron spectrum
@@ -1380,9 +1383,6 @@ public: // -------------------- NUMERIC -------------------------------- //
             /// Assume source/escape do not change during substepping
             model.setSourceFunction(gamma_min, gamma_max, -p);
             model.setEscapeFunction(gamma_min, gamma_max);
-
-            /// Init photon field
-//            Vector photon_field(syn.numbins, 0);
 
             for (size_t i = 0; i < (size_t) n_substeps; i++) {
 
@@ -1457,6 +1457,17 @@ public: // -------------------- NUMERIC -------------------------------- //
                 ssc_peak_flux = ssc.e[max_idx_c] * ssc.j[max_idx_c];
             }
 
+//            size_t max_idx_a = 0;
+//            double ssa_peak = 0.;
+//            double ssa_peak_flux = 0.;
+//            if (m_methods_ssa == METHODS_SSA::iSSAon) {
+//                auto [min_iter_a, max_iter_a] =
+//                        std::minmax_element(std::begin(syn.a), std::end(syn.a));
+//                max_idx_a = std::distance(std::begin(syn.a), max_iter_a);
+//                ssc_peak = ssc.a[max_idx_a];
+//                ssc_peak_flux = syn.e[max_idx_a] * syn.a[max_idx_a];
+//            }
+
             /// log result
             (*p_log)(LOG_INFO, AT) << "t=" << tc
                                    << " n=" << n_substeps
@@ -1474,24 +1485,37 @@ public: // -------------------- NUMERIC -------------------------------- //
         model.resetSolver();
     }
 
-    void storeSynchrotronSpectrumNumeric(size_t it){
+    void storeSynchrotronSpectrumNumericMixed(size_t it){
         if (n_ele_out <= 0){
             (*p_log)(LOG_ERR,AT) << " n_ele_out = "<<n_ele_out<<"\n";
             exit(1);
         }
+
+//        for (size_t i = 0; i < syn.numbins; i++)
+//            syn.intensity[i] = computeIntensity(syn.j[i],syn.a[i]*dr_comov, METHOD_TAU::iSMOOTH);
+
         // Normalize to get emissivity per particle (for EATS)
         for (size_t i = 0; i < syn.numbins; i++)
             syn.j[i] /= n_ele_out;
+
         if (m_methods_ssa != METHODS_SSA::iSSAoff)
             for (size_t i = 0; i < syn.numbins; i++)
-                syn.a[i] /= n_ele_out;
+                syn.a[i] /= n_ele_out * n_prime;
+
+        /// compute comoving synchrotron radiation intensity
+        for (size_t i = 0; i < syn.numbins; i++)
+//            syn.intensity[i] /=n_ele_out;
+            syn.intensity[i] = computeIntensity(syn.j[i],syn.a[i]*dr_comov, METHOD_TAU::iAPPROX);
+
         if (m_methods_ssc != METHOD_SSC::inoSSC) {
             for (size_t i = 0; i < ssc.numbins; i++)
                 ssc.j[i] /= n_ele_out;
-            if (m_methods_ssa != METHODS_SSA::iSSAoff)
-                for (size_t i = 0; i < ssc.numbins; i++)
-                    ssc.a[i] /= n_ele_out;
+//            if (m_methods_ssa != METHODS_SSA::iSSAoff)
+//                for (size_t i = 0; i < ssc.numbins; i++)
+//                    ssc.a[i] /= n_ele_out;
         }
+        /// compute comoving ssc radiation intensity TODO
+
 
         /// store electron spectrum
         ele.save_to_all(it);
@@ -1509,6 +1533,7 @@ public: // ---------------------- FOR EATS -------------------------------- //
             EjectaID2::STUCT_TYPE eats_method,
             double & em_prime, double & abs_prime, double Gamma, double GammaSh, double acc_fac,
             double mu, double r, double rsh, double dr, double n_prime, double ne, double theta, double ncells) {
+
         /// compute beaming and doppler factor
         double beta = EQS::BetaFromGamma(Gamma);
         double a = 1.0 - beta * mu; // beaming factor
@@ -1516,6 +1541,7 @@ public: // ---------------------- FOR EATS -------------------------------- //
         /// convert to the laboratory frame
         double em_lab = em_prime / (delta_D * delta_D); // conversion of emissivity (see vanEerten+2010)
         double abs_lab = abs_prime * delta_D; // conversion of absorption (see vanEerten+2010)
+
         /// compute shock velocity
         double beta_shock;
         switch (method_shock_vel) {
