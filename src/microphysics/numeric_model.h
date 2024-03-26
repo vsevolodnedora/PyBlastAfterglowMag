@@ -198,11 +198,27 @@ private:
 //            syn.a[i] *= 2.3443791412546505e-22 * source.B; // np.sqrt(3) * np.power(e, 3) / h * (h/mec2)
 //            syn.a[i] *= -1. / (8. * M_PI * CGS::me * std::pow(syn.e[i]/8.093440820813486e-21, 2));
             syn.a[i] *= -1. / (8. * M_PI * CGS::me * syn.e[i] * syn.e[i]); //std::pow(syn.e[i], 2));
-            if (!std::isfinite(syn.a[i])){
+            if (!std::isfinite(syn.a[i]) || syn.a[i] < 0){
                 std::cerr << AT<< " nan in computeSSA()\n";
                 exit(1);
             }
         }
+//        double nu_tau = -1;
+//        double tmp_[syn.numbins];
+//        for (size_t i = 1; i < syn.numbins; i++) {
+//            d
+//            double u = 1. / 2. + exp(-dtau) / dtau - (1 - exp(-dtau)) / (dtau * dtau);
+//            double intensity_approx = dtau > 1.e-3 ? em_lab * (3. * u / dtau) : em_lab;
+//            syn.intensity[i] =
+//            tmp_[i] = syn.intensity[i] / syn.j[i];
+//        }
+//        for (size_t i = syn.numbins-2; i > -1; i--){
+//            if (tmp_[i] != 1){
+//                nu_tau = syn.e[i];
+//                break;
+//            }
+//        }
+//        std::cout << nu_tau << ' ' <<std::accumulate(syn.a.begin(),syn.a.end(),0.) << "\n";
     }
 
     /**

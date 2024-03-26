@@ -1029,7 +1029,7 @@ public:
         int numbins = 200;
         double gammmas[numbins];
 
-        double step = std::exp((std::log(gamma_max) / (double)200));
+        double step = std::exp((std::log(gamma_max) / (double)numbins));
         for (size_t i = 0; i < numbins; i++)
             gammmas[i] = std::pow(step,(double)i);
 
@@ -1044,23 +1044,24 @@ public:
             return Dermer09::brokenPowerLaw(gam, gmin, gb, gmax, p1, p2);
         };
 
+        /// compute spectrum normalization
         double k_e_s[numbins];
-        double k_e = 0., power_e = 0., power = 0.;
+        double k_e = 0.;
         for (size_t i = 0; i < numbins-1; i++) {
             k_e_s[i] = integrand_ele(gammmas[i]);
             k_e += k_e_s[i] * (gammmas[i + 1] - gammmas[i]);
         }
-        k_e = n_prime / k_e;
 
+        /// compute synchrotron emissivity
+        double power = 0;
         for (size_t i = 0; i < numbins-1; i++) {
-            power_e = Dermer09::single_electron_synch_power( B, epsilon, gammmas[i] );
+            double power_e = Dermer09::single_electron_synch_power( B, epsilon, gammmas[i] );
             power += k_e_s[i] * (gammmas[i + 1] - gammmas[i]) * power_e;
         }
-        power *= k_e;
+        em = power * n_prime / k_e
+           * (CGS::h / CGS::mec2);
 
-
-        em = power * (CGS::h / CGS::mec2);
-
+        /// compute synchrotron self-absorption
         if (m_methods_ssa) {
             auto integrand_ele_ssa = [&](double gam) {
                 double p1 = gamma_min < gamma_c ? p : 2.0;
@@ -1071,24 +1072,14 @@ public:
                 return Dermer09::brokenPowerLawSSA(gam, gmin, gb, gmax, p1, p2);
             };
 
-            double k_e_s_ssa[numbins];
-
-            double k_e_ssa = 0., absorption = 0.;
+            double absorption = 0.;
             for (size_t i = 0; i < numbins-1; i++) {
-                k_e_s_ssa[i] = integrand_ele_ssa(gammmas[i]);
-                k_e_ssa += k_e_s_ssa[i] * (gammmas[i + 1] - gammmas[i]);
+                double power_e = Dermer09::single_electron_synch_power(B, epsilon, gammmas[i]);
+                absorption += power_e * integrand_ele_ssa(gammmas[i]) * (gammmas[i + 1] - gammmas[i]);
             }
-            k_e_ssa = n_prime / k_e_ssa;
+            abs = absorption * n_prime / k_e * \
+                -1 / (8 * CGS::pi * CGS::me * std::pow(epsilon, 2)) * std::pow(CGS::lambda_c / CGS::c, 3);
 
-            for (size_t i = 0; i < numbins-1; i++) {
-                power_e = Dermer09::single_electron_synch_power(B, epsilon, gammmas[i]);
-                absorption += power_e * k_e_s_ssa[i] * (gammmas[i + 1] - gammmas[i]);
-            }
-            absorption *= k_e; // TODO check k_e_ssa
-            double coeff = -1 / (8 * CGS::pi * CGS::me * std::pow(epsilon, 2)) * std::pow(CGS::lambda_c / CGS::c, 3);
-            absorption *= coeff;
-
-            abs = absorption;
         }
     }
     /// Analytical Synchrotron Sectrum; BPL;

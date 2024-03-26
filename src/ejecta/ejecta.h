@@ -379,10 +379,13 @@ private:
                 /// save synchrotron spectra for forward shock
                 Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.j_all,
                                          "synch_fs");
-                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.a_all,
-                                         "ssa_fs");
                 Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.i_all,
                                          "int_fs");
+                if (bw->getPars()->p_mphys->m_methods_ssa != METHODS_SSA::iSSAoff)
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.a_all,
+                                         "ssa_fs");
+                std::cout << std::accumulate(bw->getPars()->p_mphys->syn.a_all.begin(),bw->getPars()->p_mphys->syn.a_all.end(),0.)<<"\n";
+
                 /// save SSC spectrum
                 if (bw->getPars()->p_mphys->m_methods_ssc != METHOD_SSC::inoSSC)
                     Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ssc.j_all,
@@ -394,15 +397,16 @@ private:
                 if (bw->getPars()->do_rs_radiation){
 
                     /// save electron spectrum if electrons are numerically evolved
-                    if (bw->getPars()->p_mphys->m_eleMethod != METHODS_SHOCK_ELE::iShockEleAnalyt)
+                    if (bw->getPars()->p_mphys_rs->m_eleMethod != METHODS_SHOCK_ELE::iShockEleAnalyt)
                         Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ele.f_all,
                                                  "n_ele_rs");
                     Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.j_all,
                                              "synch_rs");
-                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.a_all,
-                                             "ssa_rs");
                     Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.i_all,
                                              "int_rs");
+                    if (bw->getPars()->p_mphys_rs->m_methods_ssa != METHODS_SSA::iSSAoff)
+                        Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.a_all,
+                                             "ssa_rs");
                     /// save SSC spectrum
                     if (bw->getPars()->p_mphys_rs->m_methods_ssc != METHOD_SSC::inoSSC)
                         Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ssc.j_all,

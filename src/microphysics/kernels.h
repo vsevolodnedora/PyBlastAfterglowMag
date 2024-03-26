@@ -315,7 +315,7 @@ public:
         result *= std::sqrt(3.) * std::pow(CGS::qe, 3.) * B / CGS::mec2; // np.sqrt(3) * np.power(e, 3) / h * (h/mec2)
         return result;
     };
-
+#if 0
     static double cycSyn(double b, double nu, double gamma){
         const double arg[47] = {
                 0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.03, 0.05, 0.07, 0.1,
@@ -367,7 +367,7 @@ public:
 
         return emisfunc;
     }
-
+#endif
     static double synchBessel(double B, double nu, double gam){
 //        double t = (4.*M_PI*CGS::me*CGS::c*nu) / (3.*CGS::qe*B*gam*gam);
         double nu_s = (3.*CGS::qe*B*gam*gam) / (4.*M_PI*CGS::me*CGS::c);
@@ -443,6 +443,8 @@ public:
 
         res *= std::sqrt(3.) * std::pow(CGS::qe, 3.) * B / (CGS::me*CGS::c*CGS::c); // np.sqrt(3) * np.power(e, 3) / h * (h/mec2)
 
+        return res;
+#if 0
         double res_gsl = synchGSL(B,nu,gam);
         double res_CySyn = cycSynch(B,nu,gam);
         double res_bess = synchBessel(B,nu,gam);
@@ -453,6 +455,7 @@ public:
             int z = 1;
         }
         return res_CySyn;
+
 //
 ////        return res;
 //
@@ -488,7 +491,7 @@ public:
 //                  << " | /bes=" << res/res_<<" | /cs=" << res/res___ << " | /gsl=" << res/ res__ << "\n";
 //
 //        return res;
-
+#endif
     }
 
     /**
