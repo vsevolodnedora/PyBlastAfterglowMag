@@ -686,6 +686,7 @@ def _get_spectrum(ej:PBA.Ejecta,v_n:str,fs_or_rs:str,norm_method:str,
     elif v_n == "ssa": ele_syn_ssc = "ssa"
     elif v_n == "ssc": ele_syn_ssc = "ssc"
     elif v_n == "tau": ele_syn_ssc = "ssa"
+    elif v_n == "int": ele_syn_ssc = "int"
     elif v_n == "fluxdens": ele_syn_ssc = "fluxdens"
     else: raise KeyError(f"Key {v_n} is not recognized")
 
@@ -717,9 +718,8 @@ def _gam_to_nu(gam:np.ndarray,B:np.ndarray,p:float,syn_or_ssc:str):
     XpS = 0.06 + 0.28 * p
     nu = XpS * gam**2 * gamToNuFactor
 
-    if syn_or_ssc == "synch": return nu
-    else: return 4.* gam ** 2 * nu * np.sqrt(2)/3.
-
+    if syn_or_ssc == "ssc": return 4.* gam ** 2 * nu * np.sqrt(2)/3.
+    return nu
     # nu_min = XpS * gamma_min * gamma_min * gamToNuFactor
     # nu_c = XpS * gamma_c * gamma_c * gamToNuFactor
     # nu_max = XpS * gamma_max * gamma_max * gamToNuFactor
@@ -736,8 +736,8 @@ def _plot_ele_spectrum(ax, fig, xs:np.ndarray, ys:np.ndarray, spec:np.ndarray,
     else:
         raise KeyError(f"norm {task_i['norm']} is not recognized")
     cmap = plt.get_cmap(task_i.get("cmap", 'jet'))
-    cmap.set_under('white')
-    cmap.set_over('white')
+    cmap.set_under(task_i.get("set_under",'white'))
+    cmap.set_over(task_i.get("set_over",'white'))
     _c = ax.pcolormesh(xs, ys, spec.T, cmap=cmap, norm=norm)
     cbar = fig.colorbar(_c, ax=ax, shrink=0.95,pad=0.01)# orientation = 'horizontal')
     cbar.ax.tick_params(labelsize=11)
@@ -760,18 +760,19 @@ def _plot_ele_spectrum(ax, fig, xs:np.ndarray, ys:np.ndarray, spec:np.ndarray,
     if "xlim" in task_i.keys(): ax.set_xlim(*task_i["xlim"])
     return ax
 
-def _plot_rad_spectrum(ax, fig, ej:PBA.Ejecta, fs_or_rs:str, v_n:str, task:dict):
+def _plot_rad_spectrum(ax, fig, xs:np.ndarray, ys:np.ndarray, spec:np.ndarray,
+                       ej:PBA.Ejecta, fs_or_rs:str, v_n:str, task:dict):
     task_i = task[v_n]
-    xs, ys, spec = _get_spectrum(ej=ej,v_n=v_n,fs_or_rs=fs_or_rs,norm_method=task_i["norm_method"])
     if task_i['norm'] == "LogNorm":
         norm = LogNorm(vmin=spec.max() * 1e-6, vmax=spec.max() * 10)
     elif task_i['norm'] == "SymLogNorm":
-        norm=SymLogNorm(linthresh=1e-4, vmin=1e-4, vmax=1.e4, base=10)
+        norm=SymLogNorm(linthresh=task_i.get("vmin", 1e-4), vmin=task_i.get("vmin", 1e-4),
+                        vmax=task_i.get("vmax", 1e-4), base=10)
     else:
         raise KeyError(f"norm {task_i['norm']} is not recognized")
-    cmap = plt.get_cmap('jet')
-    cmap.set_under('white')
-    cmap.set_over('white')
+    cmap = plt.get_cmap(task_i.get("cmap", 'jet'))
+    cmap.set_under(task_i.get("set_under",'white'))
+    cmap.set_over(task_i.get("set_over",'white'))
     _c = ax.pcolormesh(xs, ys, spec.T, cmap=cmap, norm=norm)
     cbar = fig.colorbar(_c, ax=ax, shrink=0.95,pad=0.01)# orientation = 'horizontal')
     cbar.ax.tick_params(labelsize=11)
@@ -840,19 +841,23 @@ def plot_spectra_evolution(ej:PBA.Ejecta, fs_or_rs:str, task:dict):
     i_plot += 1
 
     # plot synch spectrum
-    _plot_rad_spectrum(ax=axes[i_plot], fig=fig, ej=ej, fs_or_rs=fs_or_rs, v_n="synch", task=task)
+    xs, ys, spec = _get_spectrum(ej=ej,v_n="synch",fs_or_rs=fs_or_rs,norm_method=task["synch"]["norm_method"])
+    _plot_rad_spectrum(ax=axes[i_plot], xs=xs,ys=ys,spec=spec, fig=fig, ej=ej, fs_or_rs=fs_or_rs, v_n="synch", task=task)
     i_plot += 1
 
     # plot ssc spectrum
-    _plot_rad_spectrum(ax=axes[i_plot], fig=fig, ej=ej, fs_or_rs=fs_or_rs, v_n="ssc", task=task)
+    xs, ys, spec = _get_spectrum(ej=ej,v_n="ssc",fs_or_rs=fs_or_rs,norm_method=task["ssc"]["norm_method"])
+    _plot_rad_spectrum(ax=axes[i_plot], xs=xs,ys=ys,spec=spec,fig=fig, ej=ej, fs_or_rs=fs_or_rs, v_n="ssc", task=task)
     i_plot += 1
 
     # plot ssa spectrum
-    _plot_rad_spectrum(ax=axes[i_plot], fig=fig, ej=ej, fs_or_rs=fs_or_rs, v_n="ssa", task=task)
+    xs, ys, spec = _get_spectrum(ej=ej,v_n="ssa",fs_or_rs=fs_or_rs,norm_method=task["ssa"]["norm_method"])
+    _plot_rad_spectrum(ax=axes[i_plot], xs=xs,ys=ys,spec=spec,fig=fig, ej=ej, fs_or_rs=fs_or_rs, v_n="ssa", task=task)
     i_plot += 1
 
     # plot ssa spectrum
-    _plot_rad_spectrum(ax=axes[i_plot], fig=fig, ej=ej, fs_or_rs=fs_or_rs, v_n="tau", task=task)
+    xs, ys, spec = _get_spectrum(ej=ej,v_n="tau",fs_or_rs=fs_or_rs,norm_method=task["tau"]["norm_method"])
+    _plot_rad_spectrum(ax=axes[i_plot], xs=xs,ys=ys,spec=spec,fig=fig, ej=ej, fs_or_rs=fs_or_rs, v_n="tau", task=task)
     i_plot += 1
 
     for ax in axes:
@@ -873,14 +878,16 @@ def plot_spectra_evolution(ej:PBA.Ejecta, fs_or_rs:str, task:dict):
     plt.show()
 
 def plot_spectra_evolution_ratio(ej1:PBA.Ejecta, ej2:PBA.Ejecta, v_n:str, fs_or_rs:str, task:dict):
-    fig, ax = plt.subplots(ncols=1,nrows=1,sharex='all',layout='constrained',figsize=(5.2,3.2))
+    fig, ax = plt.subplots(ncols=1,nrows=1,sharex='all',layout='constrained',figsize=(5.4,3.0))
     task_i = task[v_n]
-    xs, ys, spec1 = _get_spectrum(ej=ej1,v_n="n_ele",fs_or_rs=fs_or_rs,norm_method=task_i["norm_method"])
-    xs, ys, spec2 = _get_spectrum(ej=ej2,v_n="n_ele",fs_or_rs=fs_or_rs,norm_method=task_i["norm_method"])
+    xs, ys, spec1 = _get_spectrum(ej=ej1,v_n=v_n,fs_or_rs=fs_or_rs,norm_method=task_i["norm_method"])
+    xs, ys, spec2 = _get_spectrum(ej=ej2,v_n=v_n,fs_or_rs=fs_or_rs,norm_method=task_i["norm_method"])
 
     spec = spec1 / spec2
     if v_n == "n_ele":
-        _plot_ele_spectrum(ax=ax, fig=fig, xs=xs,ys=ys,spec=spec, ej=ej1, fs_or_rs=fs_or_rs, v_n="n_ele", task=task)
+        _plot_ele_spectrum(ax=ax, fig=fig, xs=xs,ys=ys,spec=spec, ej=ej1, fs_or_rs=fs_or_rs, v_n=v_n, task=task)
+    else:
+        _plot_rad_spectrum(ax=ax, fig=fig, xs=xs,ys=ys,spec=spec, ej=ej1, fs_or_rs=fs_or_rs, v_n=v_n, task=task)
 
     ax.set_xscale('log')
     ax.set_yscale('log')
@@ -1268,13 +1275,56 @@ def tasks_fs_comparison(do_run:bool, struct:dict, P:dict):
         type="a",run=do_run
     )
 
-    plot_spectra_evolution_ratio(
-        ej1=dyn_fs__rad_fs__num.GRB,ej2=dyn_fs__rad_fs__mix.GRB,
-        v_n="n_ele", fs_or_rs="fs", task=dict(
-                title="FS comoving spectra evolution ratio", figname="spec_ele_ratio_num_mix_dyn_fs__rad_fs__num__ssa__ssc", show=True,
+    for (model1, model2, name, label) in [
+        (dyn_fs__rad_fs__num.GRB, dyn_fs__rad_fs__mix.GRB,"num_mix","Numeric/Mixed"),
+        (dyn_fs__rad_fs__num.GRB, dyn_fs__rad_fs__num__noadi.GRB,"adi_noadi","Adi/noAdi"),
+        (dyn_fs__rad_fs__num__ssa.GRB, dyn_fs__rad_fs__num.GRB,"ssa_nossa","SSA/noSSA"),
+        (dyn_fs__rad_fs__num__ssc.GRB, dyn_fs__rad_fs__num.GRB,"ssc_nossc","SSC/noSSC"),
+    ]:
+        plot_spectra_evolution_ratio(
+            ej1=model1,ej2=model2,
+            v_n="n_ele", fs_or_rs="fs", task=dict(
+                title="FS comoving electron spectra evolution ratio",
+                figname=f"spec_fs_ele_ratio_{name}", show=True,
                 n_ele=dict(norm_method=None,ylabel=r"$\gamma_{e}$",
-                           zlabel="Numeric/Mixed", vmin=1e-1,vmax=1e1, cmap="RdBu",
+                           zlabel=label, vmin=1e-1,vmax=1e1, cmap="RdBu",xlim=(3e3,8e6),
                            norm="SymLogNorm",plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False)))
+        plot_spectra_evolution_ratio(
+            ej1=model1,ej2=model2,
+            v_n="synch", fs_or_rs="fs", task=dict(
+                title="FS comoving synchrotron spectra evolution ratio",
+                figname=f"spec_fs_ele_ratio_{name}", show=True,
+                synch=dict(norm_method=None,ylabel=r"$\nu'$",
+                           zlabel=label, vmin=1e-1,vmax=1e1, cmap="RdBu_r", xlim=(3e3,8e6),
+                           norm="SymLogNorm",
+                           plot_num=True,plot_nuc=True,plot_nuM=True,plot_nua=False,plot_tau1=False,plot_max=True)))
+        plot_spectra_evolution_ratio(
+            ej1=model1,ej2=model2,
+            v_n="int", fs_or_rs="fs", task=dict(
+                title="FS comoving intensity spectra evolution ratio",
+                figname=f"spec_fs_ele_ratio_{name}", show=True,
+                int=dict(norm_method=None,ylabel=r"$\nu'$",
+                         zlabel=label, vmin=1e-1,vmax=1e1, cmap="RdBu_r", xlim=(3e3,8e6), #ylim=(1e6,1e14),
+                         norm="SymLogNorm", set_under='gray', set_over='gray',
+                         plot_num=True,plot_nuc=True,plot_nuM=True,plot_nua=False,plot_tau1=False,plot_max=False)))
+
+    # plot_spectra_evolution_ratio(
+    #     ej1=dyn_fs__rad_fs__num.GRB,ej2=dyn_fs__rad_fs__mix.GRB,
+    #     v_n="n_ele", fs_or_rs="fs", task=dict(
+    #             title="FS comoving electron spectra evolution ratio",
+    #             figname="spec_ele_ratio_num_mix_dyn_fs__rad_fs__num__ssa__ssc", show=True,
+    #             n_ele=dict(norm_method=None,ylabel=r"$\gamma_{e}$",
+    #                        zlabel="Numeric/Mixed", vmin=1e-1,vmax=1e1, cmap="RdBu_r",
+    #                        norm="SymLogNorm",plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False)))
+    # plot_spectra_evolution_ratio(
+    #     ej1=dyn_fs__rad_fs__num.GRB,ej2=dyn_fs__rad_fs__mix.GRB,
+    #     v_n="synch", fs_or_rs="fs", task=dict(
+    #         title="FS comoving electron spectra evolution ratio",
+    #         figname="spec_ele_ratio_num_mix_dyn_fs__rad_fs__num__ssa__ssc", show=True,
+    #         synch=dict(norm_method=None,ylabel=r"$\nu'$",
+    #                    zlabel="Numeric/Mixed", vmin=1e-1,vmax=1e1, cmap="RdBu_r",
+    #                    norm="SymLogNorm",
+    #                    plot_num=True,plot_nuc=True,plot_nuM=True,plot_nua=False,plot_tau1=False,plot_max=True)))
 
     plot_for_fs_comparison(dyn_fs__rad_fs__mix, dyn_fs__rad_fs__num, dyn_fs__rad_fs__num__noadi, dyn_fs__rad_fs__num__ssc,
                            dyn_fs__rad_fs__num__ssa, dyn_fs__rad_fs__ana__ssa)
@@ -1324,13 +1374,67 @@ def tasks_rs_comparison(do_run:bool, struct:dict, P:dict):
         type="a",run=do_run
     )
 
-    plot_spectra_evolution_ratio(
-        ej1=dyn_fsrs__rad_rs__num.GRB,ej2=dyn_fsrs__rad_rs__mix.GRB,
-        v_n="n_ele", fs_or_rs="rs", task=dict(
-            title="RS comoving spectra evolution ratio", figname="spec_ele_ratio_num_mix_dyn_fsrs__rad_rs__num__ssa__ssc", show=True,
-            n_ele=dict(norm_method=None,ylabel=r"$\gamma_{e}$",
-                       zlabel="Numeric/Mixed", vmin=1e-1,vmax=1e1, cmap="RdBu",xlim=(3e3,1e7),
-                       norm="SymLogNorm",plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False)))
+    for (model1, model2, name, label) in [
+        (dyn_fsrs__rad_rs__num.GRB, dyn_fsrs__rad_rs__mix.GRB,"num_mix","Numeric/Mixed"),
+        (dyn_fsrs__rad_rs__num.GRB, dyn_fsrs__rad_rs__num__noadi.GRB,"adi_noadi","Adi/noAdi"),
+        (dyn_fsrs__rad_rs__num__ssa.GRB, dyn_fsrs__rad_rs__num.GRB,"ssa_nossa","SSA/noSSA"),
+        (dyn_fsrs__rad_rs__num__ssc.GRB, dyn_fsrs__rad_rs__num.GRB,"ssc_nossc","SSC/noSSC"),
+    ]:
+        plot_spectra_evolution_ratio(
+            ej1=model1,ej2=model2,
+            v_n="n_ele", fs_or_rs="rs", task=dict(
+                title="RS comoving electron spectra evolution ratio",
+                figname=f"spec_ele_ratio_{name}", show=True,
+                n_ele=dict(norm_method=None,ylabel=r"$\gamma_{e}$",
+                           zlabel=label, vmin=1e-1,vmax=1e1, cmap="RdBu",xlim=(3e3,8e6),
+                           norm="SymLogNorm",plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False)))
+        plot_spectra_evolution_ratio(
+            ej1=model1,ej2=model2,
+            v_n="synch", fs_or_rs="rs", task=dict(
+                title="RS comoving synchrotron spectra evolution ratio",
+                figname=f"spec_ele_ratio_{name}", show=True,
+                synch=dict(norm_method=None,ylabel=r"$\nu'$",
+                           zlabel=label, vmin=1e-1,vmax=1e1, cmap="RdBu_r", xlim=(3e3,8e6),
+                           norm="SymLogNorm",
+                           plot_num=True,plot_nuc=True,plot_nuM=True,plot_nua=False,plot_tau1=False,plot_max=True)))
+        plot_spectra_evolution_ratio(
+            ej1=model1,ej2=model2,
+            v_n="int", fs_or_rs="rs", task=dict(
+                title="RS comoving intensity spectra evolution ratio",
+                figname=f"spec_ele_ratio_{name}", show=True,
+                int=dict(norm_method=None,ylabel=r"$\nu'$",
+                           zlabel=label, vmin=1e-1,vmax=1e1, cmap="RdBu_r", xlim=(3e3,8e6), ylim=(1e6,1e14),
+                           norm="SymLogNorm", set_under='gray', set_over='gray',
+                           plot_num=True,plot_nuc=True,plot_nuM=True,plot_nua=False,plot_tau1=False,plot_max=True)))
+
+
+    # plot_spectra_evolution_ratio(
+    #     ej1=dyn_fsrs__rad_rs__num.GRB,ej2=dyn_fsrs__rad_rs__mix.GRB,
+    #     v_n="n_ele", fs_or_rs="rs", task=dict(
+    #         title="RS comoving electron spectra evolution ratio", figname="spec_ele_ratio_num_mix_dyn_fsrs__rad_rs__num__ssa__ssc", show=True,
+    #         n_ele=dict(norm_method=None,ylabel=r"$\gamma_{e}$",
+    #                    zlabel="Numeric/Mixed", vmin=1e-1,vmax=1e1, cmap="RdBu",xlim=(3e3,8e6),
+    #                    norm="SymLogNorm",plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False)))
+    #
+    # plot_spectra_evolution_ratio(
+    #     ej1=dyn_fsrs__rad_rs__num.GRB,ej2=dyn_fsrs__rad_rs__mix.GRB,
+    #     v_n="synch", fs_or_rs="rs", task=dict(
+    #         title="RS comoving electron spectra evolution ratio",
+    #         figname="spec_ele_ratio_num_mix_dyn_fsrs__rad_rs__num__ssa__ssc", show=True,
+    #         synch=dict(norm_method=None,ylabel=r"$\nu'$",
+    #                    zlabel="Numeric/Mixed", vmin=1e-1,vmax=1e1, cmap="RdBu_r", xlim=(3e3,8e6),
+    #                    norm="SymLogNorm",
+    #                    plot_num=True,plot_nuc=True,plot_nuM=True,plot_nua=False,plot_tau1=False,plot_max=True)))
+    #
+    # plot_spectra_evolution_ratio(
+    #     ej1=dyn_fsrs__rad_rs__num.GRB,ej2=dyn_fsrs__rad_rs__num__noadi.GRB,
+    #     v_n="synch", fs_or_rs="rs", task=dict(
+    #         title="RS comoving electron spectra evolution ratio",
+    #         figname="spec_ele_ratio_num_mix_dyn_fsrs__rad_rs__num__ssa__ssc", show=True,
+    #         synch=dict(norm_method=None,ylabel=r"$\nu'$",
+    #                    zlabel="Adi/noAdi", vmin=1e-1,vmax=1e1, cmap="RdBu_r", xlim=(3e3,8e6),
+    #                    norm="SymLogNorm",
+    #                    plot_num=True,plot_nuc=True,plot_nuM=True,plot_nua=False,plot_tau1=False,plot_max=True)))
 
     plot_for_rs_comparison(dyn_fsrs__rad_rs__mix, dyn_fsrs__rad_rs__num, dyn_fsrs__rad_rs__num__noadi, dyn_fsrs__rad_rs__num__ssc,
                            dyn_fsrs__rad_rs__num__ssa, dyn_fsrs__rad_rs__ana__ssa)
@@ -1353,7 +1457,7 @@ if __name__ == '__main__':
 
     # --- fs -- fs ---
     # tasks_fs(do_run=do_run, struct=struct, P=P)
-    # tasks_fs_comparison(do_run=do_run, struct=struct, P=P)
+    tasks_fs_comparison(do_run=do_run, struct=struct, P=P)
 
     # --- fsrs -- rs ---
     # tasks_rs(do_run=False, struct=struct, P=P)

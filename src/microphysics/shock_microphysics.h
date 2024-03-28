@@ -1335,11 +1335,11 @@ public: // -------------------- NUMERIC -------------------------------- //
 
         double dt = tc_p1 - tc;
         /// for adiabatic cooling of electron distribution (Note it may be turned off)
-        double vol = m / rho_prime;//r * r * dr_comov;
-//        double vol = r * r * dr_comov;
+        double volume = m / rho_prime;//r * r * dr_comov;
+//        double volume = r * r * dr_comov;
         double vol_p1 = m_p1 / rho_prime_p1;//rp1 * rp1 * drp1_comov;
 //        double vol_p1 = rp1 * rp1 * drp1_comov;
-        double dlnVdt = num_ele_use_adi_loss ? 1. / dt * (1. - vol / vol_p1) : 0.;
+        double dlnVdt = num_ele_use_adi_loss ? 1. / dt * (1. - volume / vol_p1) : 0.;
         if ((!std::isfinite(dlnVdt)) || (dlnVdt < 0)){
             (*p_log)(LOG_ERR,AT) << " dlnVdt= "<<dlnVdt<<"\n";
             exit(1);
@@ -1418,27 +1418,34 @@ public: // -------------------- NUMERIC -------------------------------- //
             ele.f[i] *= accel_frac;
 
         ratio_num = n_protons*accel_frac / n_ele_num;
+
         /// Update photon field during electron evolution
-        bool do_ssa = m_methods_ssa == METHODS_SSA::iSSAon;
-        bool do_ssc = m_methods_ssc == METHOD_SSC::iNumSSC;
-        model.update_radiation(do_ssa, do_ssc, photon_field);
+//        model.update_radiation(m_methods_ssa == METHODS_SSA::iSSAon,
+//          m_methods_ssc == METHOD_SSC::iNumSSC, photon_field);
 
-        /// update photon_filed (N_photons) from Synch & SSC
+        /// 1. Update synchrotron kernel for current B
+        syn_kernel.evalSynKernel(ele, syn, source.B);
+
+        /// 2. Compute synchrotron emission spectrum
+        model.computeSynSpectrum();
+
+        /// 3. compute SSA
+        if (m_methods_ssa == METHODS_SSA::iSSAon)
+            model.computeSSA();
+
+        /// 4. Compute SSC spectrum (using PREVIOUS step syn & ssc spectra)
+        if (m_methods_ssc == METHOD_SSC::iNumSSC)
+            model.computeSSCSpectrum(photon_field);
+
+        /// 5. compute photon density (update photon_filed (N_photons) from Synch & SSC)
         double T = dr_comov / CGS::c; // escape time (See Huang+2022)
-
-        double volume_ = 4. * M_PI * r * r * dr_comov;
-        double constant_ = std::sqrt(3.) * CGS::qe * CGS::qe * CGS::qe / CGS::mec2;
-//        for (size_t i = 0; i < syn.numbins; i++){
-//            syn.n[i] = (syn.j[i] / (2.3443791412546505e-22 * source.B)); // undo part from emissivity; only kernel needed
-//            syn.n[i] *= constant * T / volume / (CGS::h * syn.e[i] / 8.093440820813486e-21);
-//        }
+        double fac = T / volume;
+//        double volume_ = 4. * M_PI * r * r * dr_comov;
         if ((m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum) && (m_methods_ssc==METHOD_SSC::iNumSSC))
             for (size_t i = 0; i < syn.numbins; i++){
-                photon_field[i] = 0. ; // clean after previos timestep
-//                photon_field[i] += syn.j[i] * dt / vol / (CGS::h * syn.e[i] * CGS::ergToFreq); // add synchrotron
-                photon_field[i] += syn.j[i] * T / vol / (CGS::h * syn.e[i]); // add synchrotron
-//                photon_field[i] += ssc.j[i] * dt / vol / (CGS::h * ssc.e[i] * CGS::ergToFreq); // add SSC
-                photon_field[i] += ssc.j[i] * T / vol / (CGS::h * ssc.e[i]); // add SSC
+                photon_field[i] = 0.; // clean after previos timestep
+                photon_field[i] += syn.j[i] * fac / (CGS::h * syn.e[i]); // (using T instead of dt) add synchrotron
+                photon_field[i] += ssc.j[i] * fac / (CGS::h * ssc.e[i]); // (using T instead of dt) add SSC
             }
 
         /// clear array (resets everything!)

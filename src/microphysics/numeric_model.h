@@ -140,7 +140,6 @@ public:
 //        computePhotonDensity(photon_filed);
     }
 
-private:
 
     /**
      * Compute synchrotron emissivity assuming that electron distribution has been evolved
