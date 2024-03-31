@@ -71,7 +71,7 @@ double IntegrateSimpson38(const std::vector<double>& x, const std::vector<double
 
     return integral;
 }
-double IntegrateSimpson38(const std::vector<double>& x, const double * f) {
+double IntegrateSimpson38(const Vector & x, const double * f) {
     size_t n = x.size();
     if (n != x.size() || n < 4) {
         std::cerr << "Error: Invalid input vectors." << std::endl;
@@ -88,11 +88,9 @@ double IntegrateSimpson38(const std::vector<double>& x, const double * f) {
     }
 
     // Handle the remainder using the trapezoidal rule if necessary
-    if (i < n - 1) {
-        for (; i < n - 1; ++i) {
+    if (i < n - 1)
+        for (; i < n - 1; ++i)
             integral += 0.5 * (x[i + 1] - x[i]) * (f[i] + f[i + 1]);
-        }
-    }
 
     return integral;
 }

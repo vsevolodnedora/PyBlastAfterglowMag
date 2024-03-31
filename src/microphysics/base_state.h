@@ -9,6 +9,7 @@
 
 struct Source{
     double dt=-1, dlnVdt=-1, B=-1, N=-1;// r=-1, dr=-1;
+    double dr=-1, vol=-1; //  comoving thickness and volume
 };
 
 

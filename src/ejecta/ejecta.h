@@ -377,21 +377,30 @@ private:
                     Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ele.f_all,
                                              "n_ele_fs");
                 /// save synchrotron spectra for forward shock
+                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.f_all,
+                                         "syn_f_fs");
                 Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.j_all,
-                                         "synch_fs");
+                                         "syn_j_fs");
                 Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.i_all,
-                                         "int_fs");
+                                         "syn_i_fs");
                 if (bw->getPars()->p_mphys->m_methods_ssa != METHODS_SSA::iSSAoff)
                     Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.a_all,
-                                         "ssa_fs");
-                std::cout << std::accumulate(bw->getPars()->p_mphys->syn.a_all.begin(),bw->getPars()->p_mphys->syn.a_all.end(),0.)<<"\n";
+                                         "syn_a_fs");
+//                std::cout << std::accumulate(bw->getPars()->p_mphys->syn.a_all.begin(),bw->getPars()->p_mphys->syn.a_all.end(),0.)<<"\n";
 
                 /// save SSC spectrum
-                if (bw->getPars()->p_mphys->m_methods_ssc != METHOD_SSC::inoSSC)
+                if (bw->getPars()->p_mphys->m_methods_ssc != METHOD_SSC::inoSSC) {
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ssc.f_all,
+                                             "ssc_f_fs");
                     Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ssc.j_all,
-                                             "ssc_fs");
-                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->total_rad.j_all,
-                                         "total_fs");
+                                             "ssc_j_fs");
+                }
+//                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->total_rad.j_all,
+//                                         "total_j_fs");
+//                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->total_rad.i_all,
+//                                         "total_int_fs");
+//                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->total_rad.f_all,
+//                                         "total_f_fs");
 
                 /// save spectra of the reverse shock
                 if (bw->getPars()->do_rs_radiation){
@@ -400,19 +409,28 @@ private:
                     if (bw->getPars()->p_mphys_rs->m_eleMethod != METHODS_SHOCK_ELE::iShockEleAnalyt)
                         Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ele.f_all,
                                                  "n_ele_rs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.f_all,
+                                             "syn_f_rs");
                     Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.j_all,
-                                             "synch_rs");
+                                             "syn_j_rs");
                     Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.i_all,
-                                             "int_rs");
+                                             "syn_i_rs");
                     if (bw->getPars()->p_mphys_rs->m_methods_ssa != METHODS_SSA::iSSAoff)
                         Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.a_all,
-                                             "ssa_rs");
+                                             "syn_a_rs");
                     /// save SSC spectrum
-                    if (bw->getPars()->p_mphys_rs->m_methods_ssc != METHOD_SSC::inoSSC)
+                    if (bw->getPars()->p_mphys_rs->m_methods_ssc != METHOD_SSC::inoSSC) {
+                        Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ssc.f_all,
+                                                 "ssc_f_rs");
                         Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ssc.j_all,
-                                                 "ssc_rs");
-                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->total_rad.j_all,
-                                             "total_rs");
+                                                 "ssc_j_rs");
+                    }
+//                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->total_rad.j_all,
+//                                             "total_j_rs");
+//                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->total_rad.i_all,
+//                                             "total_int_rs");
+//                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->total_rad.f_all,
+//                                             "total_f_rs");
                 }
                 grp.close();
             }
@@ -420,16 +438,16 @@ private:
 
         /// add time and frequency. Note: specta are 1D and loop is for t in time, { for freq in freqs { } }
         auto &bw0 = getShells()[0]->getBW(0);
-        size_t nn = bw0->get_tburst().size() * bw0->getPars()->p_mphys->total_rad.numbins;
+        size_t nn = bw0->get_tburst().size() * bw0->getPars()->p_mphys->syn.numbins;
 
         /// make vectors for time and freq with the same structure as emissivity and absorption
         Vector _times_for_freq(nn, 0.);
         Vector _freqs(nn, 0.);
         size_t ii=0;
         for (size_t it = 0; it < bw0->get_tburst().size(); it++) {
-            for (size_t ifreq = 0; ifreq < bw0->getPars()->p_mphys->total_rad.numbins; ifreq++){
+            for (size_t ifreq = 0; ifreq < bw0->getPars()->p_mphys->syn.numbins; ifreq++){
                 _times_for_freq[ii]=bw0->get_tburst()[it];
-                _freqs[ii]=bw0->getPars()->p_mphys->total_rad.e[ifreq];
+                _freqs[ii]=bw0->getPars()->p_mphys->syn.e[ifreq];
                 ii++;
             }
         }

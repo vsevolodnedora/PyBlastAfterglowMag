@@ -6,6 +6,9 @@ from matplotlib.colors import LogNorm,Normalize,TwoSlopeNorm,SymLogNorm,TwoSlope
 from matplotlib.ticker import AutoMinorLocator, ScalarFormatter, MaxNLocator,AutoLocator
 import numpy as np
 from scipy import special
+
+from package.src.PyBlastAfterglowMag import Ejecta
+
 working_dir = os.getcwd()+'/tmp1/'
 fig_dir = os.getcwd()+'/figs/'
 
@@ -110,20 +113,34 @@ class PlotSpectra:
             is_spec = True
 
         if v_n == "n_ele": ele_syn_ssc = "n_ele"
-        elif v_n == "synch": ele_syn_ssc = "synch"
-        elif v_n == "ssa": ele_syn_ssc = "ssa"
-        elif v_n == "ssc": ele_syn_ssc = "ssc"
-        elif v_n == "tau": ele_syn_ssc = "ssa"
-        elif v_n == "int": ele_syn_ssc = "int"
+        elif v_n == "syn_f": ele_syn_ssc = "syn_f"
+        elif v_n == "syn_j": ele_syn_ssc = "syn_j"
+        elif v_n == "syn_a": ele_syn_ssc = "syn_a"
+        elif v_n == "ssc_j": ele_syn_ssc = "ssc_j"
+        elif v_n == "ssc_f": ele_syn_ssc = "ssc_f"
+        elif v_n == "syn_tau": ele_syn_ssc = "syn_a"
+        elif v_n == "syn_i": ele_syn_ssc = "syn_i"
+        elif v_n == "total_f": ele_syn_ssc = "total_f"
         elif v_n == "fluxdens": ele_syn_ssc = "fluxdens"
         else: raise KeyError(f"Key {v_n} is not recognized")
 
-        spec=ej.get_lc(key=ele_syn_ssc+'_'+fs_or_rs if ele_syn_ssc != "fluxdens" else "fluxdens",
-                       xkey=xkey,ykey=ykey,freq=None,time=None,
-                       ishell=ishell,ilayer=ilayer,
-                       spec=is_spec,sum_shells_layers=sum_shells_layers)
+        if v_n == "total_f":
+            spec_syn=ej.get_lc(key="syn_j"+'_'+fs_or_rs if ele_syn_ssc != "fluxdens" else "fluxdens",
+                           xkey=xkey,ykey=ykey,freq=None,time=None,
+                           ishell=ishell,ilayer=ilayer,
+                           spec=is_spec,sum_shells_layers=sum_shells_layers)
+            spec_ssc=ej.get_lc(key="ssc_j"+'_'+fs_or_rs if ele_syn_ssc != "fluxdens" else "fluxdens",
+                               xkey=xkey,ykey=ykey,freq=None,time=None,
+                               ishell=ishell,ilayer=ilayer,
+                               spec=is_spec,sum_shells_layers=sum_shells_layers)
+            spec = spec_syn + spec_ssc
+        else:
+            spec=ej.get_lc(key=ele_syn_ssc+'_'+fs_or_rs if ele_syn_ssc != "fluxdens" else "fluxdens",
+                           xkey=xkey,ykey=ykey,freq=None,time=None,
+                           ishell=ishell,ilayer=ilayer,
+                           spec=is_spec,sum_shells_layers=sum_shells_layers)
 
-        if v_n == "tau":
+        if v_n == "syn_tau":
             dr = ej.get_dyn_arr(v_n="thickness" if fs_or_rs=="fs" else "thichness_rs",ishell=ishell,ilayer=ilayer)
             Gamma = ej.get_dyn_arr(v_n="Gamma" if fs_or_rs=="fs" else "Gamma43",ishell=ishell,ilayer=ilayer)
             dr_comov = dr * Gamma # thickness as R / Gamma in comoving frame (dr is in observer frame so R/Gamma^2
@@ -155,20 +172,21 @@ class PlotSpectra:
     @staticmethod
     def _plot_ele_spectrum(ax, fig, xs:np.ndarray, ys:np.ndarray, spec:np.ndarray,
                            ej:PBA.Ejecta, fs_or_rs:str, v_n:str, task:dict):
+        # ys=PBA.utils.get_beta(ys)*ys
         task_i = task[v_n]
         if task_i['norm'] == "LogNorm":
             norm = LogNorm(vmin=spec.max() * 1e-6, vmax=spec.max() * 1)
         elif task_i['norm'] == "SymLogNorm":
             norm=SymLogNorm(linthresh=task_i.get("vmin", 1e-4), vmin=task_i.get("vmin", 1e-4),
-                            vmax=task_i.get("vmax", 1e-4), base=10)
+                            vmax=task_i.get("vmax", 1e4), base=10)
             # norm=TwoSlopeNorm(vmin=0.1,vcenter=1,vmax=10)
         else:
             raise KeyError(f"norm {task_i['norm']} is not recognized")
         cmap = plt.get_cmap(task_i.get("cmap", 'jet'))
-        cmap.set_under(task_i.get("set_under",'white'))
-        cmap.set_over(task_i.get("set_over",'white'))
+        cmap.set_under(task_i.get("set_under",'white'),alpha=0.2)
+        cmap.set_over(task_i.get("set_over",'white'),alpha=0.2)
         _c = ax.pcolormesh(xs, ys, spec.T, cmap=cmap, norm=norm)
-        cbar = fig.colorbar(_c, ax=ax, shrink=0.95,pad=0.01)# orientation = 'horizontal')
+        cbar = fig.colorbar(_c, ax=ax, shrink=0.95,pad=0.01,extend='both')# orientation = 'horizontal')
         cbar.ax.tick_params(labelsize=11)
         cbar.set_label(task_i["zlabel"],size=12)
         # cbar.ax.yaxis.set_minor_locator(AutoMinorLocator(n=6))
@@ -197,14 +215,14 @@ class PlotSpectra:
             norm = LogNorm(vmin=spec.max() * 1e-6, vmax=spec.max() * 10)
         elif task_i['norm'] == "SymLogNorm":
             norm=SymLogNorm(linthresh=task_i.get("vmin", 1e-4), vmin=task_i.get("vmin", 1e-4),
-                            vmax=task_i.get("vmax", 1e-4), base=10)
+                            vmax=task_i.get("vmax", 1e4), base=10)
         else:
             raise KeyError(f"norm {task_i['norm']} is not recognized")
         cmap = plt.get_cmap(task_i.get("cmap", 'jet'))
-        cmap.set_under(task_i.get("set_under",'white'))
-        cmap.set_over(task_i.get("set_over",'white'))
+        cmap.set_under(task_i.get("set_under",'white'),alpha=0.2)
+        cmap.set_over(task_i.get("set_over",'white'),alpha=0.2)
         _c = ax.pcolormesh(xs, ys, spec.T, cmap=cmap, norm=norm)
-        cbar = fig.colorbar(_c, ax=ax, shrink=0.95,pad=0.01)# orientation = 'horizontal')
+        cbar = fig.colorbar(_c, ax=ax, shrink=0.95,pad=0.01,extend='both')# orientation = 'horizontal')
         cbar.ax.tick_params(labelsize=11)
         cbar.set_label(task_i["zlabel"],size=12)
         ax.set_ylabel(task_i["ylabel"],fontsize=12)
@@ -238,7 +256,7 @@ class PlotSpectra:
                 ax.plot(xs[mask],nu_a[mask], color='black', linewidth=1, linestyle=":", label=r"$\nu'_{\rm a}$")
         if task_i["plot_tau1"]:
             Gamma = ej.get_dyn_arr(v_n="GammaFsh" if fs_or_rs=="fs" else "GammaRsh",ishell=0,ilayer=0)
-            xs, ys, tau = PlotSpectra._get_spectrum(ej=ej,v_n="tau",fs_or_rs=fs_or_rs,norm_method=None)
+            xs, ys, tau = PlotSpectra._get_spectrum(ej=ej,v_n="syn_tau",fs_or_rs=fs_or_rs,norm_method=None)
             ax.plot(
                 xs,
                 [ys[PBA.utils.find_nearest_index(tau[i, :], 1.)] for i in range(len(Gamma))], # [xs,ys]
@@ -261,7 +279,7 @@ class PlotSpectra:
 
 def plot_spectra_evolution(ej:PBA.Ejecta, fs_or_rs:str, task:dict):
 
-    fig, axes = plt.subplots(ncols=1,nrows=5,sharex='all',layout='constrained',figsize=(5,8))
+    fig, axes = plt.subplots(ncols=1,nrows=6,sharex='all',layout='constrained',figsize=(5,8))
     if not hasattr(axes,'__len__'):
         axes = [axes]
     i_plot = 0
@@ -269,28 +287,33 @@ def plot_spectra_evolution(ej:PBA.Ejecta, fs_or_rs:str, task:dict):
     pl = PlotSpectra()
 
     # plot ele spectrum
+
     xs, ys, spec = pl._get_spectrum(ej=ej,v_n="n_ele",fs_or_rs=fs_or_rs,norm_method=task["n_ele"]["norm_method"])
     pl._plot_ele_spectrum(ax=axes[i_plot], fig=fig, xs=xs,ys=ys,spec=spec, ej=ej, fs_or_rs=fs_or_rs, v_n="n_ele", task=task)
     i_plot += 1
 
     # plot synch spectrum
-    xs, ys, spec = pl._get_spectrum(ej=ej,v_n="synch",fs_or_rs=fs_or_rs,norm_method=task["synch"]["norm_method"])
-    pl._plot_rad_spectrum(ax=axes[i_plot], xs=xs,ys=ys,spec=spec, fig=fig, ej=ej, fs_or_rs=fs_or_rs, v_n="synch", task=task)
+    xs, ys, spec = pl._get_spectrum(ej=ej,v_n="syn_j",fs_or_rs=fs_or_rs,norm_method=task["syn_j"]["norm_method"])
+    pl._plot_rad_spectrum(ax=axes[i_plot], xs=xs,ys=ys,spec=spec, fig=fig, ej=ej, fs_or_rs=fs_or_rs, v_n="syn_j", task=task)
     i_plot += 1
 
     # plot ssc spectrum
-    xs, ys, spec = pl._get_spectrum(ej=ej,v_n="ssc",fs_or_rs=fs_or_rs,norm_method=task["ssc"]["norm_method"])
-    pl._plot_rad_spectrum(ax=axes[i_plot], xs=xs,ys=ys,spec=spec,fig=fig, ej=ej, fs_or_rs=fs_or_rs, v_n="ssc", task=task)
+    xs, ys, spec = pl._get_spectrum(ej=ej,v_n="ssc_j",fs_or_rs=fs_or_rs,norm_method=task["ssc_j"]["norm_method"])
+    pl._plot_rad_spectrum(ax=axes[i_plot], xs=xs,ys=ys,spec=spec,fig=fig, ej=ej, fs_or_rs=fs_or_rs, v_n="ssc_j", task=task)
+    i_plot += 1
+
+    xs, ys, spec = pl._get_spectrum(ej=ej,v_n="syn_f",fs_or_rs=fs_or_rs,norm_method=task["syn_f"]["norm_method"])
+    pl._plot_rad_spectrum(ax=axes[i_plot], xs=xs,ys=ys,spec=spec,fig=fig, ej=ej, fs_or_rs=fs_or_rs, v_n="syn_f", task=task)
     i_plot += 1
 
     # plot ssa spectrum
-    xs, ys, spec = pl._get_spectrum(ej=ej,v_n="ssa",fs_or_rs=fs_or_rs,norm_method=task["ssa"]["norm_method"])
-    pl._plot_rad_spectrum(ax=axes[i_plot], xs=xs,ys=ys,spec=spec,fig=fig, ej=ej, fs_or_rs=fs_or_rs, v_n="ssa", task=task)
+    xs, ys, spec = pl._get_spectrum(ej=ej,v_n="syn_a",fs_or_rs=fs_or_rs,norm_method=task["syn_a"]["norm_method"])
+    pl._plot_rad_spectrum(ax=axes[i_plot], xs=xs,ys=ys,spec=spec,fig=fig, ej=ej, fs_or_rs=fs_or_rs, v_n="syn_a", task=task)
     i_plot += 1
 
     # plot ssa spectrum
-    xs, ys, spec = pl._get_spectrum(ej=ej,v_n="tau",fs_or_rs=fs_or_rs,norm_method=task["tau"]["norm_method"])
-    pl._plot_rad_spectrum(ax=axes[i_plot], xs=xs,ys=ys,spec=spec,fig=fig, ej=ej, fs_or_rs=fs_or_rs, v_n="tau", task=task)
+    xs, ys, spec = pl._get_spectrum(ej=ej,v_n="syn_tau",fs_or_rs=fs_or_rs,norm_method=task["syn_tau"]["norm_method"])
+    pl._plot_rad_spectrum(ax=axes[i_plot], xs=xs,ys=ys,spec=spec,fig=fig, ej=ej, fs_or_rs=fs_or_rs, v_n="syn_tau", task=task)
     i_plot += 1
 
     for ax in axes:
@@ -342,6 +365,73 @@ def plot_spectra_evolution_ratio(ej1:PBA.Ejecta, ej2:PBA.Ejecta, v_n:str, fs_or_
     if plot: plt.show()
     plt.close(fig)
 
+def plot_emission_region_prop(ej:PBA.Ejecta,fs_or_rs:str,ishell=0,ilayer=0):
+    fig,axes = plt.subplots(ncols=1,nrows=2, figsize=(5,5),layout='constrained',sharex="all")
+    #     double T = source.dr / CGS::c; // escape time (See Huang+2022)
+    # double fac = T / source.vol;
+    x = ej.get_dyn_arr(v_n="tburst",ishell=ishell,ilayer=ilayer)
+    r = ej.get_dyn_arr(v_n="R",ishell=ishell,ilayer=ilayer)
+    Gamma_sh = ej.get_dyn_arr(v_n="GammaFsh" if fs_or_rs=="fs" else "GammaRsh",ishell=ishell,ilayer=ilayer)
+    dr = ej.get_dyn_arr(v_n="thickness" if fs_or_rs=="fs" else "thickness_rs",ishell=ishell,ilayer=ilayer)
+    mass = ej.get_dyn_arr(v_n="M2" if fs_or_rs=="fs" else "M3",ishell=ishell,ilayer=ilayer)
+    dens = ej.get_dyn_arr(v_n="rho2" if fs_or_rs=="fs" else "rho3",ishell=ishell,ilayer=ilayer)
+    vol = mass / dens
+    tau_tomps = PBA.utils.cgs.sigmaT * (mass/PBA.utils.cgs.mp / vol) * dr * Gamma_sh
+    tmp = dr*Gamma_sh*PBA.utils.cgs.c / vol
+    # ax.plot(
+    #     x, PBA.utils.cgs.c/r**2
+    # )
+
+
+    sp = PlotSpectra()
+
+
+    xs, ys, spec = sp._get_spectrum(ej=ej,v_n="n_ele",fs_or_rs=fs_or_rs,
+                                    ishell=ishell,ilayer=ilayer,sum_shells_layers=False,norm_method=None)
+    tot_ele = np.trapz(spec*ys[np.newaxis,:],x=ys,axis=1)
+
+    xs, ys, spec = sp._get_spectrum(ej=ej,v_n="syn_j",fs_or_rs=fs_or_rs,
+                                    ishell=ishell,ilayer=ilayer,sum_shells_layers=False,norm_method=None)
+    tot_syn = np.trapz(PBA.utils.cgs.h*spec*ys[np.newaxis,:],x=ys,axis=1)
+
+    sp = PlotSpectra()
+    xs, ys, spec = sp._get_spectrum(ej=ej,v_n="ssc_j",fs_or_rs=fs_or_rs,
+                                    ishell=ishell,ilayer=ilayer,sum_shells_layers=False,norm_method=None)
+    tot_ssc = np.trapz(PBA.utils.cgs.h*spec*ys[np.newaxis,:],x=ys,axis=1)
+
+    ax = axes[0]
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.plot(xs, tot_ele,color='blue',label=r'$u_{\rm ele}$')
+
+    ax1 = ax.twinx()
+    ax1.set_xscale("log")
+    ax1.set_yscale("log")
+    # ax1.plot(xs, tot_ssc/tot_syn,color='blue',label=r'$u_{\rm syn}$')
+    ax1.plot(xs, tot_syn,color='blue',label=r'$u_{\rm syn}$')
+    ax1.plot(xs, tot_ssc,color='green',label=r'$u_{\rm ele}$')
+    # ax1.plot(xs, tot_ssc,color='red',label=r'$u_{\rm ssc}$')
+
+    ax1.legend()
+    ax.set_ylabel(r"$\tau_{\rm e}$")
+
+
+    ax = axes[1]
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.plot(x, tmp, color='black', label=r"$\Delta t' / V'$")
+    ax.legend()
+
+    ax1 = ax.twinx()
+    ax1.set_xscale("log")
+    ax1.set_yscale("log")
+    ax1.plot(xs, tau_tomps,color='gray',label=r'$\tau_{\rm comp}$')
+    ax1.legend()
+
+    ax.set_xlabel(r"$t_{\rm burst}$")
+    ax.set_ylabel(r"$\tau_{\rm e}$")
+
+    plt.show()
 
 
 def tasks_fs(do_run:bool, plot:bool, struct:dict, P:dict):
@@ -350,28 +440,35 @@ def tasks_fs(do_run:bool, plot:bool, struct:dict, P:dict):
         struct=struct, P = d2d(default=P, new=dict(grb=dict(method_ssc_fs='numeric',use_ssa_fs='yes'))),
         type="a",run=do_run
     )
+
+    plot_emission_region_prop(dyn_fs__rad_fs__num__ssa__ssc.GRB,fs_or_rs="fs")
+
     plot_spectra_evolution(
         ej=dyn_fs__rad_fs__num__ssa__ssc.GRB,fs_or_rs='fs',task=dict(
             title="FS comoving spectra evolution", figname="spec_dyn_fs__rad_fs__num__ssa__ssc", show=plot,
             n_ele=dict(norm_method='/integ *y',ylabel=r"$\gamma_{e}$",
-                       zlabel=r"$(\gamma_{e} dN_{e}/d\gamma_{e}) / N_{e;\, \rm tot}$",
+                       zlabel=r"$(\gamma_{e} N_{e}) / N_{e;\, \rm tot}$",
                        norm="LogNorm",
                        plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False),
-            synch=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm syn}$ [cgs]",
+            syn_j=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm syn}$ [cgs]",
                        norm="LogNorm",
                        plot_num=True,plot_nuc=True,plot_nuM=True,plot_nua=False,plot_tau1=False,plot_max=True),
-            ssc=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm ssc}$ [cgs]",
+            ssc_j=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm ssc}$ [cgs]",
                      norm="LogNorm",
                      plot_num=True,plot_nuc=True,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=True),
-            ssa=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$\alpha'_{\rm syn}$ [cgs]",
+            syn_f=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$f'_{\rm total}$ [cgs]",
+                     norm="LogNorm",
+                     plot_num=True,plot_nuc=True,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=True),
+            syn_a=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$\alpha'_{\rm syn}$ [cgs]",
                      norm="LogNorm",
                      plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=False,
                      ylim=(1e6,1e14)),
-            tau=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$\tau'_{\rm ssa}$",
+            syn_tau=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$\tau'_{\rm ssa}$",
                      norm="SymLogNorm",
                      plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=True,plot_tau1=True,plot_max=False,
                      ylim=(1e6,1e14), xlim=(3e3,1e10))
         ))
+
 
 def tasks_rs(do_run:bool, plot:bool, struct:dict, P:dict):
     dyn_fs__rad_rs__num__ssa__ssc = run(
@@ -383,11 +480,14 @@ def tasks_rs(do_run:bool, plot:bool, struct:dict, P:dict):
                                                             method_ssc_rs='numeric'))),
         type="a",run=do_run
     )
+
+    plot_emission_region_prop(dyn_fs__rad_rs__num__ssa__ssc.GRB,fs_or_rs="rs")
+
     plot_spectra_evolution(
         ej=dyn_fs__rad_rs__num__ssa__ssc.GRB,fs_or_rs='rs',task=dict(
             title="RS comoving spectra evolution", figname="spec_dyn_fs__rad_rs__num__ssa__ssc", show=plot,
             n_ele=dict(norm_method='/integ *y',ylabel=r"$\gamma_{e}$",
-                       zlabel=r"$(\gamma_{e} dN_{e}/d\gamma_{e}) / N_{e;\, \rm tot}$",
+                       zlabel=r"$(\gamma_{e} N_{e}) / N_{e;\, \rm tot}$",
                        norm="LogNorm",
                        plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False,
                        ylim=(1,1e5)),
@@ -457,25 +557,25 @@ def tasks_fs_comparison(do_run:bool, plot:bool, struct:dict, P:dict):
                 title="FS comoving electron spectra evolution ratio",
                 figname=f"spec_fs_ele_ratio_{name}", show=plot,
                 n_ele=dict(norm_method=None,ylabel=r"$\gamma_{e}$",
-                           zlabel=label, vmin=1e-1,vmax=1e1, cmap="RdBu",xlim=(3e3,8e6),
+                           zlabel=label, vmin=1e-1,vmax=1e1, cmap="RdBu_r",xlim=(3e3,8e6),set_under='blue',set_over='red',
                            norm="SymLogNorm",plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False)))
         plot_spectra_evolution_ratio(
             ej1=model1,ej2=model2,
             v_n="synch", fs_or_rs="fs", task=dict(
                 title="FS comoving synchrotron spectra evolution ratio",
-                figname=f"spec_fs_ele_ratio_{name}", show=plot,
+                figname=f"spec_fs_synch_ratio_{name}", show=plot,
                 synch=dict(norm_method=None,ylabel=r"$\nu'$",
                            zlabel=label, vmin=1e-1,vmax=1e1, cmap="RdBu_r", xlim=(3e3,8e6),
-                           norm="SymLogNorm",
+                           norm="SymLogNorm",set_under='blue',set_over='red',
                            plot_num=True,plot_nuc=True,plot_nuM=True,plot_nua=False,plot_tau1=False,plot_max=True)))
         plot_spectra_evolution_ratio(
             ej1=model1,ej2=model2,
             v_n="int", fs_or_rs="fs", task=dict(
                 title="FS comoving intensity spectra evolution ratio",
-                figname=f"spec_fs_ele_ratio_{name}", show=plot,
+                figname=f"spec_fs_int_ratio_{name}", show=plot,
                 int=dict(norm_method=None,ylabel=r"$\nu'$",
                          zlabel=label, vmin=1e-1,vmax=1e1, cmap="RdBu_r", xlim=(3e3,8e6), #ylim=(1e6,1e14),
-                         norm="SymLogNorm", set_under='gray', set_over='gray',
+                         norm="SymLogNorm",set_under='blue',set_over='red',
                          plot_num=True,plot_nuc=True,plot_nuM=True,plot_nua=False,plot_tau1=False,plot_max=False)))
 
 def tasks_rs_comparison(do_run:bool, plot:bool, struct:dict, P:dict):
@@ -534,33 +634,33 @@ def tasks_rs_comparison(do_run:bool, plot:bool, struct:dict, P:dict):
             ej1=model1,ej2=model2,
             v_n="n_ele", fs_or_rs="rs", task=dict(
                 title="RS comoving electron spectra evolution ratio",
-                figname=f"spec_ele_ratio_{name}", show=plot,
+                figname=f"spec_rs_ele_ratio_{name}", show=plot,
                 n_ele=dict(norm_method=None,ylabel=r"$\gamma_{e}$",
-                           zlabel=label, vmin=1e-1,vmax=1e1, cmap="RdBu",xlim=(3e3,8e6),
+                           zlabel=label, vmin=1e-1,vmax=1e1, cmap="RdBu_r",xlim=(3e3,8e6),set_under='blue',set_over='red',
                            norm="SymLogNorm",plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False)))
         plot_spectra_evolution_ratio(
             ej1=model1,ej2=model2,
             v_n="synch", fs_or_rs="rs", task=dict(
                 title="RS comoving synchrotron spectra evolution ratio",
-                figname=f"spec_ele_ratio_{name}", show=plot,
+                figname=f"spec_rs_synch_ratio_{name}", show=plot,
                 synch=dict(norm_method=None,ylabel=r"$\nu'$",
-                           zlabel=label, vmin=1e-1,vmax=1e1, cmap="RdBu_r", xlim=(3e3,8e6),
+                           zlabel=label, vmin=1e-1,vmax=1e1, cmap="RdBu_r", xlim=(3e3,8e6),set_under='blue',set_over='red',
                            norm="SymLogNorm",
                            plot_num=True,plot_nuc=True,plot_nuM=True,plot_nua=False,plot_tau1=False,plot_max=True)))
         plot_spectra_evolution_ratio(
             ej1=model1,ej2=model2,
             v_n="int", fs_or_rs="rs", task=dict(
                 title="RS comoving intensity spectra evolution ratio",
-                figname=f"spec_ele_ratio_{name}", show=plot,
+                figname=f"spec_rs_int_ratio_{name}", show=plot,
                 int=dict(norm_method=None,ylabel=r"$\nu'$",
                          zlabel=label, vmin=1e-1,vmax=1e1, cmap="RdBu_r", xlim=(3e3,8e6), ylim=(1e6,1e14),
-                         norm="SymLogNorm", set_under='gray', set_over='gray',
+                         norm="SymLogNorm", set_under='blue',set_over='red',
                          plot_num=True,plot_nuc=True,plot_nuM=True,plot_nua=False,plot_tau1=False,plot_max=True)))
 
 
 
 if __name__ == '__main__':
-    do_run = True; plot = False
+    do_run = False; plot = True
     struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
     P = dict(
         main=dict(n_ism=1., tb0=3e3, ntb=1000,rtol=1e-7,theta_obs=0,
@@ -575,9 +675,9 @@ if __name__ == '__main__':
     )
 
     # --- fs -- fs ---
-    # tasks_fs(do_run=do_run, plot=plot, struct=struct, P=P)
+    tasks_fs(do_run=do_run, plot=plot, struct=struct, P=P)
     # tasks_fs_comparison(do_run=do_run, plot=plot, struct=struct, P=P)
 
     # --- fsrs -- rs ---
-    tasks_rs(do_run=do_run, plot=plot, struct=struct, P=P)
-    tasks_rs_comparison(do_run=do_run, plot=plot,struct=struct, P=P)
+    # tasks_rs(do_run=do_run, plot=plot, struct=struct, P=P)
+    # tasks_rs_comparison(do_run=do_run, plot=plot,struct=struct, P=P)

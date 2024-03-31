@@ -121,7 +121,7 @@ public:
     /**
  * Update radiation fields for current electron distribution
  */
-    void update_radiation(bool do_ssa, bool do_ssc, Vector & photon_filed){
+    void update_radiation(bool do_ssa, bool do_ssc){
         /// 1. Update synchrotron kernel for current B
         synKernel.evalSynKernel(ele, syn, source.B);
 
@@ -134,7 +134,7 @@ public:
 
         /// 4. Compute SSC spectrum (using PREVIOUS step syn & ssc spectra)
         if (do_ssc)
-            computeSSCSpectrum(photon_filed);
+            computeSSCSpectrum();
 
         /// 5. compute photon density
 //        computePhotonDensity(photon_filed);
@@ -172,7 +172,27 @@ public:
                 exit(1);
             }
         }
+
+        /// store the number of photons per freq. bin
+        double T = source.dr / CGS::c; // escape time (See Huang+2022)
+        double fac = T / source.vol;
+        for (size_t i = 0; i < syn.numbins - 1; i++)
+            syn.f[i] = syn.j[i] * fac / (CGS::h * syn.e[i]); // (using T instead of dt) add synchrotron
+
     }
+
+//    /**
+//     * Eq 4 in MNRAS 504, 528–542 (2021) doi:10.1093/mnras/stab911
+//     * @return
+//     */
+//    double computeCompton(){
+//        /// compute second momentum
+//        double res = 0;
+//        for (size_t i = 0; i < syn.numbins - 1; i++) {
+//
+//        }
+//        return y;
+//    }
 
     /**
      * Compute synchrotron self-absorption by convolving
@@ -264,7 +284,7 @@ public:
      *
      * O(n*m*q) algorithm
      */
-    void computeSSCSpectrum(Vector & photon_filed){
+    void computeSSCSpectrum(){
 
         std::fill(ssc.j.begin(), ssc.j.end(),0.);
 
@@ -284,7 +304,7 @@ public:
                 for (size_t k = 0; k < syn.numbins; k++)
                     /// compute scattered photon spectrum per electron (Blumenthal 1970)
                     scat_ph_spec_per_ele[j] += 3. / 4. * CGS::sigmaT * CGS::c / (ele.e[j] * ele.e[j])
-                                             * photon_filed[k] / syn.e[k] * syn.de[k] * kernel[i][j][k];
+                                             * (syn.f[k]+ssc.f[k]) / syn.e[k] * syn.de[k] * kernel[i][j][k];
 //                    scat_ph_spec_per_ele[j] += syn.n[k] / syn.e[k] * syn.de[k] * kernel[i][j][k];
 
             /// Integrate the electron distribution [Outer integral]
@@ -296,6 +316,13 @@ public:
 //            ssc.j[i] *= constant * (ssc.e[i] * CGS::ergToFreq);
 //            ssc.j[i] *= ssc.e[i] * CGS::h;
         }
+
+        /// save number of photons per freq. bin
+        double T = source.dr / CGS::c; // escape time (See Huang+2022)
+        double fac = T / source.vol;
+        for (size_t i = 0; i < ssc.numbins; i++)
+            ssc.f[i] = ssc.j[i] * fac / (CGS::h * ssc.e[i]); // (using T instead of dt) add SSC
+
     }
 };
 
@@ -584,7 +611,7 @@ public:
      * Compute gamma_dot term in kinteic equation
      * @param cool_index
      */
-    void setHeatCoolTerms(double cool_index, Vector & photon_filed){
+    void setHeatCoolTerms(double cool_index){
         /// Assume no dispersion so
         std::fill(dispersion_term.begin(), dispersion_term.end(),0.);
 
@@ -601,7 +628,7 @@ public:
             /// compute SSC term
             double ssc_term=0.;
             if (is_ssc)
-                ssc_term = sscIntegralTerm(i, photon_filed) / ele.half_e[i] / ele.half_e[i];
+                ssc_term = sscIntegralTerm(i) / ele.half_e[i] / ele.half_e[i];
 
             /// overall heating/cooling term
             heating_term[i] = syn_term + adi_term + ssc_term;
@@ -639,7 +666,7 @@ public:
      * @param idx
      * @return
      */
-    double sscIntegralTerm(size_t idx, Vector & photon_filed){
+    double sscIntegralTerm(size_t idx){
 
         /// integrate photon density distribution over electron distribution
         double res = 0;
@@ -647,7 +674,7 @@ public:
 
         /// integrate the seed photon spectrum (using pre-computed inner integral)
         for (size_t j = 0; j < syn.numbins-1; j++)
-            res += photon_filed[j] / syn.e[j] * syn.de[j] * kernel[idx][j];
+            res += (syn.f[j]+ssc.f[j]) / syn.e[j] * syn.de[j] * kernel[idx][j];
 
         /// full integral (very slow...)
 //        auto & kernel_ = sscKernel.getKernel(); // [i_nu_ssc, i_gam, i_nu_syn]
