@@ -80,6 +80,7 @@ public:
                 kernel_integral[j][k] = res; // [i_gamma, i_energy_syn]
             }
         }
+//        int x = 1;
     }
 
     static double sscNava(double nu, double gam, double nu_tilde){

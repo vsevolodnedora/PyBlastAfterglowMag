@@ -19,14 +19,18 @@ struct State{
     double x2=-1;
     size_t numbins=0;
     /// arrays
-    Vector e{}, de{}, half_e{}, j{}, a{}, n{}, f{}, intensity{};
+    Vector e{}, de{}, half_e{}, j{}, a{}, yg{}, f{}, intensity{};
     Vector dfde{}; /// For SSA calcualtions
+
+    Vector gam_dot_syn {}, gam_dot_syn_all {};
+    Vector gam_dot_adi {}, gam_dot_adi_all {};
+    Vector gam_dot_ssc {}, gam_dot_ssc_all {};
 
     /// for chang cooper scheme
     Vector delta_grid{}, delta_grid_bar{};
 
     /// output vectors
-    Vector j_all{}, a_all{}, f_all{}, i_all{};
+    Vector j_all{}, a_all{}, f_all{}, i_all{}, yg_all{};
 
     State() = default;
 
@@ -45,18 +49,24 @@ struct State{
         half_e.resize(numbins-1);
         j.resize(numbins);
         a.resize(numbins);
-        n.resize(numbins);
+        yg.resize(numbins);
         f.resize(numbins);
         dfde.resize(numbins);
         intensity.resize(numbins);
     }
     /// allocate output vectors of the size numbins * num_timesteps
-    void allocate_output(size_t nx, size_t nt){
+    void allocate_output(size_t nx, size_t nt, bool gam_dot){
         size_t nn = nx * nt; // space * time (total array size)
         f_all.resize(nn, 0.);
         j_all.resize(nn, 0.);
         a_all.resize(nn, 0.);
         i_all.resize(nn,0);
+        yg_all.resize(nn,0);
+        if (gam_dot){
+            gam_dot_syn_all.resize(nn,0.);
+            gam_dot_adi_all.resize(nn,0.);
+            gam_dot_ssc_all.resize(nn,0.);
+        }
     }
     /// store the current state for this timestep in total_rad vector
     void save_to_all(size_t it){
@@ -65,7 +75,15 @@ struct State{
             j_all[i_ + numbins * it] = j[i_];
             a_all[i_ + numbins * it] = a[i_];
             i_all[i_ + numbins * it] = intensity[i_];
+            yg_all[i_ + numbins * it] = yg[i_];
         }
+        /// store cooling terms (for electrons)
+        if (gam_dot_syn.size() > 1)
+            for (size_t i_ = 0; i_ < numbins; i_++) {
+                gam_dot_syn_all[i_ + numbins * it] = gam_dot_syn[i_];
+                gam_dot_adi_all[i_ + numbins * it] = gam_dot_adi[i_];
+                gam_dot_ssc_all[i_ + numbins * it] = gam_dot_ssc[i_];
+            }
     }
 
     void add_to_all(State & other, size_t it){
@@ -78,6 +96,7 @@ struct State{
             j_all[i_ + numbins * it] += other.j[i_];
             a_all[i_ + numbins * it] += other.a[i_];
             i_all[i_ + numbins * it] += other.intensity[i_];
+            yg_all[i_ + numbins * it] += other.yg[i_];
         }
     }
 
@@ -85,6 +104,11 @@ struct State{
      * Construct extra grids that are used by Chang Cooper scheme
      */
     void build_grid_chang_cooper(){
+
+        /// cooling terms in Chang-Cooper solver (for saving later)
+        gam_dot_syn.resize(numbins, 0);
+        gam_dot_adi.resize(numbins, 0);
+        gam_dot_ssc.resize(numbins, 0);
 
         if (numbins < 1){
             std::cout << " state is not initialized, empty \n";

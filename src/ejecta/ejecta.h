@@ -373,9 +373,18 @@ private:
                 H5::Group grp(file.createGroup(group_name));
                 auto &bw = getShells()[il]->getBW(ish);
                 /// save electron spectrum if electrons are numerically evolved
-                if (bw->getPars()->p_mphys->m_eleMethod != METHODS_SHOCK_ELE::iShockEleAnalyt)
+                if (bw->getPars()->p_mphys->m_eleMethod != METHODS_SHOCK_ELE::iShockEleAnalyt) {
                     Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ele.f_all,
                                              "n_ele_fs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ele.gam_dot_syn_all,
+                                             "gam_dot_syn_fs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ele.gam_dot_adi_all,
+                                             "gam_dot_adi_fs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ele.gam_dot_ssc_all,
+                                             "gam_dot_ssc_fs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ele.yg_all,
+                                             "yg_fs");
+                }
                 /// save synchrotron spectra for forward shock
                 Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.f_all,
                                          "syn_f_fs");
@@ -395,20 +404,25 @@ private:
                     Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ssc.j_all,
                                              "ssc_j_fs");
                 }
-//                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->total_rad.j_all,
-//                                         "total_j_fs");
-//                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->total_rad.i_all,
-//                                         "total_int_fs");
-//                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->total_rad.f_all,
-//                                         "total_f_fs");
+
 
                 /// save spectra of the reverse shock
                 if (bw->getPars()->do_rs_radiation){
 
                     /// save electron spectrum if electrons are numerically evolved
-                    if (bw->getPars()->p_mphys_rs->m_eleMethod != METHODS_SHOCK_ELE::iShockEleAnalyt)
+                    if (bw->getPars()->p_mphys_rs->m_eleMethod != METHODS_SHOCK_ELE::iShockEleAnalyt) {
                         Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ele.f_all,
                                                  "n_ele_rs");
+                        Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ele.gam_dot_syn_all,
+                                                 "gam_dot_syn_rs");
+                        Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ele.gam_dot_adi_all,
+                                                 "gam_dot_adi_rs");
+                        Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ele.gam_dot_ssc_all,
+                                                 "gam_dot_ssc_rs");
+                        Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ele.yg_all,
+                                                 "yg_rs");
+                    }
+
                     Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.f_all,
                                              "syn_f_rs");
                     Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.j_all,
@@ -425,12 +439,6 @@ private:
                         Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ssc.j_all,
                                                  "ssc_j_rs");
                     }
-//                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->total_rad.j_all,
-//                                             "total_j_rs");
-//                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->total_rad.i_all,
-//                                             "total_int_rs");
-//                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->total_rad.f_all,
-//                                             "total_f_rs");
                 }
                 grp.close();
             }

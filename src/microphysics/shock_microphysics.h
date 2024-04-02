@@ -1039,6 +1039,8 @@ class ElectronAndRadiation : public ElectronAndRadiaionBase{
     Source source{};
     SynKernel syn_kernel{};//std::unique_ptr<SSCKernel> ssc_kernel = nullptr;
     SSCKernel ssc_kernel{};//std::unique_ptr<SynKernel> syn_kernel = nullptr;
+    ChangCooper model = ChangCooper(source, ele, syn, ssc, syn_kernel, ssc_kernel);
+
     double n_ele_out = 0.;
     double theta_h = 0;
 //    Vector photon_field{}; // syn + ssc Npotones for SSC radiation and cooling
@@ -1103,17 +1105,17 @@ public: // ---------------- ANALYTIC -------------------------- //
 
 //        syn.allocate(freq1*CGS::freqToErg, freq2*CGS::freqToErg, nfreq);
         syn.allocate(freq1, freq2, nfreq);
-        syn.allocate_output(nfreq,nr);
+        syn.allocate_output(nfreq,nr, false);
         if (m_methods_ssc!=METHOD_SSC::inoSSC) {
 //            ssc.allocate(freq1 * CGS::freqToErg, freq2 * CGS::freqToErg, nfreq);
             ssc.allocate(freq1, freq2, nfreq);
-            ssc.allocate_output(nfreq, nr);
+            ssc.allocate_output(nfreq, nr, false);
         }
 
         /// allocate output for the total_rad emissivity and absorption
         total_rad.numbins = nfreq;
         total_rad.e = TOOLS::MakeLogspaceVec(std::log10(freq1),std::log10(freq2), (int)nfreq);
-        total_rad.allocate_output(nfreq, nr);
+        total_rad.allocate_output(nfreq, nr, false);
     }
 
 
@@ -1175,6 +1177,7 @@ public: // ---------------- ANALYTIC -------------------------- //
 public: // -------------------- NUMERIC -------------------------------- //
 
     bool is_distribution_initialized = false; // if the analytic profile for the first iteration is set
+
     /// Analytic electron spectrum, power-law
     void powerLawElectronDistributionAnalytic(double tcomov0_, double n_ele_inj, Vector & N_ele){
 //        /// prevent gamma_max to go beyond the electron grid
@@ -1242,12 +1245,12 @@ public: // -------------------- NUMERIC -------------------------------- //
         size_t ngams = (size_t)getDoublePar("ngam", pars, AT, p_log,250, true);//pars.at("nfreq");
 
         ele.allocate(gam1, gam2, ngams);
-        ele.allocate_output(ngams, nr);
+        ele.allocate_output(ngams, nr, true);
         ele.build_grid_chang_cooper(); // build the grid for the implicit solver
 
 //        syn.allocate(freq1*CGS::freqToErg, freq2*CGS::freqToErg, nfreq);
         syn.allocate(freq1, freq2, nfreq);
-        syn.allocate_output(nfreq, nr);
+        syn.allocate_output(nfreq, nr, false);
 
         if ((m_sychMethod != METHODS_SYNCH::iGSL)
             and (m_sychMethod != METHODS_SYNCH::iDER06)
@@ -1274,7 +1277,7 @@ public: // -------------------- NUMERIC -------------------------------- //
         if (m_methods_ssc == METHOD_SSC::iNumSSC) {
 //            ssc.allocate(freq1 * CGS::freqToErg, freq2 * CGS::freqToErg, nfreq);
             ssc.allocate(freq1, freq2, nfreq);
-            ssc.allocate_output(nfreq, nr);
+            ssc.allocate_output(nfreq, nr, false);
             ssc_kernel.allocate(ele, syn, ssc, SSCKernel::sscNava);
             ssc_kernel.evalSSCkernel(ele, syn, ssc);
             ssc_kernel.evalSSCgridIntergral(ele, syn, ssc);
@@ -1284,8 +1287,11 @@ public: // -------------------- NUMERIC -------------------------------- //
         /// allocate output for the total_rad emissivity and absorption
         total_rad.numbins = nfreq;
         total_rad.e = TOOLS::MakeLogspaceVec(std::log10(freq1),std::log10(freq2), (int)nfreq);
-        total_rad.allocate_output(nfreq, nr);
+        total_rad.allocate_output(nfreq, nr, false);
 
+
+        /// ---
+        model.setSolver();
     }
 
     void initializeElectronDistribution(double tcomov, double m2){
@@ -1373,7 +1379,7 @@ public: // -------------------- NUMERIC -------------------------------- //
         source.vol = volume;
         source.N = n_inj / dt; //n_inj / dt; // number of injected electrons per timestep
         double n_ele_num = 0.;
-        ChangCooper model = ChangCooper(source, ele, syn, ssc, syn_kernel, ssc_kernel);
+//        ChangCooper model = ChangCooper(source, ele, syn, ssc, syn_kernel, ssc_kernel);
 
         /// compute radiation numerically from ANALYTIC electron distribution or evolve electron distribution
         if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleMix)
@@ -1477,6 +1483,19 @@ public: // -------------------- NUMERIC -------------------------------- //
             }
         }
 
+        /// compute compton parameter for each electron factor O(n^2 algorithm) TODO fix
+//        std::fill(ele.yg.begin(), ele.yg.end(),0.);
+//        for (size_t i = 0; i < ele.numbins; i++) {
+//            for (size_t j = 0; j < syn.numbins; j++)
+//                if (syn.e[j] <= CGS::me * CGS::c / ele.e[i] / CGS::h)
+//                    ele.yg[i] += CGS::h * syn.e[j] * syn.de[j] * syn.f[j];
+//            if (m_methods_ssc != METHOD_SSC::inoSSC)
+//                for (size_t j = 0; j < ssc.numbins; j++)
+//                    if (ssc.e[j] <= CGS::me * CGS::c / ele.e[i] / CGS::h)
+//                        ele.yg[i] += CGS::h * ssc.e[j] * ssc.de[j] * ssc.f[j];
+//            ele.yg[i] = ele.yg[i] * 8. * M_PI / source.B / source.B;
+//        }
+
 //        std::cout << std::accumulate(syn.a.begin(),syn.a.end(),0.)<<"\n";
 
 
@@ -1520,6 +1539,7 @@ public: // -------------------- NUMERIC -------------------------------- //
             ssc.save_to_all(it);
             total_rad.add_to_all(ssc, it);
         }
+
 
 //        std::cout << std::accumulate(syn.a.begin(),syn.a.end(),0.)<<"\n";
 

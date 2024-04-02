@@ -341,10 +341,14 @@ class ChangCooper : public ElectronDistEvolutionBase{
     VecVector ssc_inner_integral {};
     std::vector<VecVector> ssc_kernel {};
     bool is_ssc = false;
+    // -------------------
 public:
 
     ChangCooper(Source &source, State &ele, State &syn, State &ssc, SynKernel & synKernel, SSCKernel & SSCKernel)
             : ElectronDistEvolutionBase(source, ele, syn, ssc, synKernel, SSCKernel) {
+    }
+
+    void setSolver(){
         /// allocate memory for additional arrays
         n_grid_points = ele.numbins;
         dispersion_term.resize(n_grid_points, 0);
@@ -357,6 +361,9 @@ public:
         b.resize(n_grid_points, 0);
         c.resize(n_grid_points, 0);
         d.resize(n_grid_points, 0);
+//        gam_dot_syn.resize(n_grid_points, 0);
+//        gam_dot_adi.resize(n_grid_points, 0);
+//        gam_dot_ssc.resize(n_grid_points, 0);
         /// reset grids/terms for new calculation
         resetSolver();
         if (not sscKernel.getKernel().empty())
@@ -375,6 +382,9 @@ public:
         std::fill(b.begin(), b.end(),0.);
         std::fill(c.begin(), c.end(),0.);
         std::fill(d.begin(), d.end(),0.);
+//        std::fill(gam_dot_syn.begin(), gam_dot_syn.end(),0.);
+//        std::fill(gam_dot_adi.begin(), gam_dot_adi.end(),0.);
+//        std::fill(gam_dot_ssc.begin(), gam_dot_ssc.end(),0.);
         iterations = 0;
         current_time = 0.;
     }
@@ -618,23 +628,29 @@ public:
         /// set heating / cooling
         for (size_t i = 0; i < n_grid_points-1; i++){
             /// compute synchrotron cooling
-            double syn_term = synchCoolComponent(source.B) \
+            ele.gam_dot_syn[i] = synchCoolComponent(source.B) \
                             * std::pow(ele.half_e[i], cool_index);
 
             /// compute adiabatic cooling
-            double adi_term = source.dlnVdt \
+            ele.gam_dot_adi[i] = source.dlnVdt \
                             * (ele.half_e[i] * ele.half_e[i] - 1.) / (3. * ele.half_e[i]);
 
             /// compute SSC term
-            double ssc_term=0.;
             if (is_ssc)
-                ssc_term = sscIntegralTerm(i) / ele.half_e[i] / ele.half_e[i];
+                ele.gam_dot_ssc[i] = sscIntegralTerm(i) / ele.half_e[i] / ele.half_e[i];
 
             /// overall heating/cooling term
-            heating_term[i] = syn_term + adi_term + ssc_term;
+            heating_term[i] = ele.gam_dot_syn[i] + ele.gam_dot_adi[i] + ele.gam_dot_ssc[i];
 
 //            if (ssc_term != 0 and ssc_term > syn_term){
 //                int z = 1;
+//            }
+//            if (adi_term < syn_term){
+//                int z = 1;
+//            }
+//            if (ele.gam_dot_ssc[i]>0) {
+//                std::cout << ele.gam_dot_ssc[i] << "\n";
+//                int z = 0;
 //            }
 
             if (!std::isfinite(heating_term[i])){
@@ -642,6 +658,11 @@ public:
                 exit(1);
             }
         }
+//        if (std::accumulate(ele.gam_dot_ssc.begin(),ele.gam_dot_ssc.end(),0.)>0.){
+//            std::cout<<std::accumulate(syn.f.begin(),syn.f.end(),0.)<<"\n";
+//            std::cout<<ele.gam_dot_ssc<<"\n";
+//            int z = 1;
+//        }
     }
 
     /**
@@ -690,13 +711,17 @@ public:
 //            std::cerr << " res="<<res<<" integ="<<integ<<" ratio="<<res/integ<<"\n";
 //        }
 //        res= integ;
+//        std::cout << std::accumulate
+//        double tot = std::accumulate(syn.f.begin(),syn.f.end(),0.);
+//        if (tot>0) {
+//            std::cout << std::accumulate(syn.f.begin(), syn.f.end(), 0.) << "\n";
+//            int z = 1;
+//        }
 
 
         /// add constant from the paper
         double constant = 3./4. * CGS::h * CGS::sigmaT / CGS::me / CGS::c;
         res *= constant;
-
-
 
         return res;
     }
