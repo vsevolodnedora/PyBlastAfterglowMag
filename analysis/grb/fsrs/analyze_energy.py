@@ -144,7 +144,7 @@ def plot_fs_energy(struct:dict,pp:dict,plot:dict):
 
         return Gamma*beta
     if plot["bm"]:
-        Gamma_bm = get_bm79(E0=struct["Eiso_c"]/2, A0=pba.main_pars["n_ism"]*PBA.utils.cgs.mp, s=0, R=R)
+        Gamma_bm = get_bm79(E0=struct["Eiso_c"], A0=pba.main_pars["n_ism"]*PBA.utils.cgs.mp, s=0, R=R)
         axes[1].plot(R[mom>1.],Gamma_bm[mom>1.],color='gray',ls='-.',label='BM76')
 
     def get_sedovteylor(Rdec, beta0, R):
@@ -208,6 +208,12 @@ def plot_fs_energy(struct:dict,pp:dict,plot:dict):
                     shadow=False, ncol= 3 if pba.GRB.opts["do_rs"]=="yes" else 1,
                     fontsize=12,
                     framealpha=0., borderaxespad=0.)
+
+    # ax2 =axes[1].twinx()
+    # # ax2.plot(R,pba.GRB.get_dyn_arr(v_n="rho4",ishell=0,ilayer=0))
+    # ax2.plot(R,pba.GRB.get_dyn_arr(v_n="rho4",ishell=0,ilayer=0))
+    # ax2.set_yscale('log')
+
     axes[-1].set_xlabel(r"$R$ [cm]", fontsize=12)
     plt.tight_layout()
     plt.savefig(fig_dir+plot["figname"]+".pdf")
@@ -229,7 +235,8 @@ if __name__ == '__main__':
         pp = dict(main=dict(n_ism = 100., tb0=1e4, ntb=1000,rtol=1e-7,
                             lc_freqs = "array 1e9 1e18"),
                   grb=dict(save_dynamics='yes',do_rs='yes',bw_type='fsrs',do_ele = "no",do_lc = "no",do_rs_radiation="no",
-                           #method_spread='None'
+                           # method_spread='AFGPY'
+                           # exponential_rho4='no'
                            )),
         plot=dict(figname = "tophat_fsrs_energy", text="FS \& RS",
                   xlim=(1e14,1e19), ylim1=(1e-4,2), ylim2=(1e-3,1e3), rdec=False, bm=True,method_ele_fs='mix',

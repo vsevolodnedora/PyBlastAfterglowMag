@@ -109,26 +109,11 @@ class PlotSpectra:
             xkey = "times_freqs"
             ykey = "freqs"
 
-        if v_n == "fluxdense":
-            is_spec = False
-        else:
-            is_spec = True
+        if v_n == "fluxdense": is_spec = False
+        else: is_spec = True
 
         ele_syn_ssc = v_n
         if v_n == "syn_tau": ele_syn_ssc = "syn_a"
-
-
-        # if v_n == "n_ele": ele_syn_ssc = "n_ele"
-        # elif v_n == "syn_f": ele_syn_ssc = "syn_f"
-        # elif v_n == "syn_j": ele_syn_ssc = "syn_j"
-        # elif v_n == "syn_a": ele_syn_ssc = "syn_a"
-        # elif v_n == "ssc_j": ele_syn_ssc = "ssc_j"
-        # elif v_n == "ssc_f": ele_syn_ssc = "ssc_f"
-        # elif v_n == "syn_tau": ele_syn_ssc = "syn_a"
-        # elif v_n == "syn_i": ele_syn_ssc = "syn_i"
-        # elif v_n == "total_f": ele_syn_ssc = "total_f"
-        # elif v_n == "fluxdens": ele_syn_ssc = "fluxdens"
-        # else: raise KeyError(f"Key {v_n} is not recognized")
 
         if v_n == "total_f":
             spec_syn=ej.get_lc(key="syn_j"+'_'+fs_or_rs if ele_syn_ssc != "fluxdens" else "fluxdens",
@@ -136,6 +121,16 @@ class PlotSpectra:
                            ishell=ishell,ilayer=ilayer,
                            spec=is_spec,sum_shells_layers=sum_shells_layers)
             spec_ssc=ej.get_lc(key="ssc_j"+'_'+fs_or_rs if ele_syn_ssc != "fluxdens" else "fluxdens",
+                               xkey=xkey,ykey=ykey,freq=None,time=None,
+                               ishell=ishell,ilayer=ilayer,
+                               spec=is_spec,sum_shells_layers=sum_shells_layers)
+            spec = spec_syn + spec_ssc
+        elif v_n == "total_i":
+            spec_syn=ej.get_lc(key="syn_i"+'_'+fs_or_rs if ele_syn_ssc != "fluxdens" else "fluxdens",
+                               xkey=xkey,ykey=ykey,freq=None,time=None,
+                               ishell=ishell,ilayer=ilayer,
+                               spec=is_spec,sum_shells_layers=sum_shells_layers)
+            spec_ssc=ej.get_lc(key="ssc_i"+'_'+fs_or_rs if ele_syn_ssc != "fluxdens" else "fluxdens",
                                xkey=xkey,ykey=ykey,freq=None,time=None,
                                ishell=ishell,ilayer=ilayer,
                                spec=is_spec,sum_shells_layers=sum_shells_layers)
@@ -261,19 +256,22 @@ class PlotSpectra:
             B = ej.get_dyn_arr(v_n="B" if fs_or_rs=="fs" else "B_rs",ishell=0,ilayer=0)
             p = ej.pars[f"p_{fs_or_rs}"]
             ax.plot(xs,PlotSpectra._gam_to_nu(gam=gamma_min,B=B,p=p,syn_or_ssc=v_n),
-                    color='black', linewidth=1, linestyle=":", label=r"$\nu'_{\rm m}$")
+                    color='black', linewidth=1, linestyle=":",
+                    label=r"$\nu'_{\rm m}$" if not v_n.__contains__("ssc") else r"$\nu'_{\rm m;\, ssc}$")
         if task_i["plot_nuc"]:
             gamma_c = ej.get_dyn_arr(v_n="gamma_c" if fs_or_rs=="fs" else "gamma_c_rs",ishell=0,ilayer=0)
             B = ej.get_dyn_arr(v_n="B" if fs_or_rs=="fs" else "B_rs",ishell=0,ilayer=0)
             p = ej.pars[f"p_{fs_or_rs}"]
             ax.plot(xs,PlotSpectra._gam_to_nu(gam=gamma_c,B=B,p=p,syn_or_ssc=v_n),
-                    color='black', linewidth=1, linestyle="--", label=r"$\nu'_{\rm c}$")
+                    color='black', linewidth=1, linestyle="--",
+                    label=r"$\nu'_{\rm c}$" if not v_n.__contains__("ssc") else r"$\nu'_{\rm c;\, ssc}$")
         if task_i["plot_nuM"]:
             gamma_max = ej.get_dyn_arr(v_n="gamma_max" if fs_or_rs=="fs" else "gamma_max_rs",ishell=0,ilayer=0)
             B = ej.get_dyn_arr(v_n="B" if fs_or_rs=="fs" else "B_rs",ishell=0,ilayer=0)
             p = ej.pars[f"p_{fs_or_rs}"]
             ax.plot(xs,PlotSpectra._gam_to_nu(gam=gamma_max,B=B,p=p,syn_or_ssc=v_n),
-                    color='black', linewidth=1, linestyle="-.", label=r"$\nu'_{\rm M}$")
+                    color='black', linewidth=1, linestyle="-.",
+                    label=r"$\nu'_{\rm M}$" if not v_n.__contains__("ssc") else r"$\nu'_{\rm M;\, ssc}$")
         if task_i["plot_nua"]:
             Gamma_sh = ej.get_dyn_arr(v_n="GammaFsh" if fs_or_rs=="fs" else "GammaRsh",ishell=0,ilayer=0)
             p = ej.pars[f"p_{fs_or_rs}"]
@@ -307,9 +305,10 @@ class PlotSpectra:
         return ax
 
 
-def plot_spectra_evolution(ej:PBA.Ejecta, fs_or_rs:str, tasks:dict,title:str or None, figname:str,show:bool):
+def plot_spectra_evolution(ej:PBA.Ejecta, fs_or_rs:str, tasks:dict,title:str or None,
+                           figsize:tuple, figname:str,show:bool):
     n_tasks = len(tasks.keys())
-    fig, axes = plt.subplots(ncols=1,nrows=n_tasks,sharex='all',layout='constrained',figsize=(5,2+n_tasks*1.5))
+    fig, axes = plt.subplots(ncols=1,nrows=n_tasks,sharex='all',layout='constrained',figsize=figsize)
     if not hasattr(axes,'__len__'):
         axes = [axes]
     i_plot = 0
@@ -418,7 +417,7 @@ def plot_emission_region_prop(ej:PBA.Ejecta,fs_or_rs:str,xlim:tuple,task:dict,is
     x = ej.get_dyn_arr(v_n="tburst",ishell=ishell,ilayer=ilayer)
     r = ej.get_dyn_arr(v_n="R",ishell=ishell,ilayer=ilayer)
     Gamma_sh = ej.get_dyn_arr(v_n="GammaFsh" if fs_or_rs=="fs" else "GammaRsh",ishell=ishell,ilayer=ilayer)
-    dr = ej.get_dyn_arr(v_n="thickness" if fs_or_rs=="fs" else "thickness_rs",ishell=ishell,ilayer=ilayer)
+    dr = ej.get_dyn_arr(v_n="thickness" if fs_or_rs=="fs" else "thichness_rs",ishell=ishell,ilayer=ilayer)
     mass = ej.get_dyn_arr(v_n="M2" if fs_or_rs=="fs" else "M3",ishell=ishell,ilayer=ilayer)
     dens = ej.get_dyn_arr(v_n="rho2" if fs_or_rs=="fs" else "rho3",ishell=ishell,ilayer=ilayer)
     vol = mass / dens
@@ -427,6 +426,17 @@ def plot_emission_region_prop(ej:PBA.Ejecta,fs_or_rs:str,xlim:tuple,task:dict,is
     # ax.plot(
     #     x, PBA.utils.cgs.c/r**2
     # )
+
+
+    gamma_max = ej.get_dyn_arr(v_n="gamma_max" if fs_or_rs=="fs" else "gamma_max_rs",ishell=ishell,ilayer=ilayer)
+    gamma_min = ej.get_dyn_arr(v_n="gamma_min" if fs_or_rs=="fs" else "gamma_min_rs",ishell=ishell,ilayer=ilayer)
+    B = ej.get_dyn_arr(v_n="B" if fs_or_rs=="fs" else "B_rs",ishell=ishell,ilayer=ilayer)
+    delta_t_syn = PBA.utils.cgs.sigmaT * gamma_max * gamma_max * B * B / (6. * np.pi * PBA.utils.cgs.me * PBA.utils.cgs.c)
+    tcomov = ej.get_dyn_arr(v_n="tcomov",ishell=ishell,ilayer=ilayer)
+    delta_t_adi = ((gamma_max*gamma_max-1.)/(3.*gamma_max))[:-1] * \
+                  ((tcomov[1:]-tcomov[:-1])**-1 * (1. - vol[:-1] / vol[1:]))
+
+
 
 
     sp = PlotSpectra()
@@ -458,6 +468,7 @@ def plot_emission_region_prop(ej:PBA.Ejecta,fs_or_rs:str,xlim:tuple,task:dict,is
     # ax1.plot(xs, tot_ele,color='red',label=r'$u_{\rm ele}$')
     ax1.set_ylabel(r"Energy density of radiation",color='black',fontsize=12)
     # ax1.legend()
+    # ax1.plot(x, gamma_min)
 
 
     ax = axes[1]
@@ -470,13 +481,6 @@ def plot_emission_region_prop(ej:PBA.Ejecta,fs_or_rs:str,xlim:tuple,task:dict,is
     ax2.set_ylabel(r"Compton optical depth",color='magenta',fontsize=12)
     # ax2.legend()
 
-    gamma_max = ej.get_dyn_arr(v_n="gamma_max" if fs_or_rs=="fs" else "gamma_max_rs",ishell=ishell,ilayer=ilayer)
-    gamma_min = np.full_like(x,10000)#ej.get_dyn_arr(v_n="gamma_min" if fs_or_rs=="fs" else "gamma_min_rs",ishell=ishell,ilayer=ilayer)
-    B = ej.get_dyn_arr(v_n="B" if fs_or_rs=="fs" else "B_rs",ishell=ishell,ilayer=ilayer)
-    delta_t_syn = PBA.utils.cgs.sigmaT * gamma_max * gamma_max * B * B / (6. * np.pi * PBA.utils.cgs.me * PBA.utils.cgs.c)
-    tcomov = ej.get_dyn_arr(v_n="tcomov",ishell=ishell,ilayer=ilayer)
-    delta_t_adi = ((gamma_max*gamma_max-1.)/(3.*gamma_max))[:-1] * \
-                  ((tcomov[1:]-tcomov[:-1])**-1 * (1. - vol[:-1] / vol[1:]))
 
     # ax = axes[2]
     # # ax.plot(x, delta_t_syn, color='blue', label=r"$\dot{\gamma}'_{\rm syn}$")
@@ -584,39 +588,44 @@ def tasks_fs(do_run:bool, plot:bool, struct:dict, P:dict):
         type="a",run=do_run
     )
 
-    plot_cooling_terms(dyn_fs__rad_fs__num__ssa__ssc.GRB,fs_or_rs="fs",xlim=(3e3,1e9),
-                       task=dict(show=True,figname="ele_cool_terms",zlabel=r"$\dot{\gamma}$",title="Cooling terms",
-                                 set_under='blue',set_over='red',
-                                 plot_gm=True,plot_gc=True,plot_gM=True))
-    #
-    plot_emission_region_prop(dyn_fs__rad_fs__num__ssa__ssc.GRB,fs_or_rs="fs",xlim=(3e3,1e9),
-                              task=dict(show=True,figname="rad_ele_energy_dens_fs"))
+    # plot_cooling_terms(dyn_fs__rad_fs__num__ssa__ssc.GRB,fs_or_rs="fs",xlim=(3e3,1e9),
+    #                    task=dict(show=True,figname="ele_cool_terms",zlabel=r"$\dot{\gamma}$",title="Cooling terms",
+    #                              set_under='blue',set_over='red',
+    #                              plot_gm=True,plot_gc=True,plot_gM=True))
+    # #
+    # plot_emission_region_prop(dyn_fs__rad_fs__num__ssa__ssc.GRB,fs_or_rs="fs",xlim=(3e3,1e9),
+    #                           task=dict(show=True,figname="rad_ele_energy_dens_fs"))
 
     plot_spectra_evolution(
         ej=dyn_fs__rad_fs__num__ssa__ssc.GRB,fs_or_rs='fs',
         title="FS comoving spectra evolution", figname="spec_dyn_fs__rad_fs__num__ssa__ssc", show=plot,
+        figsize=(5,4),
         tasks=dict(
-            n_ele=dict(norm_method='/integ *y',ylabel=r"$\gamma_{e}$",
-                       zlabel=r"$(\gamma_{e} N_{e}) / N_{e;\, \rm tot}$",
-                       norm="LogNorm",mode="contour",
-                       plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False),
+            # n_ele=dict(norm_method='/integ *y',ylabel=r"$\gamma_{e}$",
+            #            zlabel=r"$(\gamma_{e} N_{e}) / N_{e;\, \rm tot}$",
+            #            norm="LogNorm",mode="contour", xlim=(3e3,1e9),
+            #            plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False),
             # yg=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$Y_g$ [cgs]",
             #         norm="LogNorm",
             #         plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False),
-            syn_j=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm syn}$ [cgs]",
-                       norm="LogNorm",ylim=(1e12,1e24),vmin=1e-9,vmax=1e-3,mode="contour",
-                       plot_num=True,plot_nuc=True,plot_nuM=True,plot_nua=False,plot_tau1=False,plot_max=True),
-            ssc_j=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm ssc}$ [cgs]",
-                     norm="LogNorm", ylim=(1e18,1e30),vmin=1e-9,vmax=1e-3,mode="contour",
-                     plot_num=True,plot_nuc=True,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=True),
-            syn_a=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$\alpha'_{\rm syn}$ [cgs]",
-                     norm="LogNorm",mode="contour",
-                     plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=False,
-                     ylim=(1e6,1e12)),
+            # syn_j=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm syn}$ [cgs]",
+            #            norm="LogNorm",ylim=(1e12,1e24), xlim=(3e3,1e9),vmin=1e-9,vmax=1e-3,mode="contour",
+            #            plot_num=True,plot_nuc=True,plot_nuM=True,plot_nua=False,plot_tau1=False,plot_max=True),
+            # ssc_j=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm ssc}$ [cgs]",
+            #          norm="LogNorm", ylim=(1e18,1e30), xlim=(3e3,1e9),vmin=1e-9,vmax=1e-3,mode="contour",
+            #          plot_num=True,plot_nuc=True,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=True),
+            # syn_a=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$\alpha'_{\rm syn}$ [cgs]",
+            #          norm="LogNorm",mode="contour",
+            #          plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=False,
+            #          ylim=(1e6,1e12), xlim=(3e3,1e9)),
             syn_tau=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$\tau'_{\rm ssa}$",
                      norm="SymLogNorm",mode=None,
                      plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=True,plot_tau1=True,plot_max=False,
-                     ylim=(1e6,1e14), xlim=(3e3,1e9))
+                     ylim=(1e6,1e14), xlim=(3e3,1e9)),
+            total_i=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' I'_{\rm total}$ [cgs]",
+                     norm="LogNorm",mode="contour",
+                     plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=False,
+                     ylim=(1e7,1e28), xlim=(3e3,1e9), vmin=1e-15,vmax=1e-3),# vmin=1e-17,vmax=1e-3
         ))
 
 
@@ -631,33 +640,69 @@ def tasks_rs(do_run:bool, plot:bool, struct:dict, P:dict):
         type="a",run=do_run
     )
 
-    # plot_emission_region_prop(dyn_fs__rad_rs__num__ssa__ssc.GRB,fs_or_rs="rs")
+    plot_cooling_terms(dyn_fs__rad_rs__num__ssa__ssc.GRB,fs_or_rs="rs",xlim=(3e3,1e9),
+                       task=dict(show=True,figname="ele_cool_terms_rs",zlabel=r"$\dot{\gamma}$",title="Cooling terms",
+                                 set_under='blue',set_over='red',
+                                 plot_gm=True,plot_gc=True,plot_gM=True))
+    #
+    plot_emission_region_prop(dyn_fs__rad_rs__num__ssa__ssc.GRB,fs_or_rs="rs",xlim=(3e3,1e9),
+                              task=dict(show=True,figname="rad_ele_energy_dens_rs"))
 
+    # plot_spectra_evolution(
+    #     ej=dyn_fs__rad_rs__num__ssa__ssc.GRB,fs_or_rs='rs',
+    #     title="RS comoving spectra evolution", figname="spec_dyn_fs__rad_rs__num__ssa__ssc", show=plot,
+    #     tasks=dict(
+    #         n_ele=dict(norm_method='/integ *y',ylabel=r"$\gamma_{e}$",
+    #                    zlabel=r"$(\gamma_{e} N_{e}) / N_{e;\, \rm tot}$",
+    #                    norm="LogNorm",
+    #                    plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False,
+    #                    ylim=(1,1e5)),
+    #         synch=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm syn}$ [cgs]",
+    #                    norm="LogNorm",
+    #                    plot_num=True,plot_nuc=True,plot_nuM=True,plot_nua=False,plot_tau1=False,plot_max=True),
+    #         ssc=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm ssc}$ [cgs]",
+    #                  norm="LogNorm",
+    #                  plot_num=True,plot_nuc=True,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=True),
+    #         ssa=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$\alpha'_{\rm syn}$ [cgs]",
+    #                  norm="LogNorm",
+    #                  plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=False,
+    #                  ylim=(1e6,1e14)),
+    #         tau=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$\tau'_{\rm ssa}$",
+    #                  norm="SymLogNorm",
+    #                  plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=True,plot_tau1=True,plot_max=False,
+    #                  ylim=(1e6,1e14), xlim=(3e3,1e7))
+    #     ))
     plot_spectra_evolution(
         ej=dyn_fs__rad_rs__num__ssa__ssc.GRB,fs_or_rs='rs',
-        title="RS comoving spectra evolution", figname="spec_dyn_fs__rad_rs__num__ssa__ssc", show=plot,
+        title="FS comoving spectra evolution", figname="spec_dyn_fsrs__rad_rs__num__ssa__ssc", show=plot,
         tasks=dict(
             n_ele=dict(norm_method='/integ *y',ylabel=r"$\gamma_{e}$",
                        zlabel=r"$(\gamma_{e} N_{e}) / N_{e;\, \rm tot}$",
-                       norm="LogNorm",
+                       norm="LogNorm",mode=None,#"contour",
                        plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False,
-                       ylim=(1,1e5)),
-            synch=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm syn}$ [cgs]",
-                       norm="LogNorm",
+                       ylim=(1,1e4)),
+            # yg=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$Y_g$ [cgs]",
+            #         norm="LogNorm",
+            #         plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False),
+            syn_j=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm syn}$ [cgs]",
+                       norm="LogNorm",ylim=(1e7,1e24),mode=None,#,vmin=1e-9,vmax=1e-3 "contour",
                        plot_num=True,plot_nuc=True,plot_nuM=True,plot_nua=False,plot_tau1=False,plot_max=True),
-            ssc=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm ssc}$ [cgs]",
-                     norm="LogNorm",
-                     plot_num=True,plot_nuc=True,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=True),
-            ssa=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$\alpha'_{\rm syn}$ [cgs]",
-                     norm="LogNorm",
-                     plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=False,
-                     ylim=(1e6,1e14)),
-            tau=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$\tau'_{\rm ssa}$",
-                     norm="SymLogNorm",
-                     plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=True,plot_tau1=True,plot_max=False,
-                     ylim=(1e6,1e14), xlim=(3e3,1e7))
+            ssc_j=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm ssc}$ [cgs]",
+                       norm="LogNorm", ylim=(1e16,1e28),mode=None,#,vmin=1e-9,vmax=1e-3 "contour",
+                       plot_num=True,plot_nuc=True,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=True),
+            # syn_a=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$\alpha'_{\rm syn}$ [cgs]",
+            #          norm="LogNorm",mode="contour",
+            #          plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=False,
+            #          ylim=(1e6,1e12)),
+            syn_tau=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$\tau'_{\rm ssa}$",
+                         norm="SymLogNorm",mode=None,
+                         plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=True,plot_tau1=True,plot_max=False,
+                         ylim=(1e7,1e14), xlim=(3e3,1e7)),
+            total_i=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' I'_{\rm total}$ [cgs]",
+                         norm="LogNorm",mode=None,#"contour",
+                         plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=False,
+                         ylim=(1e7,1e28), xlim=(3e3,1e7)),# ,vmin=1e-15,vmax=1e-3 vmin=1e-17,vmax=1e-3
         ))
-
 
 
 def tasks_fs_comparison(do_run:bool, plot:bool, struct:dict, P:dict):
@@ -828,7 +873,7 @@ if __name__ == '__main__':
     )
 
     # --- fs -- fs ---
-    tasks_fs(do_run=False, plot=plot, struct=struct, P=P)
+    tasks_fs(do_run=do_run, plot=plot, struct=struct, P=P)
     # tasks_fs_comparison(do_run=do_run, plot=plot, struct=struct, P=P)
 
     # --- fsrs -- rs ---

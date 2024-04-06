@@ -403,12 +403,13 @@ private:
                                              "ssc_f_fs");
                     Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ssc.j_all,
                                              "ssc_j_fs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ssc.i_all,
+                                             "ssc_i_fs");
                 }
 
 
                 /// save spectra of the reverse shock
                 if (bw->getPars()->do_rs_radiation){
-
                     /// save electron spectrum if electrons are numerically evolved
                     if (bw->getPars()->p_mphys_rs->m_eleMethod != METHODS_SHOCK_ELE::iShockEleAnalyt) {
                         Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ele.f_all,
@@ -438,6 +439,8 @@ private:
                                                  "ssc_f_rs");
                         Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ssc.j_all,
                                                  "ssc_j_rs");
+                        Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ssc.i_all,
+                                                 "ssc_i_rs");
                     }
                 }
                 grp.close();

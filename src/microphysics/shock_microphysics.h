@@ -76,7 +76,8 @@ double computeIntensity(const double em_lab, const double dtau, METHOD_TAU m_tau
     /// from Dermer+09 book
     double u = 1. / 2. + exp(-dtau) / dtau - (1 - exp(-dtau)) / (dtau * dtau);
     double intensity_approx = dtau > 1.e-3 ? em_lab * (3. * u / dtau) : em_lab;
-
+//    if (dtau > 1)
+//        int z = 1;
     // correction factor to emissivity from absorption
     // ( 1 - e^(-tau) ) / tau  (on front face)
     // back face has extra factor ~ e^-beta_shock/(mu-beta_shock)
@@ -1476,12 +1477,13 @@ public: // -------------------- NUMERIC -------------------------------- //
             syn.j[i] /= n_ele_out;
             syn.a[i] = syn.a[i] / n_ele_out * n_prime; // absorption (depth) requires the comoving particle density
             double dtau = syn.a[i]*dr_comov;
-            syn.intensity[i] = computeIntensity(syn.j[i],dtau, METHOD_TAU::iAPPROX);
+            syn.intensity[i] = computeIntensity(syn.j[i], dtau, METHOD_TAU::iAPPROX);
             if (dtau-1. < _min and dtau-1.>0) {
                 _min = dtau - 1.;
                 nu_tau = syn.e[i];
             }
         }
+
 
         /// compute compton parameter for each electron factor O(n^2 algorithm) TODO fix
 //        std::fill(ele.yg.begin(), ele.yg.end(),0.);
@@ -1522,14 +1524,21 @@ public: // -------------------- NUMERIC -------------------------------- //
 //        std::cout << std::accumulate(syn.a.begin(),syn.a.end(),0.)<<"\n";
 
         if (m_methods_ssc != METHOD_SSC::inoSSC) {
-            for (size_t i = 0; i < ssc.numbins; i++)
+            for (size_t i = 0; i < ssc.numbins; i++) {
                 ssc.j[i] /= n_ele_out;
+                ssc.a[i] = ssc.a[i] / n_ele_out * n_prime; // absorption (depth) requires the comoving particle density
+                double dtau = ssc.a[i]*dr_comov;
+                ssc.intensity[i] = computeIntensity(ssc.j[i], dtau, METHOD_TAU::iAPPROX);
 //            if (m_methods_ssa != METHODS_SSA::iSSAoff)
 //                for (size_t i = 0; i < ssc.numbins; i++)
 //                    ssc.a[i] /= n_ele_out;
+            }
         }
         /// compute comoving ssc radiation intensity TODO
-
+//        std::cout << std::accumulate(syn.j.begin(),syn.j.end(),0.)<<"\n";
+//        std::cout << std::accumulate(syn.intensity.begin(),syn.intensity.end(),0.)<<"\n";
+//        std::cout << std::accumulate(ssc.j.begin(),ssc.j.end(),0.)<<"\n";
+//        std::cout << std::accumulate(ssc.intensity.begin(),ssc.intensity.end(),0.)<<"\n";
 
         /// store electron spectrum
         ele.save_to_all(it);

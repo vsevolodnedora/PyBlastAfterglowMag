@@ -421,7 +421,7 @@ public:
         }
         return do_terminate;
     }
-    /// check if to terminate the evolution
+    /// check if to terminate lateral spreading
     bool isToStopLateralExpansion( double * sol, size_t i ) {
         double itheta = sol[i + SOL::QS::itheta];
         double iEint2 = sol[i + SOL::QS::iEint2];
@@ -1576,19 +1576,19 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
         switch (p_pars->method_limit_spread) {
 
             case iNone:
-                dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
+                dthetadr = p_spread->getDthetaDr(Gamma, GammaSh, R, gammaAdi, theta);
                 break;
             case iGamma0Frac:
                 if (Gamma*beta < p_pars->fraction_of_mom0_when_spread_start*p_pars->mom0)
-                    dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
+                    dthetadr = p_spread->getDthetaDr(Gamma, GammaSh, R, gammaAdi, theta);
                 break;
             case iGammaVal:
                 if (Gamma*beta < p_pars->value_of_mom_when_spread_start)
-                    dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
+                    dthetadr = p_spread->getDthetaDr(Gamma, GammaSh, R, gammaAdi, theta);
                 break;
             case iRd:
                 if (R > p_pars->Rd)
-                    dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
+                    dthetadr = p_spread->getDthetaDr(Gamma, GammaSh, R, gammaAdi, theta);
                 break;
         }
     }
@@ -1816,19 +1816,19 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
         switch (p_pars->method_limit_spread) {
 
             case iNone:
-                dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
+                dthetadr = p_spread->getDthetaDr(Gamma, GammaSh, R, gammaAdi, theta);
                 break;
             case iGamma0Frac:
                 if (Gamma*beta < p_pars->fraction_of_mom0_when_spread_start*p_pars->mom0)
-                    dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
+                    dthetadr = p_spread->getDthetaDr(Gamma, GammaSh, R, gammaAdi, theta);
                 break;
             case iGammaVal:
                 if (Gamma*beta < p_pars->value_of_mom_when_spread_start)
-                    dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
+                    dthetadr = p_spread->getDthetaDr(Gamma, GammaSh, R, gammaAdi, theta);
                 break;
             case iRd:
                 if (R > p_pars->Rd)
-                    dthetadr = p_spread->getDthetaDr(Gamma, R, gammaAdi, theta);
+                    dthetadr = p_spread->getDthetaDr(Gamma, GammaSh, R, gammaAdi, theta);
                 break;
         }
     }

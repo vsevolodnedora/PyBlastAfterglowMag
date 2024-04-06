@@ -89,19 +89,17 @@ public:
 
     void setBaseParams(std::unique_ptr<EjectaID2> & id, StrDbMap & pars, StrStrMap & opts, size_t ilayer, size_t ii_eq){
 
-        double nism, A0, s, r_ej, r_ism,  a, theta_max;
-
         // set parameters for ISM density
-        nism = getDoublePar("n_ism", pars, AT, p_log, -1, true);//pars.at("nism");
-        A0 = getDoublePar("A0", pars, AT,p_log,-1,false);//pars.at("A0");
-        s = getDoublePar("s", pars, AT,p_log,-1,false);//pars.at("s");
-        r_ej = getDoublePar("r_ej", pars, AT,p_log,-1,false);//pars.at("r_ej");
-        r_ism = getDoublePar("r_ism", pars, AT,p_log,-1,false);//pars.at("r_ism");
+        double nism = getDoublePar("n_ism", pars, AT, p_log, -1, true);//pars.at("nism");
+        double A0 = getDoublePar("A0", pars, AT,p_log,-1,false);//pars.at("A0");
+        double s = getDoublePar("s", pars, AT,p_log,-1,false);//pars.at("s");
+        double r_ej = getDoublePar("r_ej", pars, AT,p_log,-1,false);//pars.at("r_ej");
+        double r_ism = getDoublePar("r_ism", pars, AT,p_log,-1,false);//pars.at("r_ism");
         p_dens->setPars(nism, A0, s, r_ej, r_ism, true);
 
         // spreading
-        a = getDoublePar("a", pars, AT,p_log,-1,false);//pars.at("a");
-        theta_max = getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false);//pars.at("theta_max");
+        double a = getDoublePar("a", pars, AT,p_log,-1,false);//pars.at("a");
+        double theta_max = getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false);//pars.at("theta_max");
 
         // radiative losses
         p_pars->eps_rad   = getDoublePar("epsilon_e_rad", pars, AT,p_log,0.,false);// pars.at("epsilon_e_rad");
@@ -173,18 +171,20 @@ public:
                 method_spread = LatSpread::iAdi;
             else if(opts.at(opt) == "AA")
                 method_spread = LatSpread::iAA;
+            else if(opts.at(opt) == "our")
+                method_spread = LatSpread::iOUR;
             else{
                 (*p_log)(LOG_ERR,AT) << " option for: " << opt
                                       <<" given: " << opts.at(opt)
                                       << " is not recognized "
                                       << " Possible options: "
-                                      << " None " <<" AFGPY " << " Adi " << " AA "
+                                      << " None " <<" AFGPY " << " Adi " << " AA " << " our "
                                       << " Exiting...\n";
 //                std::cerr << AT << "\n";
                 exit(1);
             }
         }
-        p_spread->setPars(a,theta_max,
+        p_spread->setPars(a, theta_max,
                           id->theta_core,
                           id->theta_wing, method_spread);
 

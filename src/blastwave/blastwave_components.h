@@ -941,7 +941,7 @@ private:
 class LatSpread{
 public:
     LatSpread() = default;
-    enum METHODS { iNULL, iAdi, iAA, iAFGPY };
+    enum METHODS { iNULL, iAdi, iAA, iAFGPY, iOUR };
     void setPars(const double aa, const double theta_max, const double thetaC, const double thetaW, METHODS method ){
         m_aa = aa; m_theta_max=theta_max; m_thetaC = thetaC; m_thetaW=thetaW; m_method=method;
         if ((thetaC < 0) || (thetaW < 0)){
@@ -949,20 +949,23 @@ public:
             exit(1);
         }
     }
-    double getDthetaDr(const double &Gamma, const double &R, const double &gammaAdi, const double &theta){
+    double getDthetaDr(double Gamma, double GammaSh, double R, double gammaAdi, double theta){
         double dthetadr;
         switch (m_method) {
             case iNULL:
                 dthetadr = 0.;
                 break;
             case iAdi:
-                dthetadr = dthetadr_Adi(Gamma, R, gammaAdi, theta);
+                dthetadr = dthetadr_Adi(Gamma, GammaSh, R, gammaAdi, theta);
                 break;
             case iAA:
-                dthetadr = dthetadr_AA(Gamma, R, gammaAdi, theta);
+                dthetadr = dthetadr_AA(Gamma, GammaSh, R, gammaAdi, theta);
                 break;
             case iAFGPY:
-                dthetadr = dthetadr_afterglopy(Gamma, R, gammaAdi, theta);
+                dthetadr = dthetadr_afterglopy(Gamma, GammaSh, R, gammaAdi, theta);
+                break;
+            case iOUR:
+                dthetadr = dthetadr_our(Gamma, GammaSh, R, gammaAdi, theta);
                 break;
         }
         return dthetadr;
@@ -977,7 +980,7 @@ private:
  * @param theta
  * @return
  */
-    [[nodiscard]] double dthetadr_Adi(const double Gamma, const double R, const double gammaAdi, const double theta) const {
+    [[nodiscard]] double dthetadr_Adi(double Gamma, double GammaSh, double R, double gammaAdi, double theta) const {
         //    vperp = np.sqrt(gammaAdi * (gammaAdi - 1) * (Gamma - 1) / (1 + gammaAdi * (Gamma - 1))) * cgs.c
         double vperp = sqrt(gammaAdi * (gammaAdi - 1.0) * (Gamma - 1.0) / (1.0 + gammaAdi * (Gamma - 1.0))) * CGS::c;
         //        return vperp / R / Gamma / betaSh / cgs.c if (theta < thetamax) & useSpread else 0.
@@ -993,7 +996,7 @@ private:
      * @param theta
      * @return
      */
-    [[nodiscard]] double dthetadr_AA(const double Gamma, const double R, const double gammaAdi, const double theta) const{
+    [[nodiscard]] double dthetadr_AA(double Gamma, double GammaSh, double R, double gammaAdi, double theta) const{
         //1. / (R * Gamma ** (1. + aa) * theta ** (aa)) if (theta < thetamax) & useSpread else 0.
         double Q0 = 2.;
         double g = Gamma;
@@ -1015,7 +1018,7 @@ private:
      * which are taken from the 'afterglopy' code.
      * Works only for 'adaptive" eats
      */
-    [[nodiscard]] double dthetadr_afterglopy(const double Gamma, const double R, const double gammaAdi, const double theta) const{
+    [[nodiscard]] double dthetadr_afterglopy(double Gamma, double GammaSh, double R, double gammaAdi, double theta) const{
         if (m_thetaC < 0){
             std::cerr << " thetaC is not set!" << "\n";
             std::cerr << AT << "\n";
@@ -1029,9 +1032,10 @@ private:
         double thC = m_thetaC;
         double th0 = m_theta_b0;
         double bes = 4*u*Gamma/(4*u*u+3);
-        if((th < 0.5 * CGS::pi) && (Q0 * u * thC < 1))
-        {
-            double bew = 0.5*sqrt((2*u*u+3)/(4*u*u+3))*bes/Gamma;
+        double val = sqrt((2*u*u+3)/(4*u*u+3));
+        double bew = 0.5*val*bes/Gamma;
+
+        if((th < 0.5 * CGS::pi) && (Q0 * u * thC < 1)){
             double fac = u*thC*Q < 1.0 ? 1.0 : Q*(1-Q0*u*thC) / (Q-Q0);
             if (th0 < thC)
                 fac *= tan(0.5*th0)/tan(0.5*thC); //th0/thC;
@@ -1045,8 +1049,25 @@ private:
         return dThdt * (1. / bes / CGS::c );
     }
 
+    [[nodiscard]] double dthetadr_our(double Gamma, double GammaSh, double R, double gammaAdi, double theta) const{
+        double Q0 = 2.0;
+        double Q = sqrt(2.0)*3.0;
+        double mom = EQS::MomFromGam(GammaSh);
+        double vperp = sqrt(gammaAdi * (gammaAdi - 1.0) * (Gamma - 1.0)
+                     / (1.0 + gammaAdi * (Gamma - 1.0))) * CGS::c; // Huang+2000
+        if((theta < 0.5 * CGS::pi) && (Q0 * mom * m_thetaC < 1)){
+            double fac = 1.;
+            if (mom * m_thetaC * Q >= 1.0)
+                fac = Q * (1. - Q0 * mom * m_thetaC) / (Q - Q0);  // Ryan+2019
+            if (m_theta_b0 < m_thetaC)
+                fac *= tan(0.5*m_theta_b0)/tan(0.5*m_thetaC); //th0/thC; // Ryan+2019
+            double beta = EQS::BetaFromGamma(GammaSh);
+            return vperp / R / GammaSh / beta / CGS::c * fac;
+        }
+        return 0.;
+    }
 
-    [[nodiscard]] double dthetadr_afterglopy_old(const double Gamma, const double R, const double gammaAdi, const double theta) const{
+    [[nodiscard]] double dthetadr_afterglopy_old(double Gamma, double GammaSh, double R, double gammaAdi, double theta) const{
 
         if (m_thetaC < 0){
             std::cerr << " thetaC is not set!" << "\n";
