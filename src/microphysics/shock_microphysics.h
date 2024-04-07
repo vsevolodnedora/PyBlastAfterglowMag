@@ -31,7 +31,7 @@ enum METHODS_SHOCK_ELE { iShockEleAnalyt, iShockEleNum, iShockEleMix };
 
 enum METHOD_TAU { iAPPROX, iTHICK, iSMOOTH, iSHARP };
 
-enum METHODS_SYNCH { iWSPN99, iJOH06, iDER06, iMARG21, iNumeric, iGSL, iCSYN };
+enum METHODS_SYNCH { iWSPN99, iJOH06, iDER06, iMARG21, iNumeric, iGSL, iCSYN, iBessel };
 
 enum METHOD_SSC { inoSSC, iNumSSC };
 
@@ -451,6 +451,13 @@ public:
                 }
                 val_synch = METHODS_SYNCH::iGSL;
             }
+            else if(opts.at(opt) == "Bessel") {
+                if (m_eleMethod == METHODS_SHOCK_ELE::iShockEleAnalyt){
+                    (*p_log)(LOG_ERR,AT) << " options synchrotron Bessel and analytic electron evol. are incompatible\n";
+                    exit(1);
+                }
+                val_synch = METHODS_SYNCH::iBessel;
+            }
             else if(opts.at(opt) == "CSYN") {
                 if (m_eleMethod == METHODS_SHOCK_ELE::iShockEleAnalyt){
                     (*p_log)(LOG_ERR,AT) << " options synchrotron CSYN and analytic electron evol. are incompatible\n";
@@ -482,7 +489,7 @@ public:
 //                do_ssa = false;
             }
             else if(opts.at(opt) == "numeric") {
-                if (m_eleMethod != METHODS_SHOCK_ELE::iShockEleNum){
+                if (m_eleMethod == METHODS_SHOCK_ELE::iShockEleAnalyt){
                     (*p_log)(LOG_ERR,AT) << " SSC is not supported for analytic electron dsitrib. model\n";
                     exit(1);
                 }
@@ -1255,9 +1262,10 @@ public: // -------------------- NUMERIC -------------------------------- //
 
         if ((m_sychMethod != METHODS_SYNCH::iGSL)
             and (m_sychMethod != METHODS_SYNCH::iDER06)
+            and (m_sychMethod != METHODS_SYNCH::iBessel)
             and (m_sychMethod != METHODS_SYNCH::iCSYN)){
-            (*p_log)(LOG_ERR,AT) << " only GSL DER06 or CSYN synchrotron options are "
-                                    "avaialble when evolving electrons numerically. \n";
+            (*p_log)(LOG_ERR,AT) << " only GSL DER06 Bessel or CSYN synchrotron options are "
+                                    "avaialble when evolving electrons numerically / or mixed. \n";
             exit(1);
         }
 
@@ -1266,6 +1274,8 @@ public: // -------------------- NUMERIC -------------------------------- //
             syn_kernel.allocate(ele, syn, SynKernel::synchGSL);
         else if (m_sychMethod == METHODS_SYNCH::iDER06)
             syn_kernel.allocate(ele, syn, SynKernel::synchDermer);
+        else if (m_sychMethod == METHODS_SYNCH::iBessel)
+            syn_kernel.allocate(ele, syn, SynKernel::synchBessel);
         else if (m_sychMethod == METHODS_SYNCH::iCSYN)
             syn_kernel.allocate(ele, syn, SynKernel::cycSynch);
         else {
@@ -1361,7 +1371,7 @@ public: // -------------------- NUMERIC -------------------------------- //
 //        size_t n_substeps = 0;
 
         /// if cooling is too slow, we still need to evolve distribution
-        size_t min_substeps = 2;
+        size_t min_substeps = 100;
         if (delta_t >= dt/(double)min_substeps) {
             delta_t = dt/(double)min_substeps;
             n_substeps = min_substeps;
@@ -1464,6 +1474,20 @@ public: // -------------------- NUMERIC -------------------------------- //
             (*p_log)(LOG_ERR,AT) << " n_ele_out = "<<n_ele_out<<"\n";
             exit(1);
         }
+
+        /// find numerical gamma_c and compare with analytic one
+        if(m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum) {
+            double gamma_c_num = 0.;
+            for (size_t i = 1; i < ele.numbins; i++) {
+                if ((model.gamma_dot_syn(ele.e[i]) > model.gamma_dot_adi(ele.e[i])) && \
+                (model.gamma_dot_syn(ele.e[i - 1]) < model.gamma_dot_adi(ele.e[i - 1]))) {
+                    gamma_c_num = ele.e[i];
+                    break;
+                }
+            }
+            gamma_c = gamma_c_num;
+        }
+//        std::cout << " gc="<<gamma_c<<" gc_num="<<gamma_c_num<<"\n";
 
 //        for (size_t i = 0; i < syn.numbins; i++)
 //            syn.intensity[i] = computeIntensity(syn.j[i],syn.a[i]*dr_comov, METHOD_TAU::iSMOOTH);
@@ -1628,8 +1652,8 @@ public: // -------------------- NUMERIC -------------------------------- //
             if (m_methods_ssc == METHOD_SSC::iNumSSC)
                 for (size_t i = 0; i < syn.numbins-1; i++)
                     u_ssc += ssc.e[i] * ssc.j[i] * ssc.de[i];
-
-            double y = u_ssc/u_syn;
+//
+//            double y = u_ssc/u_syn;
 
             /// log result
             (*p_log)(LOG_INFO, AT) << "it=" << it
@@ -1637,10 +1661,11 @@ public: // -------------------- NUMERIC -------------------------------- //
                                    << " inj/an=" << ratio_an
                                    << " inj/num=" << ratio_num
                                    << " gm=" << gamma_min
+                                   << " gc=" << gamma_c
                                    << " gM=" << gamma_max
                                    << " u_syn=" << u_syn
                                    << " u_ssc=" << u_ssc
-                                   << " y="<<y
+//                                   << " y="<<y
                                    << " syn[" << synch_peak << "]="
                                    << synch_peak_flux//<< std::accumulate(syn.j.begin(), syn.j.end(),0.)
                                    << " nu_tau="<<nu_tau

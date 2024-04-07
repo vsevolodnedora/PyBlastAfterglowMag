@@ -177,6 +177,16 @@ public:
         m_func = m_func_;
     }
 
+    static inline double nu_crit(double B, double gam){
+        double nu_crit = (3.*CGS::qe*B*gam*gam) / (4.*M_PI*CGS::me*CGS::c);
+        return nu_crit;
+    }
+
+    static inline double nu_larmor(double B, double gam){
+        double nu_larmor = (3.*CGS::qe*B)/(2.*pi*CGS::me*CGS::c);
+        return nu_larmor;
+    }
+
     /**
      * this implements the synchrotron kernal from GSL without relying on GSL
      * @param B
@@ -371,8 +381,8 @@ public:
 #endif
     static double synchBessel(double B, double nu, double gam){
 //        double t = (4.*M_PI*CGS::me*CGS::c*nu) / (3.*CGS::qe*B*gam*gam);
-        double nu_s = (3.*CGS::qe*B*gam*gam) / (4.*M_PI*CGS::me*CGS::c);
-        double t = nu / nu_s;
+//        double nu_s = (3.*CGS::qe*B*gam*gam) / (4.*M_PI*CGS::me*CGS::c);
+        double t = nu / nu_crit(B,gam);
 //        double p_norm = (2*std::sqrt(3))*CGS::qe*CGS::qe*CGS::qe*B/(CGS::me*CGS::c*CGS::c);
         double res_;
         try {
@@ -382,6 +392,7 @@ public:
         } catch (const std::runtime_error & ){
             res_ = 0;
         }
+        // factor 2 is missing...
         res_ *= std::sqrt(3.) * std::pow(CGS::qe, 3.) * B / (CGS::me*CGS::c*CGS::c); // np.sqrt(3) * np.power(e, 3) / h * (h/mec2)
         return res_;
     }
@@ -391,8 +402,8 @@ public:
         if (gam > 2.) {
 //            emisfunc = synchGSL(B, nu, gam);
             /// ratio of the frequency to the critical synchrotron frequency from Eq. 7.34 in DermerMenon2009, argument of R(x),
-            double nu_s = (3.*CGS::qe*B*gam*gam) / (4.*M_PI*CGS::me*CGS::c); // scale synchrotron frequency
-            double x = nu / nu_s;
+//            double nu_s = (3.*CGS::qe*B*gam*gam) / (4.*M_PI*CGS::me*CGS::c); // scale synchrotron frequency
+            double x = nu / nu_crit(B,gam);
             /// Aharonian2010 Eq. D7
             double term_1_num = 1.808 * std::pow(x, 1. / 3.);
             double term_1_denom = std::sqrt(1 + 3.4 * std::pow(x, 2. / 3.));
@@ -402,8 +413,8 @@ public:
             emisfunc *= std::sqrt(3.) * std::pow(CGS::qe, 3.) * B / CGS::mec2;
         } else { //cyclotron regime
             /// Petrosian (1981) ; Chisellini 1988 Eq.8 ; Lucchini Eq.16
-            double nu_larmor = (CGS::qe*B)/(2.*pi*CGS::me*CGS::c);
-            double x = nu/nu_larmor;
+//            double nu_larmor = (CGS::qe*B)/(2.*pi*CGS::me*CGS::c);
+            double x = nu/ nu_larmor(B,gam);
             double psquared = gam*gam - 1.;
             emisfunc = (2.*psquared)/(1.+3.*psquared)*exp((2.*(1.-x))/(1.+3.*psquared)); // Eq.8 in Chiselini+98
             emisfunc *= std::sqrt(3.) * std::pow(CGS::qe, 3.) * B / CGS::mec2;
@@ -433,8 +444,9 @@ public:
 
 //        double x = 4. * M_PI * nu * CGS::me * CGS::c / (3. * CGS::qe * B * gam*gam);
         // double t = (2.*M_PI*CGS::me*CGS::c*nu) / (3.*CGS::qe*B*gam*gam);
-        double nu_s = (3.*CGS::qe*B*gam*gam) / (4.*M_PI*CGS::me*CGS::c);
-        double x = nu / nu_s;
+//        double nu_s = (3.*CGS::qe*B*gam*gam) / (4.*M_PI*CGS::me*CGS::c);
+//        double nu_s = (CGS::qe*B*gam*gam) / (4.*M_PI*CGS::me*CGS::c);
+        double x = nu / nu_crit(B,gam);
 
         double term_1_num = 1.808 * std::pow(x, 1. / 3.);
         double term_1_denom = std::sqrt(1 + 3.4 * std::pow(x, 2. / 3.));

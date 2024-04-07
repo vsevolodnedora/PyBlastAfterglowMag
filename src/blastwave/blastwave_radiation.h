@@ -1112,6 +1112,7 @@ public:
                                     m_data[BW::Q::ithickness_rs][it] * m_data[BW::Q::iGammaRsh][it - 1]);
                         if (p_mphys_rs->is_distribution_initialized)
                             p_mphys_rs->storeSynchrotronSpectrumNumericMixed(it);
+                        m_data[BW::Q::igc_rs][it] = p_mphys_rs->gamma_c; // Update (numerical method computes its own gamma_c)
                     }
                 }
             }
@@ -1135,7 +1136,7 @@ public:
             /// compute electron injection function / electron spectrum (analytically)
             p_mphys->evaluateElectronDistributionAnalytic();
 
-            /// store the result in the main storage
+            /// store analytic result in the main storage
             storeShockPropertiesAndElectronDistributionLimits(
                     it, const_cast<ElectronAndRadiaionBase *>(p_mphys->getThis()));
 
@@ -1166,6 +1167,7 @@ public:
                                 m_data[BW::Q::ithickness][it] * m_data[BW::Q::iGammaFsh][it]);
                     if (p_mphys->is_distribution_initialized)
                         p_mphys->storeSynchrotronSpectrumNumericMixed(it);
+                    m_data[BW::Q::igc][it] = p_mphys->gamma_c; // Update (numerical method computes its own gamma_c)
                 }
             }
         }

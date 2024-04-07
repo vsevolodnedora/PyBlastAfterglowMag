@@ -154,17 +154,17 @@ public:
 
         for (size_t i = 0; i < syn.numbins - 1; i++) {
             // --- old integral
-//            double res = 0.;
-//            for (size_t j = 0; j < ele.numbins - 1; j++)
-//                res += kernel[i][j] * ele.f[j] * ele.de[j];
+            double res = 0.;
+            for (size_t j = 0; j < ele.numbins - 1; j++)
+                res += kernel[i][j] * ele.f[j] * ele.de[j];
             // --- new integral
-            for (size_t j = 0; j < ele.numbins; j++)
-                tmp[j] = kernel[i][j] * ele.f[j];
-            double res_ = IntegrateSimpson38(ele.e,tmp);
+//            for (size_t j = 0; j < ele.numbins; j++)
+//                tmp[j] = kernel[i][j] * ele.f[j];
+//            double res_ = IntegrateSimpson38(ele.e,tmp);
 
 //            std::cout << res << " " << res_ << " " << res / res_ << "\n";
 
-            syn.j[i] = res_;
+            syn.j[i] = res;
 //            syn.j[i] *= 2.3443791412546505e-22 * source.B; // np.sqrt(3) * np.power(e, 3) / h * (h/mec2)
 
             if (!std::isfinite(syn.j[i]) || syn.j[i] < 0.){
@@ -324,6 +324,91 @@ public:
             ssc.f[i] = ssc.j[i] * fac / (CGS::h * ssc.e[i]); // (using T instead of dt) add SSC
 
     }
+
+    /**
+     * Define a factor that is dependent on the magnetic field B.
+     * DT = 6 * pi * me*c / (sigma_T B^2 gamma)
+     * DT = (1.29234E-9 B^2 gamma)^-1 seconds
+     * DT = (cool * gamma)^-1 seconds
+     * where B is in Gauss.
+     * @param B
+     * @return
+     */
+    double inline gamma_dot_syn(double gam) const{
+        double const_factor = CGS::sigmaT / (6.*M_PI*CGS::me*CGS::c);
+        return const_factor * source.B * source.B * gam * gam;
+    }
+
+    /**
+     * Adiabatic cooling for electron
+     * @param gam
+     * @return
+     */
+    double inline gamma_dot_adi(double gam) const{
+        return source.dlnVdt * (gam * gam - 1.) / (3. * gam);
+    }
+
+    /**
+     * Integrate SSC kernel for electrons at index 'idx' O(n)
+     * @param i
+     * @param gam
+     * @return
+     */
+    double inline gamma_dot_ssc(size_t idx, double gam) const{
+        auto & kernel = sscKernel.getKernelInteg(); // [i_gamma, i_energy_syn]
+        double res = 0;
+        /// integrate the seed photon spectrum (using pre-computed inner integral)
+        for (size_t j = 0; j < syn.numbins-1; j++)
+            res += (syn.f[j]+ssc.f[j]) / syn.e[j] * syn.de[j] * kernel[idx][j];
+        /// add constant from the paper
+        double constant = 3./4. * CGS::h * CGS::sigmaT / CGS::me / CGS::c;
+        return constant * res / gam / gam;
+    }
+
+
+    /**
+     * Integrate SSC kernel for electrons at index 'idx' O(n)
+     * @param idx
+     * @return
+     */
+//    double sscIntegralTerm(size_t idx){
+//
+//        /// integrate photon density distribution over electron distribution
+//        double res = 0;
+//        auto & kernel = sscKernel.getKernelInteg(); // [i_gamma, i_energy_syn]
+//
+//        /// integrate the seed photon spectrum (using pre-computed inner integral)
+//        for (size_t j = 0; j < syn.numbins-1; j++)
+//            res += (syn.f[j]+ssc.f[j]) / syn.e[j] * syn.de[j] * kernel[idx][j];
+//
+//        /// full integral (very slow...)
+////        auto & kernel_ = sscKernel.getKernel(); // [i_nu_ssc, i_gam, i_nu_syn]
+////        double integ = 0;
+////        for (size_t k = 0; k < ssc.numbins-1; k++) {
+////            double inner = 0;
+////            for (size_t j = 0; j < syn.numbins-1; j++){
+////                inner+=syn.de[j]/syn.e[j]*photon_filed[j]*kernel_[k][idx][j];
+////            }
+////            integ+=inner*ssc.e[k]*ssc.de[k];
+////        }
+////        if (std::abs(res/integ) > 10 || std::abs(res/integ) < 0.1){
+////            std::cerr << " res="<<res<<" integ="<<integ<<" ratio="<<res/integ<<"\n";
+////        }
+////        res= integ;
+////        std::cout << std::accumulate
+////        double tot = std::accumulate(syn.f.begin(),syn.f.end(),0.);
+////        if (tot>0) {
+////            std::cout << std::accumulate(syn.f.begin(), syn.f.end(), 0.) << "\n";
+////            int z = 1;
+////        }
+//
+//
+//        /// add constant from the paper
+//        double constant = 3./4. * CGS::h * CGS::sigmaT / CGS::me / CGS::c;
+//        res *= constant;
+//
+//        return res;
+//    }
 };
 
 
@@ -628,16 +713,19 @@ public:
         /// set heating / cooling
         for (size_t i = 0; i < n_grid_points-1; i++){
             /// compute synchrotron cooling
-            ele.gam_dot_syn[i] = synchCoolComponent(source.B) \
-                            * std::pow(ele.half_e[i], cool_index);
+            ele.gam_dot_syn[i] = gamma_dot_syn(ele.half_e[i]);
+//                    synchCoolComponent(source.B) * ele.half_e[i] * ele.half_e[i];
+//                            * std::pow(ele.half_e[i], cool_index);
 
             /// compute adiabatic cooling
-            ele.gam_dot_adi[i] = source.dlnVdt \
-                            * (ele.half_e[i] * ele.half_e[i] - 1.) / (3. * ele.half_e[i]);
+            ele.gam_dot_adi[i] = gamma_dot_adi(ele.half_e[i]);
+//                    source.dlnVdt \
+//                            * (ele.half_e[i] * ele.half_e[i] - 1.) / (3. * ele.half_e[i]);
 
             /// compute SSC term
             if (is_ssc)
-                ele.gam_dot_ssc[i] = sscIntegralTerm(i) / ele.half_e[i] / ele.half_e[i];
+                ele.gam_dot_ssc[i] = gamma_dot_ssc(i, ele.half_e[i]);
+//                        sscIntegralTerm(i) / ele.half_e[i] / ele.half_e[i];
 
             /// overall heating/cooling term
             heating_term[i] = ele.gam_dot_syn[i] + ele.gam_dot_adi[i] + ele.gam_dot_ssc[i];
@@ -665,66 +753,6 @@ public:
 //        }
     }
 
-    /**
-     * Compute the characteristic cooling constant for synchrotron cooling
-     * Define a factor that is dependent on the magnetic field B.
-     * DT = 6 * pi * me*c / (sigma_T B^2 gamma)
-     * DT = (1.29234E-9 B^2 gamma)^-1 seconds
-     * DT = (cool * gamma)^-1 seconds
-     * where B is in Gauss.
-     * @param B
-     * @return
-     */
-    static double synchCoolComponent(double B){
-        /// ? 4. / 3 * st / (me * c) * 1. / (8 * np.pi) * gamma_midpoints_array ** 2
-        double const_factor = 1.29234e-9;
-        double C0 = const_factor * B * B;
-        return C0;
-    }
-
-    /**
-     * Integrate SSC kernel for electrons at index 'idx' O(n)
-     * @param idx
-     * @return
-     */
-    double sscIntegralTerm(size_t idx){
-
-        /// integrate photon density distribution over electron distribution
-        double res = 0;
-        auto & kernel = sscKernel.getKernelInteg(); // [i_gamma, i_energy_syn]
-
-        /// integrate the seed photon spectrum (using pre-computed inner integral)
-        for (size_t j = 0; j < syn.numbins-1; j++)
-            res += (syn.f[j]+ssc.f[j]) / syn.e[j] * syn.de[j] * kernel[idx][j];
-
-        /// full integral (very slow...)
-//        auto & kernel_ = sscKernel.getKernel(); // [i_nu_ssc, i_gam, i_nu_syn]
-//        double integ = 0;
-//        for (size_t k = 0; k < ssc.numbins-1; k++) {
-//            double inner = 0;
-//            for (size_t j = 0; j < syn.numbins-1; j++){
-//                inner+=syn.de[j]/syn.e[j]*photon_filed[j]*kernel_[k][idx][j];
-//            }
-//            integ+=inner*ssc.e[k]*ssc.de[k];
-//        }
-//        if (std::abs(res/integ) > 10 || std::abs(res/integ) < 0.1){
-//            std::cerr << " res="<<res<<" integ="<<integ<<" ratio="<<res/integ<<"\n";
-//        }
-//        res= integ;
-//        std::cout << std::accumulate
-//        double tot = std::accumulate(syn.f.begin(),syn.f.end(),0.);
-//        if (tot>0) {
-//            std::cout << std::accumulate(syn.f.begin(), syn.f.end(), 0.) << "\n";
-//            int z = 1;
-//        }
-
-
-        /// add constant from the paper
-        double constant = 3./4. * CGS::h * CGS::sigmaT / CGS::me / CGS::c;
-        res *= constant;
-
-        return res;
-    }
 
 };
 
