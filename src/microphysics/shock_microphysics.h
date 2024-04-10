@@ -1056,6 +1056,7 @@ class ElectronAndRadiation : public ElectronAndRadiaionBase{
     size_t n_substeps=0;
     double ratio_an=-1;
     double ratio_num=-1;
+    double ratio_an_num=-1;
     //    double vol=-1.;
 //    double vol_p1=-1.;
 //    double n_inj=-1.;
@@ -1220,7 +1221,7 @@ public: // -------------------- NUMERIC -------------------------------- //
             K_s = n_ele_inj /
                     (
                     (1. / (1. - p)) * (pow(gamma_c, 1. - p)
-                    - pow(gamma_min, 1 - p))
+                    - pow(gamma_min, 1. - p))
                     - gamma_c / p * (pow(gamma_max, -p) - pow(gamma_c, -p))
                     );
             for (size_t i = 0; i < ele.numbins; ++i) {
@@ -1342,13 +1343,13 @@ public: // -------------------- NUMERIC -------------------------------- //
 //            int z = 1;
         double n_ele_an=0.;
         Vector tmp (ele.numbins,0.);
-        powerLawElectronDistributionAnalytic(tc, (m_p1) / CGS::mp, tmp);
+        powerLawElectronDistributionAnalytic(tc, m_p1 / CGS::mp, tmp);
 
         /// check continouity
         for (size_t i = 0; i < ele.numbins-1; i++)
             n_ele_an += tmp[i] * ele.de[i];
         n_ele_out = n_ele_an;
-        ratio_an = (m_p1) / CGS::mp / n_ele_an;
+        ratio_an = m_p1 / CGS::mp / n_ele_an;
 
         double dt = tc_p1 - tc;
         /// for adiabatic cooling of electron distribution (Note it may be turned off)
@@ -1371,14 +1372,14 @@ public: // -------------------- NUMERIC -------------------------------- //
 //        size_t n_substeps = 0;
 
         /// if cooling is too slow, we still need to evolve distribution
-        size_t min_substeps = 100;
+        size_t min_substeps = 1;
         if (delta_t >= dt/(double)min_substeps) {
             delta_t = dt/(double)min_substeps;
-            n_substeps = min_substeps;
+            n_substeps = min_substeps+1;
         }
         else if (delta_t < dt/(double)max_substeps){
             delta_t = dt/(double)max_substeps;
-            n_substeps = max_substeps;
+            n_substeps = max_substeps+1;
         }
         else
             n_substeps = (size_t)(dt/delta_t);
@@ -1433,8 +1434,15 @@ public: // -------------------- NUMERIC -------------------------------- //
         /// apply Deep Newtonian limit
         for (size_t i = 0; i < ele.numbins-1; i++)
             ele.f[i] *= accel_frac;
+        n_ele_num*=accel_frac;
+
+//        for (size_t i = 0; i < ele.numbins-1; i++)
+//            if (ele.f[i] / n_ele_num > 1.){
+//                int zz = 1;
+//            }
 
         ratio_num = n_protons*accel_frac / n_ele_num;
+        ratio_an_num = n_ele_an/n_ele_num;
 
         /// Update photon field during electron evolution
 //        model.update_radiation(m_methods_ssa == METHODS_SSA::iSSAon,
@@ -1658,8 +1666,9 @@ public: // -------------------- NUMERIC -------------------------------- //
             /// log result
             (*p_log)(LOG_INFO, AT) << "it=" << it
                                    << " n=" << n_substeps
-                                   << " inj/an=" << ratio_an
-                                   << " inj/num=" << ratio_num
+                                   << " N/Nan=" << ratio_an
+                                   << " N/Num=" << ratio_num
+                                   << " Nan/Num=" << ratio_an_num
                                    << " gm=" << gamma_min
                                    << " gc=" << gamma_c
                                    << " gM=" << gamma_max

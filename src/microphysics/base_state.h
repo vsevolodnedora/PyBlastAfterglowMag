@@ -161,13 +161,17 @@ void dfdx(Vector & df, Vector & x, Vector & f, int acc){
 //    df[0] = df[1];
 
     for (i = 1; i < x.size()-1; i++){
-        dx = x[i] - x[i - 1];
-        df[i] = 0.5 * (f[i + 1] - f[i - 1]) / dx;
+        if (f[i] > 0) {
+            dx = x[i] - x[i - 1];
+            df[i] = 0.5 * (f[i + 1] - f[i - 1]) / dx;
+        }
     }
     i = 0;
-    df[i] = -1.5 * f[i] + 2. * f[i+1] - 0.5 * f[i+2];
+    if (f[i] > 0)
+        df[i] = -1.5 * f[i] + 2. * f[i+1] - 0.5 * f[i+2];
     i = x.size()-1;
-    df[i] = 1.5 * f[i] - 2. * f[i-1] + 0.5 * f[i-2];
+    if (f[i] > 0)
+        df[i] = 1.5 * f[i] - 2. * f[i-1] + 0.5 * f[i-2];
 
 //    i = 0;
 //    double dx = 0;
