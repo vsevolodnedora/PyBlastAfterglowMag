@@ -1456,8 +1456,8 @@ if __name__ == '__main__':
     )
 
     # --- fs -- fs ---
-    # tasks_fs(do_run=do_run, struct=struct, P=P)
-    tasks_fs_comparison(do_run=do_run, struct=struct, P=P)
+    tasks_fs(do_run=do_run, struct=struct, P=P)
+    # tasks_fs_comparison(do_run=do_run, struct=struct, P=P)
 
     # --- fsrs -- rs ---
     # tasks_rs(do_run=False, struct=struct, P=P)

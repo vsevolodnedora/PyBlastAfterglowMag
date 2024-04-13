@@ -228,13 +228,13 @@ public:
         eps_b = getDoublePar("eps_b" + fs_or_rs, pars, AT, p_log, -1, true);//pars.at("eps_b");
         eps_t = getDoublePar("eps_t" + fs_or_rs, pars, AT, p_log, 0., true);//pars.at("eps_t");
         p = getDoublePar("p" + fs_or_rs, pars, AT, p_log, -1, true);//pars.at("p");
-        mu = getDoublePar("mu" + fs_or_rs, pars, AT, p_log, 0.62, false);//pars.at("mu");
-        mu_e = getDoublePar("mu_e" + fs_or_rs, pars, AT, p_log, 1.18, false);//pars.at("mu_e");
+        mu = 0.62;//getDoublePar("mu" + fs_or_rs, pars, AT, p_log, 0.62, false);//pars.at("mu");
+        mu_e = 1.18;//getDoublePar("mu_e" + fs_or_rs, pars, AT, p_log, 1.18, false);//pars.at("mu_e");
         beta_min = getDoublePar("beta_min" + fs_or_rs, pars, AT, p_log, 1.e-5, false);//pars.at("beta_min");
         gamma_max = getDoublePar("gamma_max" + fs_or_rs, pars, AT, p_log, 1.e7, false);//pars.at("beta_min");
         max_substeps = (size_t)getDoublePar("max_substeps" + fs_or_rs, pars, AT, p_log, 1000, false);//pars.at("beta_min");
 
-        lim_gm_to_1 = getBoolOpt("limit_lf_min_to1" + fs_or_rs, opts, AT, p_log, false, false);//pars.at("beta_min");
+//        lim_gm_to_1 = getBoolOpt("limit_lf_min_to1" + fs_or_rs, opts, AT, p_log, false, false);//pars.at("beta_min");
 
         // set options
         std::string opt;
@@ -815,7 +815,9 @@ protected:
     /// --------------------------------------
     double eps_e=-1, eps_b=-1, eps_t=-1, p=-1;// ksi_n=-1;
     double mu=-1, mu_e=-1;
-    bool lim_gm_to_1= true;
+//    bool lim_gm_to_1= true;
+    double gam1=-1,gam2=-1.,freq1=-1.,freq2=-1.;
+    size_t ngam=0,nfreq=0;
     /// --------------------------------------
     ElectronAndRadiaionBase(int loglevel, bool _is_rs){
         m_loglevel = loglevel; is_rs = _is_rs;
@@ -1095,22 +1097,30 @@ public: // ---------------- ANALYTIC -------------------------- //
         }
         tcomov0 = tcomov0_;
         theta_h = theta_h_;
+
+        /// allocate space for spectra
+        std::string fs_or_rs;
+        if (is_rs)
+            fs_or_rs += "_rs";
+        else
+            fs_or_rs += "_fs";
+        freq1 = getDoublePar("freq1"+fs_or_rs, pars, AT, p_log, 1.e7, true);//pars.at("freq1");
+        freq2 = getDoublePar("freq2"+fs_or_rs, pars, AT, p_log, 1.e28, true);//pars.at("freq2");
+        nfreq = (size_t) getDoublePar("nfreq"+fs_or_rs, pars, AT, p_log, 200, true);//pars.at("nfreq");
+
+
         /// allocate memory for spectra to be used in EATS interpolation
         if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleAnalyt)
-            allocateForAnalyticSpectra(pars, opts, nr);
+            allocateForAnalyticSpectra(nr);
         else
             allocateForNumericSpectra(pars, nr);
 
     }
-    void allocateForAnalyticSpectra(StrDbMap & pars, StrStrMap & opts, size_t nr){
+    void allocateForAnalyticSpectra(size_t nr){
         /// allocate space for spectra
-        double freq1 = getDoublePar("freq1", pars, AT, p_log, 1.e7, true);//pars.at("freq1");
-        double freq2 = getDoublePar("freq2", pars, AT, p_log, 1.e28, true);//pars.at("freq2");
-        size_t nfreq = (size_t) getDoublePar("nfreq", pars, AT, p_log, 200, true);//pars.at("nfreq");
-
-        (*p_log)(LOG_INFO, AT) << " allocating comoving spectra array"
-                               << " n_freqs=" << nfreq << " by n_radii=" << nr << " Spec. grid="
-                               << nfreq * nr << "\n";
+        (*p_log)(LOG_INFO, AT) << " allocating ANALYTIC comov. spectra array for "
+            << (is_rs ? "FS" : "RS")
+            << " n_freqs=" << nfreq << " by n_radii=" << nr << " Spec. grid=" << nfreq * nr << "\n";
 
 //        syn.allocate(freq1*CGS::freqToErg, freq2*CGS::freqToErg, nfreq);
         syn.allocate(freq1, freq2, nfreq);
@@ -1243,18 +1253,25 @@ public: // -------------------- NUMERIC -------------------------------- //
     }
 
     void allocateForNumericSpectra(StrDbMap & pars, size_t nr){
-
         /// get freq. boundaries for calculation of the comoving spectrum
-        double freq1 = getDoublePar("freq1", pars, AT, p_log,1.e7, true);//pars.at("freq1");
-        double freq2 = getDoublePar("freq2", pars, AT, p_log,1.e28, true);//pars.at("freq2");
-        size_t nfreq = (size_t)getDoublePar("nfreq", pars, AT, p_log,200, true);//pars.at("nfreq");
+        /// allocate space for spectra
+        (*p_log)(LOG_INFO, AT)
+            << " allocating NUMERIC comov. spectra arrays for "
+            << (is_rs ? "FS" : "RS")
+            << " n_freqs=" << nfreq << " by n_radii=" << nr << " Spec. grid=" << nfreq * nr << "\n";
 
-        double gam1 = getDoublePar("gam1", pars, AT, p_log,1, true);//pars.at("freq1");
-        double gam2 = getDoublePar("gam2", pars, AT, p_log,1.e8, true);//pars.at("freq2");
-        size_t ngams = (size_t)getDoublePar("ngam", pars, AT, p_log,250, true);//pars.at("nfreq");
+        /// allocate space for spectra
+        std::string fs_or_rs;
+        if (is_rs)
+            fs_or_rs += "_rs";
+        else
+            fs_or_rs += "_fs";
+        gam1 = getDoublePar("gam1"+fs_or_rs, pars, AT, p_log,1, true);//pars.at("freq1");
+        gam2 = getDoublePar("gam2"+fs_or_rs, pars, AT, p_log,1.e8, true);//pars.at("freq2");
+        ngam = (size_t)getDoublePar("ngam"+fs_or_rs, pars, AT, p_log,250, true);//pars.at("nfreq");
 
-        ele.allocate(gam1, gam2, ngams);
-        ele.allocate_output(ngams, nr, true);
+        ele.allocate(gam1, gam2, ngam);
+        ele.allocate_output(ngam, nr, true);
         ele.build_grid_chang_cooper(); // build the grid for the implicit solver
 
 //        syn.allocate(freq1*CGS::freqToErg, freq2*CGS::freqToErg, nfreq);
@@ -2168,7 +2185,7 @@ static void calc_syn_spec(const double B, const double dr, const double vol,
 //    double nu=0.,x=0.,sin_alpha=2./3.,tau_sa=0.;
 //    double integ=0.,integ_alpha=0.;
 //#pragma omp parallel for default(shared) reduction (P_nu_syn,alpha_nu_syn) firstprivate(nu,x,sin_alpha,tau_sa,integ,integ_alpha,vol)// private(nu,x,sin_alpha,tau_sa,integ,integ_alpha,vol) shared(std::cout,std::cerr,B,r,dr,gam,dgam,dN_dgam,gam_max,Nbin_e,Nbin_ph,gam_ph,P_nu_syn,alpha_nu_syn,CGS::c,CGS::MeC2,CGS::H,CGS::ELEC,CGS::me) num_threads( 6 ) // private(i,nu,x,sin_alpha,tau_sa,integ,integ_alpha,vol) shared(B,r,dr,gam,dgam,dN_dgam,gam_max,Nbin_e,gam_ph,P_nu_syn,alpha_nu_syn,Nbin_ph) num_threads( 6 )
-#pragma omp parallel for num_threads( 6 )
+// #pragma omp parallel for num_threads( 6 )
     for (size_t k=0;k<Nbin_ph;k++) {
         double integ = 0.0;
         double sin_alpha=2./3.;

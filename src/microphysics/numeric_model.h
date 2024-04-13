@@ -5,6 +5,9 @@
 #ifndef SRC_NUMERIC_MODEL_H
 #define SRC_NUMERIC_MODEL_H
 
+
+
+
 #include "base_state.h"
 #include "kernels.h"
 
@@ -150,8 +153,10 @@ public:
 
         /// clear the array
         std::fill(syn.j.begin(), syn.j.end(), 0.);
-        double tmp[ele.numbins];
-
+//        double tmp[ele.numbins];
+#ifdef USE_OPENMP
+#pragma omp parallel for num_threads( 4 ) if (USE_OPENMP)
+#endif
         for (size_t i = 0; i < syn.numbins - 1; i++) {
             // --- old integral
             double res = 0.;
@@ -211,6 +216,9 @@ public:
 
         /// compute absorption
         auto & kernel = synKernel.getKernel();
+#ifdef USE_OPENMP
+#pragma omp parallel for num_threads( 4 ) if (USE_OPENMP)
+#endif
         for (size_t i = 0; i < syn.numbins; i++){
             for (size_t j = 0; j < ele.numbins-1; j++)
                 syn.a[i] += ele.e[j] * ele.e[j] * ele.de[j] * ele.dfde[j] * kernel[i][j];
@@ -290,18 +298,23 @@ public:
      * O(n*m*q) algorithm
      */
     void computeSSCSpectrum(){
-
+        /// clear if old is present
         std::fill(ssc.j.begin(), ssc.j.end(),0.);
 
-        double scat_ph_spec_per_ele[ele.numbins - 1];
-
-//        double constant = 3. / 4. * CGS::h * CGS::sigmaT * CGS::c;
+        /// save number of photons per freq. bin
+        double T = source.dr / CGS::c; // escape time (See Huang+2022)
+        double fac = T / source.vol;
 
         /// Compute SSC spectrum for each photon energy
+#ifdef USE_OPENMP
+#pragma omp parallel for num_threads( 4 ) if (USE_OPENMP)
+#endif
         for (size_t i = 0; i < ssc.numbins; i++) {
+            double scat_ph_spec_per_ele[ele.numbins - 1];
 
             // clean the buffer
-            for (size_t i_ = 0; i_ < ele.numbins-1; i_++) scat_ph_spec_per_ele[i_] = 0.;
+            for (size_t i_ = 0; i_ < ele.numbins-1; i_++)
+                scat_ph_spec_per_ele[i_] = 0.;
 
             /// Integrate seed photon spectrum [Inner integral]
             auto & kernel = sscKernel.getKernel();
@@ -309,7 +322,7 @@ public:
                 for (size_t k = 0; k < syn.numbins; k++)
                     /// compute scattered photon spectrum per electron (Blumenthal 1970)
                     scat_ph_spec_per_ele[j] += 3. / 4. * CGS::sigmaT * CGS::c / (ele.e[j] * ele.e[j])
-                                             * (syn.f[k]+ssc.f[k]) / syn.e[k] * syn.de[k] * kernel[i][j][k];
+                                               * (syn.f[k] + ssc.f[k]) / syn.e[k] * syn.de[k] * kernel[i][j][k];
 //                    scat_ph_spec_per_ele[j] += syn.n[k] / syn.e[k] * syn.de[k] * kernel[i][j][k];
 
             /// Integrate the electron distribution [Outer integral]
@@ -320,14 +333,8 @@ public:
 //            double ssc_freq = ssc.e[i] * CGS::ergToFreq;// / 8.093440820813486e-21;
 //            ssc.j[i] *= constant * (ssc.e[i] * CGS::ergToFreq);
 //            ssc.j[i] *= ssc.e[i] * CGS::h;
-        }
-
-        /// save number of photons per freq. bin
-        double T = source.dr / CGS::c; // escape time (See Huang+2022)
-        double fac = T / source.vol;
-        for (size_t i = 0; i < ssc.numbins; i++)
             ssc.f[i] = ssc.j[i] * fac / (CGS::h * ssc.e[i]); // (using T instead of dt) add SSC
-
+        }
     }
 
     /**
@@ -716,6 +723,9 @@ public:
         std::fill(dispersion_term.begin(), dispersion_term.end(),0.);
 
         /// set heating / cooling
+#ifdef USE_OPENMP
+#pragma omp parallel for num_threads( 4 ) if (USE_OPENMP)
+#endif
         for (size_t i = 0; i < n_grid_points-1; i++){
             /// compute synchrotron cooling
             ele.gam_dot_syn[i] = gamma_dot_syn(ele.half_e[i]);
