@@ -1051,14 +1051,14 @@ class ElectronAndRadiation : public ElectronAndRadiaionBase{
     SSCKernel ssc_kernel{};//std::unique_ptr<SynKernel> syn_kernel = nullptr;
     ChangCooper model = ChangCooper(source, ele, syn, ssc, syn_kernel, ssc_kernel);
 
-    double n_ele_out = 0.;
+//    double n_ele_out = 0.;
     double theta_h = 0;
 //    Vector photon_field{}; // syn + ssc Npotones for SSC radiation and cooling
     double dr_comov;
     size_t n_substeps=0;
-    double ratio_an=-1;
-    double ratio_num=-1;
-    double ratio_an_num=-1;
+//    double ratio_an=-1;
+//    double ratio_num=-1;
+//    double ratio_an_num=-1;
     //    double vol=-1.;
 //    double vol_p1=-1.;
 //    double n_inj=-1.;
@@ -1323,20 +1323,28 @@ public: // -------------------- NUMERIC -------------------------------- //
         model.setSolver();
     }
 
-    void initializeElectronDistribution(double tcomov, double m2){
-        double n_inj = m2 / CGS::mp;
-        powerLawElectronDistributionAnalytic(tcomov, n_inj, ele.f);
+    void initializeElectronDistribution(double tcomov, double m2, double rho2, double u_p){
+        source.N_ele_tot = m2 / CGS::mp;
+        source.vol = m2 / rho2;
+        source.u_e = u_p * eps_e;
+        powerLawElectronDistributionAnalytic(tcomov, source.N_ele_tot, ele.f);
         is_distribution_initialized = true;
-        double n_ele_num = 0;
+        /// apply Deep Newtonian limit
         for (size_t i = 0; i < ele.numbins-1; i++)
-            n_ele_num += ele.f[i] * ele.de[i];
-        n_ele_out = n_ele_num;
+            ele.f[i] *= accel_frac;
+//        double n_ele_num = 0;
+//        for (size_t i = 0; i < ele.numbins-1; i++)
+//            n_ele_num += ele.f[i] * ele.de[i];
+//        n_ele_out = n_ele_num;
     }
 
     void evaluateElectronDistributionNumericMixed(
-            double tc, double tc_p1, double m, double m_p1,
+            double tc, double tc_p1,
+            double m, double m_p1,
             double rho_prime, double rho_prime_p1,
-            double r, double rp1, double dr_comov_, double drp1_comov){
+            double r, double rp1,
+            double dr_comov_, double drp1_comov,
+            double u_p, double u_p_p1){
 
         /// check parameters
         if (ele.e.size() < 1){
@@ -1350,23 +1358,24 @@ public: // -------------------- NUMERIC -------------------------------- //
             exit(1);
         }
         dr_comov = dr_comov_;
-
+        source.N_ele_tot = m_p1 / CGS::mp;
+        source.u_e = u_p_p1 * eps_e;
 
 //        accel_frac = std::max(accel_frac,1.);
         /// compute analytical electron spectrum
-        double n_inj = (m_p1 - m) / CGS::mp;
+//        double n_inj = (m_p1 - m) / CGS::mp;
 //        n_inj *= accel_frac;
 //        if (accel_frac < 1.)
 //            int z = 1;
         double n_ele_an=0.;
         Vector tmp (ele.numbins,0.);
-        powerLawElectronDistributionAnalytic(tc, m_p1 / CGS::mp, tmp);
+        powerLawElectronDistributionAnalytic(tc, source.N_ele_tot, tmp);
 
         /// check continouity
         for (size_t i = 0; i < ele.numbins-1; i++)
             n_ele_an += tmp[i] * ele.de[i];
-        n_ele_out = n_ele_an;
-        ratio_an = m_p1 / CGS::mp / n_ele_an;
+//        n_ele_out = n_ele_an;
+//        ratio_an = source.N_ele_tot / n_ele_an;
 
         double dt = tc_p1 - tc;
         /// for adiabatic cooling of electron distribution (Note it may be turned off)
@@ -1382,21 +1391,22 @@ public: // -------------------- NUMERIC -------------------------------- //
 
 
         /// compute substepping to account for electron cooling timescales
-        double dlog_gam = ((ele.e[1]-ele.e[0])/ele.e[0]);
+        double dlog_gam = (ele.e[1]-ele.e[0])/ele.e[0];
         double delta_t_syn = CGS::sigmaT * gamma_max * B * B / (6. * M_PI * CGS::me * CGS::c);
         double delta_t_adi = (gamma_max*gamma_max-1.)/(3.*gamma_max*gamma_max)*dlnVdt;
         double delta_t = dlog_gam / (delta_t_syn + delta_t_adi);
 //        size_t n_substeps = 0;
 
         /// if cooling is too slow, we still need to evolve distribution
-        size_t min_substeps = 1;
+        size_t min_substeps = 2;
+//        max_substeps = 1;
         if (delta_t >= dt/(double)min_substeps) {
             delta_t = dt/(double)min_substeps;
-            n_substeps = min_substeps+1;
+            n_substeps = min_substeps;
         }
         else if (delta_t < dt/(double)max_substeps){
             delta_t = dt/(double)max_substeps;
-            n_substeps = max_substeps+1;
+            n_substeps = max_substeps;
         }
         else
             n_substeps = (size_t)(dt/delta_t);
@@ -1406,17 +1416,16 @@ public: // -------------------- NUMERIC -------------------------------- //
         source.dlnVdt = dlnVdt;
         source.dr = dr_comov_;
         source.vol = volume;
-        source.N = n_inj / dt; //n_inj / dt; // number of injected electrons per timestep
-        double n_ele_num = 0.;
+//        double n_ele_num = 0.;
 //        ChangCooper model = ChangCooper(source, ele, syn, ssc, syn_kernel, ssc_kernel);
 
         /// compute radiation numerically from ANALYTIC electron distribution or evolve electron distribution
-        if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleMix)
+        if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleMix || gamma_min == 1.)
             for (size_t i = 0; i < ele.numbins; i++)
                 ele.f[i] = tmp[i];
         /// evolve electron distribution via Chang Cooper Scheme
         else{
-            /// evolve radiation numerically and compute radiation numerically
+            source.N = (m_p1 - m) / CGS::mp / dt; //n_inj / dt; // number of injected electrons per timestep
 
             /// Assume source/escape do not change during substepping
             model.setSourceFunction(gamma_min, gamma_max, -p);
@@ -1443,23 +1452,23 @@ public: // -------------------- NUMERIC -------------------------------- //
 //                model.resetSolver();
             }
             /// check continouity
-            for (size_t i = 0; i < ele.numbins-1; i++)
-                n_ele_num += ele.f[i] * ele.de[i];
-            n_ele_out = n_ele_num;
+//            for (size_t i = 0; i < ele.numbins-1; i++)
+//                n_ele_num += ele.f[i] * ele.de[i];
+//            n_ele_out = n_ele_num;
         }
 
         /// apply Deep Newtonian limit
         for (size_t i = 0; i < ele.numbins-1; i++)
             ele.f[i] *= accel_frac;
-        n_ele_num*=accel_frac;
+//        n_ele_num*=accel_frac;
 
 //        for (size_t i = 0; i < ele.numbins-1; i++)
 //            if (ele.f[i] / n_ele_num > 1.){
 //                int zz = 1;
 //            }
 
-        ratio_num = n_protons*accel_frac / n_ele_num;
-        ratio_an_num = n_ele_an/n_ele_num;
+//        ratio_num = n_protons*accel_frac / n_ele_num;
+//        ratio_an_num = n_ele_an/n_ele_num;
 
         /// Update photon field during electron evolution
 //        model.update_radiation(m_methods_ssa == METHODS_SSA::iSSAon,
@@ -1495,36 +1504,30 @@ public: // -------------------- NUMERIC -------------------------------- //
     }
 
     void storeSynchrotronSpectrumNumericMixed(size_t it){
-        if (n_ele_out <= 0){
-            (*p_log)(LOG_ERR,AT) << " n_ele_out = "<<n_ele_out<<"\n";
+
+        /// compute total numer of electrons (solution)
+        double n_ele=0.;
+        for (size_t i = 0; i < ele.numbins-1; i++)
+            n_ele+=ele.f[i]*ele.de[i]; //total number of electrons
+//        n_ele *= accel_frac;// Deep Newtonian corretion
+
+        /// compute energy conservation (https://www.mpi-hd.mpg.de/personalhomes/frieger/HEA6.pdf)
+        double u_ele=0.;
+        for (size_t i = 0; i < ele.numbins-1; i++)
+            u_ele+=ele.f[i]*ele.e[i]*ele.de[i]*CGS::me*CGS::c*CGS::c/source.vol; //total energy density in electrons
+
+
+        if (n_ele <= 0){
+            (*p_log)(LOG_ERR,AT) << " n_ele = "<<n_ele<<"\n";
             exit(1);
         }
-
-        /// find numerical gamma_c and compare with analytic one
-        if(m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum) {
-            double gamma_c_num = 0.;
-            for (size_t i = 1; i < ele.numbins; i++) {
-                if ((model.gamma_dot_syn(ele.e[i]) > model.gamma_dot_adi(ele.e[i])) && \
-                (model.gamma_dot_syn(ele.e[i - 1]) < model.gamma_dot_adi(ele.e[i - 1]))) {
-                    gamma_c_num = ele.e[i];
-                    break;
-                }
-            }
-            gamma_c = gamma_c_num;
-        }
-//        std::cout << " gc="<<gamma_c<<" gc_num="<<gamma_c_num<<"\n";
-
-//        for (size_t i = 0; i < syn.numbins; i++)
-//            syn.intensity[i] = computeIntensity(syn.j[i],syn.a[i]*dr_comov, METHOD_TAU::iSMOOTH);
-
-//        std::cout << std::accumulate(syn.a.begin(),syn.a.end(),0.)<<"\n";
 
         // Normalize to get emissivity per particle (for EATS)
         double nu_tau = -1;
         double _min = std::numeric_limits<double>::max();
         for (size_t i = 0; i < syn.numbins; i++) {
-            syn.j[i] /= n_ele_out;
-            syn.a[i] = syn.a[i] / n_ele_out * n_prime; // absorption (depth) requires the comoving particle density
+            syn.j[i] /= n_ele;
+            syn.a[i] = syn.a[i] / n_ele * n_prime; // absorption (depth) requires the comoving particle density
             double dtau = syn.a[i]*dr_comov;
             syn.intensity[i] = computeIntensity(syn.j[i], dtau, METHOD_TAU::iAPPROX);
             if (dtau-1. < _min and dtau-1.>0) {
@@ -1533,61 +1536,14 @@ public: // -------------------- NUMERIC -------------------------------- //
             }
         }
 
-
-        /// compute compton parameter for each electron factor O(n^2 algorithm) TODO fix
-//        std::fill(ele.yg.begin(), ele.yg.end(),0.);
-//        for (size_t i = 0; i < ele.numbins; i++) {
-//            for (size_t j = 0; j < syn.numbins; j++)
-//                if (syn.e[j] <= CGS::me * CGS::c / ele.e[i] / CGS::h)
-//                    ele.yg[i] += CGS::h * syn.e[j] * syn.de[j] * syn.f[j];
-//            if (m_methods_ssc != METHOD_SSC::inoSSC)
-//                for (size_t j = 0; j < ssc.numbins; j++)
-//                    if (ssc.e[j] <= CGS::me * CGS::c / ele.e[i] / CGS::h)
-//                        ele.yg[i] += CGS::h * ssc.e[j] * ssc.de[j] * ssc.f[j];
-//            ele.yg[i] = ele.yg[i] * 8. * M_PI / source.B / source.B;
-//        }
-
-//        std::cout << std::accumulate(syn.a.begin(),syn.a.end(),0.)<<"\n";
-
-
-//        std::cout<<"n_prime="<<n_prime<<" n_protons="<<n_protons<<" n_ele_out"<<n_ele_out<<"\n";
-
-//        if (m_methods_ssa != METHODS_SSA::iSSAoff)
-//            for (size_t i = 0; i < syn.numbins; i++)
-//                syn.a[i] = syn.a[i] / n_ele_out * n_prime;// * n_prime; // SSA relies on the comoving particle density
-//        std::cout << " n_out/n_ele_an="<<n_ele_out/n_prime<<" "<<n_ele_out/
-
-//        std::cout << ele.a << "\n";
-
-//        m_sychMethod = METHODS_SYNCH::iJOH06
-//        computeSynchrotronSpectrumAnalytic(it);
-
-
-//        std::cout << std::accumulate(syn.a.begin(),syn.a.end(),0.)<<"\n";
-
-        /// compute comoving synchrotron radiation intensity
-//        for (size_t i = 0; i < syn.numbins; i++)
-//            syn.intensity[i] /=n_ele_out;
-//            syn.intensity[i] = computeIntensity(syn.j[i],syn.a[i]*dr_comov, METHOD_TAU::iAPPROX);
-
-//        std::cout << std::accumulate(syn.a.begin(),syn.a.end(),0.)<<"\n";
-
         if (m_methods_ssc != METHOD_SSC::inoSSC) {
             for (size_t i = 0; i < ssc.numbins; i++) {
-                ssc.j[i] /= n_ele_out;
-                ssc.a[i] = ssc.a[i] / n_ele_out * n_prime; // absorption (depth) requires the comoving particle density
+                ssc.j[i] /= n_ele;
+                ssc.a[i] = ssc.a[i] / n_ele * n_prime; // absorption (depth) requires the comoving particle density
                 double dtau = ssc.a[i]*dr_comov;
                 ssc.intensity[i] = computeIntensity(ssc.j[i], dtau, METHOD_TAU::iAPPROX);
-//            if (m_methods_ssa != METHODS_SSA::iSSAoff)
-//                for (size_t i = 0; i < ssc.numbins; i++)
-//                    ssc.a[i] /= n_ele_out;
             }
         }
-        /// compute comoving ssc radiation intensity TODO
-//        std::cout << std::accumulate(syn.j.begin(),syn.j.end(),0.)<<"\n";
-//        std::cout << std::accumulate(syn.intensity.begin(),syn.intensity.end(),0.)<<"\n";
-//        std::cout << std::accumulate(ssc.j.begin(),ssc.j.end(),0.)<<"\n";
-//        std::cout << std::accumulate(ssc.intensity.begin(),ssc.intensity.end(),0.)<<"\n";
 
         /// store electron spectrum
         ele.save_to_all(it);
@@ -1599,18 +1555,29 @@ public: // -------------------- NUMERIC -------------------------------- //
         }
 
 
-//        std::cout << std::accumulate(syn.a.begin(),syn.a.end(),0.)<<"\n";
-
         /// log the result
-
-        /// locate spectral limits for reporting and show extended log of the calculation
         if (m_loglevel>=LOG_INFO) {
+            /// find numerical gamma_c and compare with analytic one
+            if(m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum) {
+                double gamma_c_num = 0.;
+                for (size_t i = 1; i < ele.numbins; i++) {
+                    if ((model.gamma_dot_syn(ele.e[i]) > model.gamma_dot_adi(ele.e[i])) && \
+                (model.gamma_dot_syn(ele.e[i - 1]) < model.gamma_dot_adi(ele.e[i - 1]))) {
+                        gamma_c_num = ele.e[i];
+                        break;
+                    }
+                }
+                gamma_c = gamma_c_num;
+            }
+
+            /// locate spectral limits (synchrotron)
             size_t max_idx;
             auto [min_iter, max_iter] = std::minmax_element(std::begin(syn.j), std::end(syn.j));
             max_idx = std::distance(std::begin(syn.j), max_iter);
             double synch_peak = syn.e[max_idx];
             double synch_peak_flux = syn.e[max_idx] * syn.j[max_idx];
 
+            /// locate spectral limits (ssc)
             size_t max_idx_c = 0;
             double ssc_peak = 0.;
             double ssc_peak_flux = 0.;
@@ -1621,83 +1588,55 @@ public: // -------------------- NUMERIC -------------------------------- //
                 ssc_peak = ssc.e[max_idx_c];
                 ssc_peak_flux = ssc.e[max_idx_c] * ssc.j[max_idx_c];
             }
-            /// check if spectrum is thin, thick or has a transition
-//            double tau_transition = 1.;
-//            double freq_tau_eq1 = 0.;
-//            double nu_tau = -1;
-//            if (m_methods_ssa == METHODS_SSA::iSSAon) {
-//                for (size_t i = syn.numbins-2; i > -1; i--){
-//                    if (syn.intensity[i] / syn.j[i] < 1.){
-//                        nu_tau = syn.e[i];
-//                        break;
-//                    }
-//                }
 
 
-//                double dtau0 = syn.a[0] * dr_comov;
-//                double dtau1 = syn.a[syn.numbins-2] * dr_comov;
-//                if (dtau1 > tau_transition && dtau0 > tau_transition){
-//                    /// thick in entire spectrum
-//                    freq_tau_eq1 = 0.;
-//                } else if (dtau0 < tau_transition && dtau1 < tau_transition){
-//                    /// thin in entire spectrum
-//                    freq_tau_eq1 = -1;
-//                }
-//                else
-//                    for (size_t i = 1; i < syn.numbins; i++){
-//                        double dtau_m1 = syn.a[i-1] * dr_comov;
-//                        double dtau = syn.a[i] * dr_comov;
-//                        if ((dtau_m1 <= tau_transition) && (dtau > tau_transition)) {
-//                            freq_tau_eq1 = syn.e[i];
-//                            break;
-//                        }
-//                        if ((dtau_m1 > tau_transition) && (dtau <= tau_transition)) {
-//                            freq_tau_eq1 = syn.e[i];
-//                            break;
-//                        }
-//                    }
-//            }
-
-//            size_t max_idx_a = 0;
-//            double ssa_peak = 0.;
-//            double ssa_peak_flux = 0.;
-//            if (m_methods_ssa == METHODS_SSA::iSSAon) {
-//                auto [min_iter_a, max_iter_a] =
-//                        std::minmax_element(std::begin(syn.a), std::end(syn.a));
-//                max_idx_a = std::distance(std::begin(syn.a), max_iter_a);
-//                ssc_peak = ssc.a[max_idx_a];
-//                ssc_peak_flux = syn.e[max_idx_a] * syn.a[max_idx_a];
-//            }
-
-            double u_syn = 0;
-            for (size_t i = 0; i < syn.numbins-1; i++)
-                u_syn += syn.e[i] * syn.j[i] * syn.de[i];
-
-            double u_ssc = 0;
-            if (m_methods_ssc == METHOD_SSC::iNumSSC)
-                for (size_t i = 0; i < syn.numbins-1; i++)
-                    u_ssc += ssc.e[i] * ssc.j[i] * ssc.de[i];
+//            double u_syn = 0;
+//            for (size_t i = 0; i < syn.numbins-1; i++)
+//                u_syn += syn.e[i] * syn.j[i] * syn.de[i];
 //
+//            double u_ssc = 0;
+//            if (m_methods_ssc == METHOD_SSC::iNumSSC)
+//                for (size_t i = 0; i < syn.numbins-1; i++)
+//                    u_ssc += ssc.e[i] * ssc.j[i] * ssc.de[i];
+////
 //            double y = u_ssc/u_syn;
 
             /// log result
-            (*p_log)(LOG_INFO, AT) << "it=" << it
-                                   << " n=" << n_substeps
-                                   << " N/Nan=" << ratio_an
-                                   << " N/Num=" << ratio_num
-                                   << " Nan/Num=" << ratio_an_num
-                                   << " gm=" << gamma_min
-                                   << " gc=" << gamma_c
-                                   << " gM=" << gamma_max
-                                   << " u_syn=" << u_syn
-                                   << " u_ssc=" << u_ssc
-//                                   << " y="<<y
-                                   << " syn[" << synch_peak << "]="
-                                   << synch_peak_flux//<< std::accumulate(syn.j.begin(), syn.j.end(),0.)
-                                   << " nu_tau="<<nu_tau
-                                   << " ssc[" << ssc_peak << "]="
-                                   << ssc_peak_flux//<<" ssc="<< std::accumulate(ssc.j.begin(), ssc.j.end(),0.)
-                                   << "\n";
+            (*p_log)(LOG_INFO, AT)
+                << (is_rs ? "RS" : "FS" )
+                << " it=" << it
+                << " n=" << n_substeps
+                << " Ne=" << n_ele / (source.N_ele_tot*accel_frac) // should be 1
+                << " Ue=" << u_ele / (source.u_e) // should be 1
+                << " | "
+                << " gm=" << gamma_min
+                << " gc=" << gamma_c
+                << " gM=" << gamma_max
+                << " | "
+                << " syn[" << synch_peak << "]="
+                << synch_peak_flux//<< std::accumulate(syn.j.begin(), syn.j.end(),0.)
+                << " nu_tau="<<nu_tau
+                << " ssc[" << ssc_peak << "]="
+                << ssc_peak_flux//<<" ssc="<< std::accumulate(ssc.j.begin(), ssc.j.end(),0.)
+                << "\n";
+
+//                << "Ne="<<n_ele/source.u_e
+//
+//                                   << " N/Nan=" << ratio_an
+//                                   << " N/Num=" << ratio_num
+//                                   << " Nan/Num=" << ratio_an_num
+//                                   << " gm=" << gamma_min
+//                                   << " gc=" << gamma_c
+//                                   << " gM=" << gamma_max
+//                                   << " u_syn=" << u_syn
+//                                   << " u_ssc=" << u_ssc
+////                                   << " y="<<y
+//                                   << " syn[" << synch_peak << "]="
+//                                   << synch_peak_flux//<< std::accumulate(syn.j.begin(), syn.j.end(),0.)
+//                                   << " nu_tau="<<nu_tau
+//                                   << " ssc[" << ssc_peak << "]="
+//                                   << ssc_peak_flux//<<" ssc="<< std::accumulate(ssc.j.begin(), ssc.j.end(),0.)
+//                                   << "\n";
         }
     }
 

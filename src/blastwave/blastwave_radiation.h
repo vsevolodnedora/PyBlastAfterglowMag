@@ -1066,7 +1066,6 @@ public:
 
             /// compute electron distribution in reverse shock
             if ( considerReverseShock(it) ){
-
                 p_mphys_rs->updateSockProperties(//m_data[BW::Q::iR][it],
                         //m_data[BW::Q::ithickness_rs][it],
                         m_data[BW::Q::iU_p3][it],
@@ -1096,7 +1095,11 @@ public:
                         if (not p_mphys_rs->is_distribution_initialized)
 //                            p_mphys_rs->is_distribution_initialized = true;
                             p_mphys_rs->initializeElectronDistribution(
-                                    m_data[BW::Q::itcomov][it],m_data[BW::Q::iM3][it]);
+                                    m_data[BW::Q::itcomov][it],
+                                    m_data[BW::Q::iM3][it],
+                                    m_data[BW::Q::irho3][it],
+                                    m_data[BW::Q::iU_p3][it]
+                                    );
                         else
                             p_mphys_rs->evaluateElectronDistributionNumericMixed(
                                     m_data[BW::Q::itcomov][it - 1],
@@ -1109,7 +1112,9 @@ public:
                                     m_data[BW::Q::iR][it],
                                     m_data[BW::Q::ithickness_rs][it - 1] *
                                     m_data[BW::Q::iGammaRsh][it - 1],  // comoving shock thickness
-                                    m_data[BW::Q::ithickness_rs][it] * m_data[BW::Q::iGammaRsh][it - 1]);
+                                    m_data[BW::Q::ithickness_rs][it] * m_data[BW::Q::iGammaRsh][it - 1],
+                                    m_data[BW::Q::iU_p3][it - 1],
+                                    m_data[BW::Q::iU_p3][it]);
                         if (p_mphys_rs->is_distribution_initialized)
                             p_mphys_rs->storeSynchrotronSpectrumNumericMixed(it);
                         m_data[BW::Q::igc_rs][it] = p_mphys_rs->gamma_c; // Update (numerical method computes its own gamma_c)
@@ -1151,7 +1156,11 @@ public:
                 else {
                     if (not p_mphys->is_distribution_initialized) // Initialize electron distribution analytically
                         p_mphys->initializeElectronDistribution(
-                                m_data[BW::Q::itcomov][it],m_data[BW::Q::iM2][it]);
+                                m_data[BW::Q::itcomov][it],
+                                m_data[BW::Q::iM2][it],
+                                m_data[BW::Q::irho2][it],
+                                m_data[BW::Q::iU_p][it]
+                                );
                     else // Evolve electron distribution numerically (or analytically)
                         p_mphys->evaluateElectronDistributionNumericMixed(
                                 m_data[BW::Q::itcomov][it - 1],
@@ -1162,9 +1171,11 @@ public:
                                 m_data[BW::Q::irho2][it],
                                 m_data[BW::Q::iR][it - 1],
                                 m_data[BW::Q::iR][it],
-                                m_data[BW::Q::ithickness][it - 1] * m_data[BW::Q::iGammaFsh][it -
-                                                                                             1], // comoving shock thickness dR' = dR * Gamma... (Granot + 1999)
-                                m_data[BW::Q::ithickness][it] * m_data[BW::Q::iGammaFsh][it]);
+                                m_data[BW::Q::ithickness][it - 1] * m_data[BW::Q::iGammaFsh][it -1], // comoving shock thickness dR' = dR * Gamma... (Granot + 1999)
+                                m_data[BW::Q::ithickness][it] * m_data[BW::Q::iGammaFsh][it],
+                                m_data[BW::Q::iU_p][it - 1],
+                                m_data[BW::Q::iU_p][it]
+                                );
                     if (p_mphys->is_distribution_initialized)
                         p_mphys->storeSynchrotronSpectrumNumericMixed(it);
                     m_data[BW::Q::igc][it] = p_mphys->gamma_c; // Update (numerical method computes its own gamma_c)
