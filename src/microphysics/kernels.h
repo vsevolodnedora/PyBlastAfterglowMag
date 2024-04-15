@@ -169,13 +169,13 @@ class SynKernel{
 public:
     SynKernel() = default;
 
-    void allocate(State & ele, State & syn, double (*m_func_) (double,double,double)){
+    void allocate(size_t ngam, size_t nfreq){
         /// allocate memory for the kernel (kernel is not static, but size is)
-        kernel.resize(syn.numbins);
+        kernel.resize(nfreq);
         for (auto & arr : kernel)
-            arr.resize(ele.numbins);
-        m_func = m_func_;
+            arr.resize(ngam, 0.);
     }
+    void setFunc(double (*m_func_) (double,double,double)){ m_func = m_func_; }
 
     static inline double nu_crit(double B, double gam){
         double nu_crit = (3.*CGS::qe*B*gam*gam) / (4.*M_PI*CGS::me*CGS::c);
@@ -511,10 +511,10 @@ public:
      * Fill the kernel array with values for this value of magnetic field
      * @param B
      */
-    void evalSynKernel(State & ele, State & syn, double B){
-        for (size_t k = 0; k < syn.numbins; k++){
-            for (size_t j = 0; j < ele.numbins; j++){
-                kernel[k][j] = m_func(B, syn.e[k], ele.e[j]);
+    void evalSynKernel(Vector & gams, Vector & freqs, double B){
+        for (size_t k = 0; k < freqs.size(); k++){
+            for (size_t j = 0; j < gams.size(); j++){
+                kernel[k][j] = m_func(B, freqs[k], gams[j]);
             }
         }
     }

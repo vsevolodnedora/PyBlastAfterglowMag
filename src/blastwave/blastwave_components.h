@@ -335,8 +335,8 @@ inline namespace EQS{
          * Gamma43 = Gamma * Gamma0 * (1 - betaSh * beta0)
          *
          */
-        const long double beta_switch = 0.9999;
-        long double Gamma43 = Gamma * Gamma0 * (1.0 - beta * beta0); // Eq.(B8) in Nava+13
+//        const long double beta_switch = 0.9999;
+//        long double Gamma43 = Gamma * Gamma0 * (1.0 - beta * beta0); // Eq.(B8) in Nava+13
         long double Gamma43_ = Gamma * Gamma0 * (1.0 / (Gamma0 * Gamma0)
                                                 + 1.0 / (Gamma * Gamma)
                                                 - 1.0 / (Gamma * Gamma) / (Gamma0 * Gamma0)) / (1.0 + beta * beta0);
@@ -352,7 +352,8 @@ inline namespace EQS{
 //                            (1 + beta * beta0) - 1.0;
 //        }
 //        return gamma43_minus_one;
-        return Gamma43_ >= 1. ? Gamma43_ : 1.0;
+//        Gamma43_ = std::max(Gamma43_, 1.l); //Gamma43_ >= 1. ? Gamma43_ : 1.0;
+        return Gamma43_;
     }
 
     inline double get_dgamma43dGamma(const double &Gamma0, const double &Gamma){
@@ -361,8 +362,7 @@ inline namespace EQS{
          * Gamma0 - Gamma * (np.sqrt(Gamma0**2-1)/np.sqrt(Gamma**2-1))
          * But numerically unstable -- truncation error
          */
-        return Gamma0 - (Gamma0*Gamma0 * Gamma - Gamma) /
-                        sqrt(Gamma*Gamma * Gamma0*Gamma0 - Gamma0*Gamma0 - Gamma*Gamma + 1.0);
+        return Gamma0 - (Gamma0*Gamma0 * Gamma - Gamma) / sqrt(Gamma*Gamma * Gamma0*Gamma0 - Gamma0*Gamma0 - Gamma*Gamma + 1.0);
 
     }
 

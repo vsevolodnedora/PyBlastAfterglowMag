@@ -126,7 +126,7 @@ public:
  */
     void update_radiation(bool do_ssa, bool do_ssc){
         /// 1. Update synchrotron kernel for current B
-        synKernel.evalSynKernel(ele, syn, source.B);
+        synKernel.evalSynKernel(ele.e, syn.e, source.B);
 
         /// 2. Compute synchrotron emission spectrum
         computeSynSpectrum();

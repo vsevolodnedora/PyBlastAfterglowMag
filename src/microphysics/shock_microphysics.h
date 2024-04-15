@@ -1088,7 +1088,7 @@ public: // ---------------- ANALYTIC -------------------------- //
     ElectronAndRadiation(int loglevel, bool _is_rs) :
         ElectronAndRadiaionBase(loglevel, _is_rs){}
 
-    void setPars( StrDbMap & pars, StrStrMap & opts, size_t nr,
+    void setPars( StrDbMap & pars, StrStrMap & opts, size_t nr, size_t ish, size_t il,
                   double theta_h_, double tcomov0_ ){
         setBasePars(pars, opts);
         if (tcomov0_<=0.){
@@ -1111,16 +1111,19 @@ public: // ---------------- ANALYTIC -------------------------- //
 
         /// allocate memory for spectra to be used in EATS interpolation
         if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleAnalyt)
-            allocateForAnalyticSpectra(nr);
+            allocateForAnalyticSpectra(nr, ish, il);
         else
-            allocateForNumericSpectra(pars, nr);
+            allocateForNumericSpectra(pars, nr, ish, il);
 
     }
-    void allocateForAnalyticSpectra(size_t nr){
+    void allocateForAnalyticSpectra(size_t nr, size_t ish, size_t il){
         /// allocate space for spectra
-        (*p_log)(LOG_INFO, AT) << " allocating ANALYTIC comov. spectra array for "
-            << (is_rs ? "FS" : "RS")
-            << " n_freqs=" << nfreq << " by n_radii=" << nr << " Spec. grid=" << nfreq * nr << "\n";
+        (*p_log)(LOG_INFO, AT)
+                << "[ish="<<ish<<" il="<<il<<"] AN "
+                << " nfreq="<<nfreq
+                << (m_methods_ssa==METHODS_SSA::iSSAon ? " SSA " : " ")
+                << " ntimes="<<nr
+                << " ALLOCATING\n";
 
 //        syn.allocate(freq1*CGS::freqToErg, freq2*CGS::freqToErg, nfreq);
         syn.allocate(freq1, freq2, nfreq);
@@ -1252,23 +1255,26 @@ public: // -------------------- NUMERIC -------------------------------- //
 //        int x = 0;
     }
 
-    void allocateForNumericSpectra(StrDbMap & pars, size_t nr){
+    void allocateForNumericSpectra(StrDbMap & pars, size_t nr, size_t ish, size_t il){
         /// get freq. boundaries for calculation of the comoving spectrum
-        /// allocate space for spectra
-        (*p_log)(LOG_INFO, AT)
-            << " allocating NUMERIC comov. spectra arrays for "
-            << (is_rs ? "FS" : "RS")
-            << " n_freqs=" << nfreq << " by n_radii=" << nr << " Spec. grid=" << nfreq * nr << "\n";
-
         /// allocate space for spectra
         std::string fs_or_rs;
         if (is_rs)
             fs_or_rs += "_rs";
         else
             fs_or_rs += "_fs";
+
         gam1 = getDoublePar("gam1"+fs_or_rs, pars, AT, p_log,1, true);//pars.at("freq1");
         gam2 = getDoublePar("gam2"+fs_or_rs, pars, AT, p_log,1.e8, true);//pars.at("freq2");
         ngam = (size_t)getDoublePar("ngam"+fs_or_rs, pars, AT, p_log,250, true);//pars.at("nfreq");
+
+        (*p_log)(LOG_INFO, AT)
+                << "[ish="<<ish<<" il="<<il<<"] NUM "
+                << "ngam="<<ngam<<" nfreq="<<nfreq
+                << (m_methods_ssa==METHODS_SSA::iSSAon ? " SSA " : " ")
+                << (m_methods_ssc==METHOD_SSC::iNumSSC ? " SSC " : " ")
+                << " ntimes="<<nr
+                << " ALLOCATING\n";
 
         ele.allocate(gam1, gam2, ngam);
         ele.allocate_output(ngam, nr, true);
@@ -1288,14 +1294,16 @@ public: // -------------------- NUMERIC -------------------------------- //
         }
 
         /// allocate memory for synchrotron kernel
+        syn_kernel.allocate(ele.numbins, syn.numbins);
+
         if (m_sychMethod == METHODS_SYNCH::iGSL)
-            syn_kernel.allocate(ele, syn, SynKernel::synchGSL);
+            syn_kernel.setFunc(SynKernel::synchGSL);
         else if (m_sychMethod == METHODS_SYNCH::iDER06)
-            syn_kernel.allocate(ele, syn, SynKernel::synchDermer);
+            syn_kernel.setFunc(SynKernel::synchDermer);
         else if (m_sychMethod == METHODS_SYNCH::iBessel)
-            syn_kernel.allocate(ele, syn, SynKernel::synchBessel);
+            syn_kernel.setFunc(SynKernel::synchBessel);
         else if (m_sychMethod == METHODS_SYNCH::iCSYN)
-            syn_kernel.allocate(ele, syn, SynKernel::cycSynch);
+            syn_kernel.setFunc(SynKernel::cycSynch);
         else {
             (*p_log)(LOG_ERR, AT) << " method for synchrotron is not recognized \n";
             exit(1);
@@ -1398,7 +1406,7 @@ public: // -------------------- NUMERIC -------------------------------- //
 //        size_t n_substeps = 0;
 
         /// if cooling is too slow, we still need to evolve distribution
-        size_t min_substeps = 2;
+        size_t min_substeps = 1;
 //        max_substeps = 1;
         if (delta_t >= dt/(double)min_substeps) {
             delta_t = dt/(double)min_substeps;
@@ -1410,6 +1418,10 @@ public: // -------------------- NUMERIC -------------------------------- //
         }
         else
             n_substeps = (size_t)(dt/delta_t);
+        if (n_substeps < min_substeps){
+            (*p_log)(LOG_ERR,AT) << " n_substeps="<<n_substeps<<"\n";
+            exit(1);
+        }
 
         /// update source properties
         source.B = B;
@@ -1420,7 +1432,7 @@ public: // -------------------- NUMERIC -------------------------------- //
 //        ChangCooper model = ChangCooper(source, ele, syn, ssc, syn_kernel, ssc_kernel);
 
         /// compute radiation numerically from ANALYTIC electron distribution or evolve electron distribution
-        if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleMix || gamma_min == 1.)
+        if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleMix ) // || gamma_min == 1.
             for (size_t i = 0; i < ele.numbins; i++)
                 ele.f[i] = tmp[i];
         /// evolve electron distribution via Chang Cooper Scheme
@@ -1457,9 +1469,9 @@ public: // -------------------- NUMERIC -------------------------------- //
 //            n_ele_out = n_ele_num;
         }
 
-        /// apply Deep Newtonian limit
-        for (size_t i = 0; i < ele.numbins-1; i++)
-            ele.f[i] *= accel_frac;
+        /// apply Deep Newtonian limit TODO !!!
+//        for (size_t i = 0; i < ele.numbins-1; i++)
+//            ele.f[i] *= accel_frac;
 //        n_ele_num*=accel_frac;
 
 //        for (size_t i = 0; i < ele.numbins-1; i++)
@@ -1475,7 +1487,7 @@ public: // -------------------- NUMERIC -------------------------------- //
 //          m_methods_ssc == METHOD_SSC::iNumSSC, photon_field);
 
         /// 1. Update synchrotron kernel for current B
-        syn_kernel.evalSynKernel(ele, syn, source.B);
+        syn_kernel.evalSynKernel(ele.e, syn.e, source.B);
 
         /// 2. Compute synchrotron emission spectrum
         model.computeSynSpectrum(); // compute syn.j[] syn.f[]
@@ -1515,7 +1527,7 @@ public: // -------------------- NUMERIC -------------------------------- //
         double u_ele=0.;
         for (size_t i = 0; i < ele.numbins-1; i++)
             u_ele+=ele.f[i]*ele.e[i]*ele.de[i]*CGS::me*CGS::c*CGS::c/source.vol; //total energy density in electrons
-
+        u_ele*=accel_frac;
 
         if (n_ele <= 0){
             (*p_log)(LOG_ERR,AT) << " n_ele = "<<n_ele<<"\n";
@@ -1526,8 +1538,8 @@ public: // -------------------- NUMERIC -------------------------------- //
         double nu_tau = -1;
         double _min = std::numeric_limits<double>::max();
         for (size_t i = 0; i < syn.numbins; i++) {
-            syn.j[i] /= n_ele;
-            syn.a[i] = syn.a[i] / n_ele * n_prime; // absorption (depth) requires the comoving particle density
+            syn.j[i] = syn.j[i] / n_ele * accel_frac;
+            syn.a[i] = syn.a[i] / n_ele * accel_frac * n_prime; // absorption (depth) requires the comoving particle density
             double dtau = syn.a[i]*dr_comov;
             syn.intensity[i] = computeIntensity(syn.j[i], dtau, METHOD_TAU::iAPPROX);
             if (dtau-1. < _min and dtau-1.>0) {
@@ -1538,8 +1550,8 @@ public: // -------------------- NUMERIC -------------------------------- //
 
         if (m_methods_ssc != METHOD_SSC::inoSSC) {
             for (size_t i = 0; i < ssc.numbins; i++) {
-                ssc.j[i] /= n_ele;
-                ssc.a[i] = ssc.a[i] / n_ele * n_prime; // absorption (depth) requires the comoving particle density
+                ssc.j[i] = ssc.j[i] / n_ele * accel_frac;
+                ssc.a[i] = ssc.a[i] / n_ele * accel_frac * n_prime; // absorption (depth) requires the comoving particle density
                 double dtau = ssc.a[i]*dr_comov;
                 ssc.intensity[i] = computeIntensity(ssc.j[i], dtau, METHOD_TAU::iAPPROX);
             }
@@ -1603,10 +1615,11 @@ public: // -------------------- NUMERIC -------------------------------- //
 
             /// log result
             (*p_log)(LOG_INFO, AT)
-                << (is_rs ? "RS" : "FS" )
-                << " it=" << it
+                << (is_rs ? "RS " : "FS " )
+                << (n_substeps == 0 ? "I " : "E ")
+                << "it=" << it
                 << " n=" << n_substeps
-                << " Ne=" << n_ele / (source.N_ele_tot*accel_frac) // should be 1
+                << " Ne=" << n_ele / (source.N_ele_tot) // should be 1
                 << " Ue=" << u_ele / (source.u_e) // should be 1
                 << " | "
                 << " gm=" << gamma_min

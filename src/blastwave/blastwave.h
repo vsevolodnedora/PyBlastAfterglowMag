@@ -1783,7 +1783,12 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
     double beta   = EQS::BetaFromGamma(Gamma);
 
     long double Gamma43 = EQS::get_Gamma43(Gamma, p_pars->Gamma0, beta, p_pars->beta0);
+    if (Gamma43 < 1.l)
+        Gamma43 = 1.l;
     long double beta43 = EQS::BetaFromGamma(Gamma43);
+//    if (Gamma43*beta43 < 2e-3)
+//        int z = 1;
+
     double gammaAdi3 = p_eos->getGammaAdi((double)Gamma43, beta43);
 
     double GammaRsh = EQS::GammaSh((double)Gamma43,gammaAdi3);
@@ -1856,15 +1861,16 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
     long double dM3dR = 0.;
     double rho4 = 0.;
     double dlnrho4dR = 0.;
-    if ((!p_pars->shutOff) && (Gamma < 0.999*p_pars->Gamma0)){ // and (not M3 > 1.):# and (deltaR4 > 0): # the last assures that jet is decelerating
+    // (Gamma < 0.9999*p_pars->Gamma0) (x > p_pars->tb0*1.e-5)
+    if ((!p_pars->shutOff) && (Gamma < 0.9999 * p_pars->Gamma0) ){ // and (not M3 > 1.):# and (deltaR4 > 0): # the last assures that jet is decelerating
         double alpha_of = p_pars->tprompt * p_pars->beta0 * CGS::c;// * EjectaID2::CellsInLayer(p_pars->ilayer);
         ddeltaR4dR = (1.0 / (beta*beta*beta*beta) - 1.0 / (p_pars->beta0*p_pars->beta0*p_pars->beta0*p_pars->beta0)) /
-                     (1.0 / beta + 1.0 / p_pars->beta0) / (1.0 / (beta*beta) + 1.0 / (p_pars->beta0*p_pars->beta0)) * p_pars->beta0;
+                     (1.0 / beta + 1.0 / p_pars->beta0)
+                     / (1.0 / (beta*beta) + 1.0 / (p_pars->beta0*p_pars->beta0)) * p_pars->beta0;
         long double rho4_scale_factor = -deltaR4 / alpha_of;
         // rho4 = rho4_factor * np.exp(rho4_scale_factor)  # Here exp() does not really make a difference
         if (p_pars->exponential_rho4) {
-            dM3dR = (1.0 / alpha_of) * ddeltaR4dR *
-                    std::exp(rho4_scale_factor); // [not / m_pars["m_scale"] -- changes everything]
+            dM3dR = (1.0 / alpha_of) * ddeltaR4dR * std::exp(rho4_scale_factor);
             // rho3prim = 4 * Gamma * rho4
             dlnrho4dR = -2.0 / R - ddeltaR4dR / alpha_of;
         }

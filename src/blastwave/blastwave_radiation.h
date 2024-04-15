@@ -848,10 +848,12 @@ public:
 
 
         /// Set Electron And Radiation Model
-        p_pars->p_mphys->setPars(pars, opts, p_pars->nr, p_pars->theta_c_h,
+        p_pars->p_mphys->setPars(pars, opts, p_pars->nr, p_pars->ishell, p_pars->ilayer,
+                                 p_pars->theta_c_h,
                                  EQS::initTComov(p_pars->R0, p_pars->beta0, p_pars->Gamma0));
         if (p_pars->do_rs_radiation)
-            p_pars->p_mphys_rs->setPars(pars, opts, p_pars->nr, p_pars->theta_c_h,
+            p_pars->p_mphys_rs->setPars(pars, opts, p_pars->nr,p_pars->ishell, p_pars->ilayer,
+                                        p_pars->theta_c_h,
                                         EQS::initTComov(p_pars->R0, p_pars->beta0, p_pars->Gamma0));
 
         /// Set EATS functions (interpolator functions)
