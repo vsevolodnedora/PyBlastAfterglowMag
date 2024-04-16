@@ -61,8 +61,8 @@ def plot(struct:dict,pp:dict,plot:dict):
         grb=dict(do_rs_radiation='no',do_rs='no',bw_type='fs')),pp),type="a",run=True)
     ax.plot(
         pba.GRB.get_lc_times(unique=True,spec=False),
-        pba.GRB.get_lc(key="fluxdens",xkey="freqs",ykey="times",freq=1e9,time=None,
-                       ishell=0,ilayer=0,sum_shells_layers=True,spec=False),
+        pba.GRB.get_lc(key="fluxdens", xkey="freqs", key_time="times", freq=1e9, time=None,
+                       ishell=0, ilayer=0, sum_shells_layers=True, spec=False),
         color='blue',label='FS'
 
     )
@@ -72,8 +72,8 @@ def plot(struct:dict,pp:dict,plot:dict):
         grb=dict(do_rs_radiation='yes',do_rs='yes',bw_type='fsrs')),pp),type="a",run=True)
     ax.plot(
         pba.GRB.get_lc_times(unique=True,spec=False),
-        pba.GRB.get_lc(key="fluxdens",xkey="freqs",ykey="times",freq=1e9,time=None,
-                       ishell=0,ilayer=0,sum_shells_layers=True,spec=False),
+        pba.GRB.get_lc(key="fluxdens", xkey="freqs", key_time="times", freq=1e9, time=None,
+                       ishell=0, ilayer=0, sum_shells_layers=True, spec=False),
         color='green',label='FS \& RS'
     )
 

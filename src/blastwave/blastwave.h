@@ -1924,7 +1924,7 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
         dEad2dR = -(gammaAdi - 1.0) * Eint2 * dlnV2dR;
     // -- Radiative losses
     double dErad2dR = p_pars->eps_rad * dEsh2dR;
-    long double dEsh3dR = (Gamma43 - 1.0) * dM3dR;
+    long double dEsh3dR = (Gamma43 - 1.0) * dM3dR; // Here it should be Gamma43 I presume...
     double dErad3dR = p_pars->epsilon_rad_rs * (double)dEsh3dR;
 
 //    double dEsh3dR = 0.;

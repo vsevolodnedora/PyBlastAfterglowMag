@@ -131,29 +131,29 @@ class PlotSpectra:
 
         if v_n == "total_f":
             spec_syn=ej.get_lc(key="syn_j"+'_'+fs_or_rs if ele_syn_ssc != "fluxdens" else "fluxdens",
-                           xkey=xkey,ykey=ykey,freq=None,time=None,
-                           ishell=ishell,ilayer=ilayer,
-                           spec=is_spec,sum_shells_layers=sum_shells_layers)
+                               xkey=xkey, key_time=ykey, freq=None, time=None,
+                               ishell=ishell, ilayer=ilayer,
+                               spec=is_spec, sum_shells_layers=sum_shells_layers)
             spec_ssc=ej.get_lc(key="ssc_j"+'_'+fs_or_rs if ele_syn_ssc != "fluxdens" else "fluxdens",
-                               xkey=xkey,ykey=ykey,freq=None,time=None,
-                               ishell=ishell,ilayer=ilayer,
-                               spec=is_spec,sum_shells_layers=sum_shells_layers)
+                               xkey=xkey, key_time=ykey, freq=None, time=None,
+                               ishell=ishell, ilayer=ilayer,
+                               spec=is_spec, sum_shells_layers=sum_shells_layers)
             spec = spec_syn + spec_ssc
         elif v_n == "total_i":
             spec_syn=ej.get_lc(key="syn_i"+'_'+fs_or_rs if ele_syn_ssc != "fluxdens" else "fluxdens",
-                               xkey=xkey,ykey=ykey,freq=None,time=None,
-                               ishell=ishell,ilayer=ilayer,
-                               spec=is_spec,sum_shells_layers=sum_shells_layers)
+                               xkey=xkey, key_time=ykey, freq=None, time=None,
+                               ishell=ishell, ilayer=ilayer,
+                               spec=is_spec, sum_shells_layers=sum_shells_layers)
             spec_ssc=ej.get_lc(key="ssc_i"+'_'+fs_or_rs if ele_syn_ssc != "fluxdens" else "fluxdens",
-                               xkey=xkey,ykey=ykey,freq=None,time=None,
-                               ishell=ishell,ilayer=ilayer,
-                               spec=is_spec,sum_shells_layers=sum_shells_layers)
+                               xkey=xkey, key_time=ykey, freq=None, time=None,
+                               ishell=ishell, ilayer=ilayer,
+                               spec=is_spec, sum_shells_layers=sum_shells_layers)
             spec = spec_syn + spec_ssc
         else:
             spec=ej.get_lc(key=ele_syn_ssc+'_'+fs_or_rs if ele_syn_ssc != "fluxdens" else "fluxdens",
-                           xkey=xkey,ykey=ykey,freq=None,time=None,
-                           ishell=ishell,ilayer=ilayer,
-                           spec=is_spec,sum_shells_layers=sum_shells_layers)
+                           xkey=xkey, key_time=ykey, freq=None, time=None,
+                           ishell=ishell, ilayer=ilayer,
+                           spec=is_spec, sum_shells_layers=sum_shells_layers)
         # if v_n == "Yg":
         #     spec = PlotSpectra._get_spectrum(ej=ej,v_n="total_f",fs_or_rs=fs_or_rs,norm_method=norm_method,
         #                                      ishell=ishell,ilayer=ilayer,sum_shells_layers=sum_shells_layers)
@@ -611,19 +611,19 @@ def plot_emission_region_prop(ej:PBA.Ejecta,fs_or_rs:str,xlim:tuple,task:dict,is
     plt.close(fig)
 
 def plot_emission_region_prop_2(ej:PBA.Ejecta,fs_or_rs:str,xlim:tuple,task:dict):
-    fig,axes = plt.subplots(ncols=1,nrows=3, figsize=(5,6.5),layout='constrained',sharex="all")
+    fig,axes = plt.subplots(ncols=1,nrows=2, figsize=(5,5),layout='constrained',sharex="all")
 
     for i, ilayer in enumerate(task["layers"]):
         # ------------ GAMMA ------------
         axes[0].plot(
             ej.get_dyn_arr(v_n="tburst",ishell=0,ilayer=ilayer),
             ej.get_dyn_arr(v_n="mom",ishell=0,ilayer=ilayer),
-            color=task["colors"][i]
+            color=task["colors"][i],ls='-'
         )
         axes[0].plot(
             ej.get_dyn_arr(v_n="tburst",ishell=0,ilayer=ilayer),
             ej.get_dyn_arr(v_n="Gamma43",ishell=0,ilayer=ilayer) * \
-            PBA.utils.get_beta(ej.get_dyn_arr(v_n="Gamma43",ishell=0,ilayer=ilayer)),
+                PBA.utils.get_beta(ej.get_dyn_arr(v_n="Gamma43",ishell=0,ilayer=ilayer)),
             color=task["colors"][i],ls='--'
         )
         # -------------- xi_DN ------------
@@ -638,17 +638,19 @@ def plot_emission_region_prop_2(ej:PBA.Ejecta,fs_or_rs:str,xlim:tuple,task:dict)
             color=task["colors"][i],ls='--'
         )
         axes[1].set_ylim(1e-5,2.)
+        axes[1].plot([0,0],[1,1],color='gray',ls='-',label=r'$\Gamma\beta$')
+        axes[1].plot([0,0],[1,1],color='gray',ls='--',label=r'$\Gamma_{43}\beta_{43}$')
         # -------------- thickness ------------
-        axes[2].plot(
-            ej.get_dyn_arr(v_n="tburst",ishell=0,ilayer=ilayer),
-            ej.get_dyn_arr(v_n="B",ishell=0,ilayer=ilayer),
-            color=task["colors"][i],ls='-'
-        )
-        axes[2].plot(
-            ej.get_dyn_arr(v_n="tburst",ishell=0,ilayer=ilayer),
-            ej.get_dyn_arr(v_n="B_rs",ishell=0,ilayer=ilayer),
-            color=task["colors"][i],ls='--'
-        )
+        # axes[2].plot(
+        #     ej.get_dyn_arr(v_n="tburst",ishell=0,ilayer=ilayer),
+        #     ej.get_dyn_arr(v_n="B",ishell=0,ilayer=ilayer),
+        #     color=task["colors"][i],ls='-'
+        # )
+        # axes[2].plot(
+        #     ej.get_dyn_arr(v_n="tburst",ishell=0,ilayer=ilayer),
+        #     ej.get_dyn_arr(v_n="B_rs",ishell=0,ilayer=ilayer),
+        #     color=task["colors"][i],ls='--'
+        # )
         # axes[2].set_ylim(1e2,1e18)
 
     for ax in axes:
@@ -664,6 +666,39 @@ def plot_emission_region_prop_2(ej:PBA.Ejecta,fs_or_rs:str,xlim:tuple,task:dict)
         ax.grid(True)
         ax.set_xlim(*xlim)
 
+    # -----------
+    l1, = axes[0].plot([0,0],[1,1],color='gray',ls='-',label=r'$\Gamma\beta$')
+    l2, = axes[0].plot([0,0],[1,1],color='gray',ls='--',label=r'$\Gamma_{43}\beta_{43}$')
+    leg1 = axes[0].legend(handles=[l1,l2],
+                           fancybox=True, loc="upper right",columnspacing=0.8,
+                           # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                           shadow=False, ncol= 1, fontsize=12, labelcolor='black',
+                           framealpha=0.4, borderaxespad=0.)
+    axes[0].add_artist(leg1)
+
+    # -----------------
+    l1, = axes[1].plot([0,0],[1,1],color='gray',ls='-',label=r'$\xi_{\rm DN;\, fsh}$')
+    l2, = axes[1].plot([0,0],[1,1],color='gray',ls='--',label=r'$\xi_{\rm DN;\, rsh}$')
+    leg1 = axes[1].legend(handles=[l1,l2],
+                          fancybox=True, loc="lower right",columnspacing=0.8,
+                          # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                          shadow=False, ncol= 1, fontsize=12, labelcolor='black',
+                          framealpha=0.4, borderaxespad=0.)
+    axes[1].add_artist(leg1)
+
+    # ------------------
+    ls = []
+    for i, ilayer in enumerate(task["layers"]):
+        l_, = axes[0].plot([0,0],[1,1],color=task["colors"][i],ls='-',label=f'il={ilayer}')
+        ls.append(l_)
+    leg1 = axes[0].legend(handles=ls,
+                          fancybox=True, loc="lower center",columnspacing=0.3,
+                          # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                          shadow=False, ncol= 5, fontsize=12, labelcolor='black',
+                          framealpha=0.4, borderaxespad=0.)
+    axes[0].add_artist(leg1)
+
+
     axes[-1].set_xlabel(r"$t_{\rm burst}$ [s]",fontsize=12)
     # ax.set_ylabel(r"$\tau_{\rm e}$")
     plt.savefig(os.getcwd()+'/figs/'+task["figname"]+'.png',dpi=256)
@@ -671,6 +706,69 @@ def plot_emission_region_prop_2(ej:PBA.Ejecta,fs_or_rs:str,xlim:tuple,task:dict)
     if task["show"]: plt.show()
     if plot: plt.show()
     plt.close(fig)
+
+def plot_emission_region_prop_3(ej:PBA.Ejecta,fs_or_rs:str,xlim:tuple,task:dict,ishell=0,ilayer=0):
+    sp = PlotSpectra()
+    fig,axes = plt.subplots(ncols=1,nrows=3, figsize=(5,4.5),layout='constrained',sharex="all")
+
+    # ej = pba.GRB
+
+    def get_total_ele_n(ishell,ilayer,fs_or_rs):
+        mass = ej.get_dyn_arr(v_n="M2" if fs_or_rs=="fs" else "M3",ishell=ishell,ilayer=ilayer)
+        xs, ys, spec = sp._get_spectrum(ej=ej,v_n="n_ele",fs_or_rs=fs_or_rs,
+                                        ishell=ishell,ilayer=ilayer,sum_shells_layers=False,norm_method=None)
+        total_ele = integrate.simps(y=spec, x=ys, axis=1)
+        return total_ele / (mass / PBA.utils.cgs.mp)
+
+    def get_total_ele_en(ishell,ilayer,fs_or_rs):
+        mass = ej.get_dyn_arr(v_n="M2" if fs_or_rs=="fs" else "M3",ishell=ishell,ilayer=ilayer)
+        dens = ej.get_dyn_arr(v_n="rho2" if fs_or_rs=="fs" else "rho3",ishell=ishell,ilayer=ilayer)
+        vol = mass / dens
+        xs, ys, spec = sp._get_spectrum(ej=ej,v_n="n_ele",fs_or_rs=fs_or_rs,
+                                        ishell=ishell,ilayer=ilayer,sum_shells_layers=False,norm_method=None)
+        # Energy density in relativistic particles https://www.mpi-hd.mpg.de/personalhomes/frieger/HEA6.pdf
+        tot_ele = np.trapz(spec*ys[np.newaxis,:]/vol[:,np.newaxis]*PBA.utils.cgs.me*PBA.utils.cgs.c**2,x=ys,axis=1)
+
+        ue = ej.get_dyn_arr(v_n="U_p" if fs_or_rs=="fs" else "U_p3",ishell=ishell,ilayer=ilayer)
+        eps_e = ej.pars["eps_e_fs"] if fs_or_rs=="fs" else ej.pars["eps_e_rs"]
+        ksi_dn = ej.get_dyn_arr(v_n="accel_frac" if fs_or_rs=="fs" else "accel_frac_rs",ishell=ishell,ilayer=ilayer)
+        return tot_ele/(ksi_dn * eps_e * ue)
+
+    x = ej.get_dyn_arr(v_n="tburst",ishell=ishell,ilayer=ilayer)
+
+    # plot ele number
+    ax = axes[0]
+    for i, il in enumerate(task["layers"]):
+        ax.plot(x, get_total_ele_n(0,il,"fs"),color=task["colors"][i],ls='-')
+        ax.plot(x, get_total_ele_n(0,il,"rs"),color=task["colors"][i],ls='--')
+
+
+    # plot ele energy
+    ax = axes[1]
+    for i, il in enumerate(task["layers"]):
+        ax.plot(x, get_total_ele_en(0,il,"fs"),color=task["colors"][i],ls='-')
+        ax.plot(x, get_total_ele_en(0,il,"rs"),color=task["colors"][i],ls='--')
+
+    for ax in axes:
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.minorticks_on()
+        ax.tick_params(axis='both',which='both',direction='in',labelsize=11)
+        ax.legend(fancybox=True, loc="best",columnspacing=0.8,
+                  # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                  shadow=False, ncol= 4, fontsize=12, labelcolor='black',
+                  framealpha=0.4, borderaxespad=0.)
+        ax.set_rasterized(True)
+        ax.set_xlim(*xlim)
+
+    axes[-1].set_xlabel(r"$t_{\rm burst}$ [s]",fontsize=12)
+    # ax.set_ylabel(r"$\tau_{\rm e}$")
+    plt.savefig(os.getcwd()+'/figs/'+task["figname"]+'.png',dpi=256)
+    plt.savefig(os.getcwd()+'/figs/'+task["figname"]+'.pdf')
+    if task["show"]: plt.show()
+    if plot: plt.show()
+    plt.close(fig)
+
 
 
     #     double T = source.dr / CGS::c; // escape time (See Huang+2022)
@@ -1398,8 +1496,7 @@ if __name__ == '__main__':
                   lc_freqs='array logspace 1e8 1e29 96',
                   lc_times='array logspace 3e3 1e10 128'),
         grb=dict(save_dynamics='yes',do_spec='yes',save_spec='yes',do_lc='yes',
-                 # method_nonrel_dist_fs='none',
-                 # method_nonrel_dist_rs='none',
+                 method_nonrel_dist_fs='none',method_nonrel_dist_rs='none',
                  eps_e_fs=0.1,eps_b_fs=0.001,p_fs=2.3,
                  gamma_max_fs=4e7,method_gamma_max_fs="useConst",
                  gamma_max_rs=4e7,method_gamma_max_rs="useConst",
@@ -1453,16 +1550,21 @@ if __name__ == '__main__':
                                                             method_ssc_rs='numeric'))),
         type="a",run=do_run
     )
-    # plot_total_observed_spectrum_2(
-    #     ej_fs=ej_fs.GRB,ej_fsrs=ej_fsrs.GRB,norm_method="*y",
-    #     xlim=(3e3,3e7), task=dict(show=True,figname="gauss_fluxdens_plot",fs_rs_total="total",
-    #                               norm="LogNorm",vmin=1e10,vmax=1e19,mode="contour",
-    #                               ylabel=r"$\nu$ [Hz]", xlabel=r"$t_{\rm obs}$ [s]",
-    #                               zlabel=r"$\nu F_{\rm total}$ [mJy]",title="Gauss jet; FS \& RS",
-    #                               set_under='blue',set_over='red',layers=(0,5,10,19),
-    #                               plot_gm=False,plot_gc=False,plot_gM=False))
-    plot_emission_region_prop_2(ej=ej_fsrs.GRB,fs_or_rs="fs",
-                              xlim=(3e3,1e9),task=dict(layers=(0,5,10,15,19),
-                                                       colors=("red","orange","yellow","green","blue"),
-                                                       figname="gauss_bw_props",show=True
-                                                       ))
+    plot_total_observed_spectrum_2(
+        ej_fs=ej_fs.GRB,ej_fsrs=ej_fsrs.GRB,norm_method="*y",
+        xlim=(3e3,3e7), task=dict(show=True,figname="gauss_fluxdens_plot",fs_rs_total="total",
+                                  norm="LogNorm",vmin=1e10,vmax=1e19,mode="contour",
+                                  ylabel=r"$\nu$ [Hz]", xlabel=r"$t_{\rm obs}$ [s]",
+                                  zlabel=r"$\nu F_{\rm total}$ [mJy]",title="Gauss jet; FS \& RS",
+                                  set_under='blue',set_over='red',layers=(0,5,10,19),
+                                  plot_gm=False,plot_gc=False,plot_gM=False))
+    # plot_emission_region_prop_2(ej=ej_fsrs.GRB,fs_or_rs="fs",
+    #                           xlim=(3e3,1e9),task=dict(layers=(0,5,10,15,19),
+    #                                                    colors=("red","orange","yellow","green","blue"),
+    #                                                    figname="gauss_bw_props",show=True
+    #                                                    ))
+    plot_emission_region_prop_3(ej=ej_fsrs.GRB,fs_or_rs="fs",
+                                xlim=(3e3,1e9),task=dict(layers=(0,5,10,15,19),
+                                                         colors=("red","orange","yellow","green","blue"),
+                                                         figname="gauss_bw_shock_props",show=True
+                                                         ))

@@ -130,8 +130,8 @@ def plot_compare_two_spectra_new(ej:PBA.Ejecta or None, ej_an:PBA.Ejecta or None
         ele_syn_ssc = "ssa"
         tau = True
     spec=ej.get_lc(key=ele_syn_ssc+'_'+fs_or_rs if ele_syn_ssc != "fluxdens" else "fluxdens",
-                   xkey=xkey,ykey=ykey,freq=None,time=None,ishell=0,ilayer=0,
-                   spec=is_spec,sum_shells_layers=False)
+                   xkey=xkey, key_time=ykey, freq=None, time=None, ishell=0, ilayer=0,
+                   spec=is_spec, sum_shells_layers=False)
     if tau:
         dr = ej.get_dyn_arr(v_n="thickness" if fs_or_rs=="fs" else "thickness_rs",ishell=0,ilayer=0)
         Gamma = ej.get_dyn_arr(v_n="Gamma" if fs_or_rs=="fs" else "Gamma43",ishell=0,ilayer=0)
@@ -159,8 +159,8 @@ def plot_compare_two_spectra_new(ej:PBA.Ejecta or None, ej_an:PBA.Ejecta or None
             ele_syn_ssc = "ssa"
             tau = True
         spec_an=ej_an.get_lc(key=ele_syn_ssc+'_'+fs_or_rs if ele_syn_ssc != "fluxdens" else "fluxdens",
-                             xkey=xkey,ykey=ykey,freq=None,time=None,ishell=0,ilayer=0,
-                             spec=is_spec,sum_shells_layers=False)
+                             xkey=xkey, key_time=ykey, freq=None, time=None, ishell=0, ilayer=0,
+                             spec=is_spec, sum_shells_layers=False)
         if tau:
             dr = ej_an.get_dyn_arr(v_n="thickness" if fs_or_rs=="fs" else "thickness_rs",ishell=0,ilayer=0)
             Gamma = ej_an.get_dyn_arr(v_n="Gamma" if fs_or_rs=="fs" else "Gamma43",ishell=0,ilayer=0)
@@ -450,8 +450,8 @@ def plot_optical_depth_spectrum(ej:PBA.Ejecta,name1:str,ele_syn_ssc='ssa',fs_or_
         ele_syn_ssc = "ssa"
         tau = True
     spec=ej.get_lc(key=ele_syn_ssc+'_'+fs_or_rs if ele_syn_ssc != "fluxdens" else "fluxdens",
-                   xkey=xkey,ykey=ykey,freq=None,time=None,ishell=0,ilayer=0,
-                   spec=is_spec,sum_shells_layers=False)
+                   xkey=xkey, key_time=ykey, freq=None, time=None, ishell=0, ilayer=0,
+                   spec=is_spec, sum_shells_layers=False)
     if tau:
         dr = ej.get_dyn_arr(v_n="thickness" if fs_or_rs=="fs" else "thichness_rs",ishell=0,ilayer=0)
         Gamma = ej.get_dyn_arr(v_n="Gamma" if fs_or_rs=="fs" else "Gamma43",ishell=0,ilayer=0)
@@ -613,8 +613,8 @@ def plot_optical_depth_spectrum(ej:PBA.Ejecta,name1:str,ele_syn_ssc='ssa',fs_or_
 
     if task["plot_tau_1"]:
         ssa=ej.get_lc(key='ssa'+'_'+fs_or_rs if ele_syn_ssc != "fluxdens" else "fluxdens",
-                       xkey=xkey,ykey=ykey,freq=None,time=None,ishell=0,ilayer=0,
-                       spec=is_spec,sum_shells_layers=False)
+                      xkey=xkey, key_time=ykey, freq=None, time=None, ishell=0, ilayer=0,
+                      spec=is_spec, sum_shells_layers=False)
         dr_comov = dr * Gamma_sh # thickness as R / Gamma in comoving frame (dr is in observer frame so R/Gamma^2
         tau = ssa * dr_comov[:, np.newaxis]
         ax.plot(
@@ -691,9 +691,9 @@ def _get_spectrum(ej:PBA.Ejecta,v_n:str,fs_or_rs:str,norm_method:str,
     else: raise KeyError(f"Key {v_n} is not recognized")
 
     spec=ej.get_lc(key=ele_syn_ssc+'_'+fs_or_rs if ele_syn_ssc != "fluxdens" else "fluxdens",
-                   xkey=xkey,ykey=ykey,freq=None,time=None,
-                   ishell=ishell,ilayer=ilayer,
-                   spec=is_spec,sum_shells_layers=sum_shells_layers)
+                   xkey=xkey, key_time=ykey, freq=None, time=None,
+                   ishell=ishell, ilayer=ilayer,
+                   spec=is_spec, sum_shells_layers=sum_shells_layers)
 
     if v_n == "tau":
         dr = ej.get_dyn_arr(v_n="thickness" if fs_or_rs=="fs" else "thichness_rs",ishell=ishell,ilayer=ilayer)
