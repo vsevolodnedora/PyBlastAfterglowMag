@@ -339,13 +339,11 @@ public:
         sol[i + SOL::QS::iEint2] *= (p_pars->M0 * CGS::c * CGS::c);
         sol[i + SOL::QS::iEad2]  *= (p_pars->M0 * CGS::c * CGS::c);
         sol[i + SOL::QS::iEsh2]  *= (p_pars->M0 * CGS::c * CGS::c);
-        sol[i + SOL::QS::iEad2]  *= (p_pars->M0 * CGS::c * CGS::c);
         /// quantities for reverse shock
         sol[i + SOL::QS::iM3]    *= p_pars->M0;
         sol[i + SOL::QS::iEint3] *= (p_pars->M0 * CGS::c * CGS::c);
         sol[i + SOL::QS::iEad3]  *= (p_pars->M0 * CGS::c * CGS::c);
         sol[i + SOL::QS::iEsh3]  *= (p_pars->M0 * CGS::c * CGS::c);
-        sol[i + SOL::QS::iEad3]  *= (p_pars->M0 * CGS::c * CGS::c);
     }
     /// insert the solution at every substep used in derivatives inside RHS
     void insertSolutionSustep(const double * sol, double t, size_t it, size_t i){

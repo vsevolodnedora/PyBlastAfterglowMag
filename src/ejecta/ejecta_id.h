@@ -281,15 +281,15 @@ private:
         /// ---------------------------
         switch (method_eats) {
             case iadaptive:
-                for (size_t ish = 0; ish < nshells; ish++) {
-                    for (size_t i = 0; i < nlayers; i++) {
-                        double frac_of_solid_ang = 2
-                                                   * std::sin(0.5 * m_data[Q::itheta_c_h][ish][i])
-                                                   * std::sin(0.5 * m_data[Q::itheta_c_h][ish][i]);
-                        m_data[Q::iek][ish][i] *= (frac_of_solid_ang / 2.);// TODO remove it and include into ID maker
-                        m_data[Q::imass][ish][i] *= (frac_of_solid_ang / 2.);
-                    }
-                }
+//                for (size_t ish = 0; ish < nshells; ish++) {
+//                    for (size_t i = 0; i < nlayers; i++) {
+//                        double frac_of_solid_ang = 2
+//                                                   * std::sin(0.5 * m_data[Q::itheta_c_h][ish][i])
+//                                                   * std::sin(0.5 * m_data[Q::itheta_c_h][ish][i]);
+//                        m_data[Q::iek][ish][i] *= (frac_of_solid_ang / 2.);// TODO remove it and include into ID maker
+//                        m_data[Q::imass][ish][i] *= (frac_of_solid_ang / 2.);
+//                    }
+//                }
                 break ;
             case ipiecewise:
                 for (size_t ish = 0; ish < nshells; ish++) {
@@ -304,10 +304,11 @@ private:
         /// ---------------------------
         if (loadr0){
             /// pass
-
+            (*p_log)(LOG_INFO,AT) << "Loading R0 for BWs from ID file"<<"\n";
         }
         else{
             /// pass
+            (*p_log)(LOG_INFO,AT) << "Computing R0 for BWs from momenta and Global t0"<<"\n";
             for (size_t ish = 0; ish < nshells; ish++) {
                 for (size_t i = 0; i < nlayers; i++) {
                     m_data[Q::ir][ish][i] = BetFromMom(m_data[Q::imom][ish][i]) * CGS::c * t0;
@@ -315,8 +316,6 @@ private:
             }
         }
         /// ---------------------------
-        int x =1;
-
     }
 };
 

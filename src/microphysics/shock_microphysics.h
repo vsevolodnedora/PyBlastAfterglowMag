@@ -1386,6 +1386,7 @@ public: // -------------------- NUMERIC -------------------------------- //
 //        ratio_an = source.N_ele_tot / n_ele_an;
 
         double dt = tc_p1 - tc;
+        source.dt = dt;
         /// for adiabatic cooling of electron distribution (Note it may be turned off)
         double volume = m / rho_prime;//r * r * dr_comov;
 //        double volume = r * r * dr_comov;
@@ -1601,17 +1602,25 @@ public: // -------------------- NUMERIC -------------------------------- //
                 ssc_peak_flux = ssc.e[max_idx_c] * ssc.j[max_idx_c];
             }
 
+            /// energy density of the synchrotron radiation
+            double u_syn = 0;
+            for (size_t i = 0; i < syn.numbins-1; i++)
+//                u_syn += syn.f[i] * (CGS::h * syn.e[i]);
+                u_syn += syn.j[i] * syn.de[i];
+            u_syn *= (4. * CGS::pi / CGS::c);
+//            double U_syn = u_syn * source.vol;
 
-//            double u_syn = 0;
-//            for (size_t i = 0; i < syn.numbins-1; i++)
-//                u_syn += syn.e[i] * syn.j[i] * syn.de[i];
+            double u_ssc = 0;
+            if (m_methods_ssc == METHOD_SSC::iNumSSC)
+                for (size_t i = 0; i < syn.numbins-1; i++)
+//                    u_ssc += ssc.f[i] * (CGS::h * syn.e[i]);
+                    u_ssc += ssc.j[i] * ssc.de[i];
+            u_ssc *= (4. * CGS::pi / CGS::c);
+//            double U_ssc = u_ssc * source.vol;
+
+//            std::cout << (u_syn + u_ssc) * source.dt / source.u_e << "\n";
 //
-//            double u_ssc = 0;
-//            if (m_methods_ssc == METHOD_SSC::iNumSSC)
-//                for (size_t i = 0; i < syn.numbins-1; i++)
-//                    u_ssc += ssc.e[i] * ssc.j[i] * ssc.de[i];
-////
-//            double y = u_ssc/u_syn;
+            double y = u_ssc/u_syn;
 
             /// log result
             (*p_log)(LOG_INFO, AT)
@@ -1626,6 +1635,7 @@ public: // -------------------- NUMERIC -------------------------------- //
                 << " gc=" << gamma_c
                 << " gM=" << gamma_max
                 << " | "
+                << " y="<<y
                 << " syn[" << synch_peak << "]="
                 << synch_peak_flux//<< std::accumulate(syn.j.begin(), syn.j.end(),0.)
                 << " nu_tau="<<nu_tau
