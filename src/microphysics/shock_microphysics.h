@@ -1444,6 +1444,10 @@ public: // -------------------- NUMERIC -------------------------------- //
             model.setSourceFunction(gamma_min, gamma_max, -p);
             model.setEscapeFunction(gamma_min, gamma_max);
 
+            /// add Pair production as a source term
+            if (m_methods_ssc == METHOD_SSC::iNumSSC)
+                model.addPPSource();
+
             for (size_t i = 0; i < (size_t) n_substeps; i++) {
 
                 /// Set gamma_dot terms (uses syn.n[] for photon density for SSC from previous solution)
@@ -1500,6 +1504,14 @@ public: // -------------------- NUMERIC -------------------------------- //
         /// 4. Compute SSC spectrum (using PREVIOUS step syn & ssc spectra)
         if (m_methods_ssc == METHOD_SSC::iNumSSC)
             model.computeSSCSpectrum(); // using syn.f[]+ssc.f[] -> compute -> ssc.j[], ssc.f[]
+
+        /// todo make a single photon density field. Make a single photon class ! and a single electron class...
+        for (size_t i = 0; i < ssc.numbins; i++) {
+//            double val1 = ssc.f[i];
+//            double val2 = model.computePP(syn.e[i]);
+//            std::cout << val1 << " | " << val2 << " -> " << std::max(0., ssc.f[i] - model.computePP(ssc.e[i])) << "\n";
+            ssc.f[i] = std::max(0., ssc.f[i] - model.computePP(ssc.e[i]));
+        }
 
 //        /// 5. compute photon density (update photon_filed (N_photons) from Synch & SSC)
 //        double T = dr_comov / CGS::c; // escape time (See Huang+2022)
