@@ -68,16 +68,20 @@ public:
     /// -------------------------------------
 
     bool do_eninj_inside_rhs = false;
-    bool run_bws=false, save_dyn=false, load_dyn=false, do_ele=false, do_spec=false, save_spec=false, do_lc=false, do_skymap=false;
+    bool run_bws=false, save_dyn=false, load_dyn=false;
+    bool save_spec=false, do_lc=false, do_skymap=false;
+//    bool do_mphys_in_ppr= false;
     bool do_collision = false;
     bool do_nuc = false;
     bool is_ejecta_obs_pars_set = false;
-    bool is_ejecta_anal_ele_computed = false;
-    bool is_ejecta_radiation_computed = false;
+//    bool is_ejecta_anal_ele_computed = false;
+//    bool is_ejecta_radiation_computed = false;
     double im_max_theta;
     StrDbMap m_pars; StrStrMap m_opts;
     std::string working_dir{}; std::string parfilename{};
-    EjectaBase(Vector & t_arr, int loglevel) : t_arr(t_arr), m_loglevel(loglevel){
+    CommonTables & commonTables;
+    EjectaBase(Vector & t_arr, CommonTables & commonTables, int loglevel)
+        : t_arr(t_arr), commonTables(commonTables), m_loglevel(loglevel){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "Ejecta");
 //        p_out = std::make_unique<Output>(loglevel);
     }
@@ -146,11 +150,12 @@ public:
             run_bws   = getBoolOpt("run_bws", m_opts, AT, p_log, false, true);
             save_dyn  = getBoolOpt("save_dynamics", m_opts, AT, p_log, false, true);
             load_dyn  = getBoolOpt("load_dynamics", m_opts, AT, p_log, false, true);
-            do_ele    = getBoolOpt("do_ele", m_opts, AT, p_log, false, true);
-            do_spec   = getBoolOpt("do_spec", m_opts, AT, p_log, false, true);
+//            do_ele    = getBoolOpt("do_ele", m_opts, AT, p_log, false, true);
+//            do_spec   = getBoolOpt("do_spec", m_opts, AT, p_log, false, true);
             save_spec = getBoolOpt("save_spec", m_opts, AT, p_log, false, true);
             do_lc     = getBoolOpt("do_lc", m_opts, AT, p_log, false, true);
             do_skymap = getBoolOpt("do_skymap", m_opts, AT, p_log, false, true);
+//            do_mphys_in_ppr = getBoolOpt("do_mphys_in_ppr", m_opts, AT, p_log, false, true);
             /// copy parameters from the main to ejecta (same for all ejecta types)
             for (auto &key: {"n_ism", "d_l", "z", "theta_obs", "A0", "s", "r_ej", "r_ism"}) {
                 if (main_pars.find(key) == main_pars.end()) {
@@ -163,10 +168,6 @@ public:
             if (run_bws || load_dyn) {
                 std::string fname_ejecta_id = getStrOpt("fname_ejecta_id", m_opts, AT, p_log, "", true);
 //                bool use_1d_id = getBoolOpt("use_1d_id", m_opts, AT, p_log, false, true);
-                if (!std::experimental::filesystem::exists(working_dir + fname_ejecta_id)) {
-                    (*p_log)(LOG_ERR, AT) << " File not found. " + working_dir + fname_ejecta_id << "\n";
-                    exit(1);
-                }
                 id = std::make_unique<EjectaID2>(
                         working_dir + fname_ejecta_id,
                         getStrOpt("method_eats", m_opts, AT, p_log, "", true),
@@ -208,7 +209,7 @@ public:
                 p_cumShells.push_back(
                         std::make_unique<CumulativeShell>(Vector {}, nshells(),
                                                           il, n_substeps,m_type,
-                                                          p_log->getLogLevel())
+                                                          commonTables, p_log->getLogLevel())
                                                           );
                 /// set parameters for the shell (concerns BW interaction, structure)
                 p_cumShells[il]->setPars(pars, opts);
@@ -221,8 +222,6 @@ public:
             }
             return;
         }
-
-
 
 
         bool is_within = false;
@@ -244,15 +243,15 @@ public:
         size_t n_unitinitilized_shells=0;
         for(size_t il = 0; il < n_layers_ej_; il++){
             BW_TYPES type = select_bw_type(opts, p_log);
-            p_cumShells.push_back(
-                    std::make_unique<CumulativeShell>(t_arr, nshells_, il, n_substeps,
-                                                      type, p_log->getLogLevel()) );
+            p_cumShells.push_back( std::make_unique<CumulativeShell>(
+                    t_arr, nshells_, il, n_substeps, type, commonTables, p_log->getLogLevel())
+                    );
+            /// set parameters for a given shell (velocity structured, single angle layer)
             p_cumShells[il]->setPars(pars, opts);
             empty_bws.emplace_back("il="+std::to_string(il)+" | shells:");
             for (size_t ish = 0; ish < nshells_; ish++){
                 auto & bw = p_cumShells[il]->getBW(ish);
-
-                /// If ID is not correct, skip this blastwave initiialization (will not be evolved)
+                /// If ID is not correct, skip this blastwave initialization (will not be evolved)
                 if (id->get(ish,il,EjectaID2::Q::ir) <= 0 ||
                     id->get(ish,il,EjectaID2::Q::iek) <= 0 ||
                     EQS::BetaFromGamma(EQS::GamFromMom(id->get(ish,il,EjectaID2::Q::imom))) <= 1.e-6 ||

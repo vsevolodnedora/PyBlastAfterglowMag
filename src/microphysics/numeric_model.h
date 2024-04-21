@@ -5,9 +5,6 @@
 #ifndef SRC_NUMERIC_MODEL_H
 #define SRC_NUMERIC_MODEL_H
 
-
-
-
 #include "base_state.h"
 #include "kernels.h"
 
@@ -108,14 +105,14 @@ compute_n_j_plus_one(double one_over_delta_grid, double one_over_delta_grid_bar_
 class ElectronDistEvolutionBase {
 protected:
     Source & source;
-    State & ele;
-    State & syn;
-    State & ssc;
+    Electrons & ele;
+    Photons & syn;
+    Photons & ssc;
     // =====================
     SynKernel & synKernel;
     SSCKernel & sscKernel;
 public:
-    ElectronDistEvolutionBase(Source & source, State & ele, State & syn, State & ssc,
+    ElectronDistEvolutionBase(Source & source, Electrons & ele, Photons & syn, Photons & ssc,
                               SynKernel & synKernel, SSCKernel & SSCKernel)
             : source(source), ele(ele), syn(syn), ssc(ssc), synKernel(synKernel), sscKernel(SSCKernel){
     }
@@ -124,7 +121,7 @@ public:
     /**
  * Update radiation fields for current electron distribution
  */
-    void update_radiation(bool do_ssa, bool do_ssc){
+    void update_radiation(Vector & photon_density, bool do_ssa, bool do_ssc){
         /// 1. Update synchrotron kernel for current B
         synKernel.evalSynKernel(ele.e, syn.e, source.B);
 
@@ -137,7 +134,7 @@ public:
 
         /// 4. Compute SSC spectrum (using PREVIOUS step syn & ssc spectra)
         if (do_ssc)
-            computeSSCSpectrum();
+            computeSSCSpectrum(photon_density);
 
         /// 5. compute photon density
 //        computePhotonDensity(photon_filed);
@@ -161,7 +158,7 @@ public:
             // --- old integral
             double res = 0.;
             for (size_t j = 0; j < ele.numbins - 1; j++)
-                res += kernel[i][j] * ele.f[j] * ele.de[j];
+                res += kernel[i][j] * ele.f[j] * (ele.e[j+1]-ele.e[j]);
             // --- new integral
 //            for (size_t j = 0; j < ele.numbins; j++)
 //                tmp[j] = kernel[i][j] * ele.f[j];
@@ -178,11 +175,11 @@ public:
             }
         }
 
-        /// store the number of photons per freq. bin
-        double T = source.dr / CGS::c; // escape time (See Huang+2022)
-        double fac = T / source.vol;
-        for (size_t i = 0; i < syn.numbins - 1; i++)
-            syn.f[i] = syn.j[i] * fac / (CGS::h * syn.e[i]); // (using T instead of dt) add synchrotron
+//        /// store the number of photons per freq. bin
+//        double T = source.dr / CGS::c; // escape time (See Huang+2022)
+//        double fac = T / source.vol;
+//        for (size_t i = 0; i < syn.numbins - 1; i++)
+//            syn.f[i] = syn.j[i] * fac / (CGS::h * syn.e[i]); // (using T instead of dt) add synchrotron
 
     }
 
@@ -208,7 +205,7 @@ public:
 #endif
         for (size_t i = 0; i < syn.numbins; i++){
             for (size_t j = 0; j < ele.numbins-1; j++)
-                syn.a[i] += ele.e[j] * ele.e[j] * ele.de[j] * ele.dfde[j] * kernel[i][j];
+                syn.a[i] += ele.e[j] * ele.e[j] * (ele.e[j+1]-ele.e[j]) * ele.dfde[j] * kernel[i][j];
 //            syn.a[i] *= 2.3443791412546505e-22 * source.B; // np.sqrt(3) * np.power(e, 3) / h * (h/mec2)
 //            syn.a[i] *= -1. / (8. * M_PI * CGS::me * std::pow(syn.e[i]/8.093440820813486e-21, 2));
             syn.a[i] *= -1. / (8. * M_PI * CGS::me * syn.e[i] * syn.e[i]); //std::pow(syn.e[i], 2));
@@ -247,13 +244,13 @@ public:
      *
      * O(n*m*q) algorithm
      */
-    void computeSSCSpectrum(){
+    void computeSSCSpectrum(Vector & photon_density){
         /// clear if old is present
         std::fill(ssc.j.begin(), ssc.j.end(),0.);
 
         /// save number of photons per freq. bin
-        double T = source.dr / CGS::c; // escape time (See Huang+2022)
-        double fac = T / source.vol;
+//        double T = source.dr / CGS::c; // escape time (See Huang+2022)
+//        double fac = T / source.vol;
 
         /// Compute SSC spectrum for each photon energy
 #ifdef USE_OPENMP
@@ -272,18 +269,18 @@ public:
                 for (size_t k = 0; k < syn.numbins; k++)
                     /// compute scattered photon spectrum per electron (Blumenthal 1970)
                     scat_ph_spec_per_ele[j] += 3. / 4. * CGS::sigmaT * CGS::c / (ele.e[j] * ele.e[j])
-                                               * (syn.f[k] + ssc.f[k]) / syn.e[k] * syn.de[k] * kernel[i][j][k];
+                                               * photon_density[k] / syn.e[k] * (syn.e[k+1]-syn.e[k]) * kernel[i][j][k];
 //                    scat_ph_spec_per_ele[j] += syn.n[k] / syn.e[k] * syn.de[k] * kernel[i][j][k];
 
             /// Integrate the electron distribution [Outer integral]
             for (size_t j = 0; j < ele.numbins - 1; j++)
-                ssc.j[i] += ele.f[j] * CGS::h * ssc.e[i] * scat_ph_spec_per_ele[j] * ele.de[j];
+                ssc.j[i] += ele.f[j] * CGS::h * ssc.e[i] * scat_ph_spec_per_ele[j] * (ele.e[j+1]-ele.e[j]);
 
             /// add final terms
 //            double ssc_freq = ssc.e[i] * CGS::ergToFreq;// / 8.093440820813486e-21;
 //            ssc.j[i] *= constant * (ssc.e[i] * CGS::ergToFreq);
 //            ssc.j[i] *= ssc.e[i] * CGS::h;
-            ssc.f[i] = ssc.j[i] * fac / (CGS::h * ssc.e[i]); // (using T instead of dt) add SSC
+//            ssc.f[i] = ssc.j[i] * fac / (CGS::h * ssc.e[i]); // (using T instead of dt) add SSC
         }
     }
 
@@ -300,7 +297,7 @@ public:
             res = 0.652 * (varbl*varbl - 1) * std::log(varbl) / (varbl*varbl*varbl);
         return res;
     }
-    double computePP(double nu1){
+    double computePP(double nu1, Vector & photon_density){
         /// find neares index to nu1 in syn.e grid
         size_t idx = syn.numbins-1;
         for (size_t i = 0; i < syn.numbins-1; i++)
@@ -318,9 +315,9 @@ public:
                 continue;
             if (nu1 > ele.e[i])
                 k1 = i;
-            integ += (syn.f[i]+ssc.f[i]) * R_kernel(nu1 * syn.e[i]) * syn.de[i];
+            integ += photon_density[i] * R_kernel(nu1 * syn.e[i]) * (syn.e[i+1]-syn.e[i]);
         }
-        double res = CGS::c * CGS::sigmaT * (syn.f[idx]+ssc.f[idx]) * integ;
+        double res = CGS::c * CGS::sigmaT * photon_density[idx] * integ;
         if (!std::isfinite(res) || res < 0){
             std::cerr << AT << " res = "<<res<< " in pp-roduction\n";
             exit(1);
@@ -362,12 +359,12 @@ public:
      * @param gam
      * @return
      */
-    double inline gamma_dot_ssc(size_t idx, double gam) const{
+    double inline gamma_dot_ssc(size_t idx, double gam, Vector & photon_density) const{
         auto & kernel = sscKernel.getKernelInteg(); // [i_gamma, i_energy_syn]
         double res = 0;
         /// integrate the seed photon spectrum (using pre-computed inner integral)
         for (size_t j = 0; j < syn.numbins-1; j++)
-            res += (syn.f[j]+ssc.f[j]) / syn.e[j] * syn.de[j] * kernel[idx][j];
+            res += photon_density[j] / syn.e[j] * (syn.e[j+1]-syn.e[j]) * kernel[idx][j];
         /// add constant from the paper
         double constant = 3./4. * CGS::h * CGS::sigmaT / CGS::me / CGS::c;
         return constant * res / gam / gam;
@@ -419,7 +416,6 @@ public:
 //    }
 };
 
-
 class ChangCooper : public ElectronDistEvolutionBase{
     size_t n_grid_points = 0;
     Vector dispersion_term {};
@@ -437,7 +433,8 @@ class ChangCooper : public ElectronDistEvolutionBase{
     // -------------------
 public:
 
-    ChangCooper(Source &source, State &ele, State &syn, State &ssc, SynKernel & synKernel, SSCKernel & SSCKernel)
+    ChangCooper(Source &source, Electrons &ele, Photons &syn, Photons &ssc,
+                SynKernel & synKernel, SSCKernel & SSCKernel)
             : ElectronDistEvolutionBase(source, ele, syn, ssc, synKernel, SSCKernel) {
     }
 
@@ -697,11 +694,11 @@ public:
     }
 
 
-    void addPPSource(){
+    void addPPSource(Vector & photon_density){
         double fac = 4. * CGS::me * CGS::c * CGS::c / CGS::h;
         for (size_t i = 0; i < n_grid_points; i++){
             double nu1 = 2. * ele.e[i] * CGS::me * CGS::c * CGS::c / CGS::h;
-            double pp_inj = fac * computePP(nu1);
+            double pp_inj = fac * computePP(nu1, photon_density);
 //            std::cout << source_grid[i] << " | " << pp_inj*source.vol << "\n";
             source_grid[i] += pp_inj*source.vol;
         }
@@ -725,7 +722,7 @@ public:
      * Compute gamma_dot term in kinteic equation
      * @param cool_index
      */
-    void setHeatCoolTerms(double cool_index){
+    void setHeatCoolTerms(double cool_index, Vector & photon_density){
         /// Assume no dispersion so
         std::fill(dispersion_term.begin(), dispersion_term.end(),0.);
 
@@ -746,7 +743,7 @@ public:
 
             /// compute SSC term
             if (is_ssc)
-                ele.gam_dot_ssc[i] = gamma_dot_ssc(i, ele.half_e[i]);
+                ele.gam_dot_ssc[i] = gamma_dot_ssc(i, ele.half_e[i], photon_density);
 //                        sscIntegralTerm(i) / ele.half_e[i] / ele.half_e[i];
 
             /// overall heating/cooling term
@@ -777,7 +774,5 @@ public:
 
 
 };
-
-
 
 #endif //SRC_NUMERIC_MODEL_H

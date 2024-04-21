@@ -24,9 +24,9 @@
 class Ejecta : public EjectaBase {
     std::unique_ptr<Output> p_out = nullptr;
     std::unique_ptr<logger> p_log = nullptr;
-
 public:
-    Ejecta(Vector & t_arr, int loglevel) : EjectaBase(t_arr, loglevel) {
+    Ejecta(Vector & t_arr, CommonTables & commonTables, int loglevel)
+        : EjectaBase(t_arr, commonTables, loglevel) {
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "Ejecta");
         p_out = std::make_unique<Output>(loglevel);
     }
@@ -46,11 +46,7 @@ public:
                 loadEjectaBWDynamics(working_dir,
                                      getStrOpt("fname_dyn", m_opts, AT, p_log, "", true));
 
-//            if (do_ele)
-//                evolveElectronDistributionAndRadiation();
-
-            if (do_spec || do_lc || do_skymap)
-//                setPreComputeEjectaAnalyticSynchrotronPars();
+            if (do_lc || do_skymap)
                 evolveElectronDistributionAndRadiation();
 
             if (save_dyn)
@@ -59,7 +55,7 @@ public:
                         getStrOpt("fname_dyn", m_opts, AT, p_log, "", true),
                         main_pars, m_pars);
 
-            if (do_spec && save_spec)
+            if (save_spec)
                 computeSaveEjectaSpectrum(
                         working_dir,
                         getStrOpt("fname_spectrum", m_opts, AT, p_log, "", true),
@@ -145,27 +141,24 @@ public:
         }
         return true;
     }
+
+// -------------------------------------------------------------------------------------------------------------
+
 private:
     /// COMPUTE electrons
     void evolveElectronDistributionAndRadiation(){//(StrDbMap pars, StrStrMap opts){
         (*p_log)(LOG_INFO,AT) << "Computing Ejecta analytic electron pars...\n";
 
         if ((!run_bws)&&(!load_dyn)){
-            (*p_log)(LOG_ERR,AT) << " ejecta BWs were not evolved. Cannot evolveElectronDistributionAndRadiation electrons (analytic) exiting...\n";
+            (*p_log)(LOG_ERR,AT) << " ejecta BWs were not evolved. Cannot evolve electrons (analytic) exiting...\n";
             exit(1);
         }
         auto & models = getShells();
         for (auto & model : models)
-            for (auto & bw : model->getBWs()) {
-                auto & pars = bw->getPars();
-                /// skip calulations for not evolved blast waves
-                if (pars->end_evolution && (pars->E0 < 0))
-                    continue;
-                bw->evolveElectronDistAndComputeRadiation();
-            }
+            for (auto & bw : model->getBWs())
+                if (bw->getPars()->do_mphys_in_ppr)
+                    bw->evolveElectronDistAndComputeRadiation();
 
-        is_ejecta_anal_ele_computed = true;
-        is_ejecta_radiation_computed = true;
     }
 
     /// OUTPUT dynamics/electrons
@@ -239,8 +232,9 @@ private:
             << "Computing and saving Ejecta sky image with "
             << eats_type << " EATS\n";
 
-        if (!is_ejecta_radiation_computed){
-            (*p_log)(LOG_ERR,AT) << "ejecta electrons were not evolved. Cannot computeS images exiting...\n";
+        if (! (getShells()[0]->getBW(0)->getPars()->do_mphys_in_ppr ||
+               getShells()[0]->getBW(0)->getPars()->do_mphys_in_situ) ){
+            (*p_log)(LOG_ERR,AT) << "ejecta mphys was not evolved. Cannot computeS images exiting...\n";
             exit(1);
         }
         if (!is_ejecta_obs_pars_set){
@@ -353,8 +347,9 @@ private:
 
         (*p_log)(LOG_INFO,AT) << "Computing and saving ejecta spectra...\n";
 
-        if (!is_ejecta_radiation_computed){
-            (*p_log)(LOG_INFO,AT) << " ejecta electrons were not evolved. "
+        if (! (getShells()[0]->getBW(0)->getPars()->do_mphys_in_ppr ||
+                getShells()[0]->getBW(0)->getPars()->do_mphys_in_situ) ){
+            (*p_log)(LOG_INFO,AT) << " ejecta mphys wass not evolved. "
                                                 " Cannot compute light curve exiting...\n";
             exit(1);
         }
@@ -372,6 +367,7 @@ private:
                 std::string group_name = "shell=" + std::to_string(ish) + " layer=" + std::to_string(il);
                 H5::Group grp(file.createGroup(group_name));
                 auto &bw = getShells()[il]->getBW(ish);
+
                 /// save electron spectrum if electrons are numerically evolved
                 if (bw->getPars()->p_mphys->m_eleMethod != METHODS_SHOCK_ELE::iShockEleAnalyt) {
                     Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ele.f_all,
@@ -382,57 +378,50 @@ private:
                                              "gam_dot_adi_fs");
                     Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ele.gam_dot_ssc_all,
                                              "gam_dot_ssc_fs");
-                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ele.yg_all,
-                                             "yg_fs");
                 }
+
                 /// save synchrotron spectra for forward shock
-                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.f_all,
-                                         "syn_f_fs");
-                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.j_all,
-                                         "syn_j_fs");
-                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.i_all,
-                                         "syn_i_fs");
+                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.f_all,"syn_f_fs");
+                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.j_all,"syn_j_fs");
+                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.i_all,"syn_i_fs");
                 if (bw->getPars()->p_mphys->m_methods_ssa != METHODS_SSA::iSSAoff)
-                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.a_all,
-                                         "syn_a_fs");
-//                std::cout << std::accumulate(bw->getPars()->p_mphys->syn.a_all.begin(),bw->getPars()->p_mphys->syn.a_all.end(),0.)<<"\n";
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys->syn.a_all,"syn_a_fs");
 
                 /// save SSC spectrum
                 if (bw->getPars()->p_mphys->m_methods_ssc != METHOD_SSC::inoSSC) {
-                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ssc.f_all,
-                                             "ssc_f_fs");
-                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ssc.j_all,
-                                             "ssc_j_fs");
-                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ssc.i_all,
-                                             "ssc_i_fs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ssc.f_all,"ssc_f_fs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ssc.j_all,"ssc_j_fs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys->ssc.i_all,"ssc_i_fs");
                 }
+
+                /// save total spectrum
+                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->total_rad.f_all,"total_f_fs");
+                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->total_rad.j_all,"total_j_fs");
+                Output::addVectorToGroup(grp, bw->getPars()->p_mphys->total_rad.i_all,"total_i_fs");
+                if (bw->getPars()->p_mphys->m_methods_ssa != METHODS_SSA::iSSAoff)
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys->total_rad.a_all,"total_a_fs");
 
 
                 /// save spectra of the reverse shock
                 if (bw->getPars()->do_rs_radiation){
                     /// save electron spectrum if electrons are numerically evolved
                     if (bw->getPars()->p_mphys_rs->m_eleMethod != METHODS_SHOCK_ELE::iShockEleAnalyt) {
-                        Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ele.f_all,
-                                                 "n_ele_rs");
+                        Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ele.f_all,"n_ele_rs");
                         Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ele.gam_dot_syn_all,
                                                  "gam_dot_syn_rs");
                         Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ele.gam_dot_adi_all,
                                                  "gam_dot_adi_rs");
                         Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ele.gam_dot_ssc_all,
                                                  "gam_dot_ssc_rs");
-                        Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ele.yg_all,
-                                                 "yg_rs");
                     }
 
-                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.f_all,
-                                             "syn_f_rs");
-                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.j_all,
-                                             "syn_j_rs");
-                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.i_all,
-                                             "syn_i_rs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.f_all,"syn_f_rs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.j_all,"syn_j_rs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.i_all,"syn_i_rs");
                     if (bw->getPars()->p_mphys_rs->m_methods_ssa != METHODS_SSA::iSSAoff)
-                        Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.a_all,
-                                             "syn_a_rs");
+                        Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->syn.a_all,"syn_a_rs");
+
+
                     /// save SSC spectrum
                     if (bw->getPars()->p_mphys_rs->m_methods_ssc != METHOD_SSC::inoSSC) {
                         Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ssc.f_all,
@@ -442,6 +431,17 @@ private:
                         Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->ssc.i_all,
                                                  "ssc_i_rs");
                     }
+
+                    /// save total spectrum
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->total_rad.f_all,
+                                             "total_f_rs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->total_rad.j_all,
+                                             "total_j_rs");
+                    Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->total_rad.i_all,
+                                             "total_i_rs");
+                    if (bw->getPars()->p_mphys_rs->m_methods_ssa != METHODS_SSA::iSSAoff)
+                        Output::addVectorToGroup(grp, bw->getPars()->p_mphys_rs->total_rad.a_all,
+                                                 "total_a_rs");
                 }
                 grp.close();
             }

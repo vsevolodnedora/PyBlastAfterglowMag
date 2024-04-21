@@ -190,10 +190,12 @@ double computeIntensity_OLD(const double em_lab, double dtau, METHOD_TAU m_tau){
 
 class ElectronAndRadiaionBase{
 public:
-    State ele{}; // std::unique_ptr<State> ele = nullptr;
-    State syn{}; //std::unique_ptr<State> syn = nullptr;
-    State ssc{}; //std::unique_ptr<State> ssc = nullptr;
-    State total_rad{};
+    Vector & freqs_grid;
+    Vector & gams_grid;
+    Electrons ele = Electrons(gams_grid); // std::unique_ptr<State> ele = nullptr;
+    Photons syn = Photons(freqs_grid); //std::unique_ptr<State> syn = nullptr;
+    Photons ssc = Photons(freqs_grid); //std::unique_ptr<State> ssc = nullptr;
+    Photons total_rad = Photons(freqs_grid);
     /// ------------------------------------
     double B=-1, gamma_min=-1, gamma_max=-1, gamma_c=-1;
     double n_prime=-1; // used in B and gamma_min
@@ -819,7 +821,8 @@ protected:
     double gam1=-1,gam2=-1.,freq1=-1.,freq2=-1.;
     size_t ngam=0,nfreq=0;
     /// --------------------------------------
-    ElectronAndRadiaionBase(int loglevel, bool _is_rs){
+    ElectronAndRadiaionBase(Vector & gams_grid, Vector & freqs_grid, int loglevel, bool _is_rs)
+        : gams_grid(gams_grid), freqs_grid(freqs_grid) {
         m_loglevel = loglevel; is_rs = _is_rs;
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "SynchrotronAnalytic");
     }
@@ -1045,23 +1048,14 @@ protected:
 
 class ElectronAndRadiation : public ElectronAndRadiaionBase{
 
-    /// --------------------------------------
     Source source{};
-    SynKernel syn_kernel{};//std::unique_ptr<SSCKernel> ssc_kernel = nullptr;
-    SSCKernel ssc_kernel{};//std::unique_ptr<SynKernel> syn_kernel = nullptr;
+    SynKernel & syn_kernel;//std::unique_ptr<SSCKernel> ssc_kernel = nullptr;
+    SSCKernel & ssc_kernel;//std::unique_ptr<SynKernel> syn_kernel = nullptr;
     ChangCooper model = ChangCooper(source, ele, syn, ssc, syn_kernel, ssc_kernel);
-
-//    double n_ele_out = 0.;
     double theta_h = 0;
-//    Vector photon_field{}; // syn + ssc Npotones for SSC radiation and cooling
     double dr_comov;
     size_t n_substeps=0;
-//    double ratio_an=-1;
-//    double ratio_num=-1;
-//    double ratio_an_num=-1;
-    //    double vol=-1.;
-//    double vol_p1=-1.;
-//    double n_inj=-1.;
+
     /// Analytical Synchrotron Sectrum; BPL;
     void checkEmssivityAbsorption(double em, double abs, double nuprime){
         if (( em < 0.) || (!std::isfinite( em )) ){
@@ -1085,8 +1079,11 @@ class ElectronAndRadiation : public ElectronAndRadiaionBase{
 
 public: // ---------------- ANALYTIC -------------------------- //
 
-    ElectronAndRadiation(int loglevel, bool _is_rs) :
-        ElectronAndRadiaionBase(loglevel, _is_rs){}
+    ElectronAndRadiation(int loglevel, Vector & gam_grid, Vector & freq_grid,
+                         SynKernel & syn_kernel, SSCKernel & ssc_kernel, bool _is_rs) :
+        syn_kernel(syn_kernel), ssc_kernel(ssc_kernel),
+        ElectronAndRadiaionBase(gam_grid, freq_grid, loglevel, _is_rs){
+    }
 
     void setPars( StrDbMap & pars, StrStrMap & opts, size_t nr, size_t ish, size_t il,
                   double theta_h_, double tcomov0_ ){
@@ -1108,6 +1105,7 @@ public: // ---------------- ANALYTIC -------------------------- //
         freq2 = getDoublePar("freq2"+fs_or_rs, pars, AT, p_log, 1.e28, true);//pars.at("freq2");
         nfreq = (size_t) getDoublePar("nfreq"+fs_or_rs, pars, AT, p_log, 200, true);//pars.at("nfreq");
 
+        is_dense_output = getBoolOpt("save_spec", opts, AT, p_log, false, true);
 
         /// allocate memory for spectra to be used in EATS interpolation
         if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleAnalyt)
@@ -1125,19 +1123,10 @@ public: // ---------------- ANALYTIC -------------------------- //
                 << " ntimes="<<nr
                 << " ALLOCATING\n";
 
-//        syn.allocate(freq1*CGS::freqToErg, freq2*CGS::freqToErg, nfreq);
-        syn.allocate(freq1, freq2, nfreq);
-        syn.allocate_output(nfreq,nr, false);
-        if (m_methods_ssc!=METHOD_SSC::inoSSC) {
-//            ssc.allocate(freq1 * CGS::freqToErg, freq2 * CGS::freqToErg, nfreq);
-            ssc.allocate(freq1, freq2, nfreq);
-            ssc.allocate_output(nfreq, nr, false);
-        }
-
-        /// allocate output for the total_rad emissivity and absorption
-        total_rad.numbins = nfreq;
-        total_rad.e = TOOLS::MakeLogspaceVec(std::log10(freq1),std::log10(freq2), (int)nfreq);
-        total_rad.allocate_output(nfreq, nr, false);
+        total_rad.allocate(freq1, freq2, nfreq, nr, true);// todo always dense
+        syn.allocate(freq1, freq2, nfreq, nr, true);// todo add if statment if to save dense output
+        if (m_methods_ssc!=METHOD_SSC::inoSSC)
+            ssc.allocate(freq1, freq2, nfreq, nr, true);
     }
 
 
@@ -1199,6 +1188,7 @@ public: // ---------------- ANALYTIC -------------------------- //
 public: // -------------------- NUMERIC -------------------------------- //
 
     bool is_distribution_initialized = false; // if the analytic profile for the first iteration is set
+    bool is_dense_output = false;
 
     /// Analytic electron spectrum, power-law
     void powerLawElectronDistributionAnalytic(double tcomov0_, double n_ele_inj, Vector & N_ele){
@@ -1276,13 +1266,9 @@ public: // -------------------- NUMERIC -------------------------------- //
                 << " ntimes="<<nr
                 << " ALLOCATING\n";
 
-        ele.allocate(gam1, gam2, ngam);
-        ele.allocate_output(ngam, nr, true);
+        ele.allocate(gam1, gam2, ngam, nr, is_dense_output); // todo add if statement if dense
         ele.build_grid_chang_cooper(); // build the grid for the implicit solver
-
-//        syn.allocate(freq1*CGS::freqToErg, freq2*CGS::freqToErg, nfreq);
-        syn.allocate(freq1, freq2, nfreq);
-        syn.allocate_output(nfreq, nr, false);
+        syn.allocate(freq1, freq2, nfreq, nr, is_dense_output); // todo add if statement if dense
 
         if ((m_sychMethod != METHODS_SYNCH::iGSL)
             and (m_sychMethod != METHODS_SYNCH::iDER06)
@@ -1292,6 +1278,8 @@ public: // -------------------- NUMERIC -------------------------------- //
                                     "avaialble when evolving electrons numerically / or mixed. \n";
             exit(1);
         }
+
+        total_rad.allocate(freq1, freq2, nfreq, nr, true); // always true
 
         /// allocate memory for synchrotron kernel
         syn_kernel.allocate(ele.numbins, syn.numbins);
@@ -1312,20 +1300,11 @@ public: // -------------------- NUMERIC -------------------------------- //
 
         /// allocate memory for SSC structure and kernel
         if (m_methods_ssc == METHOD_SSC::iNumSSC) {
-//            ssc.allocate(freq1 * CGS::freqToErg, freq2 * CGS::freqToErg, nfreq);
-            ssc.allocate(freq1, freq2, nfreq);
-            ssc.allocate_output(nfreq, nr, false);
-            ssc_kernel.allocate(ele, syn, ssc, SSCKernel::sscNava);
-            ssc_kernel.evalSSCkernel(ele, syn, ssc);
-            ssc_kernel.evalSSCgridIntergral(ele, syn, ssc);
-//            photon_field.resize(ssc.numbins, 0.);
+            ssc.allocate(freq1, freq2, nfreq, nr, is_dense_output); // todo add if statement if dense
+            ssc_kernel.allocate(ele.numbins, syn.numbins, ssc.numbins,
+                                SSCKernel::sscNava);
+            ssc_kernel.evalSSCkernel(ele.e, syn.e, ssc.e);
         }
-
-        /// allocate output for the total_rad emissivity and absorption
-        total_rad.numbins = nfreq;
-        total_rad.e = TOOLS::MakeLogspaceVec(std::log10(freq1),std::log10(freq2), (int)nfreq);
-        total_rad.allocate_output(nfreq, nr, false);
-
 
         /// ---
         model.setSolver();
@@ -1340,10 +1319,6 @@ public: // -------------------- NUMERIC -------------------------------- //
         /// apply Deep Newtonian limit
         for (size_t i = 0; i < ele.numbins-1; i++)
             ele.f[i] *= accel_frac;
-//        double n_ele_num = 0;
-//        for (size_t i = 0; i < ele.numbins-1; i++)
-//            n_ele_num += ele.f[i] * ele.de[i];
-//        n_ele_out = n_ele_num;
     }
 
     void evaluateElectronDistributionNumericMixed(
@@ -1381,7 +1356,7 @@ public: // -------------------- NUMERIC -------------------------------- //
 
         /// check continouity
         for (size_t i = 0; i < ele.numbins-1; i++)
-            n_ele_an += tmp[i] * ele.de[i];
+            n_ele_an += tmp[i] * (ele.e[i+1]-ele.e[i]);
 //        n_ele_out = n_ele_an;
 //        ratio_an = source.N_ele_tot / n_ele_an;
 
@@ -1446,12 +1421,12 @@ public: // -------------------- NUMERIC -------------------------------- //
 
             /// add Pair production as a source term
             if (m_methods_ssc == METHOD_SSC::iNumSSC)
-                model.addPPSource();
+                model.addPPSource(total_rad.f);
 
             for (size_t i = 0; i < (size_t) n_substeps; i++) {
 
                 /// Set gamma_dot terms (uses syn.n[] for photon density for SSC from previous solution)
-                model.setHeatCoolTerms(2);
+                model.setHeatCoolTerms(2, total_rad.f);
 
                 /// Assuming sources change during substepping
 //            model.setSourceFunction(m_data[Q::igm][it], m_data[Q::igM][it], index, N);
@@ -1474,25 +1449,18 @@ public: // -------------------- NUMERIC -------------------------------- //
 //            n_ele_out = n_ele_num;
         }
 
+        /// clear array (resets everything!)
+        model.resetSolver();
+    }
+
+    void computeRadiationNumericMixed(size_t it){
         /// apply Deep Newtonian limit TODO !!!
 //        for (size_t i = 0; i < ele.numbins-1; i++)
 //            ele.f[i] *= accel_frac;
 //        n_ele_num*=accel_frac;
 
-//        for (size_t i = 0; i < ele.numbins-1; i++)
-//            if (ele.f[i] / n_ele_num > 1.){
-//                int zz = 1;
-//            }
-
-//        ratio_num = n_protons*accel_frac / n_ele_num;
-//        ratio_an_num = n_ele_an/n_ele_num;
-
-        /// Update photon field during electron evolution
-//        model.update_radiation(m_methods_ssa == METHODS_SSA::iSSAon,
-//          m_methods_ssc == METHOD_SSC::iNumSSC, photon_field);
-
         /// 1. Update synchrotron kernel for current B
-        syn_kernel.evalSynKernel(ele.e, syn.e, source.B);
+        syn_kernel.evalSynKernel(ele.e, syn.e, B);
 
         /// 2. Compute synchrotron emission spectrum
         model.computeSynSpectrum(); // compute syn.j[] syn.f[]
@@ -1501,64 +1469,75 @@ public: // -------------------- NUMERIC -------------------------------- //
         if (m_methods_ssa == METHODS_SSA::iSSAon)
             model.computeSSA(); // compute syn.a[]
 
-        /// 4. Compute SSC spectrum (using PREVIOUS step syn & ssc spectra)
+        /// 4. Compute SSC spectrum (using PREVIOUS step photon density 'total_rad.f')
         if (m_methods_ssc == METHOD_SSC::iNumSSC)
-            model.computeSSCSpectrum(); // using syn.f[]+ssc.f[] -> compute -> ssc.j[], ssc.f[]
+            model.computeSSCSpectrum(total_rad.f); // using syn.f[]+ssc.f[] -> compute -> ssc.j[], ssc.f[]
 
-        /// todo make a single photon density field. Make a single photon class ! and a single electron class...
+        /// 5. compute new photon density
+        double T = dr_comov / CGS::c; // escape time (See Huang+2022)
+        double fac = T / source.vol; // volume = 4. * M_PI * r * r * dr_comov;
+        for (size_t i = 0; i < syn.numbins; i++)
+            total_rad.f[i] = syn.j[i] * fac / (CGS::h * syn.e[i]);
+        if ((m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum) && (m_methods_ssc==METHOD_SSC::iNumSSC))
+            for (size_t i = 0; i < ssc.numbins; i++)
+                total_rad.f[i] += ssc.j[i] * fac / (CGS::h * ssc.e[i]);
+
+        /// 5. Substract photons due to pair-production from new photon density
         for (size_t i = 0; i < ssc.numbins; i++) {
+            double pp_loss = model.computePP(ssc.e[i], total_rad.f);
+            total_rad.f[i] = std::max(0., total_rad.f[i] - pp_loss);
 //            double val1 = ssc.f[i];
 //            double val2 = model.computePP(syn.e[i]);
 //            std::cout << val1 << " | " << val2 << " -> " << std::max(0., ssc.f[i] - model.computePP(ssc.e[i])) << "\n";
-            ssc.f[i] = std::max(0., ssc.f[i] - model.computePP(ssc.e[i]));
         }
 
-//        /// 5. compute photon density (update photon_filed (N_photons) from Synch & SSC)
-//        double T = dr_comov / CGS::c; // escape time (See Huang+2022)
-//        double fac = T / volume;
-////        double volume_ = 4. * M_PI * r * r * dr_comov;
-//        if ((m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum) && (m_methods_ssc==METHOD_SSC::iNumSSC))
-//            for (size_t i = 0; i < syn.numbins; i++){
-//                photon_field[i] = 0.; // clean after previos timestep
-//                photon_field[i] += syn.j[i] * fac / (CGS::h * syn.e[i]); // (using T instead of dt) add synchrotron
-//                photon_field[i] += ssc.j[i] * fac / (CGS::h * ssc.e[i]); // (using T instead of dt) add SSC
-//            }
+        /// 6. convert photon field back to emissivity (to account for photons lost to pp-production)
+        for (size_t i=0; i < syn.numbins; i++) {
+            total_rad.j[i] = total_rad.f[i] / fac * (CGS::h * ssc.e[i]);
+            total_rad.a[i] = syn.a[i];
+        }
+        if ((m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum) && (m_methods_ssc==METHOD_SSC::iNumSSC))
+            for (size_t i = 0; i < syn.numbins; i++)
+                total_rad.a[i] += ssc.a[i];
 
-        /// clear array (resets everything!)
-        model.resetSolver();
-    }
-
-    void storeSynchrotronSpectrumNumericMixed(size_t it){
-
-        /// compute total numer of electrons (solution)
+        /// 7. compute total numer of electrons (solution)
         double n_ele=0.;
         for (size_t i = 0; i < ele.numbins-1; i++)
-            n_ele+=ele.f[i]*ele.de[i]; //total number of electrons
+            n_ele+=ele.f[i]*(ele.e[i+1]-ele.e[i]); //total number of electrons
 //        n_ele *= accel_frac;// Deep Newtonian corretion
-
-        /// compute energy conservation (https://www.mpi-hd.mpg.de/personalhomes/frieger/HEA6.pdf)
-        double u_ele=0.;
-        for (size_t i = 0; i < ele.numbins-1; i++)
-            u_ele+=ele.f[i]*ele.e[i]*ele.de[i]*CGS::me*CGS::c*CGS::c/source.vol; //total energy density in electrons
-        u_ele*=accel_frac;
-
         if (n_ele <= 0){
             (*p_log)(LOG_ERR,AT) << " n_ele = "<<n_ele<<"\n";
             exit(1);
         }
 
+        /// 8. compute final required emissivity and absorption (normalized)
+        for (size_t i = 0; i < syn.numbins; i++) {
+            total_rad.j[i] = total_rad.j[i] / n_ele * accel_frac;
+            total_rad.a[i] = total_rad.a[i] / n_ele * accel_frac * n_prime; // absorption (depth) requires the comoving particle density
+            total_rad.intensity[i] = computeIntensity(
+                    total_rad.j[i], total_rad.a[i]*dr_comov, METHOD_TAU::iAPPROX);
+        }
+
+        /// store the result in long arrays for entire evolution
+        total_rad.save_to_all(it); // store j and a
+
+        /// process synchrotron, ssa, ssc separately for comoving spectra analysis
+        if (is_dense_output)
+            saveDenseOutput(it, n_ele);
+
+        /// log the result
+        if (m_loglevel>=LOG_INFO)
+            logResultToConcole(it, n_ele);
+
+    }
+
+    void saveDenseOutput(size_t it, double n_ele){
         // Normalize to get emissivity per particle (for EATS)
-        double nu_tau = -1;
-        double _min = std::numeric_limits<double>::max();
         for (size_t i = 0; i < syn.numbins; i++) {
             syn.j[i] = syn.j[i] / n_ele * accel_frac;
             syn.a[i] = syn.a[i] / n_ele * accel_frac * n_prime; // absorption (depth) requires the comoving particle density
             double dtau = syn.a[i]*dr_comov;
             syn.intensity[i] = computeIntensity(syn.j[i], dtau, METHOD_TAU::iAPPROX);
-            if (dtau-1. < _min and dtau-1.>0) {
-                _min = dtau - 1.;
-                nu_tau = syn.e[i];
-            }
         }
 
         if (m_methods_ssc != METHOD_SSC::inoSSC) {
@@ -1569,73 +1548,95 @@ public: // -------------------- NUMERIC -------------------------------- //
                 ssc.intensity[i] = computeIntensity(ssc.j[i], dtau, METHOD_TAU::iAPPROX);
             }
         }
-
-        /// store electron spectrum
+        /// store comoving spectra in long arrays for the entire evolution
         ele.save_to_all(it);
         syn.save_to_all(it);
-        total_rad.add_to_all(syn, it);
+//        total_rad.add_to_all(syn, it);
         if (m_methods_ssc != METHOD_SSC::inoSSC) {
             ssc.save_to_all(it);
-            total_rad.add_to_all(ssc, it);
+//            total_rad.add_to_all(ssc, it);
+        }
+        double val = std::accumulate(syn.j_all.begin(),syn.j_all.end(),0.);
+        if (val == 0. and it > 0){
+            (*p_log)(LOG_ERR,AT)<<" sum(syn.j)=0\n";
+            exit(1);
         }
 
+    }
 
-        /// log the result
-        if (m_loglevel>=LOG_INFO) {
-            /// find numerical gamma_c and compare with analytic one
-            if(m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum) {
-                double gamma_c_num = 0.;
-                for (size_t i = 1; i < ele.numbins; i++) {
-                    if ((model.gamma_dot_syn(ele.e[i]) > model.gamma_dot_adi(ele.e[i])) && \
+    void logResultToConcole(size_t it, double n_ele){
+
+        double nu_tau = -1;
+        double _min = std::numeric_limits<double>::max();
+        for (size_t i = 0; i < syn.numbins; i++) {
+            double dtau = syn.a[i]*dr_comov;
+            if (dtau-1. < _min and dtau-1.>0) {
+                _min = dtau - 1.;
+                nu_tau = syn.e[i];
+            }
+        }
+
+        /// compute energy conservation (https://www.mpi-hd.mpg.de/personalhomes/frieger/HEA6.pdf)
+        double u_ele=0.;
+        for (size_t i = 0; i < ele.numbins-1; i++)
+            u_ele+=ele.f[i]*ele.e[i]*(ele.e[i+1]-ele.e[i])*CGS::me*CGS::c*CGS::c/source.vol; //total energy density in electrons
+        u_ele*=accel_frac;
+
+
+        /// find numerical gamma_c and compare with analytic one
+        if(m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum) {
+            double gamma_c_num = 0.;
+            for (size_t i = 1; i < ele.numbins; i++) {
+                if ((model.gamma_dot_syn(ele.e[i]) > model.gamma_dot_adi(ele.e[i])) && \
                 (model.gamma_dot_syn(ele.e[i - 1]) < model.gamma_dot_adi(ele.e[i - 1]))) {
-                        gamma_c_num = ele.e[i];
-                        break;
-                    }
+                    gamma_c_num = ele.e[i];
+                    break;
                 }
-                gamma_c = gamma_c_num;
             }
+            gamma_c = gamma_c_num;
+        }
 
-            /// locate spectral limits (synchrotron)
-            size_t max_idx;
-            auto [min_iter, max_iter] = std::minmax_element(std::begin(syn.j), std::end(syn.j));
-            max_idx = std::distance(std::begin(syn.j), max_iter);
-            double synch_peak = syn.e[max_idx];
-            double synch_peak_flux = syn.e[max_idx] * syn.j[max_idx];
+        /// locate spectral limits (synchrotron)
+        size_t max_idx;
+        auto [min_iter, max_iter] = std::minmax_element(std::begin(syn.j), std::end(syn.j));
+        max_idx = std::distance(std::begin(syn.j), max_iter);
+        double synch_peak = syn.e[max_idx];
+        double synch_peak_flux = syn.e[max_idx] * syn.j[max_idx];
 
-            /// locate spectral limits (ssc)
-            size_t max_idx_c = 0;
-            double ssc_peak = 0.;
-            double ssc_peak_flux = 0.;
-            if ((m_eleMethod == METHODS_SHOCK_ELE::iShockEleNum) && (m_methods_ssc == METHOD_SSC::iNumSSC)) {
-                auto [min_iter_c, max_iter_c] =
-                        std::minmax_element(std::begin(ssc.j), std::end(ssc.j));
-                max_idx_c = std::distance(std::begin(ssc.j), max_iter_c);
-                ssc_peak = ssc.e[max_idx_c];
-                ssc_peak_flux = ssc.e[max_idx_c] * ssc.j[max_idx_c];
-            }
+        /// locate spectral limits (ssc)
+        size_t max_idx_c = 0;
+        double ssc_peak = 0.;
+        double ssc_peak_flux = 0.;
+        if ((m_eleMethod == METHODS_SHOCK_ELE::iShockEleNum) && (m_methods_ssc == METHOD_SSC::iNumSSC)) {
+            auto [min_iter_c, max_iter_c] =
+                    std::minmax_element(std::begin(ssc.j), std::end(ssc.j));
+            max_idx_c = std::distance(std::begin(ssc.j), max_iter_c);
+            ssc_peak = ssc.e[max_idx_c];
+            ssc_peak_flux = ssc.e[max_idx_c] * ssc.j[max_idx_c];
+        }
 
-            /// energy density of the synchrotron radiation
-            double u_syn = 0;
-            for (size_t i = 0; i < syn.numbins-1; i++)
+        /// energy density of the synchrotron radiation
+        double u_syn = 0;
+        for (size_t i = 0; i < syn.numbins-1; i++)
 //                u_syn += syn.f[i] * (CGS::h * syn.e[i]);
-                u_syn += syn.j[i] * syn.de[i];
-            u_syn *= (4. * CGS::pi / CGS::c);
+            u_syn += syn.j[i] * (syn.e[i+1]-syn.e[i]);
+        u_syn *= (4. * CGS::pi / CGS::c);
 //            double U_syn = u_syn * source.vol;
 
-            double u_ssc = 0;
-            if (m_methods_ssc == METHOD_SSC::iNumSSC)
-                for (size_t i = 0; i < syn.numbins-1; i++)
+        double u_ssc = 0;
+        if (m_methods_ssc == METHOD_SSC::iNumSSC)
+            for (size_t i = 0; i < syn.numbins-1; i++)
 //                    u_ssc += ssc.f[i] * (CGS::h * syn.e[i]);
-                    u_ssc += ssc.j[i] * ssc.de[i];
-            u_ssc *= (4. * CGS::pi / CGS::c);
+                u_ssc += ssc.j[i] * (ssc.e[i+1]-ssc.e[i]);
+        u_ssc *= (4. * CGS::pi / CGS::c);
 //            double U_ssc = u_ssc * source.vol;
 
 //            std::cout << (u_syn + u_ssc) * source.dt / source.u_e << "\n";
 //
-            double y = u_ssc/u_syn;
+        double y = u_ssc/u_syn;
 
-            /// log result
-            (*p_log)(LOG_INFO, AT)
+        /// log result
+        (*p_log)(LOG_INFO, AT)
                 << (is_rs ? "RS " : "FS " )
                 << (n_substeps == 0 ? "I " : "E ")
                 << "it=" << it
@@ -1672,7 +1673,6 @@ public: // -------------------- NUMERIC -------------------------------- //
 //                                   << " ssc[" << ssc_peak << "]="
 //                                   << ssc_peak_flux//<<" ssc="<< std::accumulate(ssc.j.begin(), ssc.j.end(),0.)
 //                                   << "\n";
-        }
     }
 
 public: // ---------------------- FOR EATS -------------------------------- //
@@ -2097,10 +2097,6 @@ public: // ---------------------- FOR EATS -------------------------------- //
                                   mu, r, rsh, dr, n_prime, ne, theta, ncells);
     }
 };
-
-
-
-
 
 
 // --------------- OLD code to compute electron dist. at shock when Magnetar wind injection present

@@ -1066,7 +1066,7 @@ namespace Integrators {
     // Cooper-Verner 8th order
     //   According to Ref. Cv8.3, it is named "Verner's 8th order method".
     //   In Ref. cv8.2, the sign before sqrt (21) is inverted. Either one seems to be fine.
-    //   [cv8.1] E. Heiler, Taketomo Mitsui, "Numerical Solution of Common Differential Equations I", Maruzen Publishing (2012/7/17).
+    //   [cv8.1] E. Heiler, Taketomo Mitsui, "Numerical Solution of CommonTables Differential Equations I", Maruzen Publishing (2012/7/17).
     //   [cv8.2] http://www.330k.info/essay/Explicit-Runge-Kutta-Butcher-Tableau
     //   [cv8.3] http://www.mymathlib.com/diffeq/runge-kutta/runge_kutta_verner.html
     struct cooper_verner8_integrator {

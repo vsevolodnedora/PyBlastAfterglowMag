@@ -788,13 +788,17 @@ class BlastWaveRadiation : public BlastWaveBase{
 //    std::unique_ptr<ShockMicrophysicsNumeric> m_mfphys = nullptr;
 public:
     BlastWaveRadiation(Vector & tb_arr, size_t ishell, size_t ilayer,size_t n_substeps,
-                       BW_TYPES type, int loglevel)
-            : BlastWaveBase(tb_arr,ishell,ilayer,n_substeps, type, loglevel){
+                       BW_TYPES type, CommonTables & commonTables, int loglevel)
+            : BlastWaveBase(tb_arr,ishell,ilayer,n_substeps, type, commonTables, loglevel){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BW_radiation");
 
         /// init radiation
-        p_pars->p_mphys = std::make_unique<ElectronAndRadiation>(loglevel, false);
-        p_pars->p_mphys_rs = std::make_unique<ElectronAndRadiation>(loglevel, true);
+        p_pars->p_mphys = std::make_unique<ElectronAndRadiation>(
+                loglevel,  commonTables.comov_gam_grid_fs, commonTables.comov_freq_grid_fs,
+                commonTables.synKernel_fs, commonTables.sscKernel_fs, false);
+        p_pars->p_mphys_rs = std::make_unique<ElectronAndRadiation>(
+                loglevel, commonTables.comov_gam_grid_rs, commonTables.comov_freq_grid_rs,
+                commonTables.synKernel_rs, commonTables.sscKernel_rs, true);
 
         /// EATS integrator for forward shock
 //        p_eats_pars = new EatsPars(mD); /// for static methods (data link)
@@ -872,6 +876,8 @@ public:
 
 
     bool isBlastWaveValidForElectronCalc(size_t it){
+        if (p_pars->end_evolution && (p_pars->E0 < 0))
+            return false;
 
         /// check if BW is evolved
         if (p_pars->R0 < 0)
@@ -893,11 +899,11 @@ public:
             return false;
         }
 
-        if (p_pars->i_end_r == 0){
-            (*p_log)(LOG_ERR,AT) << "[ish="<<p_pars->ishell<<" il="<<p_pars->ilayer<<"] "
-                                 <<"beta0="<<p_pars->beta0<< " i_end_r = 0"<<"\n";
-            exit(1);
-        }
+//        if (p_pars->i_end_r == 0){
+//            (*p_log)(LOG_ERR,AT) << "[ish="<<p_pars->ishell<<" il="<<p_pars->ilayer<<"] "
+//                                 <<"beta0="<<p_pars->beta0<< " i_end_r = 0"<<"\n";
+//            exit(1);
+//        }
 
         double Gamma_ = m_data[BW::Q::iGamma][it]; // TODO should be GammaSh
 
@@ -945,19 +951,121 @@ public:
         return true;
     }
 
-    void storeShockPropertiesAndElectronDistributionLimits(size_t it, ElectronAndRadiaionBase * p_rad){
+    bool considerReverseShock(size_t it){
+        /// compute electron distribution in reverse shock TODO remove "comov" req. add method to EATS integrator
+        if ( ( p_pars->m_type == BW_TYPES::iFSRS
+            && p_pars->m_method_rad == METHODS_RAD::icomovspec)
+            && (p_pars->do_rs_radiation
+                && (it > 0)
+                && (m_data[BW::Q::ithickness_rs][it - 1] > 0) // for numerical electron evolution (otherwise it fails)
+            && (m_data[BW::Q::iGammaRsh][it] > 0)
+                && (m_data[BW::Q::iU_p3][it] > 0)) )
+                return true;
+        else
+            return false;
 
-//        auto & p_rad = p_pars->p_rad;
+    }
+
+    void computeInjectionElectronDistributionLimitsRS(size_t it) {
+
+        auto &p_mphys_rs = p_pars->p_mphys_rs;
+        /// check if to consider this timestep
+        if (not isBlastWaveValidForElectronCalc(it))
+            return;
+
+        /// compute electron distribution in reverse shock
+        if (considerReverseShock(it)) {
+            p_mphys_rs->updateSockProperties(//m_data[BW::Q::iR][it],
+                    //m_data[BW::Q::ithickness_rs][it],
+                    m_data[BW::Q::iU_p3][it],
+                    m_data[BW::Q::iGamma][it],
+//                               m_data[Q::iGamma][it],
+                    m_data[BW::Q::iGammaRsh][it],
+                    m_data[BW::Q::itt][it], // TODO WHICH TIME IS HERE? tbirst? tcomov? observer time (TT)
+                    m_data[BW::Q::itcomov][it], // TODO WHICH TIME IS HERE? tbirst? tcomov? observer time (TT)
+//                               m_data[Q::itburst][it], // emission time (TT)
+                    m_data[BW::Q::irho3][it] / CGS::mp,
+                    m_data[BW::Q::iM3][it] / CGS::mp
+            );
+            /// compute analytic limits of an injection electron distribution
+            p_mphys_rs->evaluateElectronDistributionAnalytic();
+
+            /// save result
+            m_data[BW::Q::iB3][it] = p_mphys_rs->B;
+            m_data[BW::Q::igm_rs][it] = p_mphys_rs->gamma_min;
+            m_data[BW::Q::igM_rs][it] = p_mphys_rs->gamma_max;
+            m_data[BW::Q::igc_rs][it] = p_mphys_rs->gamma_c;
+            m_data[BW::Q::iTheta_rs][it] = p_mphys_rs->Theta;
+            m_data[BW::Q::iz_cool_rs][it] = p_mphys_rs->z_cool;
+            m_data[BW::Q::inprime_rs][it] = p_mphys_rs->n_prime;
+            m_data[BW::Q::iacc_frac_rs][it] = p_mphys_rs->accel_frac;
+
+            if (m_data[BW::Q::igm_rs][it] == 0) {
+                (*p_log)(LOG_ERR, AT) << " in evolved blast wave, found gm = 0" << "\n";
+                exit(1);
+            }
+            /// Check results
+            if ((!std::isfinite(m_data[BW::Q::igm][it])) || (m_data[BW::Q::iB][it] < 0.)) {
+                (*p_log)(LOG_ERR, AT) << " Wrong value at i=" << it << " tb=" << m_data[BW::Q::itburst][it]
+                                      << " iR=" << m_data[BW::Q::iR][it] << "\n"
+                                      << " iGamma=" << m_data[BW::Q::iGamma][it] << "\n"
+                                      << " iGamma43=" << m_data[BW::Q::iGamma43][it] << "\n"
+                                      << " ibeta=" << m_data[BW::Q::ibeta][it] << "\n"
+                                      << " iM2=" << m_data[BW::Q::iM2][it] << "\n"
+                                      << " iM3=" << m_data[BW::Q::iM3][it] << "\n"
+                                      << " iEint2=" << m_data[BW::Q::iEint2][it] << "\n"
+                                      << " iEint3=" << m_data[BW::Q::iEint3][it] << "\n"
+                                      << " iU_p=" << m_data[BW::Q::iU_p][it] << "\n"
+                                      << " iU_p3=" << m_data[BW::Q::iU_p3][it] << "\n"
+                                      << " irho=" << m_data[BW::Q::irho][it] << "\n"
+                                      << " irho2=" << m_data[BW::Q::irho2][it] << "\n"
+                                      << " irho3=" << m_data[BW::Q::irho3][it] << "\n"
+                                      << " iB=" << m_data[BW::Q::iB][it] << "\n"
+                                      << " iB3=" << m_data[BW::Q::iB3][it] << "\n"
+                                      << " igm=" << m_data[BW::Q::igm][it] << "\n"
+                                      << " igm_rs=" << m_data[BW::Q::igm_rs][it] << "\n"
+                                      << " igM=" << m_data[BW::Q::igM][it] << "\n"
+                                      << " igc=" << m_data[BW::Q::igc][it] << "\n"
+                                      << " igc_rs=" << m_data[BW::Q::igc_rs][it] << "\n"
+                                      << " iTheta=" << m_data[BW::Q::iTheta][it] << "\n"
+                                      << " iz_cool=" << m_data[BW::Q::iz_cool][it] << "\n"
+                                      << " inprime=" << m_data[BW::Q::inprime][it] << "\n"
+                                      << " inprime3=" << m_data[BW::Q::inprime_rs][it]
+                                      << "\n";
+                exit(1);
+            }
+        }
+    }
+
+    void computeInjectionElectronDistributionLimitsFS(size_t it){
+        auto & p_mphys = p_pars->p_mphys;
+        /// compute electron distribution in forward shock
+        p_mphys->updateSockProperties(//m_data[BW::Q::iR][it],
+                //m_data[BW::Q::ithickness][it],
+                m_data[BW::Q::iU_p][it],
+                m_data[BW::Q::iGamma][it],
+//                               m_data[Q::iGamma][it],
+                m_data[BW::Q::iGammaFsh][it],
+                m_data[BW::Q::itt][it], // TODO WHICH TIME IS HERE? tbirst? tcomov? observer time (TT)
+                m_data[BW::Q::itcomov][it], // TODO WHICH TIME IS HERE? tbirst? tcomov? observer time (TT)
+//                               m_data[Q::itburst][it], // emission time (TT)
+                m_data[BW::Q::irho2][it] / CGS::mp,
+//                                          (m_data[BW::Q::iM2][it+1]-m_data[BW::Q::iM2][it]) / CGS::mp
+                m_data[BW::Q::iM2][it] / CGS::mp//(m_data[BW::Q::iM2][it+1]-m_data[BW::Q::iM2][it]) / CGS::mp
+        );
+
+        /// compute electron injection function / electron spectrum (analytically)
+        p_mphys->evaluateElectronDistributionAnalytic();
 
         /// Save Results
-        m_data[BW::Q::iB][it]      = p_rad->B;
-        m_data[BW::Q::igm][it]     = p_rad->gamma_min;
-        m_data[BW::Q::igM][it]     = p_rad->gamma_max;
-        m_data[BW::Q::igc][it]     = p_rad->gamma_c;
-        m_data[BW::Q::iTheta][it]  = p_rad->Theta;
-        m_data[BW::Q::iz_cool][it] = p_rad->z_cool;
-        m_data[BW::Q::inprime][it] = p_rad->n_prime;
-        m_data[BW::Q::iacc_frac][it] = p_rad->accel_frac;
+        m_data[BW::Q::iB][it]      = p_mphys->B;
+        m_data[BW::Q::igm][it]     = p_mphys->gamma_min;
+        m_data[BW::Q::igM][it]     = p_mphys->gamma_max;
+        m_data[BW::Q::igc][it]     = p_mphys->gamma_c;
+        m_data[BW::Q::iTheta][it]  = p_mphys->Theta;
+        m_data[BW::Q::iz_cool][it] = p_mphys->z_cool;
+        m_data[BW::Q::inprime][it] = p_mphys->n_prime;
+        m_data[BW::Q::iacc_frac][it] = p_mphys->accel_frac;
 
         if (m_data[BW::Q::igm][it] == 0){
             (*p_log)(LOG_ERR,AT)<< " in evolved blast wave, found gm = 0" << "\n";
@@ -986,86 +1094,102 @@ public:
         }
     }
 
-    void storeReverseShockPropertiesAndElectronDistributionLimits(size_t it, ElectronAndRadiaionBase * p_rad_rs){
+    void evolveElectronDistirubitonComputeComovingRadiationSpectraRS(size_t it) {
+        /// check if to consider this timestep
+        if (not isBlastWaveValidForElectronCalc(it))
+            return;
 
-//        auto & p_rad_rs = p_pars->p_rad_rs;
+        if (p_pars->m_method_rad != METHODS_RAD::icomovspec)
+            return;
 
-        // adding
-        m_data[BW::Q::iB3][it] = p_rad_rs->B;
-        m_data[BW::Q::igm_rs][it] = p_rad_rs->gamma_min;
-        m_data[BW::Q::igM_rs][it] = p_rad_rs->gamma_max;
-        m_data[BW::Q::igc_rs][it] = p_rad_rs->gamma_c;
-        m_data[BW::Q::iTheta_rs][it] = p_rad_rs->Theta;
-        m_data[BW::Q::iz_cool_rs][it] = p_rad_rs->z_cool;
-        m_data[BW::Q::inprime_rs][it] = p_rad_rs->n_prime;
-        m_data[BW::Q::iacc_frac_rs][it] = p_rad_rs->accel_frac;
+        if (considerReverseShock(it)) {
+            auto &p_mphys_rs = p_pars->p_mphys_rs;
+            if (p_mphys_rs->m_eleMethod == METHODS_SHOCK_ELE::iShockEleAnalyt)
+                p_mphys_rs->computeSynchrotronSpectrumAnalytic(it);
+            else {
+                if (not p_mphys_rs->is_distribution_initialized)
+//                            p_mphys_rs->is_distribution_initialized = true;
+                    p_mphys_rs->initializeElectronDistribution(
+                            m_data[BW::Q::itcomov][it],
+                            m_data[BW::Q::iM3][it],
+                            m_data[BW::Q::irho3][it],
+                            m_data[BW::Q::iU_p3][it]
+                    );
+                else
+                    p_mphys_rs->evaluateElectronDistributionNumericMixed(
+                            m_data[BW::Q::itcomov][it - 1], m_data[BW::Q::itcomov][it], // time
+                            m_data[BW::Q::iM3][it - 1], m_data[BW::Q::iM3][it],      // mass
+                            m_data[BW::Q::irho3][it - 1], m_data[BW::Q::irho3][it], // density
+                            m_data[BW::Q::iR][it - 1], m_data[BW::Q::iR][it], // radius
+                            m_data[BW::Q::ithickness_rs][it - 1] *
+                            m_data[BW::Q::iGammaRsh][it - 1],  // comoving shock thickness
+                            m_data[BW::Q::ithickness_rs][it] *
+                            m_data[BW::Q::iGammaRsh][it - 1], // comoving shock thickness
+                            m_data[BW::Q::iU_p3][it - 1], m_data[BW::Q::iU_p3][it] // internal energy density
+                    );
 
-        if (m_data[BW::Q::igm_rs][it] == 0){
-            (*p_log)(LOG_ERR,AT)<< " in evolved blast wave, found gm = 0" << "\n";
-            exit(1);
-        }
-        /// Check results
-        if ((!std::isfinite(m_data[BW::Q::igm][it] )) || (m_data[BW::Q::iB][it] < 0.)) {
-            (*p_log)(LOG_ERR,AT) << " Wrong value at i=" << it << " tb=" << m_data[BW::Q::itburst][it]
-                                 << " iR=" << m_data[BW::Q::iR][it] << "\n"
-                                 << " iGamma=" << m_data[BW::Q::iGamma][it] << "\n"
-                                 << " iGamma43=" << m_data[BW::Q::iGamma43][it] << "\n"
-                                 << " ibeta=" << m_data[BW::Q::ibeta][it] << "\n"
-                                 << " iM2=" << m_data[BW::Q::iM2][it] << "\n"
-                                 << " iM3=" << m_data[BW::Q::iM3][it] << "\n"
-                                 << " iEint2=" << m_data[BW::Q::iEint2][it] << "\n"
-                                 << " iEint3=" << m_data[BW::Q::iEint3][it] << "\n"
-                                 << " iU_p=" << m_data[BW::Q::iU_p][it] << "\n"
-                                 << " iU_p3=" << m_data[BW::Q::iU_p3][it] << "\n"
-                                 << " irho=" << m_data[BW::Q::irho][it] << "\n"
-                                 << " irho2=" << m_data[BW::Q::irho2][it] << "\n"
-                                 << " irho3=" << m_data[BW::Q::irho3][it] << "\n"
-                                 << " iB=" << m_data[BW::Q::iB][it] << "\n"
-                                 << " iB3=" << m_data[BW::Q::iB3][it] << "\n"
-                                 << " igm=" << m_data[BW::Q::igm][it] << "\n"
-                                 << " igm_rs=" << m_data[BW::Q::igm_rs][it] << "\n"
-                                 << " igM=" << m_data[BW::Q::igM][it] << "\n"
-                                 << " igc=" << m_data[BW::Q::igc][it] << "\n"
-                                 << " igc_rs=" << m_data[BW::Q::igc_rs][it] << "\n"
-                                 << " iTheta=" << m_data[BW::Q::iTheta][it] << "\n"
-                                 << " iz_cool=" << m_data[BW::Q::iz_cool][it] << "\n"
-                                 << " inprime=" << m_data[BW::Q::inprime][it] << "\n"
-                                 << " inprime3=" << m_data[BW::Q::inprime_rs][it]
-                                 << "\n";
-            exit(1);
+                if (p_mphys_rs->is_distribution_initialized)
+                    p_mphys_rs->computeRadiationNumericMixed(it);
+
+                m_data[BW::Q::igc_rs][it] = p_mphys_rs->gamma_c; // Update (numerical method computes its own gamma_c)
+            }
         }
     }
 
-    bool considerReverseShock(size_t it){
-        /// compute electron distribution in reverse shock TODO remove "comov" req. add method to EATS integrator
-        if ( ( p_pars->m_type == BW_TYPES::iFSRS
-            && p_pars->m_method_rad == METHODS_RAD::icomovspec)
-            && (p_pars->do_rs_radiation
-                && (it > 0)
-                && (m_data[BW::Q::ithickness_rs][it - 1] > 0) // for numerical electron evolution (otherwise it fails)
-            && (m_data[BW::Q::iGammaRsh][it] > 0)
-                && (m_data[BW::Q::iU_p3][it] > 0)) )
-                return true;
-        else
-            return false;
+    void evolveElectronDistirubitonComputeComovingRadiationSpectraFS(size_t it){
+        auto & p_mphys = p_pars->p_mphys;
+        if (p_mphys->m_eleMethod == METHODS_SHOCK_ELE::iShockEleAnalyt)
+            p_mphys->computeSynchrotronSpectrumAnalytic(it);
+        else {
+            if (not p_mphys->is_distribution_initialized) // Initialize electron distribution analytically
+                p_mphys->initializeElectronDistribution(
+                        m_data[BW::Q::itcomov][it],
+                        m_data[BW::Q::iM2][it],
+                        m_data[BW::Q::irho2][it],
+                        m_data[BW::Q::iU_p][it]
+                );
+            else // Evolve electron distribution numerically (or analytically)
+                p_mphys->evaluateElectronDistributionNumericMixed(
+                        m_data[BW::Q::itcomov][it - 1],m_data[BW::Q::itcomov][it],
+                        m_data[BW::Q::iM2][it - 1],m_data[BW::Q::iM2][it],
+                        m_data[BW::Q::irho2][it - 1],m_data[BW::Q::irho2][it],
+                        m_data[BW::Q::iR][it - 1],m_data[BW::Q::iR][it],
+                        m_data[BW::Q::ithickness][it - 1] * m_data[BW::Q::iGammaFsh][it -1], // comoving shock thickness dR' = dR * Gamma... (Granot + 1999)
+                        m_data[BW::Q::ithickness][it] * m_data[BW::Q::iGammaFsh][it],
+                        m_data[BW::Q::iU_p][it - 1],m_data[BW::Q::iU_p][it]
+                );
+
+            if (p_mphys->is_distribution_initialized)
+                p_mphys->computeRadiationNumericMixed(it);
+
+            m_data[BW::Q::igc][it] = p_mphys->gamma_c; // Update (numerical method computes its own gamma_c)
+        }
 
     }
 
+    /// cor calculation after each bw evolution timestep (in situ)
+    void computeMicrophsysics(size_t it){
+
+        /// check if to consider this timestep
+        if ( not isBlastWaveValidForElectronCalc(it) )
+            return;
+
+        /// compute injection spectrum limts (gm,gc,gM,...)
+        computeInjectionElectronDistributionLimitsRS(it);
+        computeInjectionElectronDistributionLimitsFS(it);
+
+        /// compute comoving spectrum
+        evolveElectronDistirubitonComputeComovingRadiationSpectraRS(it);
+        evolveElectronDistirubitonComputeComovingRadiationSpectraFS(it);
+    }
+    /// for caclulaiton in post-processing (after an entire BW is evolved) (in ppr)s
     void evolveElectronDistAndComputeRadiation(){
-
         (*p_log)(LOG_INFO,AT)
             << " computing comoving spectrum [ish="<<p_pars->ishell<<" il="<<p_pars->ilayer<<"] \n";
-
-        auto & p_mphys = p_pars->p_mphys;
-        auto & p_mphys_rs = p_pars->p_mphys_rs;
-
         /// evolve
         for (size_t it = 0; it < p_pars->nr; it++) {
-
-            /// check if to consider this timestep
-            if ( not isBlastWaveValidForElectronCalc( it ) )
-                return;
-
+            computeMicrophsysics(it);
+#if 0
             /// compute electron distribution in reverse shock
             if ( considerReverseShock(it) ){
                 p_mphys_rs->updateSockProperties(//m_data[BW::Q::iR][it],
@@ -1183,8 +1307,9 @@ public:
                     m_data[BW::Q::igc][it] = p_mphys->gamma_c; // Update (numerical method computes its own gamma_c)
                 }
             }
+#endif
         }
-
+#if 0
         /// check if electron spectrum failed for any reason
         if ((m_data[BW::Q::iR][0] > 0) && (p_pars->n_fialed_electrons == p_pars->nr) && (!p_pars->end_evolution)){
             (*p_log)(LOG_ERR,AT)
@@ -1198,7 +1323,6 @@ public:
                     <<" Electron calculation failed for n=" << p_pars->n_fialed_electrons
                     << " iterations starting from it=" << p_pars->i0_failed_elecctrons<<"\n";
         }
-
         if (p_pars->loglevel >= LOG_WARN) {
             double _gm_max = *std::max_element(m_data[BW::Q::igm].begin(), m_data[BW::Q::igm].end());
             double _gm_min = *std::min_element(m_data[BW::Q::igm].begin(), m_data[BW::Q::igm].end());
@@ -1207,7 +1331,103 @@ public:
                 exit(1);
             }
         }
+#endif
     }
+
+
+#if 0
+    void storeShockPropertiesAndElectronDistributionLimits(size_t it, ElectronAndRadiaionBase * p_rad){
+
+//        auto & p_rad = p_pars->p_rad;
+
+        /// Save Results
+        m_data[BW::Q::iB][it]      = p_rad->B;
+        m_data[BW::Q::igm][it]     = p_rad->gamma_min;
+        m_data[BW::Q::igM][it]     = p_rad->gamma_max;
+        m_data[BW::Q::igc][it]     = p_rad->gamma_c;
+        m_data[BW::Q::iTheta][it]  = p_rad->Theta;
+        m_data[BW::Q::iz_cool][it] = p_rad->z_cool;
+        m_data[BW::Q::inprime][it] = p_rad->n_prime;
+        m_data[BW::Q::iacc_frac][it] = p_rad->accel_frac;
+
+        if (m_data[BW::Q::igm][it] == 0){
+            (*p_log)(LOG_ERR,AT)<< " in evolved blast wave, found gm = 0" << "\n";
+            exit(1);
+        }
+        /// Check results
+        if ((!std::isfinite(m_data[BW::Q::igm][it] )) || (m_data[BW::Q::iB][it] < 0.)) {
+            (*p_log)(LOG_ERR,AT) << " Wrong value at i=" << it << " tb=" << m_data[BW::Q::itburst][it]
+                                 << " iR=" << m_data[BW::Q::iR][it] << "\n"
+                                 << " iGamma=" << m_data[BW::Q::iGamma][it] << "\n"
+                                 << " ibeta=" << m_data[BW::Q::ibeta][it] << "\n"
+                                 << " iM2=" << m_data[BW::Q::iM2][it] << "\n"
+                                 << " iEint2=" << m_data[BW::Q::iEint2][it] << "\n"
+                                 << " iU_p=" << m_data[BW::Q::iU_p][it] << "\n"
+                                 << " irho=" << m_data[BW::Q::irho][it] << "\n"
+                                 << " irho2=" << m_data[BW::Q::irho2][it] << "\n"
+                                 << " iB=" << m_data[BW::Q::iB][it] << "\n"
+                                 << " igm=" << m_data[BW::Q::igm][it] << "\n"
+                                 << " igM=" << m_data[BW::Q::igM][it] << "\n"
+                                 << " igc=" << m_data[BW::Q::igc][it] << "\n"
+                                 << " iTheta=" << m_data[BW::Q::iTheta][it] << "\n"
+                                 << " iz_cool=" << m_data[BW::Q::iz_cool][it] << "\n"
+                                 << " inprime=" << m_data[BW::Q::inprime][it]
+                                 << "\n";
+            exit(1);
+        }
+    }
+
+    void storeReverseShockPropertiesAndElectronDistributionLimits(size_t it, ElectronAndRadiaionBase * p_rad_rs){
+
+//        auto & p_rad_rs = p_pars->p_rad_rs;
+
+        // adding
+        m_data[BW::Q::iB3][it] = p_rad_rs->B;
+        m_data[BW::Q::igm_rs][it] = p_rad_rs->gamma_min;
+        m_data[BW::Q::igM_rs][it] = p_rad_rs->gamma_max;
+        m_data[BW::Q::igc_rs][it] = p_rad_rs->gamma_c;
+        m_data[BW::Q::iTheta_rs][it] = p_rad_rs->Theta;
+        m_data[BW::Q::iz_cool_rs][it] = p_rad_rs->z_cool;
+        m_data[BW::Q::inprime_rs][it] = p_rad_rs->n_prime;
+        m_data[BW::Q::iacc_frac_rs][it] = p_rad_rs->accel_frac;
+
+        if (m_data[BW::Q::igm_rs][it] == 0){
+            (*p_log)(LOG_ERR,AT)<< " in evolved blast wave, found gm = 0" << "\n";
+            exit(1);
+        }
+        /// Check results
+        if ((!std::isfinite(m_data[BW::Q::igm][it] )) || (m_data[BW::Q::iB][it] < 0.)) {
+            (*p_log)(LOG_ERR,AT) << " Wrong value at i=" << it << " tb=" << m_data[BW::Q::itburst][it]
+                                 << " iR=" << m_data[BW::Q::iR][it] << "\n"
+                                 << " iGamma=" << m_data[BW::Q::iGamma][it] << "\n"
+                                 << " iGamma43=" << m_data[BW::Q::iGamma43][it] << "\n"
+                                 << " ibeta=" << m_data[BW::Q::ibeta][it] << "\n"
+                                 << " iM2=" << m_data[BW::Q::iM2][it] << "\n"
+                                 << " iM3=" << m_data[BW::Q::iM3][it] << "\n"
+                                 << " iEint2=" << m_data[BW::Q::iEint2][it] << "\n"
+                                 << " iEint3=" << m_data[BW::Q::iEint3][it] << "\n"
+                                 << " iU_p=" << m_data[BW::Q::iU_p][it] << "\n"
+                                 << " iU_p3=" << m_data[BW::Q::iU_p3][it] << "\n"
+                                 << " irho=" << m_data[BW::Q::irho][it] << "\n"
+                                 << " irho2=" << m_data[BW::Q::irho2][it] << "\n"
+                                 << " irho3=" << m_data[BW::Q::irho3][it] << "\n"
+                                 << " iB=" << m_data[BW::Q::iB][it] << "\n"
+                                 << " iB3=" << m_data[BW::Q::iB3][it] << "\n"
+                                 << " igm=" << m_data[BW::Q::igm][it] << "\n"
+                                 << " igm_rs=" << m_data[BW::Q::igm_rs][it] << "\n"
+                                 << " igM=" << m_data[BW::Q::igM][it] << "\n"
+                                 << " igc=" << m_data[BW::Q::igc][it] << "\n"
+                                 << " igc_rs=" << m_data[BW::Q::igc_rs][it] << "\n"
+                                 << " iTheta=" << m_data[BW::Q::iTheta][it] << "\n"
+                                 << " iz_cool=" << m_data[BW::Q::iz_cool][it] << "\n"
+                                 << " inprime=" << m_data[BW::Q::inprime][it] << "\n"
+                                 << " inprime3=" << m_data[BW::Q::inprime_rs][it]
+                                 << "\n";
+            exit(1);
+        }
+    }
+#endif
+
 
 #if 0
     static void optDepthPW(double & tau_Compton, double & tau_BH, double & tau_bf, double & r, double & ctheta,

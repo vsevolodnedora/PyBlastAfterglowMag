@@ -20,7 +20,8 @@ class SSCKernel{
     VecVector kernel_integral;     // [i_gam, i_nu_syn]
 //    State & ssc; State & ele; State & syn;
     double (*m_func) (double,double,double) = nullptr;
-
+    bool is_precomputed = false;
+    bool is_allocated = false;
 public:
 
 //    SSCKernel(State & ele, State & syn, State & ssc, double (*func)(double,double,double))
@@ -28,51 +29,59 @@ public:
 
     SSCKernel() = default;
 
-    void allocate(State & ele, State & syn, State & ssc, double (*m_func_) (double,double,double)){
+//    void allocate(State & ele, State & syn, State & ssc, double (*m_func_) (double,double,double)){
+    void allocate(size_t n_ele, size_t n_freq_syn, size_t n_freq_ssc, double (*m_func_) (double,double,double)){
         //        std::vector<VecVector> kernel{};
-        kernel.resize(ssc.numbins);
+        m_func = m_func_;
+        if (is_allocated)
+            return;
+        kernel.resize(n_freq_ssc);
         /// allocate memory
         for (auto & vecvec : kernel) {
-            vecvec.resize(ele.numbins);
+            vecvec.resize(n_ele);
             for (auto & vec : vecvec)
-                vec.resize(syn.numbins, 0.);
+                vec.resize(n_freq_syn, 0.);
         }
-        m_func = m_func_;
+        is_allocated = true;
     }
 
-    void evalSSCkernel(State & ele, State & syn, State & ssc){
+//    void evalSSCkernel(State & ele, State & syn, State & ssc){
+    void evalSSCkernel(Vector & e_ele, Vector & e_syn, Vector & e_ssc){
         /// compute kernel
 //    auto * eq = ssc_kernel_nava;
-        for (size_t i = 0; i < ssc.numbins; i++){
-            for (size_t j = 0; j < ele.numbins; j++){
-                for (size_t k = 0; k < syn.numbins; k++){
-                    kernel[i][j][k] = m_func(ssc.e[i], ele.e[j], syn.e[k]);//[i_nu_ssc, i_gam, i_nu_syn]
+        if (is_precomputed)
+            return;
+        for (size_t i = 0; i < e_ssc.size(); i++){
+            for (size_t j = 0; j < e_ele.size(); j++){
+                for (size_t k = 0; k < e_syn.size(); k++){
+                    kernel[i][j][k] = m_func(e_ssc[i], e_ele[j], e_syn[k]);//[i_nu_ssc, i_gam, i_nu_syn]
                 }
             }
         }
 //        return std::move( kernel );
-    }
+
+//    }
 
     /*
      * Pre-compute the inner integral in SSC cooling over the grid of SSC frequencies, as
      * :math: \int_{\nu_0}^{\nu_1} \nu d\nu F(q,p)
      * See Eq.15 in Huang22
      */
-    void evalSSCgridIntergral(State & ele, State & syn, State & ssc){
+//    void evalSSCgridIntergral(State & ele, State & syn, State & ssc){
 
 //        double h = 6.6261e-27; //  erg*sec
 
         /// allocate memory
-        kernel_integral.resize(ele.numbins);
+        kernel_integral.resize(e_ele.size());
         for (auto & vec : kernel_integral)
-            vec.resize(syn.numbins, 0.);
+            vec.resize(e_syn.size(), 0.);
 
         /// compute integral over SSC. frequencies
-        for (size_t j = 0; j < ele.numbins; j++){
-            for (size_t k = 0; k < syn.numbins; k++){
+        for (size_t j = 0; j < e_ele.size(); j++){
+            for (size_t k = 0; k < e_syn.size(); k++){
                 double res = 0;
-                for (size_t i = 0; i < ssc.numbins-1; i++) {
-                    res += kernel[i][j][k] * ssc.e[i+1] * ssc.de[i+1];
+                for (size_t i = 0; i < e_ssc.size()-1; i++) {
+                    res += kernel[i][j][k] * e_ssc[i+1] * (e_ssc[i+1]-e_ssc[i]);//ssc.de[i+1];
 //                           * (ssc.e[i+1] / 8.093440820813486e-21) // freq
 //                           * (ssc.de[i+1] / 8.093440820813486e-21) // dfreq
 //                           * CGS::h;
@@ -80,6 +89,7 @@ public:
                 kernel_integral[j][k] = res; // [i_gamma, i_energy_syn]
             }
         }
+        is_precomputed = true;
 //        int x = 1;
     }
 
@@ -165,15 +175,19 @@ double cheb_eval(const double * coeff, int order, double a, double b, double x){
 class SynKernel{
     VecVector kernel{}; // [i_freq, i_gam]
     double (*m_func) (double,double,double) = nullptr;
+    bool is_allocated = false;
 //    State & ele; State & syn;
 public:
     SynKernel() = default;
 
     void allocate(size_t ngam, size_t nfreq){
         /// allocate memory for the kernel (kernel is not static, but size is)
+        if (is_allocated)
+            return;
         kernel.resize(nfreq);
         for (auto & arr : kernel)
             arr.resize(ngam, 0.);
+        is_allocated = true;
     }
     void setFunc(double (*m_func_) (double,double,double)){ m_func = m_func_; }
 
@@ -512,6 +526,10 @@ public:
      * @param B
      */
     void evalSynKernel(Vector & gams, Vector & freqs, double B){
+        if (B < 0){
+            std::cerr << "B="<<B<<"\n";
+            exit(1);
+        }
         for (size_t k = 0; k < freqs.size(); k++){
             for (size_t j = 0; j < gams.size(); j++){
                 kernel[k][j] = m_func(B, freqs[k], gams[j]);
@@ -524,6 +542,31 @@ public:
      */
     VecVector & getKernel(){return kernel;}
 
+};
+
+/// look-up tables that are general for all blast waves (pass by a reference)
+struct CommonTables{
+    std::unique_ptr<logger> p_log;
+    CommonTables(){
+//        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "CommonTables");
+    }
+
+    /// arrays
+    Vector comov_gam_grid_fs{};
+    Vector comov_gam_grid_rs{};
+    Vector comov_freq_grid_fs{};
+    Vector comov_freq_grid_rs{};
+
+    /// kernels
+    SynKernel synKernel_fs{};
+    SSCKernel sscKernel_fs{};
+
+    SynKernel synKernel_rs{};
+    SSCKernel sscKernel_rs{};
+
+    // todo nuclear heating table ...
+    // todo EBL table ...
+    // magnetar table ...
 };
 
 #endif //SRC_KERNELS_H

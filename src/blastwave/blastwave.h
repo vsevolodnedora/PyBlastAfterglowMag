@@ -26,8 +26,9 @@ class BlastWave : public BlastWaveRadiation{
     std::unique_ptr<logger> p_log;
 public:
     enum CASES { i_INSIDE_BEHIND, i_OUTSIDE_BEHIND, i_INSIDE_ABOVE, i_OUTSIDE_ABOVE, i_AT_ZERO_INSIDE };
-    BlastWave(Vector & tb_arr, size_t ishell, size_t ilayer, size_t n_substeps, BW_TYPES type, int loglevel )
-        : BlastWaveRadiation(tb_arr, ishell, ilayer, n_substeps, type, loglevel){
+    BlastWave(Vector & tb_arr, size_t ishell, size_t ilayer, size_t n_substeps,
+              BW_TYPES type, CommonTables & commonTables, int loglevel )
+        : BlastWaveRadiation(tb_arr, ishell, ilayer, n_substeps, type, commonTables, loglevel){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BW");
     }
     // ------------------------------------------------------

@@ -70,4 +70,5 @@ static inline double imageYYsCJ(const double &theta, const double &phi, const do
 }
 
 
+
 #endif //SRC_IMAGE_H

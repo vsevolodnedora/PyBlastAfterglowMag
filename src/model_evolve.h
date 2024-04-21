@@ -300,8 +300,8 @@ public:
         insertSolutionSubstep(0, p_pars->_t_grid[0]);
         // add other variables (that are not part of ODE but still needed)
         addOtherVariables(0);
-        // add electron properties (needed for synchron calculation)
-//        addComputeForwardShockMicrophysics(0);
+        // compute electron distribution & comoving spectra (if needed)
+        computeMicrophysics(0);
         p_pars->prev_x = p_pars->_t_grid[0];
         p_pars->prev_ix = 0;
         is_initialized = true;
@@ -342,7 +342,7 @@ public:
         }
     }
 
-    void storeSolution(int ix){
+    void processSolutionComputeAdditionalQuantities(int ix){
         // average solution
         averageSolution(ix);
         // apply units, e.g., energy is usually evolved in E/E0
@@ -351,10 +351,8 @@ public:
         insertSolution(ix);
         // add other variables (that are not part of ODE but still needed)
         addOtherVariables(ix);
-        // add electron properties (needed for synchron calculation)
-        //        addComputeForwardShockMicrophysics(ix);
-        ///
-
+        // compute/evolve electron distribution; compute comoving spectra (if needed)
+        computeMicrophysics(ix);
     }
 
     inline auto * pIntegrator() { return p_Integrator; }
@@ -933,7 +931,26 @@ private:
             }
         }
     }
-
+    void computeMicrophysics(size_t it){
+        if (p_pars->p_grb->run_bws) {
+            auto &ej_bws = p_pars->p_grb->getShells();
+            for (size_t il = 0; il < ej_bws.size(); il++) {
+                for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
+                    if (ej_bws[il]->getBW(ish)->getPars()->do_mphys_in_situ)
+                        ej_bws[il]->getBW(ish)->computeMicrophsysics(it);
+                }
+            }
+        }
+        if (p_pars->p_ej->run_bws) {
+            auto &ej_bws = p_pars->p_ej->getShells();
+            for (size_t il = 0; il < ej_bws.size(); il++) {
+                for (size_t ish = 0; ish < ej_bws[il]->nBWs(); ish++) {
+                    if (ej_bws[il]->getBW(ish)->getPars()->do_mphys_in_situ)
+                        ej_bws[il]->getBW(ish)->computeMicrophsysics(it);
+                }
+            }
+        }
+    }
 // TODO this would be nice to have...
     bool checkIfLateralShiftIsNeeded(){
         for (size_t il = 0; il < p_pars->p_ej->nlayers()-1; il++){

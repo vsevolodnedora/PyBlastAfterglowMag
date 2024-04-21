@@ -43,6 +43,7 @@
 // Added parfile reader and setupe the project structure
 // Issues:
 
+#define USE_OPENMP true
 
 // include necessary files
 #include "utilitites/utils.h"
@@ -52,6 +53,9 @@
 #include "model_evolve.h"
 #include "model_magnetar.h"
 //#include "model_h"
+
+
+
 
 class PyBlastAfterglow{
     struct Pars{
@@ -74,6 +78,7 @@ class PyBlastAfterglow{
     Vector _t_grid;
     Vector t_grid;
     int m_loglevel;
+    CommonTables commonTables;
 public:
     std::unique_ptr<Magnetar> & getMag(){return p_mag;}
     std::unique_ptr<PWNset> & getEjPWN(){return p_ej_pwn;}
@@ -85,10 +90,11 @@ public:
         m_loglevel = loglevel;
         p_pars = std::make_unique<Pars>();
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "PyBlastAfterglow");
+        commonTables = CommonTables();
         p_mag = std::make_unique<Magnetar>(loglevel);
-        p_grb = std::make_unique<Ejecta>(t_grid, loglevel);
-        p_ej  = std::make_unique<Ejecta>(t_grid, loglevel);
-        p_ej_pwn2 = std::make_unique<Ejecta>(t_grid, loglevel);
+        p_grb = std::make_unique<Ejecta>(t_grid, commonTables, loglevel);
+        p_ej  = std::make_unique<Ejecta>(t_grid, commonTables, loglevel);
+        p_ej_pwn2 = std::make_unique<Ejecta>(t_grid, commonTables, loglevel);
         p_ej_pwn = std::make_unique<PWNset>(p_mag, p_ej, loglevel); // depends on ang.struct. of the ejecta
     }
 
@@ -149,9 +155,10 @@ public:
         }
         p_pars->ntb = (int)t_grid.size();
 
-        (*p_log)(LOG_INFO,AT) << "Computation tgrid = ["<<_t_grid[0]<<", "<<_t_grid[_t_grid.size()-1]<<"] n="<<_t_grid.size()<<"\n";
-        (*p_log)(LOG_INFO,AT) << "Output      tgrid = ["<<t_grid[0]<<", "<<t_grid[t_grid.size()-1]<<"] n="<<t_grid.size()<<"\n";
-
+        (*p_log)(LOG_INFO,AT) << "Computation tgrid = "
+            <<"["<<_t_grid[0]<<", "<<_t_grid[_t_grid.size()-1]<<"] n="<<_t_grid.size()<<"\n";
+        (*p_log)(LOG_INFO,AT) << "Output      tgrid = "
+            <<"["<<t_grid[0]<<", "<<t_grid[t_grid.size()-1]<<"] n="<<t_grid.size()<<"\n";
     }
 
     /// run the time-evolution
@@ -173,18 +180,19 @@ public:
         (*p_log)(LOG_INFO, AT) << "all initial conditions set. Starting evolution\n";
         // evolve
         double dt;
-        int ixx = 1;
-        int i_x = -1;
+        int ixx = 1; // [1 ... ... t_grid[-1]; where len(t_grid) <= len(_t_grid)
+        int i_x = -1; // [-1, ... n_substeps]
         for (size_t it = 1; it < _t_grid.size(); it++){
+            /// compute blastwave evolution using possible larger _t_grid[]
             i_x ++ ;
             p_model->getPars()->i_restarts = 0;
             dt = _t_grid[it] - _t_grid[it - 1];
             p_model->advanceTimeSubStep(dt, it, i_x);
             p_model->insertSolutionSubstep(it, _t_grid[it]);
 
-            if ((it % p_pars->iout == 0)) {
-                p_model->storeSolution(ixx);
-//                (*p_log)(LOG_INFO,AT)<<"Storing solution at i="<<ixx<<" t="<<t_grid[ixx]<<"\n";
+            /// compute additional props. (e.g., microphsyics) for solutions of possible coarser grid t_grid[]
+            if (it % p_pars->iout == 0) {
+                p_model->processSolutionComputeAdditionalQuantities(ixx);
                 ixx++;
                 i_x = -1;
             }
@@ -217,7 +225,10 @@ int main(int argc, char** argv) {
         // analysis
 //        working_dir = "../analysis/grb/fsrs/tmp1/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_fs__num__ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_fs__num/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_fs__num_ssa/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_fs__num__ssa__ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_rs__num__ssa__ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../analysis/grb/fsrs/tmp1/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 
         // test cases || GRG
 //        working_dir = "../tst/grb/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO; // gauss, skymap
@@ -328,6 +339,7 @@ int main(int argc, char** argv) {
     pba.getGRB()->setPars(grb_pars,grb_opts,working_dir,
                           parfilename,main_pars,pba.getMag()->getNeq(),0);
 
+
     StrDbMap kn_pars; StrStrMap kn_opts;
     readParFile2(kn_pars, kn_opts, p_log, working_dir + parfilename,
                  "# ----------------------- kN afterglow ----------------------",
@@ -337,6 +349,7 @@ int main(int argc, char** argv) {
     pba.getEj()->setPars(kn_pars,kn_opts,working_dir,parfilename,
                          main_pars,ii_eq,nlayers_jet);
 
+
     StrDbMap pwn2_pars; StrStrMap pwn2_opts;
     readParFile2(pwn2_pars, pwn2_opts, p_log, working_dir + parfilename,
                  "# -------------------------- PWNBW --------------------------",
@@ -344,6 +357,7 @@ int main(int argc, char** argv) {
     size_t ii_eq_ = pba.getMag()->getNeq() + pba.getGRB()->getNeq() + pba.getEj()->getNeq();
     pba.getEjPWN2()->setPars(pwn2_pars,pwn2_opts,working_dir,parfilename,
                              main_pars,ii_eq_,nlayers_jet);
+
 
     StrDbMap pwn_pars; StrStrMap pwn_opts;
     readParFile2(pwn_pars, pwn_opts, p_log, working_dir + parfilename,

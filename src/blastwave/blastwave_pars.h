@@ -32,6 +32,8 @@ struct Pars{
 
     std::unique_ptr<ElectronAndRadiation> p_mphys = nullptr;
     std::unique_ptr<ElectronAndRadiation> p_mphys_rs = nullptr;
+    bool do_mphys_in_ppr = false;
+    bool do_mphys_in_situ = false;
 
 //    std::unique_ptr<ShockMicrophysics> & p_fs;
 //    std::unique_ptr<ShockMicrophysics> & p_rs;

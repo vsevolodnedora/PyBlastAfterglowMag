@@ -182,8 +182,12 @@ private:
     }
 private:
     void _load_id_file(std::string & path_to_table, bool & use_1d_id, bool loadr0, double t0){
-        if (!std::experimental::filesystem::exists(path_to_table))
-            throw std::runtime_error("File not found. " + path_to_table);
+//        if (!std::experimental::filesystem::exists(path_to_table))
+//            throw std::runtime_error("File not found. " + path_to_table);
+        if (!std::experimental::filesystem::exists(path_to_table)) {
+            (*p_log)(LOG_ERR, AT) << " Initial Data file not found: " + path_to_table << "\n";
+            exit(1);
+        }
         /// ---------------------------------------------
         LoadH5 ldata;
         ldata.setFileName(path_to_table);

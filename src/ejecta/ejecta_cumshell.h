@@ -42,13 +42,15 @@ class CumulativeShell{
     std::unique_ptr<BlastWaveCollision> p_coll = nullptr;
     std::vector<std::unique_ptr<BlastWave>> p_bws{};
     VecVector m_data{};
+    CommonTables & commonTables;
 //    VecVector m_data_prev{};
 public:
     enum Q { irEj, irhoEj, ibetaEj, idelta, ivol, idtau, itaucum, itaucum0, ieth, itemp, ilum, itdiff };
     std::vector<std::string> m_vnames{
             "r", "rho", "betaSh", "delta", "vol", "dtau", "taucum", "taucum0", "eth", "temp", "lum", "tdiff"
     };
-    CumulativeShell(Vector t_grid, size_t nshells, int ilayer, size_t n_substeps, BW_TYPES type, int loglevel){
+    CumulativeShell(Vector t_grid, size_t nshells, int ilayer, size_t n_substeps,
+                    BW_TYPES type, CommonTables & commonTables, int loglevel) : commonTables(commonTables){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "CumulativeShell");
         p_coll = std::make_unique<BlastWaveCollision>(loglevel);
         p_pars = std::make_unique<Pars>();
@@ -56,7 +58,9 @@ public:
         p_pars->nshells=nshells;
         p_pars->n_active_shells=nshells;
         for (size_t ishell = 0; ishell < nshells; ishell++)
-            p_bws.emplace_back(std::make_unique<BlastWave>(t_grid, ishell, ilayer, n_substeps, type, loglevel ) );
+            p_bws.emplace_back(std::make_unique<BlastWave>(
+                    t_grid, ishell, ilayer, n_substeps, type, commonTables, loglevel )
+                    );
         if (t_grid.empty())
             return;
         m_data.resize(m_vnames.size());

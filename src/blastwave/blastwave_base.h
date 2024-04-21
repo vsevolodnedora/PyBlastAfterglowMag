@@ -31,11 +31,14 @@ protected:
 //    std::unique_ptr<ShockMicrophysics> p_rs;
     static constexpr int iters=1000; // for PWN, resolution of frac_psr_dep_
     Vector frac_psr_dep_{}; // for PWN, fraction of rad. absorbed by BW f(opacity)
+    CommonTables & commonTables;
+
 public:
     bool is_initialized = false;
 
-    BlastWaveBase(Vector & tb_arr, size_t ishell, size_t ilayer, size_t n_substeps, BW_TYPES type, int loglevel)
-        : m_tb_arr(tb_arr){
+    BlastWaveBase(Vector & tb_arr, size_t ishell, size_t ilayer, size_t n_substeps,
+                  BW_TYPES type, CommonTables & commonTables, int loglevel)
+        : m_tb_arr(tb_arr), commonTables(commonTables) {
 
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "BW_Base");
 
@@ -275,6 +278,14 @@ public:
         p_pars->adiabLoss =
                 getBoolOpt("use_adiabLoss", opts, AT,p_log,true, false);
 
+        p_pars->do_mphys_in_ppr =
+                getBoolOpt("do_mphys_in_ppr", opts, AT,p_log,true, false);
+        p_pars->do_mphys_in_situ =
+                getBoolOpt("do_mphys_in_situ", opts, AT,p_log,true, false);
+        if (p_pars->do_mphys_in_ppr && p_pars->do_mphys_in_situ){
+            (*p_log)(LOG_ERR,AT) << " only 'do_mphys_in_ppr' or 'do_mphys_in_situ' should be 'yes' "<<'\n';
+            exit(1);
+        }
 
         /// -----------  set initials and constants for the blast wave ----------------------
         size_t & ish = p_pars->ishell;

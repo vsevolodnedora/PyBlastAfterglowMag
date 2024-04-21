@@ -18,6 +18,7 @@
 //#include "blastwave.h"
 
 
+
 static double check_emission_time( double t_e, double mu, double t_obs, Vector & mu_arr, int N ) {
     if(mu > mu_arr[N - 1]) {
 
