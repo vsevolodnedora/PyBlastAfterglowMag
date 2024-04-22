@@ -912,7 +912,7 @@ struct PWNPars{
 };
 
 class PWNmodel{
-
+    CommonTables & commonTables;
 //    Vector m_tb_arr;
     VecVector m_data{}; // container for the solution of the evolution
     std::unique_ptr<logger> p_log;
@@ -951,8 +951,8 @@ public:
     PWNmodel( //Vector & tarr, double ctheta0, size_t ilayer, size_t ishell, size_t ncells, int loglevel,
             std::unique_ptr<Magnetar> & pp_mag,
             std::unique_ptr<Ejecta> & pp_ej,
-            size_t ilayer, bool allocate)
-            : p_mag(pp_mag), p_ej(pp_ej) {// : m_mag_time(t_grid) {
+            size_t ilayer, CommonTables & commonTables, bool allocate)
+            : p_mag(pp_mag), p_ej(pp_ej), commonTables(commonTables) {// : m_mag_time(t_grid) {
         m_loglevel = p_ej->getShells()[0]->getPars()->m_loglevel;
         p_log = std::make_unique<logger>(std::cout, std::cerr, m_loglevel, "PWN");
         // ------------
@@ -979,8 +979,7 @@ public:
         p_eats = std::make_unique<EATS>(m_data[PWN::Q::itburst],
                                         m_data[PWN::Q::itt], m_data[PWN::Q::iR], m_data[PWN::Q::itheta],
                                         m_data[PWN::Q::iGamma],m_data[PWN::Q::ibeta],
-//                                        p_pars->m_freq_arr, p_pars->out_spectrum, p_pars->out_specturm_ssa,
-                                        i_end_r, 0, layer(), m_loglevel, p_pars);
+                                        i_end_r, 0, layer(), m_loglevel, commonTables, p_pars);
 //        p_eats->setFluxFunc(fluxDensPW);
         p_eats->fluxFuncPW = fluxDensPW;
     }
@@ -1807,6 +1806,7 @@ public:
 
 /// Container for independent layers of PWN model
 class PWNset{
+    CommonTables & commonTables;
     std::unique_ptr<Magnetar> & p_mag;
     std::unique_ptr<Ejecta> & p_ej;
     std::unique_ptr<Output> p_out = nullptr;
@@ -1823,7 +1823,8 @@ class PWNset{
     Vector skymap_freqs{};
     Vector skymap_times{};
 public:
-    PWNset(std::unique_ptr<Magnetar> & p_mag, std::unique_ptr<Ejecta> & p_ej, int loglevel) : p_mag(p_mag), p_ej(p_ej), loglevel(loglevel){
+    PWNset(std::unique_ptr<Magnetar> & p_mag, std::unique_ptr<Ejecta> & p_ej, CommonTables & commonTables, int loglevel)
+        : p_mag(p_mag), p_ej(p_ej), commonTables(commonTables), loglevel(loglevel){
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "PWNset");
         p_out = std::make_unique<Output>(loglevel);
 //        m_nlayers = p_ej->nlayers();
@@ -1879,6 +1880,7 @@ public:
 //            auto & _x = p_ej->getShells()[il]->getBottomBW();
             p_pwns.push_back( std::make_unique<PWNmodel>( p_mag,
                                                           p_ej, il,//->getShells()[il]->getBW(0),
+                                                          commonTables,
                                                           run_pwn) );
             p_pwns[il]->setPars(pars, opts, main_pars, ii_eq);
             ii_eq += p_pwns[il]->getNeq();

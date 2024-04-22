@@ -1,0 +1,21 @@
+This folder contains the optical depth by photon-photon collision as a function of the photon energy (in GeV) for sources located at z=0.003, 0.01, 0.03, 0.1, 0.3, 0.5, 1, 1.5, 2, 2.5, 3, 4.
+It includes the absorption effect due to the EBL model of Franceschini combined with the CMB.
+
+The reference paper is 'The extragalactic background light revisited and the cosmic photon-photon opacity' by A. Franceschini and G. Rodighiero - A&A no. 29684JN (also available at https://arxiv.org/pdf/1705.10256.pdf).
+
+The curves in the file are extracted with the WebPlotDigitizer online tool (https://automeris.io/WebPlotDigitizer/) and they correspond to the lines shown in Fig.12.
+
+The file 'table.txt' contains the opacity values as reported in the ERRATUM in Tab. 4 (https://www.aanda.org/articles/aa/pdf/2018/06/aa29684e-16.pdf).
+
+DEFINITION: Each file is a two columns text file where: $1 = ENERGY [GeV]; $2 = OPTICAL DEPTH.
+The file 'table.txt' contains 12 columns. $1 = ENERGY [TeV]; $2 to $12 = OPTICAL DEPTH for different redshifts.
+
+WARNING: Notice that the energy of the first column is GeV and not TeV as in the paper and in the only file 'table.txt'. 
+
+INFO: In order to check the curves and/or compare them with the original paper just open gnuplot and write: load 'GNUPLOT-SCRIPT'. The thicker the curve the smaller the redshift.
+Dashed lines are obtained from the file 'table.txt' (namely directly from the paper) and slightly differ (less than a factor 2) from Fig.12 extraction at the highest energy at each redshift. 
+The origin of such a discrepancy is obscure but not relevant since it can be observed only when the CMB dominates. At that point the optical depth is already larger than 10, meaning that the gamma-ray spectrum is suppressed already of at least 4 orders of magnitudes.
+
+INFO ON THE ANALYTIC PROXI: f(x) and g(x,z) are the Eq. C1 and C2 of Peretti et al. 2018 (https://arxiv.org/pdf/1812.01996.pdf). They are plotted as short black dashed (or dotted) lines for z=0.003 and z=0.1.
+
+WARNING: The Analytical proxi is no more good for z>0.1! 

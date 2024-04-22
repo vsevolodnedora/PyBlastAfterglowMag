@@ -70,7 +70,7 @@ public:
 //                    (*p_log)(LOG_INFO, AT) << "jet analytic synch. light curve finished [" << timer.checkPoint() << " s]" << "\n";
             }
             if (do_skymap)
-                computeSaveEjectaSkyImagesAnalytic_new(
+                computeSaveEjectaSkyImages(
                         working_dir,
                         getStrOpt("fname_sky_map", m_opts, AT, p_log, "", true),
                         skymap_times, skymap_freqs, main_pars, m_pars, m_opts);
@@ -221,7 +221,7 @@ private:
     }
 
     /// OUTPUT skymap
-    void computeSaveEjectaSkyImagesAnalytic_new(
+    void computeSaveEjectaSkyImages(
             std::string workingdir, std::string fname, Vector times, Vector freqs,
             StrDbMap & main_pars, StrDbMap & ej_pars, StrStrMap & ej_opts){
         if ((!run_bws)&&(!load_dyn))

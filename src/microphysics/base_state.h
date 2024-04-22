@@ -6,7 +6,7 @@
 #define SRC_BASE_STATE_H
 
 #include "../utilitites/utils.h"
-
+#include "kernels.h"
 
 struct Source{
     size_t it=0;

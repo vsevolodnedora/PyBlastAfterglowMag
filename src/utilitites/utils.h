@@ -44,7 +44,7 @@ inline namespace CGS{
     const double &h_by_mec2 = h/me/c/c;
 
     /// --------------------------------
-    const double &SI_pc   =3.0856E+16; // m
+    const double &SI_pc = 3.0856E+16; // m
     const double &RtD = 57.295779513082325;
     const double &A_RAD = 7.565767e-15; // microphysics constant in unit of [erg/cm^3/K^4]
     const double &EV_TO_ERG = 1.602e-12; // [erg/eV]

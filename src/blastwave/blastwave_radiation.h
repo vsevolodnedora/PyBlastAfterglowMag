@@ -805,8 +805,8 @@ public:
         p_eats_fs = std::make_unique<EATS>(m_data[BW::Q::itburst],
                                            m_data[BW::Q::itt], m_data[BW::Q::iR], m_data[BW::Q::itheta],
                                            m_data[BW::Q::iGamma], m_data[BW::Q::ibeta],
-//                                           p_pars->m_freq_arr, p_pars->m_synch_em, p_pars->m_synch_abs,
-                                           p_pars->i_end_r, ishell, ilayer, loglevel, p_pars);
+                                           p_pars->i_end_r, ishell, ilayer, loglevel,
+                                           commonTables, p_pars);
 //        p_eats_opt_depth = std::make_unique<EATS>(mD[BW::Q::itburst],
 //                                           mD[BW::Q::itt], mD[BW::Q::iR], mD[BW::Q::itheta],
 //                                           mD[BW::Q::iGamma],mD[BW::Q::ibeta],

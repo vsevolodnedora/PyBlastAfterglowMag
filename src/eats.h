@@ -14,6 +14,8 @@
 #include "utilitites/quadratures.h"
 #include "utilitites/rootfinders.h"
 #include "image.h"
+#include "microphysics/kernels.h"
+#include "microphysics/common.h"
 
 //#include "blastwave.h"
 
@@ -260,7 +262,7 @@ void saveImages(std::vector<ImageExtend> & ims, Vector & times, Vector & freqs,
 
 
 class EATS {
-
+    CommonTables & commonTables;
     void * m_params; /// parameters of the blast wave from which EATS is computed
     Vector & m_tburst; Vector & m_tt;
     Vector & m_r; Vector & m_theta; Vector & m_gam; Vector & m_bet;
@@ -297,6 +299,7 @@ class EATS {
     double sin_theta_obs=-1.;
     double phi = -1.;
 //        double cos_phi = -1.;
+
     double theta=-1.;
 //        double o_phi=-1, o_theta=-1., o_gam=-1, o_mu=-1, o_r=-1, o_flux=-1, o_theta_j=-1; // for map
 //        double freq1=-1.0, freq2=-1.0;
@@ -306,6 +309,7 @@ class EATS {
 
     //        METHOD_TAU method_tau{};
     bool counter_jet = true;
+    bool do_ebl = true;
     int spread_method = 1; // TODO this is the only option!
     long nevals = 0; // counter for how many times the integrand was evaluated
     size_t n_tburst = 0;
@@ -894,12 +898,9 @@ public:
     /// ---------------------------------------------------------------------------
 
     EATS(Vector & tburst, Vector & tt, Vector & r, Vector & theta, Vector & m_gam, Vector & m_bet,
-//             Vector & freq_arr, Vector & synch_em, Vector & synch_abs,
-             size_t & i_end_r, size_t ish, size_t il, int loglevel, void * params)
+         size_t & i_end_r, size_t ish, size_t il, int loglevel, CommonTables & commonTables, void * params)
             : m_tburst(tburst), m_tt(tt),  m_r(r), m_theta(theta), m_gam(m_gam), m_bet(m_bet),
-//              m_freq_arr(freq_arr), out_spectrum(synch_em), out_specturm_ssa(synch_abs),
-              m_i_end_r(i_end_r),
-              m_params(params) {
+              m_i_end_r(i_end_r), commonTables(commonTables), m_params(params) {
 
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "EATS");
 
@@ -980,81 +981,13 @@ public:
 //            p_mphys->setPars(pars, opts);
         skymap_remove_mu = getBoolOpt("skymap_remove_mu", opts, AT, p_log,true, true);
 
-    }
-
-
-    /// eval light curve using Adapitve or Piece-Wise EATS method
-    void evalLightCurve(Vector & out, EjectaID2::STUCT_TYPE m_method_eats, Vector & times, Vector & freqs ){
-        VecVector empty{};
-        for (size_t it = 0; it < times.size(); it++) {
-            if (m_method_eats == EjectaID2::STUCT_TYPE::ipiecewise)
-                out[it] = evalSkyMapPW(empty, times[it], freqs[it], 0);
-            else{
-                double atol = out[it] * rtol_theta / (double)nlayers;
-                out[it] += evalFluxDensA(times[it], freqs[it], atol);
-            }
+        commonTables.ebl.table_fpath = getStrOpt("ebl_tbl_fpath", opts, AT, p_log,"", true);
+        if (commonTables.ebl.table_fpath == "none")
+            do_ebl = false;
+        else{
+            commonTables.ebl.load_h5_table();
+            (*p_log)(LOG_INFO,AT) << " EBL table loaded; EBL attenuation will be applied\n";
         }
-    }
-
-    /// ----------------------------------------------------------------------------------------------
-    /// evaluate flux density using adaptive integrator
-    double evalFluxDensA(double t_obs, double nu_obs, double atol) {
-        /// check if given observer time is at least within burster time
-        if (m_i_end_r > 0 && (t_obs < m_tburst[0] || t_obs> m_tburst[m_i_end_r-1])){
-            (*p_log)(LOG_ERR,AT) << " t_obs="<<t_obs<<" is not in tburst["<<m_tburst[0]
-                                 <<", "<<m_tburst[m_i_end_r-1]<<" Extend tburst grid or shorten tobs grid. \n";
-            exit(1);
-        }
-        double fluxdens = 0.;
-        parsPars(t_obs, nu_obs, theta_c_l, theta_c_h,
-                 0., M_PI, obsAngle);
-        check_pars();
-        double Fcoeff = CGS::cgs2mJy / (4.0 * M_PI * d_l * d_l); // result will be in mJy
-//        rtol_theta = rtol;
-//        rtol_phi = rtol;
-        atol_theta = atol/(2.*Fcoeff*M_PI);// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
-        atol_phi = atol/(2.*Fcoeff*M_PI);//  / (2.0 * Fcoeff);
-        fluxdens += integrate_theta_phi(); // 2. because Integ_0^pi (not 2pi)
-        if (counter_jet){
-            parsPars(t_obs, nu_obs, theta_c_l, theta_c_h,
-                     0., M_PI, obsAngleCJ);
-            check_pars();
-//            atol_theta = atol/(2.*Fcoeff*M_PI);// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
-//            atol_phi = atol/(2.*Fcoeff*M_PI);//  / (2.0 * Fcoeff);
-            fluxdens += integrate_theta_phi();
-        }
-        return fluxdens;
-    }
-
-    /// evaluate intensity/flux density distribution using piece-wise summation
-    double evalSkyMapPW(VecVector & out, double t_obs, double freq_obs, size_t offset){
-        /// check if given observer time is at least within burster time
-        if (m_i_end_r > 0 && (t_obs < m_tburst[0] || t_obs> m_tburst[m_i_end_r-1])){
-            (*p_log)(LOG_ERR,AT) << " t_obs="<<t_obs<<" is not in tburst["<<m_tburst[0]
-                                 <<", "<<m_tburst[m_i_end_r-1]<<" Extend tburst grid or shorten tobs grid. \n";
-            exit(1);
-        }
-        double flux_pj=0., flux_cj=0.;
-        flux_pj = evalSkyMapPW(out, t_obs, freq_obs, offset, obsAngle, imageXXs, imageYYs);
-        if (counter_jet) // p_eats->counter_jet
-            flux_cj = evalSkyMapPW(out, t_obs, freq_obs, ncells + offset, obsAngleCJ, imageXXsCJ, imageYYsCJ);
-        return flux_pj + flux_cj;
-    }
-
-    /// evaluate intensity/flux density distribution using adaptive summation
-    double evalSkyMapA(VecVector & out, double t_obs, double freq_obs, size_t il, size_t offset, size_t cil, size_t ncells){
-        /// check if given observer time is at least within burster time
-        if (m_i_end_r > 0 && (t_obs < m_tburst[0] || t_obs> m_tburst[m_i_end_r-1])){
-            (*p_log)(LOG_ERR,AT) << " t_obs="<<t_obs<<" is not in tburst["<<m_tburst[0]
-                                 <<", "<<m_tburst[m_i_end_r-1]<<" Extend tburst grid or shorten tobs grid. \n";
-            exit(1);
-        }
-        /// computeSynchrotronEmissivityAbsorptionAnalytic image for primary jet and counter jet
-        double int_pj=0., int_cj=0.;
-        int_pj = evalSkyMapA(out, t_obs, freq_obs, il, offset, cil, obsAngle, imageXXs, imageYYs);
-        if (counter_jet) // p_eats->counter_jet
-            int_cj = evalSkyMapA(out, t_obs, freq_obs, il, offset + ncells, cil, obsAngleCJ, imageXXsCJ, imageYYsCJ);
-        return (int_pj+int_cj);
     }
 
     /// evaluate jet extend for further grid allocation
@@ -1078,6 +1011,114 @@ public:
             (*p_log)(LOG_ERR,AT) << " th_b_max > CGS::pi/2.\n";
             exit(1);
         }
+    }
+
+    /// eval light curve using Adapitve or Piece-Wise EATS method
+    void evalLightCurve(Vector & out, EjectaID2::STUCT_TYPE m_method_eats, Vector & times, Vector & freqs ){
+        VecVector empty{};
+        for (size_t it = 0; it < times.size(); it++) {
+            if (m_method_eats == EjectaID2::STUCT_TYPE::ipiecewise)
+                out[it] = evalSkyMapPW(empty, times[it], freqs[it], 0);
+            else{
+                double atol = out[it] * rtol_theta / (double)nlayers;
+                out[it] += evalFluxDensA(times[it], freqs[it], atol);
+            }
+        }
+
+    }
+
+public: /// flux density evaluation functions
+
+    /// evaluate flux density using adaptive integrator
+    double evalFluxDensA(double t_obs, double nu_obs, double atol) {
+        /// check if given observer time is at least within burster time
+        if (m_i_end_r > 0 && (t_obs < m_tburst[0] || t_obs> m_tburst[m_i_end_r-1])){
+            (*p_log)(LOG_ERR,AT) << " t_obs="<<t_obs<<" is not in tburst["<<m_tburst[0]
+                                 <<", "<<m_tburst[m_i_end_r-1]<<" Extend tburst grid or shorten tobs grid. \n";
+            exit(1);
+        }
+        double fluxdens = 0.;
+        parsPars(t_obs, nu_obs, theta_c_l, theta_c_h,
+                 0., M_PI, obsAngle);
+        check_pars();
+
+        double Fcoeff = CGS::cgs2mJy / (4.0 * M_PI * d_l * d_l); // result will be in mJy
+        atol_theta = atol/(2.*Fcoeff*M_PI);// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
+        atol_phi = atol/(2.*Fcoeff*M_PI);//  / (2.0 * Fcoeff);
+        fluxdens += integrate_theta_phi(); // 2. because Integ_0^pi (not 2pi)
+        if (counter_jet){
+            parsPars(t_obs, nu_obs, theta_c_l, theta_c_h,
+                     0., M_PI, obsAngleCJ);
+            check_pars();
+//            atol_theta = atol/(2.*Fcoeff*M_PI);// / M_PI / (2.0 * Fcoeff * M_PI);  // correct the atol to the scale
+//            atol_phi = atol/(2.*Fcoeff*M_PI);//  / (2.0 * Fcoeff);
+            fluxdens += integrate_theta_phi();
+        }
+
+        /// apply EBL absopption
+        if(do_ebl){
+            double tau = commonTables.ebl.interpolate(nu_obs,z);
+            fluxdens = fluxdens * std::exp(-tau);
+        }
+
+        return fluxdens;
+    }
+
+    /// evaluate intensity/flux density distribution using piece-wise summation
+    double evalSkyMapPW(VecVector & out, double t_obs, double freq_obs, size_t offset){
+        /// check if given observer time is at least within burster time
+        if (m_i_end_r > 0 && (t_obs < m_tburst[0] || t_obs> m_tburst[m_i_end_r-1])){
+            (*p_log)(LOG_ERR,AT) << " t_obs="<<t_obs<<" is not in tburst["<<m_tburst[0]
+                                 <<", "<<m_tburst[m_i_end_r-1]<<" Extend tburst grid or shorten tobs grid. \n";
+            exit(1);
+        }
+
+        double flux_pj=0., flux_cj=0.;
+        flux_pj = evalSkyMapPW(out, t_obs, freq_obs, offset, obsAngle, imageXXs, imageYYs);
+        if (counter_jet) // p_eats->counter_jet
+            flux_cj = evalSkyMapPW(out, t_obs, freq_obs, ncells + offset, obsAngleCJ, imageXXsCJ, imageYYsCJ);
+        double fluxdens =  flux_pj + flux_cj;
+
+        /// apply EBL absopption
+        if(do_ebl){
+            double tau = commonTables.ebl.interpolate(nu_obs,z);
+            double attenuation = std::exp(-tau);
+            fluxdens = fluxdens * attenuation;
+            /// apply attenuation for a skymap as well (never used; as radio at low 'z' is not attenuated)
+            for (auto & val : out[IMG::Q::iintens])
+                val *= attenuation;
+        }
+        return fluxdens;
+    }
+
+    /// evaluate intensity/flux density distribution using adaptive summation
+    double evalSkyMapA(VecVector & out, double t_obs, double freq_obs,
+                       size_t il, size_t offset, size_t cil, size_t ncells){
+        /// check if given observer time is at least within burster time
+        if (m_i_end_r > 0 && (t_obs < m_tburst[0] || t_obs> m_tburst[m_i_end_r-1])){
+            (*p_log)(LOG_ERR,AT) << " t_obs="<<t_obs<<" is not in tburst["<<m_tburst[0]
+                                 <<", "<<m_tburst[m_i_end_r-1]<<" Extend tburst grid or shorten tobs grid. \n";
+            exit(1);
+        }
+
+        /// compute image for primary jet and counter jet
+        double int_pj=0., int_cj=0.;
+        int_pj = evalSkyMapA(out, t_obs, freq_obs, il, offset, cil, obsAngle, imageXXs, imageYYs);
+
+        if (counter_jet) // p_eats->counter_jet
+            int_cj = evalSkyMapA(out, t_obs, freq_obs, il, offset + ncells, cil, obsAngleCJ, imageXXsCJ, imageYYsCJ);
+        double fluxdens =  int_pj+int_cj;
+
+        /// apply EBL absopption
+        if(do_ebl){
+            double tau = commonTables.ebl.interpolate(nu_obs,z);
+            double attenuation = std::exp(-tau);
+            fluxdens = fluxdens * attenuation;
+            /// apply attenuation for a skymap as well (never used; as radio at low 'z' is not attenuated)
+            for (auto & val : out[IMG::Q::iintens])
+                val *= attenuation;
+        }
+        return fluxdens;
     }
 
 private:

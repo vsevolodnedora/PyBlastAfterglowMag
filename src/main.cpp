@@ -91,11 +91,12 @@ public:
         p_pars = std::make_unique<Pars>();
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "PyBlastAfterglow");
         commonTables = CommonTables();
+//        commonTables.ebl.load_h5_table();
         p_mag = std::make_unique<Magnetar>(loglevel);
         p_grb = std::make_unique<Ejecta>(t_grid, commonTables, loglevel);
         p_ej  = std::make_unique<Ejecta>(t_grid, commonTables, loglevel);
         p_ej_pwn2 = std::make_unique<Ejecta>(t_grid, commonTables, loglevel);
-        p_ej_pwn = std::make_unique<PWNset>(p_mag, p_ej, loglevel); // depends on ang.struct. of the ejecta
+        p_ej_pwn = std::make_unique<PWNset>(p_mag, p_ej, commonTables, loglevel); // depends on ang.struct. of the ejecta
     }
 
     void setModelPars(StrDbMap pars, StrStrMap opts) {

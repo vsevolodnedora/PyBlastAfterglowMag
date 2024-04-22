@@ -8,11 +8,11 @@
 # define M_SQRT3    1.7320508075688772	/* sqrt(3) */
 
 #include "../utilitites/utils.h"
-#include "numeric_model.h"
 
-#include <gsl/gsl_const_cgsm.h>
-#include <gsl/gsl_const_num.h>
-#include <gsl/gsl_spline.h>
+
+//#include <gsl/gsl_const_cgsm.h>
+//#include <gsl/gsl_const_num.h>
+//#include <gsl/gsl_spline.h>
 
 class SSCKernel{
 
@@ -542,31 +542,6 @@ public:
      */
     VecVector & getKernel(){return kernel;}
 
-};
-
-/// look-up tables that are general for all blast waves (pass by a reference)
-struct CommonTables{
-    std::unique_ptr<logger> p_log;
-    CommonTables(){
-//        p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "CommonTables");
-    }
-
-    /// arrays
-    Vector comov_gam_grid_fs{};
-    Vector comov_gam_grid_rs{};
-    Vector comov_freq_grid_fs{};
-    Vector comov_freq_grid_rs{};
-
-    /// kernels
-    SynKernel synKernel_fs{};
-    SSCKernel sscKernel_fs{};
-
-    SynKernel synKernel_rs{};
-    SSCKernel sscKernel_rs{};
-
-    // todo nuclear heating table ...
-    // todo EBL table ...
-    // magnetar table ...
 };
 
 #endif //SRC_KERNELS_H

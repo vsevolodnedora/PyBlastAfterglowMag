@@ -225,7 +225,7 @@ private:
                 if (vec.size() == nshells and vec[0].size() == nlayers)
                     m_data[i_v_n] = std::move(vec);
                 else
-                    m_data[i_v_n] = std::move(VecVector(nshells,Vector(nlayers,0.)));
+                    m_data[i_v_n] = std::move( VecVector(nshells,Vector(nlayers,0.)) );
             }
             /// check main parameters (in case of mistakes in ID)
             for (size_t ish = 0; ish < nshells; ish++){

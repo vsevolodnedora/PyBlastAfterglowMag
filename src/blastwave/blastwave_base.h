@@ -8,6 +8,7 @@
 #include "../composition.h"
 //#include "blastwave_components.h"
 #include "blastwave_pars.h"
+#include "../microphysics/common.h"
 
 class BlastWaveBase{
     std::unique_ptr<logger> p_log;
