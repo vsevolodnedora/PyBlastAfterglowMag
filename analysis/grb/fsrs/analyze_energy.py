@@ -575,27 +575,27 @@ def plot_id(struct:dict,pp:dict,plot:dict):
 
 if __name__ == '__main__':
     ''' -------- TOPHAT ---------- '''
-    # plot_fs_energy(
-    #     struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
-    #     pp = dict(main=dict(n_ism = 1, tb0=3e3),
-    #               grb=dict(save_dynamics='yes',do_ele = "no",do_lc = "no",# method_spread='None'
-    #                        )),
-    #     plot=dict(figname = "tophat_fs_energy", text="FS",
-    #               xlim=(1e14,1e19), ylim1=(1e-4,2), ylim2=(1e-3,1e3), rdec=True, bm=True,
-    #               theta_spread_0=True, theta_spread_1=True)
-    # )
-    # plot_fs_energy(
-    #     struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
-    #     pp = dict(main=dict(n_ism = 1., tb0=3e3, ntb=1000,rtol=1e-7,
-    #                         lc_freqs = "array 1e9 1e18"),
-    #               grb=dict(save_dynamics='yes',do_rs='yes',bw_type='fsrs',do_ele = "no",do_lc = "no",do_rs_radiation="no",
-    #                        # method_spread='AFGPY'
-    #                        # exponential_rho4='no'
-    #                        )),
-    #     plot=dict(figname = "tophat_fsrs_energy", text="FS \& RS",
-    #               xlim=(1e14,1e19), ylim1=(1e-4,2), ylim2=(1e-3,1e3), rdec=False, bm=True,method_ele_fs='mix',
-    #               theta_spread_0=True, theta_spread_1=True)
-    # )
+    plot_fs_energy(
+        struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
+        pp = dict(main=dict(n_ism = 1, tb0=3e3),
+                  grb=dict(save_dynamics='yes',do_mphys_in_situ="no",do_lc = "no",# method_spread='None'
+                           )),
+        plot=dict(figname = "tophat_fs_energy", text="FS",
+                  xlim=(1e14,1e19), ylim1=(1e-4,2), ylim2=(1e-3,1e3), rdec=True, bm=True,
+                  theta_spread_0=True, theta_spread_1=True)
+    )
+    plot_fs_energy(
+        struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
+        pp = dict(main=dict(n_ism = 1., tb0=3e3, ntb=1000,rtol=1e-7,
+                            lc_freqs = "array 1e9 1e18"),
+                  grb=dict(save_dynamics='yes',do_rs='yes',bw_type='fsrs',do_mphys_in_situ="no",do_lc = "no",do_rs_radiation="no",
+                           # method_spread='AFGPY'
+                           # exponential_rho4='no'
+                           )),
+        plot=dict(figname = "tophat_fsrs_energy", text="FS \& RS",
+                  xlim=(1e14,1e19), ylim1=(1e-4,2), ylim2=(1e-3,1e3), rdec=False, bm=True,method_ele_fs='mix',
+                  theta_spread_0=True, theta_spread_1=True)
+    )
     ''' ---------- GAUSSIAN --------- '''
     plot_id(
         struct = dict(struct="gaussian",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.3),
@@ -610,7 +610,7 @@ if __name__ == '__main__':
         struct = dict(struct="gaussian",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.3),
         pp = dict(main=dict(n_ism = 1., tb0=3e3, ntb=2000,rtol=1e-7,
                             lc_freqs = "array 1e9 1e18"),
-                  grb=dict(save_dynamics='yes',do_rs='yes',bw_type='fsrs',do_ele = "no",do_lc = "no",do_rs_radiation="no",
+                  grb=dict(save_dynamics='yes',do_rs='yes',bw_type='fsrs',do_mphys_in_situ="no",do_lc = "no",do_rs_radiation="no",
                            # method_spread='AFGPY'
                            # exponential_rho4='no'
                            )),

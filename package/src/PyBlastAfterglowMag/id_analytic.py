@@ -95,6 +95,7 @@ class JetStruct:
         ang_size_layer = 2.0 * np.pi * ( 2.0 * np.sin(0.5 * theta_w) * np.sin(0.5 * theta_w) );
         for i  in range(len(self.cthetas0)):
             self.dist_E0_pw[i] = E_iso_c * ang_size_layer / (4.0 * np.pi) * np.exp( -1. * self.cthetas0[i] * self.cthetas0[i] / (theta_c * theta_c) )
+
             Gamma = 0
             if (gflat):
                 Gamma = MomFromGam( Gamma0c )
@@ -107,7 +108,8 @@ class JetStruct:
             self.dist_E0_pw[i] *= JetStruct._CellsInLayer(i)
             self.dist_M0_pw[i] /= self.ncells
             self.dist_M0_pw[i] *= JetStruct._CellsInLayer(i)
-
+        # plt.semilogy(self.cthetas0,self.dist_E0_pw)
+        # plt.show()
 
         # set adaptive
         # self.nlayers_a = n_layers_a
@@ -128,8 +130,8 @@ class JetStruct:
             self.dist_Mom0_a[i] = MomFromGam( Gamma )
             self.dist_M0_a[i] = self.dist_E0_a[i] / (( Gamma - 1.0) * c*c )
 
-            # self.dist_E0_a[i] /= ( frac_of_solid_ang / 2. )
-            # self.dist_M0_a[i] /= ( frac_of_solid_ang / 2. )
+            self.dist_E0_a[i] *= ( frac_of_solid_ang / 2. )
+            self.dist_M0_a[i] *= ( frac_of_solid_ang / 2. )
 
         i = 0
 
@@ -187,8 +189,8 @@ class JetStruct:
         #     string = readline().split(" ")
 
         # os.path.isfile()
-        self.dist_E0_a /= (frac_of_solid_ang / 2.) # TODO Get rid of shis (used in code)
-        self.dist_M0_a /= (frac_of_solid_ang / 2.)
+        # self.dist_E0_a /= (frac_of_solid_ang / 2.) # TODO Get rid of shis (used in code)
+        # self.dist_M0_a /= (frac_of_solid_ang / 2.)
 
     def get_1D_id(self, pars : dict, type : str) -> tuple[dict,dict]:
 

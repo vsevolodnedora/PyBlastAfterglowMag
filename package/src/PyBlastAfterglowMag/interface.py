@@ -417,7 +417,8 @@ class Ejecta(Base):
         arr = np.array(grp[key])
         return arr
 
-    def _get_lc_for_mask(self, key:str, mask:np.ndarray, x_arr:np.ndarray, 
+    def _get_lc_for_mask(self, key:str, mask:np.ndarray or None,
+                         x_arr:np.ndarray,
                          ishell:int or None, ilayer:int or None, spec=False, sum_shells_layers=False):
 
         dfile = self.get_lc_obj(spec=spec)
@@ -429,27 +430,37 @@ class Ejecta(Base):
         nshells = int(dfile.attrs["nshells"])
         # compute the array of a required shape
         if not ishell is None and not ilayer is None:
-            res = self._get_lc_shell_layer(key=key,ishell=ishell, ilayer=ilayer, spec=spec)[mask]
+            res = self._get_lc_shell_layer(key=key,ishell=ishell, ilayer=ilayer, spec=spec)
+            if not mask is None: res = res[mask]
             return res
         elif ishell is None and not ilayer is None:
-            res = [self._get_lc_shell_layer(key=key,ishell=i, ilayer=ilayer, spec=spec)[mask] for i in range(nshells)]
+            res = [self._get_lc_shell_layer(key=key,ishell=i, ilayer=ilayer, spec=spec) for i in range(nshells)]
+            if not mask is None: res = [res_i[mask] for res_i in res]
             res = np.reshape(np.array(res),newshape=(nshells,len(x_arr)))
             if sum_shells_layers: res = np.sum(res,axis=(0))
             return res
         elif not ishell is None and ilayer is None:
-            res = [self._get_lc_shell_layer(key=key,ishell=ishell, ilayer=i, spec=spec)[mask] for i in range(nlayers)]
+            res = [self._get_lc_shell_layer(key=key,ishell=ishell, ilayer=i, spec=spec) for i in range(nlayers)]
+            if not mask is None: res = [res_i[mask] for res_i in res]
             res = np.reshape(np.array(res),newshape=(nlayers, len(x_arr)))
             if sum_shells_layers: res = np.sum(res,axis=(0))
             return res
         else:
-            res = [self._get_lc_shell_layer(key=key,ishell=i, ilayer=j, spec=spec)[mask]
-                   for i in range(nshells) for j in range(nlayers)]
-            res= np.reshape(np.array(res),newshape=(nshells,nlayers,len(x_arr)))
-            if sum_shells_layers: res = np.sum(res,axis=(0,1))
-            return res
+
+            res = [[self._get_lc_shell_layer(key=key,ishell=i, ilayer=j, spec=spec)
+                   for i in range(nshells)] for j in range(nlayers)]
+            if not mask is None: res = [[res_i[mask] for res_i in res_j] for res_j in res]
+            if sum_shells_layers:
+                res_ = np.zeros_like(res[0][0])
+                for ishell in range(nshells):
+                    for ilayer in range(nlayers):
+                        res_ += res[ilayer][ishell]
+            else:
+                res_= np.reshape(np.array(res),newshape=(nshells,nlayers,len(x_arr)))
+            return np.array(res_)
 
     def get_lc(self,
-               key:str="fluxdens", xkey:str="freqs", ykey:str="times",
+               key:str="fluxdens", xkey:str="freqs", key_time:str= "times",
                freq:float or None = None, time:float or None=None,
                ishell:int or None=None, ilayer:int or None=None, sum_shells_layers:bool=True,
                spec:bool=False):
@@ -457,7 +468,7 @@ class Ejecta(Base):
 
         :param key: str. Options(spec=True): n_ele, synch, ssa, ssc. Options (spec=False): fluxdens
         :param xkey: str. Options(spec=True): gams, freqs. Options (spec=False): freqs
-        :param ykey: str. Options(spec=True): times_gams, times_freqs. Options (spec=False): times
+        :param key_time: str. Options(spec=True): times_gams, times_freqs. Options (spec=False): times
         :param freq: float or None (frequency) [hz]
         :param time: float or None (time) [s]
         :param ishell: int or None : number of the shell (velocity structure)
@@ -470,7 +481,7 @@ class Ejecta(Base):
         if not xkey in dfile.keys():
             raise KeyError(f"xkey={xkey} is not recognized. Avaialble: {dfile.keys()}")
 
-        utimes = self.get_grid(key=ykey, unique=True, spec=spec)
+        utimes = self.get_grid(key=key_time, unique=True, spec=spec)
         ufreqs = self.get_grid(key=xkey, unique=True, spec=spec)
 
         # light curve
@@ -487,9 +498,9 @@ class Ejecta(Base):
         # spectrum
         if (not time is None) and (freq is None):
             # get time that is in the h5file
-            _time = self._get_closest_grid_val(val=time, key=ykey, uvals=utimes)
+            _time = self._get_closest_grid_val(val=time, key=key_time, uvals=utimes)
             # get mask for this fre,q
-            mask = np.array(self.get_grid(key=ykey, spec=spec,unique=False) == _time,dtype=bool)
+            mask = np.array(self.get_grid(key=key_time, spec=spec, unique=False) == _time, dtype=bool)
             # get spectrum for this mask and for this shell and layer
             res = self._get_lc_for_mask(key=key, mask=mask, x_arr=ufreqs, ishell=ishell, ilayer=ilayer, spec=spec,
                                         sum_shells_layers=sum_shells_layers)
@@ -497,12 +508,18 @@ class Ejecta(Base):
 
         if (time is None and freq is None) and (not ishell is None) and (not ilayer is None):
             if xkey=="gams":
-                res = np.reshape(self._get_lc_shell_layer(key=key, ishell=ishell, ilayer=ilayer, spec=spec),
-                                  newshape=(len(utimes),len(ufreqs)))
+                res = self._get_lc_shell_layer(key=key, ishell=ishell, ilayer=ilayer, spec=spec)
+                res = np.reshape(res, newshape=(len(utimes),len(ufreqs))).T
             else:
-                res = np.reshape(self._get_lc_shell_layer(key=key,ishell=ishell, ilayer=ilayer, spec=spec),
-                                  newshape=(len(ufreqs),len(utimes)))
+                res = self._get_lc_shell_layer(key=key,ishell=ishell, ilayer=ilayer, spec=spec)
+                res = np.reshape(res, newshape=(len(utimes),len(ufreqs))).T
                 if sum_shells_layers: res = np.sum(res,axis=(0,1))
+            return res
+
+        if (time is None and freq is None) and (ishell is None) and (ilayer is None):
+            res = self._get_lc_for_mask(key=key, mask=None, x_arr=ufreqs, ishell=ishell, ilayer=ilayer, spec=spec,
+                                        sum_shells_layers=sum_shells_layers)
+            res = np.reshape(res, (len(utimes),len(ufreqs))).T
             return res
 
         # total spectrum from all shells/layers

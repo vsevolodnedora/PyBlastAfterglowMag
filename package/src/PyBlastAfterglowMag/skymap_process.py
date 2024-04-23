@@ -539,7 +539,7 @@ class ProcessRawSkymap():
         times = []
         freqs = []
         for fl in files:
-            print(f"Processing {fl}")
+            if self.verb: print(f"Processing {fl}")
             in_f = h5py.File(fl, "r")
 
             time = float(in_f.attrs["time"])

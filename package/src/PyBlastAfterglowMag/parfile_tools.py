@@ -387,42 +387,78 @@ class Defaults:
     )
     parfile_grb_part = dict(
         pars=dict(
-            # Forward Shock Microphysics
+            # --- Forward Shock Microphysics ---
             eps_e_fs = 0.1,
             eps_b_fs = 0.01,
             eps_t_fs = 0.,
             p_fs = 2.2,
-            ksi_n_fs = 1.,
-            # Comoving spectra settings
-            gam1 = 1.,      # [numeric] lower lim for comoving electron spectrum
-            gam2 = 1.e8,    # [numeric] upper lim for comoving electron spectrum
-            ngam = 250,     # [numeric] size of the electron grid points for Chang-Cooper scheme
-            freq1 = 1.e5,   # [numeric] lower lim for comoving synchrotron spectrum
-            freq2 = 1.e22,  # [numeric] upper lim for comoving synchrotron spectrum
-            nfreq = 200,    # [numeric] size of the freq. grid points for Chang-Cooper scheme
+            epsilon_e_rad = 0.,    # [FS] fraction of the Esh2 removed due to radiation per timestep (dynamics)
+            gamma_max_fs = 1e7,    # [numeric] Used only if 'method_gamma_max_fs=useConst'; must be < gam2
+            max_substeps_fs = 2000,# [numeric] Number of cooling substeps in electron evolution (between evol.steps)
+            gam1_fs = 1.,      # [numeric] lower lim for comoving electron spectrum
+            gam2_fs = 1.e8,    # [numeric] upper lim for comoving electron spectrum
+            ngam_fs = 451,     # [numeric] size of the electron grid points for Chang-Cooper scheme
+            freq1_fs = 1.e5,   # [numeric] lower lim for comoving synchrotron spectrum
+            freq2_fs = 1.e22,  # [numeric] uppers lim for comoving synchrotron spectrum
+            nfreq_fs = 401,    # [numeric] size of the freq. grid points for Chang-Cooper scheme
+            # --- Reverse shock Microphsyics ---
+            eps_e_rs = 0.1,
+            eps_b_rs = 0.01,
+            eps_t_rs = 0.,
+            p_rs = 2.2,
+            epsilon_rad_rs = 0., # [RS] fraction of the Esh2 removed due to radiation per timestep (dynamics)
+            gamma_max_rs = 1e7,    # [numeric] Used only if 'method_gamma_max_fs=useConst'; must be < gam2
+            max_substeps_rs = 2000,# [numeric] Number of cooling substeps in electron evolution (between evol.steps)
+            gam1_rs = 1.,      # [numeric] lower lim for comoving electron spectrum
+            gam2_rs = 1.e7,    # [numeric] upper lim for comoving electron spectrum
+            ngam_rs = 451,     # [numeric] size of the electron grid points for Chang-Cooper scheme
+            freq1_rs = 1.e5,   # [numeric] lower lim for comoving synchrotron spectrum
+            freq2_rs = 1.e22,  # [numeric] uppers lim for comoving synchrotron spectrum
+            nfreq_rs = 401,    # [numeric] size of the freq. grid points for Chang-Cooper scheme
             # -------------------
             n_store_substeps = 10,  # use n steps of ODE solver to average over and store (used if iout >> 1)
-            tprompt = 1e3,          # [RS] duration of the ejection (for RS initial width Delta=tprompt*c)
-            a = 0,                  # [spread] if method_spread="AA", controls dtheta/dR power
+            tprompt = 1.e3,         # [RS] duration of the ejection (for RS initial width Delta=tprompt*c)
+            a = 1,                  # [spread] if method_spread="AA", controls dtheta/dR slope
             rs_shutOff_criterion_rho = 1e-50, # [RS] criterion for rho4 when to shut down the reverse shock
+            min_Gamma0_for_rs=0.,   # [RS] If initial Gamma0 of a BW (layer) < this value, use 'fs' RHS not 'fsrs'
             mom0_frac_when_start_spread = 0.9, # [spread] frac, when to allow spread, \Gamma\beta < frac * Gamma\beta_0
+            rs_Gamma0_frac_no_exceed = .92, # [RS] if Gamma > frac*Gamma0; set dGammadR = 0 (prevent error acceleration)
             save_dyn_every_it = 10, # [numeric] if to save dynamics, save every it'th iteration,
             rtol_phi = 1e-6,        # [eats] relative tolerance for adaptive quadrature for EATS integration
             rtol_theta = 1e-6,      # [eats] relative tolerance for adaptive quadrature for EATS integration
+            nmax_phi = 1000,        # [eats] maximum number of adaptive quadrature iterations to find solution
+            nmax_theta = 1000,      # [eats] maximum number of adaptive quadrature iterations to find solution
+            theta_max = np.pi/2.,   # [eats] maximum extend of each hemispheres
+            beta_min_fs = 1e-5,     # [numeric] if < betaShock; do not compute any microphsyics (FS)
+            beta_min_rs = 1e-5,     # [numeric] if < betaShock; do not compute any microphsyics (RS)
+            # --- Skymap adaptive calculation; resize untill 'min_sublayers' each of which has 'min_non_zero_cells'
+            nsublayers = 10,        # [numeric] initial division of a theta-layer into sublayers (may give I=0 cells -> 'redo')
+            frac_to_increase = 1.5, # [numeric] frac. to increase nsublayers id skymap is not resolved (see below)
+            max_restarts = 10,      # [numeric] max nmber of increasing 'nsublayers' to resolve the jet
+            min_sublayers = 3,      # [numeric] criterion, min number sublayers each of which has 'min_non_zero_cells'
+            min_non_zero_cells = 3, # [numeric] criterion, min number of phi-cells with intensity > 0 for jet to be resolved
+            im_max_theta = 1.5708   # [numeric] max value in intensity calculations for skymap
         ),
         opts=dict(
             run_bws = "yes",        # [task] evolve the blastwaves (if no, expected that load_dynamics=yes)
             save_dynamics = "no",   # [task] save blastwaves evolution history
             load_dynamics = "no",   # [task] load the blastwave dynamics from a file
-            do_ele = "yes",         # [task] compute comoving electron spectrum (numerically or analytically)
-            do_spec = "no",         # [task] compute comoving synchrotron/SSC spectrum (numerically or analytically)
+            do_mphys_in_situ= "yes",# [task] compute electrons/syc/ssc comov.spec after each it. of BW evolution
+            do_mphys_in_ppr = "no", # [task] compute electrons/syc/ssc comov.spec after full BW evolution has finisheds
+            # do_ele = "yes",         # [task] compute comoving electron spectrum (numerically or analytically)
+            # do_spec = "no",         # [task] compute comoving synchrotron/SSC spectrum (numerically or analytically)
             save_spec = "no",       # [task] save comoving ele/synchrotron/SSC spectrum (numerically or analytically)
             do_lc = "yes",          # [task] compute & save light curves
             do_skymap = "no",       # [task] compute & save raw skymaps
+            save_raw_skymap="yes",  # [task] currently only raw, unstructured images can be saved. (UNFINISHED)
             skymap_remove_mu = "no",# [task] remove 'mu' from skymap calculation
+            counter_jet = "yes",    # [numeric] do include counter jet as well in LCs and Sky Maps
 
             do_rs = "no",               # [RS] include RS into consideration (main switch)
+            do_rs_radiation="yes",      # [RS] if RS is included, compute also the radiation from RS (adds to total LC)
             bw_type = "fs",             # [numeric] type pf the blastwave RHS to use, e.g. fs - forward shock only
+            init_deltaR4="no",          # [numeric] set deltaR4[0] = c*beta0*tprompt for ODE solver
+            exponential_rho4="yes",     # [numeric] use exponential rho4 decay as exp(-Delta4/Delta0)
             method_collision = "none",  # [numeric] include blastwave collision (UNFINISHED)
             method_eats = "adaptive",   # [numeric] main switch for blastwave discretezation (piece-wise or adaptive)
             method_quad = "CADRE",      # [numeric] EATS quadrature method (CADRE is adaptive)
@@ -430,57 +466,64 @@ class Defaults:
             allow_termination = "no",   # [numerc] continue if one of the blastwaves fails (ODE solver fails)
 
             do_thermrad_loss = "no",    # [numeric] include thermal radiation from ejecta (UNFINISHED)
+            do_eninj_inside_rhs = "no", # [numeric] magnetar-driven ejecta; (UNFINISHED)
 
             use_1d_id = "yes",          # [I/O] type of the initail data, if 'yes' expects 1D arrays with E,Gamma...
             fname_ejecta_id = "id.h5",  # [I/O] file name (in working_dir) with initial data
             load_r0 = "no",             # [I/O] use R0 from the file instead of computing it as R0=beta0 * tb0 * c
             fname_dyn = "dyn.h5",       # [I/O] file name (in working_dir) to save dynamics
+            fname_spectrum = "spec.h5", # [I/O] file name (in working_dir) to save the comoving ele/radition spectrum
             fname_light_curve = "lc.h5",# [I/O] file name (in working_dir) to save light curve
             fname_sky_map = "skymap.h5",# [I/O] file name (in working_dir) to save raw light curve
 
+            ebl_tbl_fpath = "../../../data/EBL/Franceschini18/table.h5", # if not "none" use F_nu = F_nu*exp(-tau(z,nu))
+
             do_nucinj = "no", # [numeric] include r-process heating in ejecta (UNFINISHED)
 
-            method_spread = "AFGPY",            # [spread] method for lateral spreading
+            method_spread = "our",              # [spread] method for lateral spreading
             method_limit_spread = "Mom0Frac",   # [numeric] how to limit spreading of the blastwave
             method_dgdr = "our",                # [numeric] choice of equation for BW dynamical evolution dGamma/dR
             method_eos = "Nava13",              # [numeric] choice of EOS for the blast wave
-            use_adiabLoss = "yes",              # [numeric] include blast wave adiabatic lossess
             method_dmdr = "usingdthdr",         # [numeric] choice of equation for accreted mass dm/dr
 
             use_dens_prof_behind_jet_for_ejecta = "no", # [numeric] include jet in ejecta mode (UNFINISHED)
 
             # --- Forward Shock ---
             # method_radius_fs = "useGammaR",       # [numeric] how to ge radius for forward shock (use GammaShock or not)
+            use_adiabLoss = "yes",              # [numeric] include blast wave adiabatic lossess (FS)
             method_Gamma_fs = "useGammaShock",  # [numeric] compute GammaShock via EOS or assume = to Gamma
             method_Up_fs = "useEint2",          # [numeric] compute internal energy from Eint2 or Gamma
             method_thickness_fs = "useJoh06",   # [numeric] compute shock thickness dR, as 1/Gamma^2 or Johannesson paper
-            method_vel_fs = "shockVel",         # [numeric] in EATS, compute abberation using GammaShock or Gamma
-            method_ele_fs = "numeric",         # [numeric] assume analytical electron profile or evolve
+            method_vel_fs = "sameAsBW",         # [numeric] "shockVel" in EATS, compute abberation using GammaShock or Gamma
+            method_ele_fs = "numeric",          # [numeric] assume analytical electron profile or evolve
+            num_ele_use_adi_loss_fs="yes",      # [numeric] include adiabatic cooling term into kinetic eq. for ele. evolution
             method_ne_fs = "useNe",             # [numeric] compute emissivities using Ne or nprime
-            method_nonrel_dist_fs = "none",     # [numeric] include Deep Newtonian regime for electron dist.
-            method_gamma_min_fs = "useNumericGamma",     # [numeric] how to compute gamma_min
+            method_nonrel_dist_fs ="use_Sironi",# [numeric] include Deep Newtonian regime for electron dist.
+            method_gamma_min_fs = "useNumeric", # [numeric] how to compute gamma_min
             method_gamma_c_fs = "useTcomov",    # [numeric] how to compute gamma_c
             method_gamma_max_fs = "useB",       # [numeric] how to compute gamma_max
             method_B_fs = "useU_b" ,            # [numeric] how to compute magnetic field
-            method_synchrotron_fs = "Dermer09", # [numeric] method for the synchrotron radiation
+            method_synchrotron_fs = "CSYN",     # [numeric] method for the synchrotron radiation
             use_ssa_fs = "no",                  # [numeric] include SSA
             method_ssc_fs = "none",             # [numeric] method for SSC
             method_tau_fs = "smooth",           # [numeric] method for optical depth calculation in shock
 
             # --- Reverse Shock ---
             # method_radius_rs = "sameAsR",     # [numeric] how to ge radius for reverse shock (use GammaShock or not)
+            use_adiabLoss_rs = "yes",           # [numeric] include blast wave adiabatic lossess (RS)
             method_Gamma_rs = "useGammaShock",  # [numeric] compute GammaShock via EOS or assume = to Gamma
             method_Up_rs = "useEint2",          # [numeric] compute internal energy from Eint2 or Gamma
             method_thickness_rs = "useJoh06",   # [numeric] compute shock thickness dR, as 1/Gamma^2 or Johannesson paper
-            method_vel_rs = "shockVel",         # [numeric] compute shock thickness dR, as 1/Gamma^2 or Johannesson paper
-            method_ele_rs = "numeric",         # [numeric] assume analytical electron profile or evolve
+            method_vel_rs = "sameAsBW",         # [numeric] compute shock thickness dR, as 1/Gamma^2 or Johannesson paper
+            method_ele_rs = "numeric",          # [numeric] assume analytical electron profile or evolve
+            num_ele_use_adi_loss_rs="yes",      # [numeric] include adiabatic cooling term into kinetic eq. for ele. evolution
             method_ne_rs = "useNe",             # [numeric] compute emissivities using Ne or nprime
-            method_nonrel_dist_rs = "none",     # [numeric] include Deep Newtonian regime for electron dist.
-            method_gamma_min_rs = "useNumericGamma",     # [numeric] how to compute gamma_min
-            method_gamma_c_rs = "useTcomov",        # [numeric] how to compute gamma_c
+            method_nonrel_dist_rs ="use_Sironi",# [numeric] include Deep Newtonian regime for electron dist.
+            method_gamma_min_rs = "useNumeric", # [numeric] how to compute gamma_min
+            method_gamma_c_rs = "useTcomov",    # [numeric] how to compute gamma_c
             method_gamma_max_rs = "useB",       # [numeric] how to compute gamma_max
             method_B_rs = "useU_b",             # [numeric] how to compute magnetic field
-            method_synchrotron_rs = "Dermer09", # [numeric] method for the synchrotron radiation
+            method_synchrotron_rs = "CSYN",     # [numeric] method for the synchrotron radiation
             use_ssa_rs = "no",                  # [numeric] include SSA
             method_ssc_rs = "none",             # [numeric] method for SSC
             method_tau_rs = "smooth",           # [numeric] method for optical depth calculation in shock
