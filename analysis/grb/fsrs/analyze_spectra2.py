@@ -284,6 +284,16 @@ class PlotSpectra:
             return nu_m
 
     @staticmethod
+    def _pmax(nu_m:float,nu_c:float,B:float,p:float):
+        c,pi,mp,me,kB = 2.9979e10,np.pi, 1.6726e-24, 9.1094e-28 , 1.38065e-16
+        qe = 4.803204e-10
+        phipF = 0.54 + 0.08*p
+        phipS = 1.89 - 0.935*p + 0.17*p**2
+        PmaxF = phipF * 2.234*qe**3*B/me/c**2
+        PmaxS = phipS * 11.17*(p-1)*qe**3*B/(3*p-1)/me/c**2
+        return (PmaxS if nu_m < nu_c else PmaxF)
+
+    @staticmethod
     def _plot_ele_spectrum(ax, fig, times: np.ndarray, ys: np.ndarray, spec: np.ndarray,
                            ej: PBA.Ejecta, fs_or_rs: str, task_i: dict):
         # ys=PBA.utils.get_beta(ys)*ys
@@ -674,19 +684,20 @@ def plot_emission_region_prop(ej: PBA.Ejecta, fs_or_rs: str, xlim: tuple, task: 
     plt.close(fig)
 
 
-def plot_emission_region_prop_energies(ej: PBA.Ejecta, fs_or_rs: str, xlim: tuple, task: dict, ishell=0, ilayer=0):
-    fig, axes = plt.subplots(ncols=1, nrows=2, figsize=(5, 4.5), layout='constrained', sharex="all")
+def plot_emission_region_prop_energies(ej: PBA.Ejecta, fs_or_rs: str, xlim: tuple, ylim:tuple, task: dict, ishell=0, ilayer=0):
 
     mass = ej.get_dyn_arr(v_n="M2" if fs_or_rs == "fs" else "M3", ishell=ishell, ilayer=ilayer)
     dens = ej.get_dyn_arr(v_n="rho2" if fs_or_rs == "fs" else "rho3", ishell=ishell, ilayer=ilayer)
     vol = mass / dens
 
     Gamma = ej.get_dyn_arr(v_n="Gamma" if fs_or_rs == "fs" else "Gamma43", ishell=ishell, ilayer=ilayer)
+    U_p = ej.get_dyn_arr(v_n="U_p" if fs_or_rs == "fs" else "U_p3", ishell=ishell, ilayer=ilayer)
     Esh = ej.get_dyn_arr(v_n="Esh2" if fs_or_rs == "fs" else "Esh3", ishell=ishell, ilayer=ilayer)
     dEsh = np.diff(Esh)
     dEsh = np.insert(dEsh, 0, 0)
     B = ej.get_dyn_arr(v_n="B" if fs_or_rs == "fs" else "B_rs", ishell=ishell, ilayer=ilayer)
     R = ej.get_dyn_arr(v_n="R" if fs_or_rs == "fs" else "R", ishell=ishell, ilayer=ilayer)
+    tburst = ej.get_dyn_arr(v_n="tburst" if fs_or_rs == "fs" else "tburst", ishell=ishell, ilayer=ilayer)
     deltaR = np.diff(R)
     deltaR = np.insert(deltaR, 0, 0)
     beta = PBA.utils.get_beta(Gamma)
@@ -736,7 +747,7 @@ def plot_emission_region_prop_energies(ej: PBA.Ejecta, fs_or_rs: str, xlim: tupl
         # tot_syn *= dtcomov
         tot *= dt
 
-        return tot*2.# * tot_ele / dens * PBA.utils.cgs.mp)
+        return tot# * tot_ele / dens * PBA.utils.cgs.mp)
 
 
 
@@ -791,11 +802,11 @@ def plot_emission_region_prop_energies(ej: PBA.Ejecta, fs_or_rs: str, xlim: tupl
 
         return dErad2dR_cont
 
-    def i_eps():
+    def i_eps_old():
 
         cooltime_integ = False
-        remix_radloss = False
-        continuous_radloss = True
+        remix_radloss = True
+        continuous_radloss = False
 
 
         # gamma_c_w = gamma_c_w[i]
@@ -826,7 +837,7 @@ def plot_emission_region_prop_energies(ej: PBA.Ejecta, fs_or_rs: str, xlim: tupl
             #             # raw_input(res)
             #         else:
             #             gamma_min = res[0]
-            if gamma_c[i] > gamma_min[i]:
+            if gamma_c[i] > gamma_min[i]: # fast
                 dn_inj = dn / \
                          ((gamma_c[i] ** (-p - 1) - gamma_min[i] ** (-p + 1)) / (1 - p) -
                           (gamma_c[i] * gamma_max[i] ** (-p) - gamma_c[i] ** (-p + 1)) / p)
@@ -875,10 +886,18 @@ def plot_emission_region_prop_energies(ej: PBA.Ejecta, fs_or_rs: str, xlim: tupl
                                 (gamma_c[i] * gamma_max[i] ** (2 - p) - gamma_c[i] ** (3 - p)) /
                                 (2 - p)) #* dtcomov[i]  # deltaR[i] * one_over_beta[i] / PBA.utils.cgs.c / Gamma[i]
                 else:  ### Fast cooling
-                    N0_total = m[i] / PBA.utils.cgs.mp * p / (gamma_min[i] ** (-p) - gamma_max[i] ** (-p))
-                    Erad_cont[i] = N0_total * PBA.utils.cgs.sigmaT * B[i] ** 2 / 6 / np.pi * \
-                               (gamma_max[i] ** (2 - p) - gamma_min[i] ** (2 - p)) / \
-                               (2 - p) #* dtcomov[i]  # deltaR[i] * one_over_beta[i] / PBA.utils.cgs.c / Gamma[i]
+                    # N0_total = m[i] / PBA.utils.cgs.mp * (p - 1) * gamma_min[i] ** (p - 1)
+
+                    # N0_total = m[i] / PBA.utils.cgs.mp * p / (gamma_min[i] ** (-p) - gamma_max[i] ** (-p))
+                    # Erad_cont[i] = N0_total * PBA.utils.cgs.sigmaT * B[i] ** 2 / 6 / np.pi * \
+                    #            (gamma_max[i] ** (2 - p) - gamma_min[i] ** (2 - p)) / \
+                    #            (2 - p) #* dtcomov[i]  # deltaR[i] * one_over_beta[i] / PBA.utils.cgs.c / Gamma[i]
+                    N0_total = (m[i] / PBA.utils.cgs.mp *
+                                (gamma_min[i] ** (1 - p) * (gamma_c[i] ** -1 - gamma_min[i] ** -1) + gamma_min[i] ** (-p) / p))
+                    Erad_cont[i] += N0_total * PBA.utils.cgs.sigmaT * PBA.utils.cgs.c * B[i] ** 2 / 6 / np.pi * (
+                            gamma_min[i] ** (1 - p) * (gamma_min[i] - gamma_c[i]) + (
+                            gamma_max[i] ** (2 - p) - gamma_min[i] ** (2 - p)) / (2 - p))# * deltaR * one_over_beta / c / Gamma
+
                 if (i > 0):
                     dErad2_ += Erad_cont[i]
                     # raise ValueError("[Fast cooling] not implemented")
@@ -896,30 +915,150 @@ def plot_emission_region_prop_energies(ej: PBA.Ejecta, fs_or_rs: str, xlim: tupl
 
         #self.dErad2[i] = self.epsilon[i] * self.pars.epsilone * (self.Gamma[i] - 1) * self.dM2[i] * cgs.c ** 2
 
+    def spec_wspn(nu,nu_m,nu_c,nu_M):
+        if nu_m <= nu_c:  # slow cooling
+            res = 0
+            if (nu < nu_m): res = (nu / nu_m) ** (1. / 3.)
+            if (nu >= nu_m) & (nu < nu_c): res = (nu / nu_m) ** (-1. * (p - 1.) / 2.)
+            if ((nu >= nu_c) & (nu < nu_M)): res = (nu_c / nu_m) ** (-1. * (p - 1.) / 2.) * (nu / nu_c) ** (-1. * p / 2.)
+            if (nu > nu_M): res = 0.
+        else:  # fast cooling
+            res = 0
+            if (nu < nu_c): res = (nu / nu_c) ** (1. / 3.)
+            if (nu >= nu_c) & (nu < nu_m): res = (nu / nu_c) ** (-1. / 2.)
+            if (nu >= nu_m): res = (nu_m / nu_c) ** (-1. / 2.) * (nu / nu_m) ** (-p / 2.)
+            if (nu>nu_M): res = 0.
+        return res
+
+    def i_eps__():
+        nu_arr = np.logspace(6,30,601)
+        P_total = np.zeros_like(Gamma)
+        eps = np.zeros_like(Gamma)
+        for i in range(len(Gamma)-1):
+            nu_m = PlotSpectra._nu_m(gm=gamma_min[i],gc=gamma_c[i],B=B[i],p=p,ssc=False)
+            nu_c = PlotSpectra._nu_c(gm=gamma_min[i],gc=gamma_c[i],B=B[i],p=p,ssc=False)
+            nu_M = PlotSpectra._nu_M(gM=gamma_max[i],B=B[i],p=p,ssc=False)
+            pmax = PlotSpectra._pmax(nu_m=nu_m,nu_c=nu_c,B=B[i],p=p)
+            if (nu_m<nu_c):
+                P_total_term = (3/4. + 2/(p-3) * (1-(nu_c/nu_m)**(-(p-3)/2)) + 2/(p-2) * (nu_c/nu_m)**(-(p-1)/2))
+                P_total[i] = pmax * P_total_term
+            else:
+                P_total[i] = pmax * (3/4. + 2*((nu_c/nu_m)**(-0.5) - 1) + (nu_c/nu_m)**(.5) * (2/(p-2)))
+            P_total[i]*= PBA.utils.cgs.me * PBA.utils.cgs.c * PBA.utils.cgs.c / PBA.utils.cgs.h
+
+            P_total[i] = 0
+            for j in range(len(nu_arr)-1):
+                P_total[i]+=spec_wspn(nu_arr[j],nu_m,nu_c,nu_M)*(nu_arr[j+1]-nu_arr[j])
+            P_total[i]*=pmax
+
+            # P_total[i] *= (m[i+1]-m[i]) / 2 / PBA.utils.cgs.mp
+            # P_total[i] *= (m[i+1]-m[i]) / 2 / PBA.utils.cgs.mp
+            # P_total[i] *= ((m[i+1]-m[i]) / PBA.utils.cgs.mp)
+            P_total[i] *= (m[i] / PBA.utils.cgs.mp)
+            # eps[i] = P_total[i]*dt[i] / ((Esh[i+1]-Esh[i])*eps_e)
+
+
+
+
+        for i in range(len(Gamma)-1):
+            eps[i] = (P_total[i] * dt[i]) / ((Esh[i]*eps_e))
+            # eps[i] = (P_total[i+1]-P_total[i])*dt[i] / ((Esh[i+1]-Esh[i])*eps_e)
+        return eps
     # energies
 
+    def i_eps_num():
+        nu_arr = np.logspace(6,30,601)
+        P_total = np.zeros_like(Gamma)
+        eps = np.zeros_like(Gamma)
+        for i in range(len(Gamma)-1):
+            nu_m = PlotSpectra._nu_m(gm=gamma_min[i],gc=gamma_c[i],B=B[i],p=p,ssc=False)
+            nu_c = PlotSpectra._nu_c(gm=gamma_min[i],gc=gamma_c[i],B=B[i],p=p,ssc=False)
+            nu_M = PlotSpectra._nu_M(gM=gamma_max[i],B=B[i],p=p,ssc=False)
+            pmax = PlotSpectra._pmax(nu_m=nu_m,nu_c=nu_c,B=B[i],p=p)
+
+            # numeric
+            P_total[i] = 0
+            for j in range(len(nu_arr)-1):
+                P_total[i]+=spec_wspn(nu_arr[j],nu_m,nu_c,nu_M)*(nu_arr[j+1]-nu_arr[j])
+            P_total[i]*=pmax
+            P_total[i] *= (m[i] / PBA.utils.cgs.mp)
+
+        for i in range(len(Gamma)-1):
+            eps[i] = (P_total[i] * dt[i]) / ((Esh[i]*eps_e))
+        return eps
+    def i_eps_an():
+        nu_arr = np.logspace(6,30,601)
+        P_total = np.zeros_like(Gamma)
+        eps = np.zeros_like(Gamma)
+
+        for i in range(len(Gamma)-1):
+            nu_m = PlotSpectra._nu_m(gm=gamma_min[i],gc=gamma_c[i],B=B[i],p=p,ssc=False)
+            nu_c = PlotSpectra._nu_c(gm=gamma_min[i],gc=gamma_c[i],B=B[i],p=p,ssc=False)
+            nu_M = PlotSpectra._nu_M(gM=gamma_max[i],B=B[i],p=p,ssc=False)
+            pmax = PlotSpectra._pmax(nu_m=nu_m,nu_c=nu_c,B=B[i],p=p)
+
+            # analytic
+            P_total[i] = 0.
+            if (nu_m <= nu_c):
+                term0 = (3./4.)*np.power(1/nu_m,1/3)*(np.power(nu_m,4./3.)-np.power(nu_arr[0],4./3.))
+                term1 = -1/(3-p)*(2*np.power(1./nu_m, 1/2-p/2))*(np.power(nu_m,3/2-p/2)-np.power(nu_c,3/2-p/2))
+                term2 = np.power(nu_c / nu_m, -(p-1)/2) * 2/(p-2)*(nu_c*np.power(nu_M,p/2) - nu_M*np.power(nu_c,p/2))*np.power(nu_c*nu_M/nu_c,-p/2)
+                P_total[i] = term0 + term1 + term2
+            else:
+                term0 = (3./4.)*np.power(1/nu_c,1/3)*(np.power(nu_c,4./3.)-np.power(nu_arr[0],4./3.))
+                term1 = -2/np.sqrt(1/nu_c)*(np.sqrt(nu_c)-np.sqrt(nu_m))
+                term2 = 1/np.sqrt(nu_m / nu_c) * 2/(p-2)*(nu_m*np.power(nu_M,p/2) - nu_M*np.power(nu_m,p/2))*np.power(nu_m*nu_M/nu_m,-p/2)
+                P_total[i] = term0 + term1 + term2
+
+            # P_total[i] = 0
+            # for j in range(len(nu_arr)-1):
+            #     P_total[i]+=spec_wspn(nu_arr[j],nu_m,nu_c,nu_M)*(nu_arr[j+1]-nu_arr[j])
+            P_total[i] *= pmax
+            dm = (m[i+1]-m[i])/(R[i+1]-R[i])
+            P_total[i] *= (dm / PBA.utils.cgs.mp)
+            if gamma_min[i] == 1.: P_total[i] = 0
+            print(P_total[i])
+
+        for i in range(len(Gamma)-1):
+            de = (Esh[i+1]-Esh[i])/(R[i+1]-R[i])
+            eps[i] = (P_total[i] * dt[i]) / ((de*eps_e))
+
+        return eps
 
     dt = dr * GammaSh / PBA.utils.cgs.c
 
-    x = ej.get_dyn_arr(v_n="tburst", ishell=ishell, ilayer=ilayer)
-    axes[0].plot(x, ej.get_dyn_arr(v_n="Eint2" if fs_or_rs == "fs" else "Eint3", ishell=ishell, ilayer=ilayer) / vol,
-                 color='black', ls='-')
-    axes[0].plot(x, ej.get_dyn_arr(v_n="Esh2" if fs_or_rs == "fs" else "Esh3", ishell=ishell, ilayer=ilayer) / vol,
-                 color='black', ls='--')
-    tmp = ej.get_dyn_obj()["shell=0 layer=0"].attrs["M0"] * PBA.utils.cgs.c ** 2
-    axes[0].plot(x,
-                 -ej.get_dyn_arr(v_n="Ead2" if fs_or_rs == "fs" else "Ead3", ishell=ishell, ilayer=ilayer) / tmp / vol,
-                 color='gray', ls='--')
-    axes[0].plot(x, get_rad_en('total'), color='black', ls=':')
-    # axes[0].plot(x, get_cont_rad_loss() , color='black',ls='-.')
+    x = ej.get_dyn_arr(v_n="R", ishell=ishell, ilayer=ilayer)
+    # axes[0].plot(x, ej.get_dyn_arr(v_n="Eint2" if fs_or_rs == "fs" else "Eint3", ishell=ishell, ilayer=ilayer) / vol,
+    #              color='black', ls='-')
+    # axes[0].plot(x, ej.get_dyn_arr(v_n="Esh2" if fs_or_rs == "fs" else "Esh3", ishell=ishell, ilayer=ilayer) / vol,
+    #              color='black', ls='--')
+    # tmp = ej.get_dyn_obj()["shell=0 layer=0"].attrs["M0"] * PBA.utils.cgs.c ** 2
+    # axes[0].plot(x,
+    #              -ej.get_dyn_arr(v_n="Ead2" if fs_or_rs == "fs" else "Ead3", ishell=ishell, ilayer=ilayer) / tmp / vol,
+    #              color='gray', ls='--')
+    # axes[0].plot(x, get_rad_en('total'), color='black', ls=':')
+    # # axes[0].plot(x, get_cont_rad_loss() , color='black',ls='-.')
 
-    axes[1].plot(x, i_eps(), color='black', ls='--')
+    fig, axes = plt.subplots(ncols=1, nrows=1, figsize=(5, 2.), layout='constrained', sharex="all")
+    if not hasattr(axes,'__len__'): axes = [axes]
+
+
+    # axes[0].plot(x, i_eps_num(), color='black', ls='-.',label="Semi-numeric")
+    axes[0].plot(x, i_eps_an(), color='black', ls='--',label="Analytic")
+    # axes[1].plot(x, i_eps_old(), color='black', ls='-.')
     eps_e = float(ej.pars["eps_e_fs" if fs_or_rs == "fs" else "eps_e_rs"])
     ue = ej.get_dyn_arr(v_n="Esh2" if fs_or_rs == "fs" else "Esh3", ishell=ishell, ilayer=ilayer) * eps_e
     u_rad = get_rad_en('total')
-    axes[1].plot(x, u_rad / ue, color='black', ls=':')
-    axes[1].set_ylim(1e-3, 2)
-    axes[1].axhline(y=1., color='gray',linestyle='dotted')
+    axes[0].plot(x, u_rad / ue, color='black', ls=':',label="Full Numeric")
+    # axes[0].set_ylim(1e-3, 2)
+    axes[0].axhline(y=1., color='gray',linestyle='dotted')
+    axes[0].set_xlabel('$R$ [cm]',fontsize=12)
+    axes[0].legend(fancybox=True, loc='lower left', columnspacing=0.8,
+                   # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                   shadow=False, ncol= 2,
+                   fontsize=12,
+                   framealpha=0., borderaxespad=0.)
+    axes[0].set_ylabel(r"$\epsilon_{\rm rad}$",fontsize=14)
 
     for i, ax in enumerate(axes):
         ax.set_xscale('log')
@@ -932,113 +1071,115 @@ def plot_emission_region_prop_energies(ej: PBA.Ejecta, fs_or_rs: str, xlim: tupl
                   framealpha=0.4, borderaxespad=0.)
         ax.set_rasterized(True)
         ax.set_xlim(*xlim)
-    plt.show()
-
-    def get_rad_en(v_n):
-        sp = PlotSpectra()
-        gams, times, spec = sp._get_spectrum(ej=ej, v_n="syn_f", fs_or_rs=fs_or_rs,
-                                             ishell=ishell, ilayer=ilayer, sum_shells_layers=False, norm_method=None)
-        tot_syn = np.trapz(PBA.utils.cgs.h * spec * gams[:, np.newaxis], x=gams,
-                           axis=0)  # * PBA.utils.cgs.h*spec*ys[np.newaxis,:]
-
-        sp = PlotSpectra()
-        gams, times, spec = sp._get_spectrum(ej=ej, v_n="ssc_f", fs_or_rs=fs_or_rs,
-                                             ishell=ishell, ilayer=ilayer, sum_shells_layers=False, norm_method=None)
-        tot_ssc = np.trapz(PBA.utils.cgs.h * spec * gams[:, np.newaxis], x=gams,
-                           axis=0)  # PBA.utils.cgs.h*spec*ys[np.newaxis,:]
-
-    #     double T = source.dr / CGS::c; // escape time (See Huang+2022)
-    # double fac = T / source.vol;
-    x = ej.get_dyn_arr(v_n="tburst", ishell=ishell, ilayer=ilayer)
-    r = ej.get_dyn_arr(v_n="R", ishell=ishell, ilayer=ilayer)
-    Gamma_sh = ej.get_dyn_arr(v_n="GammaFsh" if fs_or_rs == "fs" else "GammaRsh", ishell=ishell, ilayer=ilayer)
-    dr = ej.get_dyn_arr(v_n="thickness" if fs_or_rs == "fs" else "thichness_rs", ishell=ishell, ilayer=ilayer)
-    mass = ej.get_dyn_arr(v_n="M2" if fs_or_rs == "fs" else "M3", ishell=ishell, ilayer=ilayer)
-    dens = ej.get_dyn_arr(v_n="rho2" if fs_or_rs == "fs" else "rho3", ishell=ishell, ilayer=ilayer)
-    vol = mass / dens
-    tau_tomps = PBA.utils.cgs.sigmaT * (mass / PBA.utils.cgs.mp / vol) * dr * Gamma_sh
-    tmp = dr * Gamma_sh * PBA.utils.cgs.c / vol
-    # ax.plot(
-    #     x, PBA.utils.cgs.c/r**2
-    # )
-
-    gamma_max = ej.get_dyn_arr(v_n="gamma_max" if fs_or_rs == "fs" else "gamma_max_rs", ishell=ishell, ilayer=ilayer)
-    gamma_min = ej.get_dyn_arr(v_n="gamma_min" if fs_or_rs == "fs" else "gamma_min_rs", ishell=ishell, ilayer=ilayer)
-    B = ej.get_dyn_arr(v_n="B" if fs_or_rs == "fs" else "B_rs", ishell=ishell, ilayer=ilayer)
-    delta_t_syn = PBA.utils.cgs.sigmaT * gamma_max * gamma_max * B * B / (
-                6. * np.pi * PBA.utils.cgs.me * PBA.utils.cgs.c)
-    tcomov = ej.get_dyn_arr(v_n="tcomov", ishell=ishell, ilayer=ilayer)
-    delta_t_adi = ((gamma_max * gamma_max - 1.) / (3. * gamma_max))[:-1] * \
-                  ((tcomov[1:] - tcomov[:-1]) ** -1 * (1. - vol[:-1] / vol[1:]))
-
-    sp = PlotSpectra()
-
-    gams, times, spec = sp._get_spectrum(ej=ej, v_n="n_ele", fs_or_rs=fs_or_rs,
-                                         ishell=ishell, ilayer=ilayer, sum_shells_layers=False, norm_method=None)
-    # Energy density in relativistic particles https://www.mpi-hd.mpg.de/personalhomes/frieger/HEA6.pdf
-    tot_ele = np.trapz(spec * gams[:, np.newaxis] / vol[np.newaxis, :] * PBA.utils.cgs.me * PBA.utils.cgs.c ** 2,
-                       x=gams, axis=0)
-
-    gams, times, spec = sp._get_spectrum(ej=ej, v_n="syn_f", fs_or_rs=fs_or_rs,
-                                         ishell=ishell, ilayer=ilayer, sum_shells_layers=False, norm_method=None)
-    tot_syn = np.trapz(PBA.utils.cgs.h * spec * gams[:, np.newaxis], x=gams,
-                       axis=0)  # * PBA.utils.cgs.h*spec*ys[np.newaxis,:]
-
-    sp = PlotSpectra()
-    gams, times, spec = sp._get_spectrum(ej=ej, v_n="ssc_f", fs_or_rs=fs_or_rs,
-                                         ishell=ishell, ilayer=ilayer, sum_shells_layers=False, norm_method=None)
-    tot_ssc = np.trapz(PBA.utils.cgs.h * spec * gams[:, np.newaxis], x=gams,
-                       axis=0)  # PBA.utils.cgs.h*spec*ys[np.newaxis,:]
-
-    ax = axes[0]
-    ax.plot(times, tot_ele, color='red', label=r"$u'_{\rm ele}$")
-    ax.set_ylabel(r"Energy density of electrons", color='red', fontsize=12)
-    # ax.legend()
-
-    ax1 = ax.twinx()
-    # ax1.plot(xs, tot_ssc/tot_syn,color='blue',label=r'$u_{\rm syn}$')
-    ax1.plot(times, tot_syn, color='blue', label=r"$u'_{\rm syn}$")
-    ax1.plot(times, tot_ssc, color='green', label=r"$u'_{\rm ssc}$")
-    # ax1.plot(xs, tot_ele,color='red',label=r'$u_{\rm ele}$')
-    ax1.set_ylabel(r"Energy density of radiation", color='black', fontsize=12)
-    # ax1.legend()
-    # ax1.plot(x, gamma_min)
-
-    ax = axes[1]
-    ax.plot(x, tmp, color='black', label=r"$\Delta t' / V'$")
-    ax.set_ylabel(r"Escape time / V' ", color='black', fontsize=12)
-    # ax.legend()
-
-    ax2 = ax.twinx()
-    ax2.plot(times, tau_tomps, color='magenta', label=r'$\tau_{\rm comp}$')
-    ax2.set_ylabel(r"Compton optical depth", color='magenta', fontsize=12)
-    # ax2.legend()
-
-    # ax = axes[2]
-    # # ax.plot(x, delta_t_syn, color='blue', label=r"$\dot{\gamma}'_{\rm syn}$")
-    # # ax.plot(x[:-1], delta_t_adi, color='red', label=r"$\dot{\gamma}'_{\rm adi}$")
+        ax.set_ylim(*ylim)
+        ax.grid(ls=':')
+    # plt.show()
     #
-    # delta_t_syn = PBA.utils.cgs.sigmaT * gamma_min * gamma_min * B * B / (6. * np.pi * PBA.utils.cgs.me * PBA.utils.cgs.c)
-    # delta_t_adi = ((gamma_min*gamma_min-1.)/(3.*gamma_min))[:-1] * \
-    #               ((tcomov[1:]-tcomov[:-1])**-1 * (1. - vol[:-1] / vol[1:]))
-    # ax.plot(x, delta_t_syn, color='blue', ls='--', label=r"$\dot{\gamma}'_{\rm syn}$")
-    # ax.plot(x[:-1], delta_t_adi, color='red',  ls='--',label=r"$\dot{\gamma}'_{\rm adi}$")
-
-    for ax, loc in zip([axes[0], ax1, axes[1], ax2],
-                       ["lower left", "upper right", "center left", "center right"]):
-        ax.set_xscale('log')
-        ax.set_yscale('log')
-        ax.minorticks_on()
-        ax.tick_params(axis='both', which='both', direction='in', labelsize=11)
-        ax.legend(fancybox=True, loc=loc, columnspacing=0.8,
-                  # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
-                  shadow=False, ncol=4, fontsize=12, labelcolor='black',
-                  framealpha=0.4, borderaxespad=0.)
-        ax.set_rasterized(True)
-        ax.set_xlim(*xlim)
-
-    axes[-1].set_xlabel(r"$t_{\rm burst}$ [s]", fontsize=12)
-    # ax.set_ylabel(r"$\tau_{\rm e}$")
+    # def get_rad_en(v_n):
+    #     sp = PlotSpectra()
+    #     gams, times, spec = sp._get_spectrum(ej=ej, v_n="syn_f", fs_or_rs=fs_or_rs,
+    #                                          ishell=ishell, ilayer=ilayer, sum_shells_layers=False, norm_method=None)
+    #     tot_syn = np.trapz(PBA.utils.cgs.h * spec * gams[:, np.newaxis], x=gams,
+    #                        axis=0)  # * PBA.utils.cgs.h*spec*ys[np.newaxis,:]
+    #
+    #     sp = PlotSpectra()
+    #     gams, times, spec = sp._get_spectrum(ej=ej, v_n="ssc_f", fs_or_rs=fs_or_rs,
+    #                                          ishell=ishell, ilayer=ilayer, sum_shells_layers=False, norm_method=None)
+    #     tot_ssc = np.trapz(PBA.utils.cgs.h * spec * gams[:, np.newaxis], x=gams,
+    #                        axis=0)  # PBA.utils.cgs.h*spec*ys[np.newaxis,:]
+    #
+    # #     double T = source.dr / CGS::c; // escape time (See Huang+2022)
+    # # double fac = T / source.vol;
+    # x = ej.get_dyn_arr(v_n="tburst", ishell=ishell, ilayer=ilayer)
+    # r = ej.get_dyn_arr(v_n="R", ishell=ishell, ilayer=ilayer)
+    # Gamma_sh = ej.get_dyn_arr(v_n="GammaFsh" if fs_or_rs == "fs" else "GammaRsh", ishell=ishell, ilayer=ilayer)
+    # dr = ej.get_dyn_arr(v_n="thickness" if fs_or_rs == "fs" else "thichness_rs", ishell=ishell, ilayer=ilayer)
+    # mass = ej.get_dyn_arr(v_n="M2" if fs_or_rs == "fs" else "M3", ishell=ishell, ilayer=ilayer)
+    # dens = ej.get_dyn_arr(v_n="rho2" if fs_or_rs == "fs" else "rho3", ishell=ishell, ilayer=ilayer)
+    # vol = mass / dens
+    # tau_tomps = PBA.utils.cgs.sigmaT * (mass / PBA.utils.cgs.mp / vol) * dr * Gamma_sh
+    # tmp = dr * Gamma_sh * PBA.utils.cgs.c / vol
+    # # ax.plot(
+    # #     x, PBA.utils.cgs.c/r**2
+    # # )
+    #
+    # gamma_max = ej.get_dyn_arr(v_n="gamma_max" if fs_or_rs == "fs" else "gamma_max_rs", ishell=ishell, ilayer=ilayer)
+    # gamma_min = ej.get_dyn_arr(v_n="gamma_min" if fs_or_rs == "fs" else "gamma_min_rs", ishell=ishell, ilayer=ilayer)
+    # B = ej.get_dyn_arr(v_n="B" if fs_or_rs == "fs" else "B_rs", ishell=ishell, ilayer=ilayer)
+    # delta_t_syn = PBA.utils.cgs.sigmaT * gamma_max * gamma_max * B * B / (
+    #             6. * np.pi * PBA.utils.cgs.me * PBA.utils.cgs.c)
+    # tcomov = ej.get_dyn_arr(v_n="tcomov", ishell=ishell, ilayer=ilayer)
+    # delta_t_adi = ((gamma_max * gamma_max - 1.) / (3. * gamma_max))[:-1] * \
+    #               ((tcomov[1:] - tcomov[:-1]) ** -1 * (1. - vol[:-1] / vol[1:]))
+    #
+    # sp = PlotSpectra()
+    #
+    # gams, times, spec = sp._get_spectrum(ej=ej, v_n="n_ele", fs_or_rs=fs_or_rs,
+    #                                      ishell=ishell, ilayer=ilayer, sum_shells_layers=False, norm_method=None)
+    # # Energy density in relativistic particles https://www.mpi-hd.mpg.de/personalhomes/frieger/HEA6.pdf
+    # tot_ele = np.trapz(spec * gams[:, np.newaxis] / vol[np.newaxis, :] * PBA.utils.cgs.me * PBA.utils.cgs.c ** 2,
+    #                    x=gams, axis=0)
+    #
+    # gams, times, spec = sp._get_spectrum(ej=ej, v_n="syn_f", fs_or_rs=fs_or_rs,
+    #                                      ishell=ishell, ilayer=ilayer, sum_shells_layers=False, norm_method=None)
+    # tot_syn = np.trapz(PBA.utils.cgs.h * spec * gams[:, np.newaxis], x=gams,
+    #                    axis=0)  # * PBA.utils.cgs.h*spec*ys[np.newaxis,:]
+    #
+    # sp = PlotSpectra()
+    # gams, times, spec = sp._get_spectrum(ej=ej, v_n="ssc_f", fs_or_rs=fs_or_rs,
+    #                                      ishell=ishell, ilayer=ilayer, sum_shells_layers=False, norm_method=None)
+    # tot_ssc = np.trapz(PBA.utils.cgs.h * spec * gams[:, np.newaxis], x=gams,
+    #                    axis=0)  # PBA.utils.cgs.h*spec*ys[np.newaxis,:]
+    #
+    # ax = axes[0]
+    # ax.plot(times, tot_ele, color='red', label=r"$u'_{\rm ele}$")
+    # ax.set_ylabel(r"Energy density of electrons", color='red', fontsize=12)
+    # # ax.legend()
+    #
+    # ax1 = ax.twinx()
+    # # ax1.plot(xs, tot_ssc/tot_syn,color='blue',label=r'$u_{\rm syn}$')
+    # ax1.plot(times, tot_syn, color='blue', label=r"$u'_{\rm syn}$")
+    # ax1.plot(times, tot_ssc, color='green', label=r"$u'_{\rm ssc}$")
+    # # ax1.plot(xs, tot_ele,color='red',label=r'$u_{\rm ele}$')
+    # ax1.set_ylabel(r"Energy density of radiation", color='black', fontsize=12)
+    # # ax1.legend()
+    # # ax1.plot(x, gamma_min)
+    #
+    # ax = axes[1]
+    # ax.plot(x, tmp, color='black', label=r"$\Delta t' / V'$")
+    # ax.set_ylabel(r"Escape time / V' ", color='black', fontsize=12)
+    # # ax.legend()
+    #
+    # ax2 = ax.twinx()
+    # ax2.plot(times, tau_tomps, color='magenta', label=r'$\tau_{\rm comp}$')
+    # ax2.set_ylabel(r"Compton optical depth", color='magenta', fontsize=12)
+    # # ax2.legend()
+    #
+    # # ax = axes[2]
+    # # # ax.plot(x, delta_t_syn, color='blue', label=r"$\dot{\gamma}'_{\rm syn}$")
+    # # # ax.plot(x[:-1], delta_t_adi, color='red', label=r"$\dot{\gamma}'_{\rm adi}$")
+    # #
+    # # delta_t_syn = PBA.utils.cgs.sigmaT * gamma_min * gamma_min * B * B / (6. * np.pi * PBA.utils.cgs.me * PBA.utils.cgs.c)
+    # # delta_t_adi = ((gamma_min*gamma_min-1.)/(3.*gamma_min))[:-1] * \
+    # #               ((tcomov[1:]-tcomov[:-1])**-1 * (1. - vol[:-1] / vol[1:]))
+    # # ax.plot(x, delta_t_syn, color='blue', ls='--', label=r"$\dot{\gamma}'_{\rm syn}$")
+    # # ax.plot(x[:-1], delta_t_adi, color='red',  ls='--',label=r"$\dot{\gamma}'_{\rm adi}$")
+    #
+    # for ax, loc in zip([axes[0], ax1, axes[1], ax2],
+    #                    ["lower left", "upper right", "center left", "center right"]):
+    #     ax.set_xscale('log')
+    #     ax.set_yscale('log')
+    #     ax.minorticks_on()
+    #     ax.tick_params(axis='both', which='both', direction='in', labelsize=11)
+    #     ax.legend(fancybox=True, loc=loc, columnspacing=0.8,
+    #               # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+    #               shadow=False, ncol=4, fontsize=12, labelcolor='black',
+    #               framealpha=0.4, borderaxespad=0.)
+    #     ax.set_rasterized(True)
+    #     ax.set_xlim(*xlim)
+    #
+    # axes[-1].set_xlabel(r"$t_{\rm burst}$ [s]", fontsize=12)
+    # # ax.set_ylabel(r"$\tau_{\rm e}$")
     plt.savefig(os.getcwd() + '/figs/' + task["figname"] + '.png', dpi=256)
     plt.savefig(os.getcwd() + '/figs/' + task["figname"] + '.pdf')
     if task["show"]: plt.show()
@@ -1484,8 +1625,9 @@ def tasks_fs(do_run: bool, plot: bool, struct: dict, P: dict,
 
     # plot_emission_region_prop(dyn_fs__rad_fs__num__ssa__ssc.GRB,fs_or_rs="fs",xlim=(3e3,1e9),
     #                           task=dict(show=True,figname="rad_ele_energy_dens_fs"))
-    plot_emission_region_prop_energies(dyn_fs__rad_fs__num__ssa__ssc.GRB, fs_or_rs="fs", xlim=(3e3, 1e9),
-                                       task=dict(show=True, figname="rad_ele_energy_dens_fs"))
+    plot_emission_region_prop_energies(dyn_fs__rad_fs__num__ssa__ssc.GRB, fs_or_rs="fs",
+                                       xlim=(1e14, 1e19), ylim=(1e-3,1),
+                                       task=dict(show=True, figname="tophat_eps_rad"))
 
     # plot_spectra_evolution(
     #     ej=dyn_fs__rad_fs__num__ssa__ssc.GRB, fs_or_rs='fs',
@@ -1901,7 +2043,7 @@ if __name__ == '__main__':
         grb=dict(save_dynamics='yes', save_spec='yes', do_lc='yes',
                  # method_nonrel_dist_fs='none',
                  # method_nonrel_dist_rs='none',
-                 eps_e_fs=0.1, eps_b_fs=0.1, p_fs=2.1,
+                 eps_e_fs=0.1, eps_b_fs=0.001, p_fs=2.2,
                  gamma_max_fs=4e7, method_gamma_max_fs="useConst",
                  gamma_max_rs=4e7, method_gamma_max_rs="useConst",
                  max_substeps_fs=1000, max_substeps_rs=1000,

@@ -17,7 +17,7 @@ struct EBL{
     std::string table_fpath = "../../../data/EBL/Franceschini18/table.h5";
     void load_h5_table(){
         if (!std::experimental::filesystem::exists(table_fpath)) {
-            std::cerr << " EBL data file not found: " + table_fpath << "\n";
+            std::cerr << AT << " EBL data file not found: " + table_fpath << "\n";
             exit(1);
         }
         LoadH5 ldata;

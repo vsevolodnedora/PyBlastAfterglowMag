@@ -855,7 +855,7 @@ public:
         p_pars->p_mphys->setPars(pars, opts, p_pars->nr, p_pars->ishell, p_pars->ilayer,
                                  p_pars->theta_c_h,
                                  EQS::initTComov(p_pars->R0, p_pars->beta0, p_pars->Gamma0));
-        if (p_pars->do_rs_radiation)
+        if (p_pars->do_rs)
             p_pars->p_mphys_rs->setPars(pars, opts, p_pars->nr,p_pars->ishell, p_pars->ilayer,
                                         p_pars->theta_c_h,
                                         EQS::initTComov(p_pars->R0, p_pars->beta0, p_pars->Gamma0));
@@ -988,7 +988,7 @@ public:
                     m_data[BW::Q::iM3][it] / CGS::mp
             );
             /// compute analytic limits of an injection electron distribution
-            p_mphys_rs->evaluateElectronDistributionAnalytic();
+            p_mphys_rs->computeEleSpectrumLimits();
 
             /// save result
             m_data[BW::Q::iB3][it] = p_mphys_rs->B;
@@ -1055,7 +1055,7 @@ public:
         );
 
         /// compute electron injection function / electron spectrum (analytically)
-        p_mphys->evaluateElectronDistributionAnalytic();
+        p_mphys->computeEleSpectrumLimits();
 
         /// Save Results
         m_data[BW::Q::iB][it]      = p_mphys->B;

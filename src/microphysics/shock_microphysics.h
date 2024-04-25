@@ -198,6 +198,8 @@ public:
     Photons total_rad = Photons(freqs_grid);
     /// ------------------------------------
     double B=-1, gamma_min=-1, gamma_max=-1, gamma_c=-1;
+
+
     double n_prime=-1; // used in B and gamma_min
     double n_protons=-1; // conditionally used on synchrotron emissivity
     double nn=-1; // Ne or nprime depending on the setting 'm_method_ne'
@@ -738,16 +740,16 @@ public:
         }
     }
     /// evaluate frequency independent quantities (critical LFs, Bfield, etc)
-    void evaluateElectronDistributionAnalytic() {
+    void computeEleSpectrumLimits() {
 
         if (not checkParams())
             return;
         /// compute comoving magnetic field
-        computeMagneticField();
+        computeMagneticField(m_methodsB);
         /// compute limits of electron spectrum
-        computeGammaMax();
-        computeGammaMin();
-        computeGammaCool();
+        computeGammaMax(m_methodsLfmax);
+        computeGammaMin(m_methodsLfmin);
+        computeGammaCool(m_methodsLfcool);
     }
 
     double inline get_shock_thickness(double R, double M2, double theta, double Gamma, double rho2, double ncells) const {
@@ -808,6 +810,7 @@ public:
     METHOD_NONRELDIST m_method_nonreldist{};
     METHODS_SSA m_methods_ssa{};
     METHOD_SSC m_methods_ssc{};
+    double eps_e=-1;
 protected:
     int m_loglevel = -1;
     std::unique_ptr<logger> p_log = nullptr;
@@ -815,7 +818,7 @@ protected:
     double tcomov0=-1.;
     double tcomov=-1;
     /// --------------------------------------
-    double eps_e=-1, eps_b=-1, eps_t=-1, p=-1;// ksi_n=-1;
+    double eps_b=-1, eps_t=-1, p=-1;// ksi_n=-1;
     double mu=-1, mu_e=-1;
 //    bool lim_gm_to_1= true;
     double gam1=-1,gam2=-1.,freq1=-1.,freq2=-1.;
@@ -899,7 +902,7 @@ protected:
             - gamma_ave;
     }
     /// --------------------------------------
-    void computeMagneticField(){
+    void computeMagneticField(METHODS_B methodsB){
         /// fraction of the shock energy density in electrons
         double U_b_prime = eprime * eps_b;
         double B1 = sqrt(8. * CGS::pi * U_b_prime);
@@ -909,16 +912,16 @@ protected:
         double B3 = sqrt(9.0 * M_PI * eps_b * n_prime * mu * CGS::mp)
             * (betaSh * CGS::c);
 
-        switch (m_methodsB) {
+        switch (methodsB) {
             case iBuseUb:       B=B1; break;
             case iBuseGammaSh:  B=B2; break;
             case iBasMAG21:     B=B3; break;
         }
     }
-    void computeGammaMax(){
+    void computeGammaMax(METHOD_LFMAX methodLfmax){
         /// get electron distribution boundaries (has ot be set BEFORE gamma_min)
         double gamma_max_1 = sqrt(6.0 * CGS::pi * CGS::qe / CGS::sigmaT / B); // Kumar+14
-        switch (m_methodsLfmax) {
+        switch (methodLfmax) {
             case iConst:
                 break;
             case iuseB:
@@ -929,7 +932,7 @@ protected:
             if (gamma_max > 0.99 * ele.e[ele.numbins - 1])
                 gamma_max = 0.99 * ele.e[ele.numbins - 1];
     }
-    void computeGammaMin(){
+    void computeGammaMin(METHODS_LFMIN methodsLfmin){
         /// compute injection LF (lower bound of source injection gammaMinFunc)
         int status = 0; double U_e_prime = eprime * eps_e;
         /// Eq. A18 vanEarten+10 (and Sironi+13)
@@ -945,7 +948,7 @@ protected:
         /// Margalit Piran 2022
         double gamma_min_4 = Margalit21::gamma_m_fun(Theta);
         /// switch
-        switch (m_methodsLfmin) {
+        switch (methodsLfmin) {
             case igmUprime:
                 gamma_min = gamma_min_1;
                 break;
@@ -1008,18 +1011,21 @@ protected:
         if (m_eleMethod != METHODS_SHOCK_ELE::iShockEleAnalyt)
             if (gamma_min < ele.e[0]) {
                 gamma_min = ele.e[0];
-
+        if (gamma_min > 1e8){
+            (*p_log)(LOG_WARN,AT)<< " uphysical value in gamma_min="<<gamma_min<<"\n";
+            exit(1);
+        }
         }
 //        printf("gamma_min to %.2e GammaSh=%.2e eprime=%.2e p=%.2f gamma_max=%.2e ", gamma_min, GammaSh, eprime, p, gamma_max);
 
     }
-    void computeGammaCool(){
+    void computeGammaCool(METHOD_LFCOOL methodLfcool){
         // Eq. A19 in vanEarten+10
         double gamma_c_1 = 6. * CGS::pi * CGS::me * CGS::c / (CGS::sigmaT * B * B) * t_e / Gamma;
 
         double gamma_c_2 = ((6. * CGS::pi * me * c) / (CGS::sigmaT * B * B * (tcomov))); // (tcomov0-1.e-6)
 
-        switch (m_methodsLfcool) {
+        switch (methodLfcool) {
             case iuseConst:
                 break;
             case iuseTe:
@@ -1078,6 +1084,7 @@ class ElectronAndRadiation : public ElectronAndRadiaionBase{
     }
 
 public: // ---------------- ANALYTIC -------------------------- //
+    SynchrotronAnalytic syn_an = SynchrotronAnalytic(gamma_min, gamma_c, gamma_max, B,p,m_loglevel);
 
     ElectronAndRadiation(int loglevel, Vector & gam_grid, Vector & freq_grid,
                          SynKernel & syn_kernel, SSCKernel & ssc_kernel, bool _is_rs) :
@@ -1134,23 +1141,22 @@ public: // ---------------- ANALYTIC -------------------------- //
     void computeSynchrotronEmissivityAbsorptionAnalytic( double nuprime, double & em, double & abs ) {
 
         // TODO WARNING I did replace n_prime with ne is absorption, but this might not be correct!!!
-
-        SynchrotronAnalytic syn_an =
-                SynchrotronAnalytic(gamma_min, gamma_c, gamma_max, B, p,
-                                    m_methods_ssa == METHODS_SSA::iSSAon,
-                                    p_log);
-
+//        SynchrotronAnalytic syn_an =
+//                SynchrotronAnalytic(gamma_min, gamma_c, gamma_max, B, p,
+//                                    m_methods_ssa == METHODS_SSA::iSSAon,
+//                                    p_log);
         em=0., abs=0.;
+        bool do_ssa = m_methods_ssa == METHODS_SSA::iSSAon;
         if (m_sychMethod == METHODS_SYNCH::iJOH06)
-            syn_an.computeAnalyticSynchJOH06(em, abs, nuprime, nn*accel_frac);
+            syn_an.computeAnalyticSynchJOH06(em, abs, nuprime, nn*accel_frac,do_ssa);
         else if (m_sychMethod == METHODS_SYNCH::iWSPN99)
-            syn_an.computeAnalyticSynchWSPN99(em, abs, nuprime, nn*accel_frac);
+            syn_an.computeAnalyticSynchWSPN99(em, abs, nuprime, nn*accel_frac,do_ssa);
         else if (m_sychMethod == METHODS_SYNCH::iDER06)
-            syn_an.computeAnalyticSynchDER06(em, abs, nuprime, nn*accel_frac);
+            syn_an.computeAnalyticSynchDER06(em, abs, nuprime, nn*accel_frac,do_ssa);
         else if (m_sychMethod == METHODS_SYNCH::iMARG21) {
             // defined in Margalit+21 arXiv:2111.00012
             syn_an.computeAnalyticSynchMARG21(em, abs, nuprime, mu_e * nn,
-                                              eps_e / eps_t, Theta, z_cool, accel_frac);
+                                              eps_e / eps_t, Theta, z_cool, accel_frac,do_ssa);
         }
         else{
             (*p_log)(LOG_ERR,AT)<<" analytic synchrotron method is not supported \n";
@@ -1183,6 +1189,26 @@ public: // ---------------- ANALYTIC -------------------------- //
             total_rad.add_to_all(ssc, it);
         }
 
+    }
+
+public: // -------------------- TOTAL LOSS ----------------------------- //
+
+    double computePtot(double dmdr){
+        /// call updateSockProperties() first
+        /// compute spectra limits (using fast methods)
+        if (not checkParams())
+            return 0.;
+        /// compute comoving magnetic field
+        computeMagneticField(m_methodsB);
+        /// compute limits of electron spectrum
+        computeGammaMax(m_methodsLfmax);
+        computeGammaMin(METHODS_LFMIN::igmUprime);
+        computeGammaCool(METHOD_LFCOOL::iuseTcomov);
+        /// compute characteristic frequencies using Johanesson+2006 paper (see computeAnalyticSynchJOH06() func)
+        syn_an.computeAnalyticSynchJOH06_limits(dmdr/CGS::mp);
+        /// compute total radiation power emitted by the source
+        double p_tot = syn_an.computeIntegratedAnalyticSynchWSPN99(1e6);
+        return p_tot;
     }
 
 public: // -------------------- NUMERIC -------------------------------- //
@@ -1674,6 +1700,57 @@ public: // -------------------- NUMERIC -------------------------------- //
 //                                   << ssc_peak_flux//<<" ssc="<< std::accumulate(ssc.j.begin(), ssc.j.end(),0.)
 //                                   << "\n";
     }
+
+public: // --------------------- FOR BW ---------------------------------- //
+
+    double computeRadiationLoss(
+            double dmdR, double dEshdR,
+            double R, double Gamma, double GammaSh, double gammaAdi, double m, double Eint,
+            double rho, double theta, double ncells){
+        if (dmdR==0||dEshdR==0||m==0||rho==0)
+            return 0.;
+
+        /// compute radiative losses by integrating synchrotron spectrum (analytic synchrotron spectrum)
+        double rho2 = EQS::rho2t(Gamma,gammaAdi,rho);
+        double U_p = get_shock_Up(GammaSh,rho2,m,Eint);
+        updateSockProperties(U_p,Gamma,GammaSh,
+                                              x,tcomov,rho2/CGS::mp,
+                                              m/CGS::mp);
+        double thickness = EQS::shock_thickness(m,rho2,
+                                         0.,theta,Gamma,R,ncells);
+        double p_tot = computePtot(dmdR);
+        p_tot*=accel_frac;
+        p_tot = std::max(p_tot,0.);
+        /// compute total amount of energy radaited
+        double drcomov = thickness * GammaSh;
+        double dt_esc = drcomov / CGS::c;
+
+//        dErad2dR = p_tot / beta / Gamma;
+        double dErad2dR = p_tot * dt_esc;
+        dErad2dR = dErad2dR;
+        double eps_rad = dErad2dR / (dEshdR * eps_e);
+
+        if (eps_rad < 0. || !std::isfinite(eps_rad)){
+            (*p_log)(LOG_ERR,AT)
+                    << " eps_rad="<<eps_rad
+                    << " gm="<< gamma_min
+                    << " gc="<< gamma_c
+                    << " gM="<< gamma_max
+                    << " dr="<<thickness
+                    << " | dErad2dR="<<dErad2dR
+                    << " | dEshdR="<<dEshdR
+                    << " eps_e=" << eps_e <<"\n";
+            eps_rad = 0.;
+        }
+        if (eps_rad > 1.){
+            (*p_log)(LOG_WARN,AT)
+                    << " eps_rad="<<eps_rad<< " > 1"
+                    << " | dErad2dR="<<dErad2dR
+                    << " | dEshdR="<<dEshdR
+                    << " eps_e=" << eps_e <<"\n";
+        }
+        return eps_rad;
+}
 
 public: // ---------------------- FOR EATS -------------------------------- //
 

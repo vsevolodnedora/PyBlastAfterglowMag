@@ -1,8 +1,106 @@
 import package.src.PyBlastAfterglowMag as PBA
 import os,shutil,matplotlib.pyplot as plt
 import numpy as np
+import copy
 working_dir = os.getcwd()+'/tmp1/'
 fig_dir = os.getcwd()+'/figs/'
+
+class PlotSpectra:
+    qe = 4.803204e-10
+    me = 9.1094e-28
+    c = 2.99792458e10
+
+    def __init__(self):
+        pass
+
+
+
+    # @staticmethod
+    # def _gam_to_nu(gam:np.ndarray,B:np.ndarray,p:float,syn_or_ssc:str,regime:str):
+    #     """ Using Johanesson+2006 for XpS and Sari & Esin for SSC """
+    #     gamToNuFactor = (3.0 / (4.0 * np.pi)) * (qe * B) / (me * c)
+    #     if regime=="fast":
+    #         XpS = 0.06 + 0.28 * p
+    #     else:
+    #         XpS = 0.455 + 0.08 * p
+    #     nu = XpS * gam**2 * gamToNuFactor
+    #
+    #     if syn_or_ssc.__contains__("ssc"): return 4.* gam ** 2 * nu * np.sqrt(2)/3.
+    #     return nu
+    #     # nu_min = XpS * gamma_min * gamma_min * gamToNuFactor
+    #     # nu_c = XpS * gamma_c * gamma_c * gamToNuFactor
+    #     # nu_max = XpS * gamma_max * gamma_max * gamToNuFactor
+    @staticmethod
+    def _nu_m(gm: np.ndarray, gc: np.ndarray, B: np.ndarray, p: float, ssc: bool):
+        qe = 4.803204e-10
+        me = 9.1094e-28
+        c = 2.99792458e10
+        gamToNuFactor = (3.0 / (4.0 * np.pi)) * (qe * B) / (me * c)
+        XpS = np.full_like(gm, fill_value=1.)  # fast
+        # XpS[gm<gc] = 0.06 + 0.28 * p # Fast
+        # XpS[gm>gc] = 0.455 + 0.08 * p # Slow
+        nu_m = XpS * gm ** 2 * gamToNuFactor
+        if ssc:
+            return 4. * gm ** 2 * nu_m * np.sqrt(2) / 3.  # Sari & Esin + 02
+        else:
+            return nu_m
+
+    @staticmethod
+    def _nu_c(gm: np.ndarray, gc: np.ndarray, B: np.ndarray, p: float, ssc: bool):
+        qe = 4.803204e-10
+        me = 9.1094e-28
+        c = 2.99792458e10
+        gamToNuFactor = (3.0 / (4.0 * np.pi)) * (qe * B) / (me * c)  # qe * B / (2.*np.pi*me*c) # Ludovica
+        XpS = np.full_like(gm, fill_value=1)  # fast
+        # XpS[gm>gc] = 0.06 + 0.28 * p # Fast
+        # XpS[gm<gc] = 0.455 + 0.08 * p # Slow
+        nu_m = XpS * gc ** 2 * gamToNuFactor
+        if ssc:
+            return 4. * gc ** 2 * nu_m * np.sqrt(2) / 3.  # Sari & Esin + 02
+        else:
+            return nu_m
+
+    @staticmethod
+    def _nu_M(gM: np.ndarray, B: np.ndarray, p: float, ssc: bool):
+        qe = 4.803204e-10
+        me = 9.1094e-28
+        c = 2.99792458e10
+        gamToNuFactor = (3.0 / (4.0 * np.pi)) * (qe * B) / (me * c)  # qe * B / (2.*np.pi*me*c) # Ludovica
+        nu_m = gM ** 2 * gamToNuFactor
+        if ssc:
+            return 4. * gM ** 2 * nu_m * np.sqrt(2) / 3.  # Sari & Esin + 02
+        else:
+            return nu_m
+
+    @staticmethod
+    def _pmax(nu_m:float,nu_c:float,B:float,p:float):
+        c,pi,mp,me,kB = 2.9979e10,np.pi, 1.6726e-24, 9.1094e-28 , 1.38065e-16
+        qe = 4.803204e-10
+        phipF = 0.54 + 0.08*p
+        phipS = 1.89 - 0.935*p + 0.17*p**2
+        PmaxF = phipF * 2.234*qe**3*B/me/c**2
+        PmaxS = phipS * 11.17*(p-1)*qe**3*B/(3*p-1)/me/c**2
+        return (PmaxS if nu_m < nu_c else PmaxF)
+
+
+    @staticmethod
+    def nuprime_to_nu(nuprime: np.ndarray, ej: PBA.Ejecta):
+        z = 0
+        Gamma = ej.get_dyn_arr(v_n="Gamma", ishell=0, ilayer=0)
+        val = nuprime * Gamma / (1 + z)
+        return val
+
+
+
+def d2d(default: dict, new: dict):
+    default_ = copy.deepcopy(default)
+    for key, new_dict_ in new.items():
+        if not key in default_.keys():
+            default_[key] = {}
+        for key_, val_ in new_dict_.items():
+            default_[key][key_] = val_
+    return default_
+
 def gamma_adi(Gamma, beta):
     """ Adiabatic index of the fluid From Nava 2013 paper """
     return (4. + 1. / Gamma) / 3.
@@ -310,7 +408,7 @@ def plot_fs_energy2(struct:dict,pp:dict,plot:dict):
     #           fontsize=12,
     #           framealpha=0., borderaxespad=0.)
     # plot spreading
-    ax = axes[3]
+    ax = axes[2]
     ax.set_yscale("linear")
     for i, ilayer in enumerate(plot["layers"]):
         R = pba.GRB.get_dyn_arr(v_n="R",ishell=0,ilayer=ilayer)
@@ -508,8 +606,179 @@ def plot_fs_energy2(struct:dict,pp:dict,plot:dict):
     plt.savefig(fig_dir+plot["figname"]+".png", dpi=256)
     plt.show()
 
+def plot_fs_energy_rad(struct:dict,pp:dict,plot:dict,fs_or_rs="fs",ishell=0,ilayer=0):
+
+    pba = run(working_dir=working_dir,struct=struct,
+              P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad=-1,epsilon_e_rad_rs=-1))),
+              type="a")
+
+
+    p = float(pba.GRB.pars["p_fs" if fs_or_rs == "fs" else "p_rs"])
+    eps_e = float(pba.GRB.pars["eps_e_fs" if fs_or_rs == "fs" else "eps_e_rs"])
+
+    def i_eps_an():
+        mass = pba.GRB.get_dyn_arr(v_n="M2" if fs_or_rs == "fs" else "M3", ishell=ishell, ilayer=ilayer)
+        dens = pba.GRB.get_dyn_arr(v_n="rho2" if fs_or_rs == "fs" else "rho3", ishell=ishell, ilayer=ilayer)
+        vol = mass / dens
+
+        Gamma = pba.GRB.get_dyn_arr(v_n="Gamma" if fs_or_rs == "fs" else "Gamma43", ishell=ishell, ilayer=ilayer)
+        U_p = pba.GRB.get_dyn_arr(v_n="U_p" if fs_or_rs == "fs" else "U_p3", ishell=ishell, ilayer=ilayer)
+        Esh = pba.GRB.get_dyn_arr(v_n="Esh2" if fs_or_rs == "fs" else "Esh3", ishell=ishell, ilayer=ilayer)
+        dEsh = np.diff(Esh)
+        dEsh = np.insert(dEsh, 0, 0)
+        B = pba.GRB.get_dyn_arr(v_n="B" if fs_or_rs == "fs" else "B_rs", ishell=ishell, ilayer=ilayer)
+        R = pba.GRB.get_dyn_arr(v_n="R" if fs_or_rs == "fs" else "R", ishell=ishell, ilayer=ilayer)
+        tburst = pba.GRB.get_dyn_arr(v_n="tburst" if fs_or_rs == "fs" else "tburst", ishell=ishell, ilayer=ilayer)
+        deltaR = np.diff(R)
+        deltaR = np.insert(deltaR, 0, 0)
+        beta = PBA.utils.get_beta(Gamma)
+        one_over_beta = 1. / beta
+        gamma_min = pba.GRB.get_dyn_arr(v_n="gamma_min" if fs_or_rs == "fs" else "gamma_min_rs", ishell=ishell,
+                                   ilayer=ilayer)
+        gamma_c = pba.GRB.get_dyn_arr(v_n="gamma_c" if fs_or_rs == "fs" else "gamma_c_rs", ishell=ishell, ilayer=ilayer)
+        gamma_max = pba.GRB.get_dyn_arr(v_n="gamma_max" if fs_or_rs == "fs" else "gamma_max_rs", ishell=ishell,
+                                   ilayer=ilayer)
+        m = pba.GRB.get_dyn_arr(v_n="M2" if fs_or_rs == "fs" else "M3", ishell=ishell, ilayer=ilayer)
+        tcomov = pba.GRB.get_dyn_arr(v_n="tcomov" if fs_or_rs == "fs" else "tcomov", ishell=ishell, ilayer=ilayer)
+        dtcomov = np.diff(tcomov)
+        dtcomov = np.insert(dtcomov, 0, 0)
+        dm = np.diff(m)
+        dm = np.insert(dm, 0, 0) / PBA.utils.cgs.mp
+        p = float(pba.GRB.pars["p_fs" if fs_or_rs == "fs" else "p_rs"])
+        eps_e = float(pba.GRB.pars["eps_e_fs" if fs_or_rs == "fs" else "eps_e_rs"])
+        epsilon = np.zeros_like(B)
+        dr = pba.GRB.get_dyn_arr(v_n="thickness" if fs_or_rs == "fs" else "thickness_rs", ishell=ishell, ilayer=ilayer)
+        GammaSh = pba.GRB.get_dyn_arr(v_n="GammaFsh" if fs_or_rs == "fs" else "GammaRsh", ishell=ishell, ilayer=ilayer)
+
+        # nu_arr = np.logspace(6,30,601)
+        nu_arr=[1e6]
+        P_total = np.zeros_like(Gamma)
+        eps = np.zeros_like(Gamma)
+
+        drcomov = dr * GammaSh
+        dt = drcomov / PBA.utils.cgs.c
+
+        for i in range(len(Gamma)-1):
+            nu_m = PlotSpectra._nu_m(gm=gamma_min[i],gc=gamma_c[i],B=B[i],p=p,ssc=False)
+            nu_c = PlotSpectra._nu_c(gm=gamma_min[i],gc=gamma_c[i],B=B[i],p=p,ssc=False)
+            nu_M = PlotSpectra._nu_M(gM=gamma_max[i],B=B[i],p=p,ssc=False)
+            pmax = PlotSpectra._pmax(nu_m=nu_m,nu_c=nu_c,B=B[i],p=p)
+
+            # analytic
+            P_total[i] = 0.
+            if (nu_m <= nu_c):
+                term0 = (3./4.)*np.power(1/nu_m,1/3)*(np.power(nu_m,4./3.)-np.power(nu_arr[0],4./3.))
+                term1 = -1/(3-p)*(2*np.power(1./nu_m, 1/2-p/2))*(np.power(nu_m,3/2-p/2)-np.power(nu_c,3/2-p/2))
+                term2 = np.power(nu_c / nu_m, -(p-1)/2) * 2/(p-2)*(nu_c*np.power(nu_M,p/2) - nu_M*np.power(nu_c,p/2))*np.power(nu_c*nu_M/nu_c,-p/2)
+                P_total[i] = term0 + term1 + term2
+            else:
+                term0 = (3./4.)*np.power(1/nu_c,1/3)*(np.power(nu_c,4./3.)-np.power(nu_arr[0],4./3.))
+                term1 = -2/np.sqrt(1/nu_c)*(np.sqrt(nu_c)-np.sqrt(nu_m))
+                term2 = 1/np.sqrt(nu_m / nu_c) * 2/(p-2)*(nu_m*np.power(nu_M,p/2) - nu_M*np.power(nu_m,p/2))*np.power(nu_m*nu_M/nu_m,-p/2)
+                P_total[i] = term0 + term1 + term2
+
+            # P_total[i] = 0
+            # for j in range(len(nu_arr)-1):
+            #     P_total[i]+=spec_wspn(nu_arr[j],nu_m,nu_c,nu_M)*(nu_arr[j+1]-nu_arr[j])
+            P_total[i] *= pmax
+            dm = (m[i+1]-m[i])/(R[i+1]-R[i])
+            # dm = (m[i+1]-m[i])
+            # P_total[i] *= (dm / PBA.utils.cgs.mp)
+            P_total[i] *= (dm / PBA.utils.cgs.mp)
+
+        for i in range(len(Gamma)-1):
+            # de = (Esh[i+1]-Esh[i])/(R[i+1]-R[i])
+            de = (Esh[i+1]-Esh[i])/(R[i+1]-R[i])
+            eps[i] = (P_total[i] * dt[i]) / ((de*eps_e))
+            # eps[i] = (P_total[i]) / ((de*eps_e))
+        return eps
+
+    fig, axes = plt.subplots(figsize=(5,2.), ncols=1, nrows=1, sharex="all",layout='constrained',
+                             # gridspec_kw=dict(height_ratios=[1,2,2])
+                             )
+    if not hasattr(axes,'__len__'): axes = [axes]
+    # Erad = pba.GRB.get_dyn_arr(v_n="Erad2",ishell=0,ilayer=0)
+    # Esh = pba.GRB.get_dyn_arr(v_n="Esh2",ishell=0,ilayer=0)
+    # axes[0].plot(pba.GRB.get_dyn_arr(v_n="R",ishell=0,ilayer=0),Erad/(eps_e*Esh),color='black',ls='-')
+    # axes[0].plot(pba.GRB.get_dyn_arr(v_n="R",ishell=0,ilayer=0),i_eps_an(),color='black',ls=':')
+
+    # axes[1].plot(pba.GRB.get_dyn_arr(v_n="R",ishell=0,ilayer=0),
+    #              pba.GRB.get_dyn_arr(v_n="gamma_min",ishell=0,ilayer=0),color='black',ls='-',label=r'$\gamma_{\rm m}$')
+    # axes[1].plot(pba.GRB.get_dyn_arr(v_n="R",ishell=0,ilayer=0),
+    #              pba.GRB.get_dyn_arr(v_n="gamma_c",ishell=0,ilayer=0),color='black',ls='--',label=r'$\gamma_{\rm c}$')
+    # axes[1].plot(pba.GRB.get_dyn_arr(v_n="R",ishell=0,ilayer=0),
+    #              pba.GRB.get_dyn_arr(v_n="gamma_max",ishell=0,ilayer=0),color='black',ls='-.',label=r'$\gamma_{\rm M}$')
+
+    mom_smi =  pba.GRB.get_dyn_arr(v_n="mom",ishell=0,ilayer=0)
+    if (pba.GRB.opts["do_rs"] == "yes"):
+        g = pba.GRB.get_dyn_arr(v_n="Gamma43",ishell=0,ilayer=0)
+        b = PBA.utils.get_beta(g)
+        mom_smi_rs = g*b
+
+    # axes[0].plot(pba.GRB.get_dyn_arr(v_n="R",ishell=0,ilayer=0),
+    #              pba.GRB.get_dyn_arr(v_n="mom",ishell=0,ilayer=0),color='black',ls='--',label=r'$Semi-radiative$')
+
+    pba = run(working_dir=working_dir,struct=struct,
+              P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad=0,epsilon_e_rad_rs=0))),
+              type="a")
+
+    mom_adi =  pba.GRB.get_dyn_arr(v_n="mom",ishell=0,ilayer=0)
+    if (pba.GRB.opts["do_rs"] == "yes"):
+        g = pba.GRB.get_dyn_arr(v_n="Gamma43",ishell=0,ilayer=0)
+        b = PBA.utils.get_beta(g)
+        mom_adi_rs = g*b
+    # axes[0].plot(pba.GRB.get_dyn_arr(v_n="R",ishell=0,ilayer=0),
+    #              pba.GRB.get_dyn_arr(v_n="mom",ishell=0,ilayer=0),color='black',ls='-',label=r'$Adiabatic$')
+
+    pba = run(working_dir=working_dir,struct=struct,
+              P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad=1,epsilon_e_rad_rs=1))),
+              type="a")
+
+    mom_rad = pba.GRB.get_dyn_arr(v_n="mom",ishell=0,ilayer=0)
+    if (pba.GRB.opts["do_rs"] == "yes"):
+        g = pba.GRB.get_dyn_arr(v_n="Gamma43",ishell=0,ilayer=0)
+        b = PBA.utils.get_beta(g)
+        mom_rad_rs = g*b
+
+    # axes[0].plot(pba.GRB.get_dyn_arr(v_n="R",ishell=0,ilayer=0),
+    #              pba.GRB.get_dyn_arr(v_n="mom",ishell=0,ilayer=0),color='black',ls='-.',label=r'$Radiative$')
+
+    axes[0].plot(pba.GRB.get_dyn_arr(v_n="R",ishell=0,ilayer=0),
+                 mom_adi/mom_smi,color='black',ls='--',label=r'$\frac{\Gamma\beta|_{\rm adi}}{\Gamma\beta|_{\rm semi}}$')
+    axes[0].plot(pba.GRB.get_dyn_arr(v_n="R",ishell=0,ilayer=0),
+                 mom_adi/mom_rad,color='black',ls='-.',label=r'$\frac{\Gamma\beta|_{\rm adi}}{\Gamma\beta|_{\rm rad}}$')
+    if (pba.GRB.opts["do_rs"] == "yes"):
+        axes[0].plot(pba.GRB.get_dyn_arr(v_n="R",ishell=0,ilayer=0),
+                     mom_adi_rs/mom_smi_rs,color='gray',ls='--',label=r'$\frac{\Gamma_{43}\beta_{43}|_{\rm adi}}{\Gamma_{43}\beta_{43}|_{\rm semi}}$')
+        axes[0].plot(pba.GRB.get_dyn_arr(v_n="R",ishell=0,ilayer=0),
+                     mom_adi_rs/mom_rad_rs,color='gray',ls='-.',label=r'$\frac{\Gamma_{43}\beta_{43}|_{\rm adi}}{\Gamma_{43}\beta_{43}|_{\rm rad}}$')
+
+    axes[0].set_xlabel('$R$ [cm]',fontsize=12)
+    axes[0].legend(fancybox=True, loc='upper left', columnspacing=0.8,
+              # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+              shadow=False, ncol= 2,
+              fontsize=16,
+              framealpha=0., borderaxespad=0.)
+    axes[0].set_ylabel("Momentum ratio",fontsize=12)
+    for i, ax in enumerate(axes):
+        ax.set_xscale("log")
+        # ax.set_yscale("log")
+        ax.tick_params(axis='both', which='both', labelleft=True,
+                       labelright=False, tick1On=True, tick2On=True,
+                       labelsize=12,
+                       direction='in',
+                       bottom=True, top=True, left=True, right=True)
+        # ax.xaxis.set_tick_params(labelbottom=False)
+        ax.minorticks_on()
+        if (f"ylim{i+1}" in plot.keys()): ax.set_ylim(*plot[f"ylim{i+1}"])
+        if ("xlim" in plot.keys()): ax.set_xlim(*plot["xlim"])
+        ax.grid(ls=':')
+    plt.savefig(fig_dir+plot["figname"]+".pdf")
+    plt.savefig(fig_dir+plot["figname"]+".png", dpi=256)
+    plt.show()
+
 def plot_id(struct:dict,pp:dict,plot:dict):
-    pba = run(working_dir=working_dir,struct=struct,P=pp,type='pw',do_run=False)
+    pba = run(working_dir=working_dir,struct=struct,P=pp,type='a',do_run=False)
     fig,axes = plt.subplots(ncols=1,nrows=2,sharex='all',layout='constrained')
 
     # plot energy
@@ -575,27 +844,52 @@ def plot_id(struct:dict,pp:dict,plot:dict):
 
 if __name__ == '__main__':
     ''' -------- TOPHAT ---------- '''
-    plot_fs_energy(
+    # plot_fs_energy(
+    #     struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
+    #     pp = dict(main=dict(n_ism = 1, tb0=3e3),
+    #               grb=dict(save_dynamics='yes',do_mphys_in_situ="no",do_lc = "no",# method_spread='None'
+    #                        )),
+    #     plot=dict(figname = "tophat_fs_energy", text="FS",
+    #               xlim=(1e14,1e19), ylim1=(1e-4,2), ylim2=(1e-3,1e3), rdec=True, bm=True,
+    #               theta_spread_0=True, theta_spread_1=True)
+    # )
+    # plot_fs_energy(
+    #     struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
+    #     pp = dict(main=dict(n_ism = 1., tb0=3e3, ntb=1000,rtol=1e-7,
+    #                         lc_freqs = "array 1e9 1e18"),
+    #               grb=dict(save_dynamics='yes',do_rs='yes',bw_type='fsrs',do_mphys_in_situ="no",do_lc = "no",do_rs_radiation="no",
+    #                        # method_spread='AFGPY'
+    #                        # exponential_rho4='no'
+    #                        )),
+    #     plot=dict(figname = "tophat_fsrs_energy", text="FS \& RS",
+    #               xlim=(1e14,1e19), ylim1=(1e-4,2), ylim2=(1e-3,1e3), rdec=False, bm=True,method_ele_fs='mix',
+    #               theta_spread_0=True, theta_spread_1=True)
+    # )
+    ''' ---------- RAD.LOSSES -------- '''
+    plot_fs_energy_rad(
         struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
-        pp = dict(main=dict(n_ism = 1, tb0=3e3),
-                  grb=dict(save_dynamics='yes',do_mphys_in_situ="no",do_lc = "no",# method_spread='None'
-                           )),
-        plot=dict(figname = "tophat_fs_energy", text="FS",
-                  xlim=(1e14,1e19), ylim1=(1e-4,2), ylim2=(1e-3,1e3), rdec=True, bm=True,
-                  theta_spread_0=True, theta_spread_1=True)
-    )
-    plot_fs_energy(
-        struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
-        pp = dict(main=dict(n_ism = 1., tb0=3e3, ntb=1000,rtol=1e-7,
+        pp = dict(main=dict(n_ism = 1., tb0=3e3, ntb=3000,rtol=1e-7,
                             lc_freqs = "array 1e9 1e18"),
-                  grb=dict(save_dynamics='yes',do_rs='yes',bw_type='fsrs',do_mphys_in_situ="no",do_lc = "no",do_rs_radiation="no",
-                           # method_spread='AFGPY'
-                           # exponential_rho4='no'
+                  grb=dict(save_dynamics='yes',#do_rs='yes',bw_type='fsrs',
+                           do_mphys_in_situ="yes",do_lc = "no",do_rs_radiation="no",
+                           method_gamma_min_fs='useU_e',
+                           method_gamma_min_rs='useU_e',
+                           method_ele_fs='analytic',method_synchrotron_fs='Joh06',
+                           method_ele_rs='analytic',method_synchrotron_rs='Joh06',
+                           eps_e_fs=0.1, eps_b_fs=0.001, p_fs=2.2,
+                           eps_e_rs=0.1, eps_b_rs=0.001, p_rs=2.2,
+                           gamma_max_fs=4e7, method_gamma_max_fs="useConst",
+                           gamma_max_rs=4e7, method_gamma_max_rs="useConst",
+                           ebl_tbl_fpath="none",method_spread='None'
                            )),
-        plot=dict(figname = "tophat_fsrs_energy", text="FS \& RS",
-                  xlim=(1e14,1e19), ylim1=(1e-4,2), ylim2=(1e-3,1e3), rdec=False, bm=True,method_ele_fs='mix',
+        plot=dict(figname = "tophat_fs_rad_momentum_ratio", text="FS \& RS",
+                  xlim=(1e14,1e19),
+                  # ylim1=(1e-3,2), ylim2=(1e-1,1e9),
+                  ylim1=(0.9,2),
+                  rdec=False, bm=True,method_ele_fs='mix',
                   theta_spread_0=True, theta_spread_1=True)
     )
+
     ''' ---------- GAUSSIAN --------- '''
     plot_id(
         struct = dict(struct="gaussian",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.3),

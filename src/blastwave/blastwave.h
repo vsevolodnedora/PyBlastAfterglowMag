@@ -340,11 +340,13 @@ public:
         sol[i + SOL::QS::iEint2] *= (p_pars->M0 * CGS::c * CGS::c);
         sol[i + SOL::QS::iEad2]  *= (p_pars->M0 * CGS::c * CGS::c);
         sol[i + SOL::QS::iEsh2]  *= (p_pars->M0 * CGS::c * CGS::c);
+        sol[i + SOL::QS::iErad2] *= (p_pars->M0 * CGS::c * CGS::c);
         /// quantities for reverse shock
         sol[i + SOL::QS::iM3]    *= p_pars->M0;
         sol[i + SOL::QS::iEint3] *= (p_pars->M0 * CGS::c * CGS::c);
         sol[i + SOL::QS::iEad3]  *= (p_pars->M0 * CGS::c * CGS::c);
         sol[i + SOL::QS::iEsh3]  *= (p_pars->M0 * CGS::c * CGS::c);
+        sol[i + SOL::QS::iErad3] *= (p_pars->M0 * CGS::c * CGS::c);
     }
     /// insert the solution at every substep used in derivatives inside RHS
     void insertSolutionSustep(const double * sol, double t, size_t it, size_t i){
@@ -1512,7 +1514,7 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
     // ****************************************
     double R      = Y[i+ SOL::QS::iR];
     double Rsh    = Y[i+ SOL::QS::iRsh];
-//        double tcomov = Y[i+Q::itcomov];
+    double tcomov = Y[i+ SOL::QS::itcomov];
 //        double mom    = Y[i+ SOL::QS::imom];
     double Gamma  = Y[i+ SOL::QS::iGamma];
     double Eint2  = Y[i+ SOL::QS::iEint2];
@@ -1635,17 +1637,51 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
 //                dGammadR = 0.;
 //            }
 //        }
+    double dtcomov_dR = 1.0 / EQS::MomFromGam(Gamma) / CGS::c;
+
+
     // -- Energies --
     double dEsh2dR  = (Gamma - 1.0) * dM2dR; // Shocked energy;
     double dlnV2dR  = dM2dR / M2 - drhodr / rho - dGammadR / Gamma;
     double dEad2dR  = 0.0;
     if ( p_pars->adiabLoss )
         dEad2dR = -(gammaAdi - 1.0) * Eint2 * dlnV2dR;
+
     // -- Radiative losses
-    double dErad2dR = p_pars->eps_rad * dEsh2dR;
+    double eps_rad = p_pars->eps_rad;
+    if (p_pars->eps_rad < 0){
+        eps_rad = p_pars->p_mphys->computeRadiationLoss(
+                dM2dR*p_pars->M0, dEsh2dR*p_pars->M0*CGS::c*CGS::c,
+                R, Gamma, GammaSh, gammaAdi, M2*p_pars->M0, Eint2*p_pars->M0*CGS::c*CGS::c,
+                rho*p_pars->M0, theta, p_pars->ncells
+                );
+//        /// compute radiative losses by integrating synchrotron spectrum (analytic synchrotron spectrum)
+//        double rho2 = EQS::rho2t(Gamma,gammaAdi,rho)*p_pars->M0;
+//        double m = M2*p_pars->M0;
+//        double U_p = p_pars->p_mphys->get_shock_Up(GammaSh,rho2,m,
+//                                                   Eint2*CGS::c*CGS::c*p_pars->M0);
+//        p_pars->p_mphys->updateSockProperties(U_p,Gamma,GammaSh,
+//                                              x,tcomov,rho2/CGS::mp,
+//                                              m/CGS::mp);
+//        thickness = EQS::shock_thickness(m,rho2,
+//                                         0.,theta,Gamma,R,p_pars->ncells);
+//        double dm = dM2dR*p_pars->M0;
+//        p_tot = p_pars->p_mphys->computePtot(dm);
+//        p_tot = std::max(p_tot,0.);
+//        /// compute total amount of energy radaited
+//        double drcomov = thickness * GammaSh;
+//        double dt_esc = drcomov / CGS::c;
+//
+////        dErad2dR = p_tot / beta / Gamma;
+//        dErad2dR = p_tot * dt_esc;
+//        dErad2dR = dErad2dR / (CGS::c*CGS::c*p_pars->M0);
+//        eps_rad = dErad2dR / (dEsh2dR*p_pars->p_mphys->eps_e);
+    }
+    double dErad2dR = eps_rad * p_pars->p_mphys->eps_e * dEsh2dR;
+
+
     // -- Energy equation
     double dEint2dR = dEsh2dR + dEad2dR - dErad2dR; // / (m_pars.M0 * c ** 2)
-    double dtcomov_dR = 1.0 / EQS::MomFromGam(Gamma) / CGS::c;
 #if 0
     double dttdr = 0.;
         if (p_spread->m_method != LatSpread::METHODS_SYNCH::iNULL)
@@ -1723,7 +1759,7 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
     // ****************************************
     double R      = Y[i+ SOL::QS::iR];
     double Rsh    = Y[i+ SOL::QS::iRsh];
-//        double tcomov = Y[i+Q::itcomov];
+    double tcomov = Y[i+ SOL::QS::itcomov];
 //        double mom    = Y[i+ SOL::QS::imom];
     double Gamma  = Y[i+ SOL::QS::iGamma];
     double Eint2  = Y[i+ SOL::QS::iEint2];
@@ -1917,16 +1953,14 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
 
     // -- Energies --
     double dEsh2dR  = (Gamma - 1.0) * dM2dR; // Shocked energy;
-    double dlnV2dR  = dM2dR / M2 - drhodr / rho - dGammadR / Gamma;
+
+    long double dEsh3dR = (Gamma43 - 1.0) * dM3dR; // Here it should be Gamma43 I presume...
+
     double dEad2dR  = 0.0;
+    double dlnV2dR  = dM2dR / M2 - drhodr / rho - dGammadR / Gamma;
     if ( p_pars->adiabLoss )
         dEad2dR = -(gammaAdi - 1.0) * Eint2 * dlnV2dR;
-    // -- Radiative losses
-    double dErad2dR = p_pars->eps_rad * dEsh2dR;
-    long double dEsh3dR = (Gamma43 - 1.0) * dM3dR; // Here it should be Gamma43 I presume...
-    double dErad3dR = p_pars->epsilon_rad_rs * (double)dEsh3dR;
 
-//    double dEsh3dR = 0.;
     double dEad3dR = 0.;
     if((!p_pars->shutOff) && (M3 > 0.0)){
         // Shocked energy
@@ -1938,6 +1972,25 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
             dEad3dR = -(gammaAdi3 - 1) * Eint3 * dlnV3dR;
         }
     }
+
+    // -- Radiative losses
+    double eps_rad = p_pars->eps_rad;
+    if (p_pars->eps_rad < 0)
+        eps_rad = p_pars->p_mphys->computeRadiationLoss(
+                dM2dR*p_pars->M0, dEsh2dR*p_pars->M0*CGS::c*CGS::c,
+                R, Gamma, GammaSh, gammaAdi, M2*p_pars->M0, Eint2*p_pars->M0*CGS::c*CGS::c,
+                rho*p_pars->M0, theta, p_pars->ncells
+        );
+    double dErad2dR = eps_rad * p_pars->p_mphys->eps_e * dEsh2dR;
+
+    double eps_rad_rs = p_pars->epsilon_rad_rs;
+    if (p_pars->epsilon_rad_rs < 0)
+        eps_rad_rs = p_pars->p_mphys_rs->computeRadiationLoss(
+                (double)dM3dR*p_pars->M0, (double)dEsh3dR*p_pars->M0*CGS::c*CGS::c,
+                R, Gamma, GammaRsh, gammaAdi3, M3*p_pars->M0, Eint3*p_pars->M0*CGS::c*CGS::c,
+                rho4*p_pars->M0, theta, p_pars->ncells
+        );
+    double dErad3dR = eps_rad_rs * p_pars->p_mphys_rs->eps_e * (double)dEsh3dR;
 
     // -- Energy equation
     double dEint2dR = dEsh2dR + dEad2dR - dErad2dR; // / (m_pars.M0 * c ** 2)
