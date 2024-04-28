@@ -469,7 +469,7 @@ public:
 //                << "] ";
     }
 
-    /// Compute Skymap for piece-wise EATS
+    /// Compute Skymap for piece-wise EATS for a given time, given freq (all shells/layers)
     void computeEjectaSkyMapPW(ImageExtend & im, double obs_time, double obs_freq){
         /// out is [i_vn][ish][itheta_iphi]
         size_t nshells_ = nshells();
@@ -550,7 +550,7 @@ public:
         }
     }
 
-    bool _computeEjectaSkyMapA(std::vector<VecVector> & raw_data,
+    bool _computeEjectaSkyMapA(ImageExtend & im,//std::vector<VecVector> & raw_data,
                                double obs_time, double obs_freq,
                                size_t & nsublayers, size_t & nrestarts,
                                Vector & th_b_layers, double th_jet_max){
@@ -575,7 +575,7 @@ public:
         size_t nlayers_ = nlayers();
         for (size_t ilayer = 0; ilayer < nlayers_; ++ilayer) {
             /// get data conter for this time/freq/shell
-            auto & out = raw_data[ilayer];
+            auto & out = im.raw_data[ilayer];
             /// rotate index to the next time/freq/shell
             size_t ncells = 0;
 
@@ -636,7 +636,8 @@ public:
                     out[IMG::Q::ictheta][ncells + iii + iphi] = cthetas[ith];
                 }
                 /// evaluate intensity
-                layer_summed_intensity += bw_rad->evalSkyMapA(out, obs_time, obs_freq, ilayer, iii, cil, ncells);
+                layer_summed_intensity += bw_rad->evalSkyMapA(
+                        out, obs_time, obs_freq, ilayer, iii, cil, ncells);
                 iii = iii + cil;
             }
             /// check if the principle jet an counter jets are resolved (intensity found)
@@ -706,7 +707,7 @@ public:
         return true;
     }
 
-    /// Compute Skymap for adaptive EATS
+    /// Compute Skymap for adaptive EATS for a given time, given freq (all shells/layers)
     void computeEjectaSkyMapA(ImageExtend & im, double obs_time, double obs_freq){
 
         /// out is [i_vn][ish][itheta_iphi]
@@ -722,7 +723,7 @@ public:
         double th_jet_min = 0., th_jet_max = 0.;
         Vector th_b_layers (nlayers_);
         for (size_t ilayer = 0; ilayer < nlayers_; ++ilayer){
-            double theta_l = p_cumShells[ilayer]->getBW(0)->getPars()->theta_c_l;
+//            double theta_l = p_cumShells[ilayer]->getBW(0)->getPars()->theta_c_l;
             if (ilayer > 0)
                 th_l_prev = p_cumShells[ilayer-1]->getBW(0)->getPars()->theta_c_l;
             auto & bw_rad = p_cumShells[ilayer]->getBW(0)->getFsEATS();
@@ -745,7 +746,7 @@ public:
             im.fluxes_shells[ilayer] = layer_flux;
         }
         /// make an interpolator for sublayers (for a given ctheta -> get flux)
-        auto interp = Interp1d(id->getVec(0,EjectaID2::Q::itheta_c_l), im.fluxes_shells);
+//        auto interp = Interp1d(id->getVec(0,EjectaID2::Q::itheta_c_l), im.fluxes_shells);
 
         /// find non-zero sublayers in each layer and corresponding cells
         size_t nrestarts = 0;
@@ -757,10 +758,10 @@ public:
         /// this value can be different for different shells
         /// TODO optimize memory allocation
 
-        bool is_ok = _computeEjectaSkyMapA(im.raw_data, obs_time, obs_freq,
+        bool is_ok = _computeEjectaSkyMapA(im, obs_time, obs_freq,
                                            nsublayers_, nrestarts, th_b_layers, th_jet_max);
         while (!is_ok){
-            is_ok = _computeEjectaSkyMapA(im.raw_data, obs_time, obs_freq,
+            is_ok = _computeEjectaSkyMapA(im, obs_time, obs_freq,
                                           nsublayers_, nrestarts, th_b_layers, th_jet_max);
         }
 

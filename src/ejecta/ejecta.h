@@ -251,7 +251,7 @@ private:
             nlayers_ = 1;
         }
 
-        std::vector<ImageExtend> ims;
+//        std::vector<ImageExtend> ims;
 
         VecVector other_data{ times, freqs };
         std::vector<std::string> other_names { "times", "freqs" };
@@ -269,15 +269,23 @@ private:
 
             /// compute skymaps
             for (size_t it = 0; it < times.size(); ++it) {
-                ims.emplace_back( ImageExtend(times[it], freqs[ifreq], nshells_, nlayers_, m_loglevel) );
+//                ims.emplace_back( ImageExtend(times[it], freqs[ifreq], nshells_, nlayers_, m_loglevel) );
+                ImageExtend im(times[it], freqs[ifreq], nshells_, nlayers_, m_loglevel);
 
                 if (id->method_eats == EjectaID2::STUCT_TYPE::ipiecewise)
-                    computeEjectaSkyMapPW(ims[itinu], times[it], freqs[ifreq]);
+//                    computeEjectaSkyMapPW(ims[itinu], times[it], freqs[ifreq]);
+                    computeEjectaSkyMapPW(im, times[it], freqs[ifreq]);
                 else if (id->method_eats == EjectaID2::STUCT_TYPE::iadaptive)
-                    computeEjectaSkyMapA(ims[itinu], times[it], freqs[ifreq]);
+//                    computeEjectaSkyMapA(ims[itinu], times[it], freqs[ifreq]);
+                    computeEjectaSkyMapA(im, times[it], freqs[ifreq]);
+
+                /// clean image (remove zero intensity points) TODO speed up
+//                ims[itinu].removeZeroEntries();
+                im.removeZeroEntries();
 
                 if (getBoolOpt("save_raw_skymap", ej_opts, AT, p_log, false, false))
-                    saveRawImage(ims[itinu], itinu,workingdir, main_pars,ej_pars,p_log);
+//                    saveRawImage(ims[itinu], itinu,workingdir, main_pars,ej_pars,p_log);
+                    saveRawImage(im, itinu,workingdir, main_pars,ej_pars,p_log);
                 else {
                     (*p_log)(LOG_ERR , AT) << " Cannot save final image. Only raw images can now be saved...\n";
                     exit(1);
@@ -295,7 +303,7 @@ private:
                 // TODO: Because the grid the large and ustructred one need Delaney interpolation. Too complex...
 //                ims[itinu].interpImage((size_t) getDoublePar("skymap_nx", ej_pars, AT, p_log, 200, true),
 //                                       (size_t) getDoublePar("skymap_ny", ej_pars, AT, p_log, 200, true) );
-
+                im.clear();
                 itinu++;
 
             }

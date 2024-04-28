@@ -788,14 +788,18 @@ class Ejecta(Base):
         self._check_if_loaded_skymap()
         return self.skymap_dfile
 
-    def get_skymap_times(self) -> np.ndarray:
+    def get_skymap_times(self, unique:bool=True) -> np.ndarray:
         self._check_if_loaded_skymap()
         # print(self.ej_skymap.keys())
-        return np.array(self.skymap_dfile["times"])
+        res = np.array(self.skymap_dfile["times"])
+        if unique: return np.unique(res)
+        else: return res
 
-    def get_skymap_freqs(self) -> np.ndarray:
+    def get_skymap_freqs(self,unique:bool=True) -> np.ndarray:
         self._check_if_loaded_skymap()
-        return np.array(self.skymap_dfile["freqs"])
+        res = np.array(self.skymap_dfile["freqs"])
+        if unique: return np.unique(res)
+        else: return res
 
     def check_skymap_time(self, time : float) -> float:
         times = self.get_skymap_times()

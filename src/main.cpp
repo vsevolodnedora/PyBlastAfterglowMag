@@ -206,7 +206,7 @@ public:
 
 
 /// -------------- Code configuration ------------------
-struct {
+struct { // TODO move here code options not to be changed by user
     struct {
         double n_vals_ode;
     } dynamics;
@@ -216,18 +216,18 @@ struct {
 /// -------------- Read H5 table with ID ------------------
 
 int main(int argc, char** argv) {
-    int loglevel;
-    std::string working_dir; std::string parfilename;
+    int loglevel = LOG_INFO;
+    std::string working_dir = "../"; std::string parfilename = "parfile.par";
     /// ------------------------------------------------------
     if (argc<4){
         // test cases || GRG
-//        working_dir = "../tst/grb/compare_jetsim_afgpy/tmp1/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../tst/grb/compare_jetsim_afgpy/tmp1/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 
         // analysis
 //        working_dir = "../analysis/grb/fsrs/tmp1/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_fs__num__ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_fs__num_ssa/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_fs__num__ssa__ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_fs__num__ssa__ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_rs__num__ssa__ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../analysis/grb/fsrs/tmp1/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 
@@ -315,7 +315,7 @@ int main(int argc, char** argv) {
     /// ------------------------------------------------------
     std::unique_ptr<logger>(p_log);
     p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "main");
-    Timer timer;
+    Timer timer{};
     /// ------------------------------------------------------
     PyBlastAfterglow pba(loglevel);
     /// read main parameters of the model

@@ -48,7 +48,7 @@ class ProcessRawSkymap():
             elif image.ndim == 2:
                 image = ndimage.filters.gaussian_filter(image, sigma=[sigma,sigma], mode=mode)
         else:
-            raise KeyError("apply_filter type is not recognize: {}".format(type))
+            raise KeyError("apply_filter type is not recognize: {} Available: None 'uniform' 'gaussian' ".format(type))
         return image
 
     @staticmethod
@@ -231,10 +231,10 @@ class ProcessRawSkymap():
                 all_r.append(r_i)
 
             ncells.append( int(len(xrs_i) / 2) )
-            if (len(xrs_i) % 2 > 0):
-                raise ValueError(f"len(xrs) is expected to be even (2*ncells). Got={len(xrs_i)}")
+            if (len(xrs_i) % 2 > 0 ):
+                raise ValueError(f"len(xrs) is expected to be even (2*ncells). Got={len(xrs_i)} ii={ii} ish={ish} ncells={ncells[-1]}")
 
-        pass
+
         # collect result into lists, removing zeross if needed
         all_xrs_pjcj, all_yrs_pjcj, all_zz_pjcj, maxs = [], [], [], []
         all_ctheta_pjcj, all_cphi_pjcj, all_r_pjcj = [], [], []

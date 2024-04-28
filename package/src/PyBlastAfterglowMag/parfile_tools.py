@@ -392,7 +392,7 @@ class Defaults:
             eps_b_fs = 0.01,
             eps_t_fs = 0.,
             p_fs = 2.2,
-            epsilon_e_rad = 0.,    # [FS] fraction of the Esh2 removed due to radiation per timestep (dynamics)
+            epsilon_e_rad = -1,    # [FS] fraction of the Esh2 removed due to radiation per timestep (dynamics)
             gamma_max_fs = 1e7,    # [numeric] Used only if 'method_gamma_max_fs=useConst'; must be < gam2
             max_substeps_fs = 2000,# [numeric] Number of cooling substeps in electron evolution (between evol.steps)
             gam1_fs = 1.,      # [numeric] lower lim for comoving electron spectrum
@@ -406,7 +406,7 @@ class Defaults:
             eps_b_rs = 0.01,
             eps_t_rs = 0.,
             p_rs = 2.2,
-            epsilon_rad_rs = 0., # [RS] fraction of the Esh2 removed due to radiation per timestep (dynamics)
+            epsilon_e_rad_rs = -1, # [RS] fraction of the Esh2 removed due to radiation per timestep (dynamics)
             gamma_max_rs = 1e7,    # [numeric] Used only if 'method_gamma_max_fs=useConst'; must be < gam2
             max_substeps_rs = 2000,# [numeric] Number of cooling substeps in electron evolution (between evol.steps)
             gam1_rs = 1.,      # [numeric] lower lim for comoving electron spectrum
