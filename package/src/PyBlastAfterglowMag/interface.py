@@ -838,13 +838,15 @@ class Ejecta(Base):
 
     def get_skymap(self, time : float, freq : float) -> Skymap:
 
-        self.check_skymap_time(time=time)
-        self.check_skymap_freq(freq=freq)
+        time = self.check_skymap_time(time=time)
+        freq = self.check_skymap_freq(freq=freq)
         # if (not type in ["hist","intp"]):
         #     raise KeyError(f"skymap type '{type}' is not recognized.")
         dfile = self.get_skymap_obj()
-        return Skymap(dfile["time={:.4e} freq={:.4e}".format(time, freq)])
-
+        key = "time={:.4e} freq={:.4e}".format(time, freq)
+        if not key in dfile.keys():
+            raise KeyError(f"key={key} not in keys for skymap: {dfile.keys()}")
+        return Skymap(dfile[key])
         # dfile = self.get_skymap_obj()
         # ddfile = dfile["time={:.4e} freq={:.4e}".format(time, freq)]
         #

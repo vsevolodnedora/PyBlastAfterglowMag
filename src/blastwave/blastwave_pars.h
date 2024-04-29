@@ -7,7 +7,7 @@
 
 //#include "../synchrotron_an.h"
 #include "../eats.h"
-#include "../microphysics/shock_microphysics.h"
+#include "../microphysics/microphysics.h"
 
 /* ------------- EQUATIONS ----------------- */
 

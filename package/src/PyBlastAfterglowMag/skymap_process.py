@@ -178,7 +178,7 @@ class ProcessRawSkymap():
         return(xmin, xmax, ymin, ymax, i_shells, ncells)
 
 
-    def _get_skymap(self, in_f : h5py.File, return_sph_coords : bool = False, remove_zeros : bool = True) \
+    def _get_skymap(self, in_f : h5py.File, return_sph_coords : bool = False, remove_zeros : bool = False) \
             -> tuple[list[np.ndarray],list[np.ndarray],list[np.ndarray]]:
         """
         Read 'raw_skymap.h5' file and do the following:
@@ -188,7 +188,7 @@ class ProcessRawSkymap():
             3. Remove I=0 entries from arrays to simplify future analysis
         :param in_f:
         :param return_sph_coords:
-        :param remove_zeros:
+        :param remove_zeros: False if zeroes were already removed by the code itself
         :return: list of Xs, Ys, Intensity for each 2*nshells,
                  with [:nshells] for pricnciple and [nshells:] for counter jet
         """

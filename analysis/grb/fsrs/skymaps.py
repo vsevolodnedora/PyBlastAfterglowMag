@@ -20,7 +20,6 @@ working_dir = os.getcwd() + '/tmp1/'
 fig_dir = os.getcwd() + '/figs/'
 
 
-
 def d2d(default: dict, new: dict):
     default_ = copy.deepcopy(default)
     for key, new_dict_ in new.items():
@@ -31,7 +30,8 @@ def d2d(default: dict, new: dict):
     return default_
 
 
-def run(working_dir: str, struct: dict, P: dict, type: str = "a", run: bool = True) -> PBA.PyBlastAfterglow:
+def run(working_dir: str, struct: dict, P: dict, type: str = "a", run: bool = True,
+        process_skymaps: bool = True) -> PBA.PyBlastAfterglow:
     """
             conf = {"nx": 64, "ny": 32, "extend_grid": 2, "fwhm_fac": 0.5, "lat_dist_method": "integ",
                 "intp_filter": {"type": None, "sigma": 2, "mode": 'reflect'},  # "gaussian"
@@ -50,8 +50,11 @@ def run(working_dir: str, struct: dict, P: dict, type: str = "a", run: bool = Tr
         os.mkdir(working_dir)
 
     # generate initial data for blast waves
-    pba_id = PBA.id_analytic.JetStruct(n_layers_pw=80,
-                                       n_layers_a=1 if struct["struct"] == "tophat" else 20)
+
+    pba_id = PBA.id_analytic.JetStruct(
+        n_layers_pw=80 if not "n_layers_pw" in struct.keys() else struct["n_layers_pw"],
+        n_layers_a=(1 if struct["struct"] == "tophat" else
+                    (20 if not "n_layers_a" in struct.keys() else struct["n_layers_a"])))
 
     # save piece-wise EATS ID
     id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="piece-wise")
@@ -63,7 +66,8 @@ def run(working_dir: str, struct: dict, P: dict, type: str = "a", run: bool = Tr
 
     # create new parfile
     P["grb"]["fname_ejecta_id"] = "id_a.h5" if type == "a" else "id_pw.h5"
-    grb_skymap_config = copy.deepcopy( P["grb"]["skymap_conf"] )
+    P["grb"]["method_eats"] = "piece-wise" if type == "pw" else "adaptive"
+    grb_skymap_config = copy.deepcopy(P["grb"]["skymap_conf"])
     del P["grb"]["skymap_conf"]
     PBA.parfile_tools.create_parfile(working_dir=working_dir, P=P)
 
@@ -78,7 +82,7 @@ def run(working_dir: str, struct: dict, P: dict, type: str = "a", run: bool = Tr
         )
 
     # process skymap
-    if (pba.GRB.opts["do_skymap"] == "yes"):
+    if (process_skymaps and pba.GRB.opts["do_skymap"] == "yes"):
         prep = PBA.skymap_process.ProcessRawSkymap(conf=grb_skymap_config, verbose=False)
         prep.process_singles(infpaths=working_dir + "raw_skymap_*.h5",
                              outfpath=pba.GRB.fpath_sky_map,
@@ -86,8 +90,8 @@ def run(working_dir: str, struct: dict, P: dict, type: str = "a", run: bool = Tr
 
     return pba
 
-def plot_skymaps_3d(ax : plt.axes, skymaps : list[PBA.Skymap]):
 
+def plot_skymaps_3d(ax: plt.axes, skymaps: list[PBA.Skymap]):
     # g_min = np.min([np.min(skymap.im_hist[skymap.im_hist > 0 & np.isfinite(skymap.im_hist)]) for skymap in skymaps])
     g_gmax = np.max([np.max(skymap.im_hist[skymap.im_hist > 0 & np.isfinite(skymap.im_hist)]) for skymap in skymaps])
     g_min = g_gmax * 1e-5
@@ -123,13 +127,12 @@ def plot_skymaps_3d(ax : plt.axes, skymaps : list[PBA.Skymap]):
     # cmap.set_over("red")
     scam = plt.cm.ScalarMappable(
         norm=cm.colors.LogNorm(g_min, g_gmax),
-        cmap=cmap # see https://matplotlib.org/examples/color/colormaps_reference.html
+        cmap=cmap  # see https://matplotlib.org/examples/color/colormaps_reference.html
     )
-
 
     # ax = fig.add_subplot(projection='3d')
     zmin = 0.
-    xmin, xmax, ymin,ymax = 0,0,0,0
+    xmin, xmax, ymin, ymax = 0, 0, 0, 0
     for skymap in skymaps:
         X, Y = np.meshgrid(skymap.grid_x, skymap.grid_y)
         if (zmin > np.min(Y)): zmin = np.min(Y)
@@ -154,33 +157,33 @@ def plot_skymaps_3d(ax : plt.axes, skymaps : list[PBA.Skymap]):
         # ax.scatter(Z, X, Y, color=facecolors)
         ax.plot_surface(
             Z, X, Y,
-            facecolors  = facecolors,
-            antialiased = True, # True
+            facecolors=facecolors,
+            antialiased=True,  # True
             rstride=1, cstride=1, alpha=.01, shade=False,
 
         )
     for skymap in skymaps:
-        ax.plot(skymap.xc, zmin, zs=np.log10(skymap.time/cgs.day), zdir='x', marker="o", ms=1, color="black")
-        ax.plot([skymap.x1,skymap.x2], [zmin,zmin], zs=np.log10(skymap.time/cgs.day),
+        ax.plot(skymap.xc, zmin, zs=np.log10(skymap.time / cgs.day), zdir='x', marker="o", ms=1, color="black")
+        ax.plot([skymap.x1, skymap.x2], [zmin, zmin], zs=np.log10(skymap.time / cgs.day),
                 zdir='x', ls="--", lw=.6, color="black")
 
         zmin_ = -.5
-        ax.plot(np.log10(skymap.time/cgs.day), zmin_, zs=skymap.yc, zdir='z', marker="o", ms=1, color="black")
-        ax.plot([np.log10(skymap.time/cgs.day),np.log10(skymap.time/cgs.day)],
-                [zmin_,zmin_], zs=[skymap.y1,skymap.y2],
+        ax.plot(np.log10(skymap.time / cgs.day), zmin_, zs=skymap.yc, zdir='z', marker="o", ms=1, color="black")
+        ax.plot([np.log10(skymap.time / cgs.day), np.log10(skymap.time / cgs.day)],
+                [zmin_, zmin_], zs=[skymap.y1, skymap.y2],
                 zdir='z', ls="--", lw=.6, color="black")
 
         # ax.plot(skymap.grid_x, skymap.dist_x, zs=np.log10(skymap.time), zdir='x', label='curve in (x, y)')
         # ax.plot(skymap.grid_y, skymap.dist_y, zs=np.log10(skymap.time), zdir='z', label='curve in (x, y)')
-    times = [np.log10(skymap.time/cgs.day) for skymap in skymaps]
+    times = [np.log10(skymap.time / cgs.day) for skymap in skymaps]
     # xmin = times.min(),
     # xmax = times.max()
     # n = len(times)
     # for t
-    ax.set_ylim(0,4)
-    ax.set_ylabel(r"$X$ [mas]",fontsize=12,labelpad=10)
-    ax.set_zlabel(r"$Z$ [mas]",fontsize=12,labelpad=5)
-    ax.set_xlabel(r"$\log(t_{\rm obs})$ [day]",fontsize=12,labelpad=18)
+    ax.set_ylim(0, 4)
+    ax.set_ylabel(r"$X$ [mas]", fontsize=12, labelpad=10)
+    ax.set_zlabel(r"$Z$ [mas]", fontsize=12, labelpad=5)
+    ax.set_xlabel(r"$\log(t_{\rm obs})$ [day]", fontsize=12, labelpad=18)
     ax.minorticks_on()
     # ax.set_facecolor("black")
     ax.grid(False)
@@ -188,10 +191,10 @@ def plot_skymaps_3d(ax : plt.axes, skymaps : list[PBA.Skymap]):
     ax.w_yaxis.pane.fill = False
     ax.w_zaxis.pane.fill = False
     # ax.w_zaxis.line.set_visible(False)
-    ax.set_box_aspect(aspect = (6,2,2))
+    ax.set_box_aspect(aspect=(6, 2, 2))
     ax.view_init(elev=10, azim=150, roll=0)
     ax.tick_params(direction='in', length=10, width=2, colors='black',
-                   grid_color='gray', grid_alpha=0.1,which="both", axis="both",labelsize=12)
+                   grid_color='gray', grid_alpha=0.1, which="both", axis="both", labelsize=12)
     # x_scale=4
     # y_scale=1
     # z_scale=1
@@ -213,97 +216,247 @@ def plot_skymaps_3d(ax : plt.axes, skymaps : list[PBA.Skymap]):
     # ax.annotate(r'Gaussian jet with $\texttt{PW}$ method', xy=(2, 1), xytext=(-200, 200), textcoords='offset points', ha='left', bbox=dict(boxstyle='circle', fc='green', alpha=0.7),
     #          arrowprops=dict(arrowstyle='->'))
 
+
 def plot_3d_skmap_stack(do_run: bool, plot: bool, struct: dict, P: dict, name="tophat_skymap"):
-
     pba = run(
         working_dir=os.getcwd() + f"/working_dirs/{name}/",
         struct=struct, P=d2d(default=P, new=dict(
-            main=dict(theta_obs=np.pi/4.),
-            grb=dict(#method_ssc_fs='numeric',
-                     #use_ssa_fs='yes'
-            ))),
-        type="a", run=do_run
-    )
-
-    freq = pba.GRB.get_skymap_freqs()[0]
-    skymaps = [pba.GRB.get_skymap(time, freq=freq) for time in pba.GRB.get_skymap_times()[3::][:-6]]
-    fig, ax = plt.subplots(subplot_kw={'projection': '3d'},figsize=(5.2,4),
-                           gridspec_kw=dict(top=1.2, bottom=-.2, left=-.2, right=1)) # figsize=(4.2,4)figsize=(5,4)
-
-    plot_skymaps_3d(ax=ax,skymaps=skymaps)
-    plt.show()
-
-
-
-    freq = pars["obs_freq"]
-    pars_a = copy.deepcopy(pars)
-    pars_a["mom0_frac_when_start_spread"] = 0.95
-    opts_a["do_skymap"] = "yes"
-    opts_a["fname_sky_map"]=f"skymap_a_for_3d_plot.h5"
-    pba_a = self.run_a(struct=struct, pars=pars_a, opts={}, opts_grb=opts_a)
-
-    skymaps = [pba_a.GRB.get_skymap(time, freq=freq) for time in pba_a.GRB.get_skymap_times()]
-    fig, ax = plt.subplots(subplot_kw={'projection': '3d'},figsize=(5.2,4),
-                           gridspec_kw=dict(top=1.2, bottom=-.2, left=-.2, right=1)) # figsize=(4.2,4)figsize=(5,4)
-
-    plot_skymaps_3d(ax=ax,skymaps=skymaps)
-
-    fig.suptitle(r"Gaussian jet with $\texttt{A}$ method", y=0.90, fontsize=16)
-    if not figpath is None:
-        _figpath = figpath+"_A"
-        print("Saving:\n {}".format(_figpath))
-        if save_pdf: plt.savefig(_figpath+".pdf")
-        plt.savefig(_figpath+".png", dpi=256)
-    if show_fig: plt.show()
-
-def plot_skymaps(do_run: bool, task: dict, struct: dict, P: dict, name="tophat_skymap"):
-
-    pba = run(
-        working_dir=os.getcwd() + f"/working_dirs/{name}/",
-        struct=struct, P=d2d(default=P, new=dict(
-            main=dict(theta_obs=np.pi/4.),
-            grb=dict(#method_ssc_fs='numeric',
+            main=dict(theta_obs=np.pi / 4.),
+            grb=dict(  #method_ssc_fs='numeric',
                 #use_ssa_fs='yes'
             ))),
         type="a", run=do_run
     )
 
     freq = pba.GRB.get_skymap_freqs()[0]
-    skymaps = [pba.GRB.get_skymap(time, freq=freq) for time in pba.GRB.get_skymap_times()]
+    skymaps = [pba.GRB.get_skymap(time, freq=freq) for time in pba.GRB.get_skymap_times()[3::][:-6]]
+    fig, ax = plt.subplots(subplot_kw={'projection': '3d'}, figsize=(5.2, 4),
+                           gridspec_kw=dict(top=1.2, bottom=-.2, left=-.2, right=1))  # figsize=(4.2,4)figsize=(5,4)
 
-    fig,ax = plt.subplots(ncols=1,nrows=1)
-
-
-    ax.plot([skymap.time/cgs.day for skymap in skymaps],[skymap.xc for skymap in skymaps],marker='.',ls='-')
-    # ax.plot([skymap.time/cgs.day for skymap in skymaps],[skymap.yc for skymap in skymaps],marker='.',ls='-')
-    ax.plot([skymap.time/cgs.day for skymap in skymaps],[skymap.x2-skymap.x1 for skymap in skymaps],marker='.',ls='-')
-    # ax.plot([skymap.time/cgs.day for skymap in skymaps],[skymap.y2-skymap.y1 for skymap in skymaps],marker='.',ls='none')
-    print(pba.GRB.get_skymap_times())
-
-    # ax.set_xscale('log')
-    # ax.set_yscale('log')
-    ax.minorticks_on()
-    ax.tick_params(axis='both', which='both', direction='in', labelsize=11)
-    ax.legend(fancybox=True, loc='upper right', columnspacing=0.8,
-              # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
-              shadow=False, ncol=4, fontsize=12, labelcolor='black',
-              framealpha=0.8, borderaxespad=0.)
-    ax.set_rasterized(True)
-    ax.set_ylabel(r"$x_c$", fontsize=12)
-    ax.set_xlabel(r"$t_{\rm obs}$ [s]", fontsize=12)
-    # ax.set_title(task["title"], fontsize=12)
-    # ax.set_xlim(*task['xlim'])
-    # plt.savefig(os.getcwd() + '/figs/' + task["figname"] + '.png', dpi=256)
-    # plt.savefig(os.getcwd() + '/figs/' + task["figname"] + '.pdf')
-    # if task["show"]: plt.show()
-    # if plot: plt.show()
-    # plt.close(fig)
-
+    plot_skymaps_3d(ax=ax, skymaps=skymaps)
     plt.show()
 
+    freq = pars["obs_freq"]
+    pars_a = copy.deepcopy(pars)
+    pars_a["mom0_frac_when_start_spread"] = 0.95
+    opts_a["do_skymap"] = "yes"
+    opts_a["fname_sky_map"] = f"skymap_a_for_3d_plot.h5"
+    pba_a = self.run_a(struct=struct, pars=pars_a, opts={}, opts_grb=opts_a)
+
+    skymaps = [pba_a.GRB.get_skymap(time, freq=freq) for time in pba_a.GRB.get_skymap_times()]
+    fig, ax = plt.subplots(subplot_kw={'projection': '3d'}, figsize=(5.2, 4),
+                           gridspec_kw=dict(top=1.2, bottom=-.2, left=-.2, right=1))  # figsize=(4.2,4)figsize=(5,4)
+
+    plot_skymaps_3d(ax=ax, skymaps=skymaps)
+
+    fig.suptitle(r"Gaussian jet with $\texttt{A}$ method", y=0.90, fontsize=16)
+    if not figpath is None:
+        _figpath = figpath + "_A"
+        print("Saving:\n {}".format(_figpath))
+        if save_pdf: plt.savefig(_figpath + ".pdf")
+        plt.savefig(_figpath + ".png", dpi=256)
+    if show_fig: plt.show()
+
+
+def plot_skymap(do_run: bool, process_skymaps: bool, task: dict, struct: dict, P: dict, name="tophat_skymap_hists"):
+    workingdir = f"/working_dirs/{name}/"
+    pba = run(
+        working_dir=os.getcwd() + workingdir,
+        struct=struct, P=d2d(default=P, new=dict(
+            main=dict(theta_obs=np.pi / 4.),
+            grb=dict(
+                #method_ssc_fs='numeric',
+                #use_ssa_fs='yes'
+                nsublayers=35
+            ))),
+        type='a', run=do_run, process_skymaps=process_skymaps
+    )
+    # freq = pba.GRB.get_skymap_freqs()[0]
+    # skymaps = [pba.GRB.get_skymap(time, freq=freq) for time in pba.GRB.get_skymap_times()]
+    config = {
+        "gridspec": {
+            "width_ratios": (4, 2), "height_ratios": (2, 4),
+            "left": 0.14, "right": 0.95, "bottom": 0.1, "top": 0.96, "wspace": 0.05, "hspace": 0.05
+        },
+        "figname": "out", "paperpath": os.getcwd()+'/', "figfpath": os.getcwd()+'/', "save_pdf": False, "save_figs": True,
+        "show_figs": True,
+        "grid": False,
+        "figsize": (4.8, 4.8),
+        "type":"hist",
+        "cm": {"color": 'yellow', "marker": "o"},
+        "ysize": {"capsize": 2, "color": "yellow", "lw": 0.5},
+        "xsize": {"capsize": 2, "color": "yellow", "lw": 0.5},
+        "pcolormesh": {"cmap": 'jet', "set_under": 'white', "set_over": None, "set_rasterized": True,
+                       "norm": ("log", "0.001max", "1max"), "facecolor": None, "alpha": 1.0, "isnan": np.nan},
+        "xlim": (-1., 1.0), "ylim": (-1.0, 1.0),
+        "title": {"title": "time_fluxratio"},  # "time_fluxratio"
+        "cbar_title": r'$I_{\nu}^{\rm w}/I_{\nu}^{\rm w/o}$',
+        "xlabel": "x [mas]", "ylabel": "z [mas]",
+        "histx_backgound_color": "white",
+        "histy_backgound_color": "white",
+        "plot_grids":True,
+        "histx_lim":(1e-4,1e-2),
+        "histy_lim":(1e-4,1e-2)
+    }
+    time= 500.*cgs.day
+    freq= 1.e9
+    PBA.skymap_plotting_tools.full_plot_skymap_with_hists(skymap=pba.GRB.get_skymap(time=time, freq=freq), conf=config)
+
+# ------------ RESOLUTION / METHODS ---------------
+def plot_skymaps_comparison_tophat(do_run: bool, process_skymaps: bool, task: dict, struct: dict, P: dict, name="tophat_skymap"):
+    fig, axes = plt.subplots(ncols=1, nrows=2, sharex='all', figsize=(5, 3), layout='constrained')
+
+
+    for (color, eats_type) in zip(['blue', 'green'], ["a", "pw"]):
+        # for (ls, (res_a, res_pw)) in zip(['-', '--'], [(9, 80), (19, 120)]):
+        for (ls, (res_a, res_pw)) in zip(['-', '--'], [(9, 80), (19, 120)]):
+            struct["n_layers_pw"] = res_pw
+            workingdir = f"/working_dirs/{name + '_' + eats_type + '_' + (str(res_a) if eats_type == 'a' else str(res_pw))}/"
+            pba = run(
+                working_dir=os.getcwd() + workingdir,
+                struct=struct, P=d2d(default=P, new=dict(
+                    main=dict(theta_obs=np.pi / 4.),
+                    grb=dict(
+                        #method_ssc_fs='numeric',
+                        #use_ssa_fs='yes'
+                        nsublayers=res_a
+                    ))),
+                type=eats_type, run=do_run, process_skymaps=process_skymaps
+            )
+            freq = pba.GRB.get_skymap_freqs()[0]
+            skymaps = [pba.GRB.get_skymap(time, freq=freq) for time in pba.GRB.get_skymap_times()]
+            axes[0].plot([skymap.time / cgs.day for skymap in skymaps], [skymap.xc for skymap in skymaps], color=color,
+                         marker='.', ls=ls)
+            # ax.plot([skymap.time/cgs.day for skymap in skymaps],[skymap.yc for skymap in skymaps],marker='.',ls='-')
+            axes[1].plot([skymap.time / cgs.day for skymap in skymaps],
+                         [abs(skymap.x2 - skymap.x1) for skymap in skymaps], color=color, marker='.', ls=ls)
+            # ax.plot([skymap.time/cgs.day for skymap in skymaps],[skymap.y2-skymap.y1 for skymap in skymaps],marker='.',ls='none')
+
+    _l1, = axes[0].plot([0, 0], [1, 1], color='blue', marker='.', ls='-')
+    _l2, = axes[0].plot([0, 0], [1, 1], color='green', marker='.', ls='-')
+    legend1 = axes[0].legend([_l1, _l2], ['A', "PW"],
+                             fancybox=False, loc='upper center', columnspacing=0.8,
+                             # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                             shadow=False, ncol=1, fontsize=12, labelcolor='black',
+                             framealpha=0.0, borderaxespad=0.)
+
+    _l1, = axes[0].plot([0, 0], [1, 1], color='gray', marker='.', ls='-')
+    _l2, = axes[0].plot([0, 0], [1, 1], color='gray', marker='.', ls='--')
+    # _l3, = axes[0].plot([0, 0], [1, 1], color='gray', marker='.', ls=':')
+    legend2 = axes[0].legend([_l1, _l2], ['SR', "HR"],
+                             fancybox=False, loc='upper left', columnspacing=0.8,
+                             # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                             shadow=False, ncol=1, fontsize=12, labelcolor='black',
+                             framealpha=0.0, borderaxespad=0.)
+
+    axes[0].add_artist(legend1)
+    # axes[0].add_artist(legend2)
+
+    for (i, ax) in enumerate(axes):
+        ax.set_xscale('log')
+        ax.grid(ls=':')
+        # ax.set_yscale('log')
+        ax.minorticks_on()
+        ax.tick_params(axis='both', which='both', direction='in', labelsize=11)
+        # ax.legend(fancybox=True, loc='upper right', columnspacing=0.8,
+        #           # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+        #           shadow=False, ncol=4, fontsize=12, labelcolor='black',
+        #           framealpha=0.8, borderaxespad=0.)
+        # ax.set_rasterized(True)
+    axes[0].set_ylabel(r"$x_c$ [mas]", fontsize=12)
+    axes[1].set_ylabel(r"$\Delta_x$ [mas]", fontsize=12)
+    axes[-1].set_xlabel(r"$t_{\rm obs}$ [day]", fontsize=12)
+    # axes[0].legend(fancybox=False, loc='upper right', columnspacing=0.8,
+    #                 # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+    #                 shadow=False, ncol=4, fontsize=12, labelcolor='black',
+    #                 framealpha=0.8, borderaxespad=0.)
+    # ax.set_title(task["title"], fontsize=12)
+    # ax.set_xlim(*task['xlim'])
+    axes[0].set_title("Top-hat jet",fontsize=14)
+    plt.savefig(os.getcwd() + '/figs/' + task["figname"] + '.png', dpi=256)
+    plt.savefig(os.getcwd() + '/figs/' + task["figname"] + '.pdf')
+    if task["show"]: plt.show()
+    if plot: plt.show()
+    plt.close(fig)
+def plot_skymaps_comparison_gaussian(do_run: bool, process_skymaps: bool, task: dict, struct: dict, P: dict, name="guass_skymap"):
+    fig, axes = plt.subplots(ncols=1, nrows=2, sharex='all', figsize=(5, 3), layout='constrained')
+
+    for (color, eats_type) in zip(['blue', 'green'], ["a", "pw"]):
+        for (ls, (res_a, res_pw)) in zip(['-', '--'], [(21, 80), (51, 160)]):
+            struct["n_layers_pw"] = res_pw
+            struct["n_layers_a"] = res_a
+            workingdir = f"/working_dirs/{name + '_' + eats_type + '_' + (str(res_a) if eats_type == 'a' else str(res_pw))}/"
+            pba = run(
+                working_dir=os.getcwd() + workingdir,
+                struct=struct, P=d2d(default=P, new=dict(
+                    main=dict(theta_obs=np.pi / 4.),
+                    grb=dict(
+                        #method_ssc_fs='numeric',
+                        #use_ssa_fs='yes'
+                        # nsublayers=res_a
+                    ))),
+                type=eats_type, run=do_run, process_skymaps=process_skymaps
+            )
+            freq = pba.GRB.get_skymap_freqs()[0]
+            skymaps = [pba.GRB.get_skymap(time, freq=freq) for time in pba.GRB.get_skymap_times()]
+            axes[0].plot([skymap.time / cgs.day for skymap in skymaps], [skymap.xc for skymap in skymaps], color=color,
+                         marker='.', ls=ls)
+            # ax.plot([skymap.time/cgs.day for skymap in skymaps],[skymap.yc for skymap in skymaps],marker='.',ls='-')
+            axes[1].plot([skymap.time / cgs.day for skymap in skymaps],
+                         [abs(skymap.x2 - skymap.x1) for skymap in skymaps], color=color, marker='.', ls=ls)
+            # ax.plot([skymap.time/cgs.day for skymap in skymaps],[skymap.y2-skymap.y1 for skymap in skymaps],marker='.',ls='none')
+
+    _l1, = axes[0].plot([0, 0], [1, 1], color='blue', marker='.', ls='-')
+    _l2, = axes[0].plot([0, 0], [1, 1], color='green', marker='.', ls='-')
+    legend1 = axes[0].legend([_l1, _l2], ['A', "PW"],
+                             fancybox=False, loc='upper center', columnspacing=0.8,
+                             # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                             shadow=False, ncol=1, fontsize=12, labelcolor='black',
+                             framealpha=0.0, borderaxespad=0.)
+
+    _l1, = axes[0].plot([0, 0], [1, 1], color='gray', marker='.', ls='-')
+    _l2, = axes[0].plot([0, 0], [1, 1], color='gray', marker='.', ls='--')
+    # _l3, = axes[0].plot([0, 0], [1, 1], color='gray', marker='.', ls=':')
+    legend2 = axes[0].legend([_l1, _l2], ['SR', "HR"],
+                             fancybox=False, loc='upper left', columnspacing=0.8,
+                             # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                             shadow=False, ncol=1, fontsize=12, labelcolor='black',
+                             framealpha=0.0, borderaxespad=0.)
+
+    axes[0].add_artist(legend1)
+    # axes[0].add_artist(legend2)
+
+    for (i, ax) in enumerate(axes):
+        ax.set_xscale('log')
+        ax.grid(ls=':')
+        # ax.set_yscale('log')
+        ax.minorticks_on()
+        ax.tick_params(axis='both', which='both', direction='in', labelsize=11)
+        # ax.legend(fancybox=True, loc='upper right', columnspacing=0.8,
+        #           # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+        #           shadow=False, ncol=4, fontsize=12, labelcolor='black',
+        #           framealpha=0.8, borderaxespad=0.)
+        # ax.set_rasterized(True)
+    axes[0].set_ylabel(r"$x_c$ [mas]", fontsize=12)
+    axes[1].set_ylabel(r"$\Delta_x$ [mas]", fontsize=12)
+    axes[-1].set_xlabel(r"$t_{\rm obs}$ [day]", fontsize=12)
+    axes[0].set_title("Gaussian jet",fontsize=14)
+
+    # axes[0].legend(fancybox=False, loc='upper right', columnspacing=0.8,
+        #                 # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+        #                 shadow=False, ncol=4, fontsize=12, labelcolor='black',
+        #                 framealpha=0.8, borderaxespad=0.)
+        # ax.set_title(task["title"], fontsize=12)
+        # ax.set_xlim(*task['xlim'])
+    plt.savefig(os.getcwd() + '/figs/' + task["figname"] + '.png', dpi=256)
+    plt.savefig(os.getcwd() + '/figs/' + task["figname"] + '.pdf')
+    if task["show"]: plt.show()
+    if plot: plt.show()
+    plt.close(fig)
 
 if __name__ == '__main__':
-    do_run = False
+    do_run = True
+    process_skymaps = True
     plot = True
     struct = dict(struct="tophat", Eiso_c=1.e53, Gamma0c=400., M0c=-1., theta_c=0.1, theta_w=0.1)
     # struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
@@ -331,8 +484,8 @@ if __name__ == '__main__':
                  # method_gamma_max_fs='useConst',method_gamma_max_rs='useConst',
                  # method_synchrotron_fs="Bessel",
                  # method_synchrotron_rs="Bessel",
-                 method_ele_fs='analytic',
-                 method_ele_rs="analytic",
+                 method_ele_fs='analytic', method_ne_fs="usenprime",
+                 method_ele_rs="analytic", method_ne_rs="usenprime",
                  # num_ele_use_adi_loss_fs='no',
                  # num_ele_use_adi_loss_rs='no',
                  gam1_fs=1., gam2_fs=1e8, ngam_fs=401,
@@ -340,11 +493,24 @@ if __name__ == '__main__':
                  freq1_fs=1e6, freq2_fs=1e32, nfreq_fs=401,
                  freq1_rs=1e6, freq2_rs=1e32, nfreq_rs=401,
                  # ebl_tbl_fpath="none"
-                 skymap_conf=dict(nx=64,ny=32,extend_grid=2,fwhm_fac=0.5,lat_dist_method="integ",
-                                  intp_filter=dict(type=None, sigma=2, mode='reflect'),  # "gaussian"
-                                  hist_filter=dict(type=None,sigma=2, mode='reflect'))
+                 skymap_conf=dict(nx=128, ny=64, extend_grid=2, fwhm_fac=0.5, lat_dist_method="integ",
+                                  intp_filter=dict(type='gaussian', size=2, sigma=1.5, mode='reflect'),  # "gaussian"
+                                  hist_filter=dict(type='gaussian', size=2, sigma=1.5, mode='reflect'))
                  )
     )
 
+    plot_skymap(do_run=do_run, process_skymaps=process_skymaps,
+                task=dict(figname="skymap_props_compare", show=True),
+                struct=struct, P=P)
+
+    # ------------------------------------------------------------------
+
     # plot_3d_skmap_stack(do_run=do_run, plot=plot, struct=struct, P=P)
-    plot_skymaps(do_run=do_run, task=dict(), struct=struct, P=P)
+    # plot_skymaps_comparison_tophat(do_run=do_run, process_skymaps=process_skymaps,
+    #              task=dict(figname="skymap_props_compare", show=True),
+    #              struct=struct, P=P)
+    #
+    # struct = dict(struct="gaussian", Eiso_c=1.e53, Gamma0c=400., M0c=-1., theta_c=0.1, theta_w=0.3)
+    # plot_skymaps_comparison_gaussian(do_run=do_run, process_skymaps=process_skymaps,
+    #                                task=dict(figname="gauss_skymap_props_compare", show=True),
+    #                                struct=struct, P=P)

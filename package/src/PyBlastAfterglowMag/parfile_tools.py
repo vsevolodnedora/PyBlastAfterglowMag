@@ -434,7 +434,7 @@ class Defaults:
             # --- Skymap adaptive calculation; resize untill 'min_sublayers' each of which has 'min_non_zero_cells'
             nsublayers = 10,        # [numeric] initial division of a theta-layer into sublayers (may give I=0 cells -> 'redo')
             frac_to_increase = 1.5, # [numeric] frac. to increase nsublayers id skymap is not resolved (see below)
-            max_restarts = 10,      # [numeric] max nmber of increasing 'nsublayers' to resolve the jet
+            max_restarts = 10,      # [numeric] max number of increasing 'nsublayers' to resolve the jet
             min_sublayers = 3,      # [numeric] criterion, min number sublayers each of which has 'min_non_zero_cells'
             min_non_zero_cells = 3, # [numeric] criterion, min number of phi-cells with intensity > 0 for jet to be resolved
             im_max_theta = 1.5708   # [numeric] max value in intensity calculations for skymap
@@ -506,6 +506,7 @@ class Defaults:
             method_synchrotron_fs = "CSYN",     # [numeric] method for the synchrotron radiation
             use_ssa_fs = "no",                  # [numeric] include SSA
             method_ssc_fs = "none",             # [numeric] method for SSC
+            method_pp_fs = "none",              # [numeric] method for pair-production
             method_tau_fs = "smooth",           # [numeric] method for optical depth calculation in shock
 
             # --- Reverse Shock ---
@@ -526,6 +527,7 @@ class Defaults:
             method_synchrotron_rs = "CSYN",     # [numeric] method for the synchrotron radiation
             use_ssa_rs = "no",                  # [numeric] include SSA
             method_ssc_rs = "none",             # [numeric] method for SSC
+            method_pp_rs = "none",              # [numeric] method for pair-production
             method_tau_rs = "smooth",           # [numeric] method for optical depth calculation in shock
         )
     )
