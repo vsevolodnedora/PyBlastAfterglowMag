@@ -448,7 +448,9 @@ class ProcessRawSkymap():
 
         return (xx_grid, yy_grid, zz_intp, zz_hist)
 
-    def _process_file(self, in_f : h5py.File, group : h5py.Group,  edges_x=None, edges_y=None):
+
+    def _process_file(self, in_f : h5py.File, group : h5py.Group,
+                      edges_x:np.ndarray or None=None, edges_y:np.ndarray or None=None):
         # collate data from all shells from a given file
         xs, ys, datas = self._get_skymap(in_f)
         assert len(xs) == len(ys), f"shells must have the same xs{len(xs)} ys={len(ys)}"
@@ -457,19 +459,17 @@ class ProcessRawSkymap():
         # compute sky map central mass using weighted average
         xc, yc = self._compute_position_of_the_flux_centroid(xs, ys, datas)
 
-        # get the data extend
-        xmin, xmax, ymin, ymax, i_shells, ncells = ( self._get_data_extend( xs, ys, datas ) )
-
         # prepare grid from the histogram (create new grid if needed)
-        extend_grid = self.conf["extend_grid"]
-        if edges_x is None:
+        if (edges_x is None and edges_y is None):
+            # get the data extend
+            (xmin, xmax, ymin, ymax, _, _) = self._get_data_extend( xs, ys, datas )
+            extend_grid = self.conf["extend_grid"]
             edges_x = np.linspace(xmin.min()*extend_grid, xmax.max()*extend_grid, num=self.conf["nx"])
-        if edges_y is None:
             edges_y = np.linspace(ymin.min()*extend_grid, ymax.max()*extend_grid, num=self.conf["ny"])
 
         # combine images 1) after interpolation 2) after histogram binning
-        grid_x, grid_y, image_intp, image_hist = \
-            (self._combine_images_from_shells(xs, ys, datas, edges_x, edges_y))
+        (grid_x, grid_y, image_intp, image_hist)= \
+            self._combine_images_from_shells(xs, ys, datas, edges_x, edges_y)
 
         # apply smoothing kernal to the images
         image_intp = self._apply_filter(image_intp, self.conf_intp_filter)
@@ -507,18 +507,49 @@ class ProcessRawSkymap():
         # in case there was a removal of a shell (empty)
         group.attrs["nshells"] = len(datas) / 2
 
-    def process_singles(self, infpaths="raw_skymap_*.h5", outfpath="skymap.h5",remove_input=False,
-                        edges_x = None, edges_y = None):
-        """
-        # Kursbuch auf Seite 92 und 93
-            # for each row file (for each time and frequency) 390 ubung 4 Ein frage, Was meininen Sie? In ihrem ort wolk haben?
-            # Mit welhes afolk haben? Were Hatter Wurde benutzen?
-            # Text for ubung 4
-            # Halb zeite
-            # Kursbuch auf Seite 92 und 93
-            # Mit welcher Geschäftsidee könnte man als Existenzgründer in Potsdam oder Berlin Erfolg haben?
-            # Erörtere die Chancen und Risiken!
+    def _process_files(self,
+                       in_files:list[str], outfpath="skymap.h5",
+                       edges_x : list[np.ndarray] or None = None,
+                       edges_y : list[np.ndarray] or None = None):
 
+        if (not edges_x is None) and (not edges_y is None):
+            if (len(edges_x) == 0):
+                raise ValueError(f"len(edges_x)={len(edges_x)}")
+            if (len(edges_y) == 0):
+                raise ValueError(f"len(edges_y)={len(edges_y)}")
+            if len(edges_x) != len(edges_y):
+                raise ValueError(f"len(edges_x)={len(edges_x)} != len(edges_y)={len(edges_y)}")
+            if len(edges_x)!=len(in_files):
+                raise ValueError(f"len(edges_x)={len(edges_x)} != len(in_files)={len(in_files)}")
+
+        out_f = h5py.File(outfpath,"w")
+        times = []
+        freqs = []
+        for i, fl in enumerate(in_files):
+            if self.verb: print(f"Processing {fl}")
+            in_f = h5py.File(fl, "r")
+
+            time = float(in_f.attrs["time"])
+            freq = float(in_f.attrs["freq"])
+            key = "time={:.4e} freq={:.4e}".format(time, freq)
+            group = out_f.create_group(key)
+            self._process_file(in_f=in_f, group=group,
+                               edges_x=(None if edges_x is None else edges_x[i]),
+                               edges_y=(None if edges_y is None else edges_y[i]))
+            times.append(time)
+            freqs.append(freq)
+
+            in_f.close()
+        out_f.create_dataset("times", data=np.array(times))
+        out_f.create_dataset("freqs", data=np.array(freqs))
+        out_f.close()
+
+
+    def process_singles(self, infpaths="raw_skymap_*.h5",
+                        outfpath="skymap.h5", remove_input=False,
+                        edges_x : list[np.ndarray] or None = None,
+                        edges_y : list[np.ndarray] or None = None):
+        """
         :param infpaths:
         :param outfpath:
         :param remove_input:
@@ -535,25 +566,8 @@ class ProcessRawSkymap():
         if (os.path.isfile(outfpath)):
             if self.verb: print(f"File already exists {outfpath}")
 
-        out_f = h5py.File(outfpath,"w")
-        times = []
-        freqs = []
-        for fl in files:
-            if self.verb: print(f"Processing {fl}")
-            in_f = h5py.File(fl, "r")
-
-            time = float(in_f.attrs["time"])
-            freq = float(in_f.attrs["freq"])
-            key = "time={:.4e} freq={:.4e}".format(time, freq)
-            group = out_f.create_group(key)
-            self._process_file(in_f=in_f, group=group, edges_x=edges_x, edges_y=edges_y)
-            times.append(time)
-            freqs.append(freq)
-
-            in_f.close()
-        out_f.create_dataset("times", data=np.array(times))
-        out_f.create_dataset("freqs", data=np.array(freqs))
-        out_f.close()
+        # process all found files one by one and save the result into a single flile
+        self._process_files(in_files=files,outfpath=outfpath, edges_x=edges_x,edges_y=edges_y)
 
         # remove input files (save space)
         if remove_input:
@@ -561,3 +575,86 @@ class ProcessRawSkymap():
                 if self.verb:
                     print(f"Deleting file... {fl}")
                 os.remove(fl)
+
+
+    def _get_combined_data_edges(self, all_files:list[list[str]])->tuple[list[np.ndarray],list[np.ndarray]]:
+        n_sims = len(all_files)
+        n_maps = len(all_files[0])
+        edges_x = []
+        edges_y = []
+        for i_map in range(n_maps):
+            # get common grid for this skymap across files
+            files_for_skymaps_to_be_combined = [all_files[i_sim][i_map] for i_sim in range(n_sims)]
+            if len(files_for_skymaps_to_be_combined) <= 1:
+                raise ValueError("expected that there are more than 1 simulations for a givem skymap")
+
+            # check if time and freqiency are the same for all skymaps
+            fl0 = files_for_skymaps_to_be_combined[0]
+            in_f0 = h5py.File(fl0, "r")
+            time = float(in_f0.attrs["time"])
+            freq = float(in_f0.attrs["freq"])
+            in_f0.close()
+            for file_ in files_for_skymaps_to_be_combined[1:]:
+                fl0 = file_
+                in_f0 = h5py.File(fl0, "r")
+                time_ = float(in_f0.attrs["time"])
+                freq_ = float(in_f0.attrs["freq"])
+                in_f0.close()
+                if (time != time_):
+                    raise ValueError(f"Expected the same time for file={file_} and file0={fl0} Got: {time} and {time_}")
+                if (freq != freq_):
+                    raise ValueError(f"Expected the same freq for file={file_} and file0={fl0} Got: {freq} and {freq_}")
+
+            # get common grid for this set of files
+            xmin,xmax,ymin,ymax=[],[],[],[]
+            for file_ in files_for_skymaps_to_be_combined:
+                in_f = h5py.File(file_, "r")
+                # collate data from all shells from a given file
+                xs, ys, datas = self._get_skymap(in_f)
+                (xmin_, xmax_, ymin_, ymax_, _, _) = self._get_data_extend( xs, ys, datas )
+                xmin.append(np.min(xmin_))
+                xmax.append(np.max(xmax_))
+                ymin.append(np.min(ymin_))
+                ymax.append(np.max(ymax_))
+
+            # compute edges for skymaps for a given simulation
+            extend_grid = self.conf["extend_grid"]
+            edges_x_ = np.linspace(np.min(xmin)*extend_grid, np.max(xmax)*extend_grid, num=self.conf["nx"])
+            edges_y_ = np.linspace(np.min(ymin)*extend_grid, np.max(ymax)*extend_grid, num=self.conf["ny"])
+            edges_x.append(edges_x_)
+            edges_y.append(edges_y_)
+        return (edges_x, edges_y)
+
+    def process_multiples(self,
+                          infpaths:tuple[str]=("raw_skymap_*.h5",),
+                          outfpaths:tuple[str]=("skymap.h5",)):
+        """
+            process skymaps from different simulations that need to have the same spatial grid
+            NOTE: len(infpaths) = len(outfpaths) = number of simulations to be analyzed
+        """
+        if (len(infpaths)!=len(outfpaths)):
+            raise IndexError(f"N(infpaths) must be equal to N(outfpaths). "
+                             f"Given N(infpaths) ={len(infpaths)}  N(outfpaths)={len(outfpaths)}")
+
+
+        all_files = [ [] for i in range(len(infpaths)) ] # [i_simulation][j_skymap]
+
+        # get file lists
+        for i, infpath in enumerate(infpaths):
+            files = glob(infpath)
+            if (len(files)==0):
+                raise FileNotFoundError(f" Not raw skympas found. Searching: {infpath}")
+            files = sorted(files, key=lambda key : int(re.findall(r'\d+', key)[-2]))
+            all_files[i] = files
+            if (i>0 and len(all_files[i-1])!=len(files)):
+                raise ValueError(f"Expected {len(all_files[i-1])} files, while got {len(files)} for {infpath}")
+
+        # get common edges (grid extends) for skymaps that are to be combined
+        edges_x, edges_y = self._get_combined_data_edges(all_files=all_files)
+
+        # process each of the simulations separately using the pre-defined grid
+        for i_sim in range(len(all_files)):
+            self._process_files(in_files=all_files[i_sim],outfpath=outfpaths[i_sim], edges_x=edges_x,edges_y=edges_y)
+
+        if self.verb:
+            print(f"Postprocesing complete Simulations: {len(all_files)} Skymaps in each: {len(all_files[0])}")
