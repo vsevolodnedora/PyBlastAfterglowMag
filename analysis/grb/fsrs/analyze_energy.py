@@ -415,8 +415,8 @@ def plot_fs_energy2(struct:dict,pp:dict,plot:dict):
         print(pba.GRB.get_dyn_obj()[f"shell={0} layer={ilayer}"].attrs.keys())
         theta_c_l = float(pba.GRB.get_dyn_obj()[f"shell={0} layer={ilayer}"].attrs["theta_c_l"])
         ax.plot(R,theta_c_l+pba.GRB.get_dyn_arr(v_n="theta",ishell=0,ilayer=ilayer),
-                color=plot["colors"][i],ls='-',label=f"il={ilayer}")
-    ax.set_ylabel(r"$\omega_{0}$ [rad]", fontsize=12)
+                color=plot["colors"][i],ls='-',label=f"layer {ilayer}")
+    ax.set_ylabel(r"$\omega$ [rad]", fontsize=12)
     ax.legend(fancybox=True, loc='upper left', columnspacing=1.2,
               # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
               shadow=False, ncol= 3,
@@ -866,29 +866,29 @@ if __name__ == '__main__':
     #               theta_spread_0=True, theta_spread_1=True)
     # )
     ''' ---------- RAD.LOSSES -------- '''
-    plot_fs_energy_rad(
-        struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
-        pp = dict(main=dict(n_ism = 1., tb0=3e3, ntb=3000,rtol=1e-7,
-                            lc_freqs = "array 1e9 1e18"),
-                  grb=dict(save_dynamics='yes',#do_rs='yes',bw_type='fsrs',
-                           do_mphys_in_situ="yes",do_lc = "no",do_rs_radiation="no",
-                           method_gamma_min_fs='useU_e',
-                           method_gamma_min_rs='useU_e',
-                           method_ele_fs='analytic',method_synchrotron_fs='Joh06',
-                           method_ele_rs='analytic',method_synchrotron_rs='Joh06',
-                           eps_e_fs=0.1, eps_b_fs=0.001, p_fs=2.2,
-                           eps_e_rs=0.1, eps_b_rs=0.001, p_rs=2.2,
-                           gamma_max_fs=4e7, method_gamma_max_fs="useConst",
-                           gamma_max_rs=4e7, method_gamma_max_rs="useConst",
-                           ebl_tbl_fpath="none",method_spread='None'
-                           )),
-        plot=dict(figname = "tophat_fs_rad_momentum_ratio", text="FS \& RS",
-                  xlim=(1e14,1e19),
-                  # ylim1=(1e-3,2), ylim2=(1e-1,1e9),
-                  ylim1=(0.9,2),
-                  rdec=False, bm=True,method_ele_fs='mix',
-                  theta_spread_0=True, theta_spread_1=True)
-    )
+    # plot_fs_energy_rad(
+    #     struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
+    #     pp = dict(main=dict(n_ism = 1., tb0=3e3, ntb=3000,rtol=1e-7,
+    #                         lc_freqs = "array 1e9 1e18"),
+    #               grb=dict(save_dynamics='yes',#do_rs='yes',bw_type='fsrs',
+    #                        do_mphys_in_situ="yes",do_lc = "no",do_rs_radiation="no",
+    #                        method_gamma_min_fs='useU_e',
+    #                        method_gamma_min_rs='useU_e',
+    #                        method_ele_fs='analytic',method_synchrotron_fs='Joh06',
+    #                        method_ele_rs='analytic',method_synchrotron_rs='Joh06',
+    #                        eps_e_fs=0.1, eps_b_fs=0.001, p_fs=2.2,
+    #                        eps_e_rs=0.1, eps_b_rs=0.001, p_rs=2.2,
+    #                        gamma_max_fs=4e7, method_gamma_max_fs="useConst",
+    #                        gamma_max_rs=4e7, method_gamma_max_rs="useConst",
+    #                        ebl_tbl_fpath="none",method_spread='None'
+    #                        )),
+    #     plot=dict(figname = "tophat_fs_rad_momentum_ratio", text="FS \& RS",
+    #               xlim=(1e14,1e19),
+    #               # ylim1=(1e-3,2), ylim2=(1e-1,1e9),
+    #               ylim1=(0.9,2),
+    #               rdec=False, bm=True,method_ele_fs='mix',
+    #               theta_spread_0=True, theta_spread_1=True)
+    # )
 
     ''' ---------- GAUSSIAN --------- '''
     plot_id(

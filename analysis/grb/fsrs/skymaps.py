@@ -307,10 +307,246 @@ def plot_skymap(do_run: bool, process_skymaps: bool, task: dict, struct: dict, P
 def plot_skymap_properties(do_run: bool, process_skymaps: bool, task: dict, struct: dict, P: dict, name="tophat_skymap_hists"):
     fig, axes = plt.subplots(ncols=1, nrows=2, sharex='all', figsize=(5, 3), layout='constrained')
 
+
+def plot_skymaps_two_rows_with_hist(skymaps:type[list[PBA.Skymap],list[PBA.Skymap]], plot:dict):
+
+    fig, axes = plt.subplots(ncols=len(skymaps[0]), nrows=3, sharex='col', sharey='row', figsize=plot['figsize'], layout='constrained')
+    # norm = SymLogNorm(linthresh=task.get("vmin", 1e-6),
+    #                   vmin=task.get("vmin", 1e-6),
+    #                   vmax=task.get("vmax", 1e6), base=10)
+    # norm = LogNorm(vmin=task.get("vmin", skymap2.im_hist[skymap2.im_hist>0].max()),
+    #                vmax=task.get("vmax", skymap2.im_hist[skymap2.im_hist>0].max()*1e-6))
+    # norm = LogNorm(vmin=task.get("vmin", 0.5),
+    #                vmax=task.get("vmax", 1.5))
+    # cmap = plt.get_cmap(task.get("cmap", 'jet'))
+    # cmap.set_under(task.get("set_under", 'white'), alpha=0.2)
+    # cmap.set_over(task.get("set_over", 'white'), alpha=0.2)
+
+
+
+    for i, (ax_hist, ax_main1, ax_main2) in enumerate(axes.T):
+
+        skymap1 = skymaps[0][i]
+        skymap2 = skymaps[1][i]
+
+        do_xc1 = len(plot["xc"][0].keys())>0
+        do_xc2 = len(plot["xc"][1].keys())>0
+        xc1 = plot["xc"][0]
+        xc2 = plot["xc"][1]
+        if do_xc1:
+            ax_hist.axvline(x=skymap1.xc,color=xc1['color'],linewidth=xc1['linewidth'],linestyle=xc1['linestyle'],label=xc1['label'])
+        if do_xc2:
+            ax_hist.axvline(x=skymap2.xc,color=xc2['color'],linewidth=xc2['linewidth'],linestyle=xc2['linestyle'],label=xc2['label'])
+
+
+        ax_hist.plot(skymap1.grid_x, skymap1.dist_x * 1e3,
+                     color=plot["colors"][0], lw=1., ls=plot["lss"][0], drawstyle='steps', label=plot["labels"][0])
+        ax_hist.plot(skymap2.grid_x, skymap2.dist_x * 1e3,
+                     color=plot["colors"][1], lw=1., ls=plot["lss"][1], drawstyle='steps', label=plot["labels"][1])
+
+
+        ax_hist.set_yscale('log')
+
+        cmap = plt.get_cmap(plot['cmap'])
+
+        # ax_hist.set_ylabel(r"$I_{\nu;\rm m}(x)$", fontsize=12)
+
+        # im = im[~np.isfinite(im)] = np.nan
+        # norm = LogNorm(vmin=task.get("vmin", 1e-4),  vmax=task.get("vmax", 1e2))
+        if plot["norm"] == "log":
+            if plot["vmin"] is None: vmin = skymap1.im_hist[skymap1.im_hist>0].max()*1e-4
+            else: vmin = plot["vmin"]
+            if plot["vmax"] is None: vmax = skymap1.im_hist[skymap1.im_hist>0].max()
+            else: vmax = plot["vmax"]
+            norm1 = LogNorm(vmin=vmin, vmax=vmax)
+        else:
+            raise KeyError("not recognized")
+
+        _c1 = ax_main1.pcolormesh(skymap1.grid_x, skymap1.grid_y, skymap1.im_hist.T, cmap=cmap, norm=norm1)
+        _c1.set_rasterized(True)
+        if do_xc1:
+            ax_main1.plot([skymap1.xc,],[skymap1.yc,],marker=xc1['marker'],color=xc1['color'],fillstyle='none',label=xc1['label'],linestyle='none')
+
+
+        if plot["norm"] == "log":
+            if plot["vmin"] is None: vmin = skymap2.im_hist[skymap2.im_hist>0].max()*1e-4
+            else: vmin = plot["vmin"]
+            if plot["vmax"] is None: vmax = skymap2.im_hist[skymap2.im_hist>0].max()
+            else: vmax = plot["vmax"]
+            norm2 = LogNorm(vmin=vmin, vmax=vmax)
+        else:
+            raise KeyError("not recognized")
+
+        _c2 = ax_main2.pcolormesh(skymap2.grid_x, skymap2.grid_y, skymap2.im_hist.T, cmap=cmap, norm=norm2)
+        _c2.set_rasterized(True)
+        if do_xc2:
+            ax_main2.plot([skymap2.xc,],[skymap2.yc,],marker=xc2['marker'],color=xc2['color'],fillstyle='none',label=xc2['label'],linestyle='none')
+
+
+        # ax_main.errorbar([skymap2.x1, skymap2.x2],
+        #                  [skymap2.yc, skymap2.yc],
+        #                  yerr=[skymap2.grid_y.max() / 10, skymap2.grid_y.max() / 10], **dict(capsize=2, color="white",lw=0.5))
+        # ax_main.errorbar([skymap2.xc, skymap2.xc],
+        #                  [skymap2.y1, skymap2.y2],
+        #                  xerr=[skymap2.grid_x.max() / 30, skymap2.grid_x.max() / 30], **dict(capsize=2, color="white",lw=0.5))
+        # val1 = np.array(((skymap2.im_hist-skymap1.im_hist) > skymap1.im_hist), dtype=np.float64)
+        # val1[val1 == 0] = np.nan
+        # # val1[val1 == 1] = np.nan
+        # cs = ax_main.contourf(skymap1.grid_x, skymap2.grid_y, val1.T, hatches=['..'], alpha=0.0, edgecolor="r", facecolor="blue",
+        #                  color="green")  #,zorder=0
+
+        # ax_main.set_xlabel("$X$ [mas]", fontsize=12)
+        # ax_main.set_ylabel("$Z$ [mas]", fontsize=12)
+        ax_hist.grid(ls=':')
+        ax_hist.minorticks_on()
+        ax_hist.tick_params(axis='both', which='both', direction='in', labelsize=11,tick1On=True, tick2On=True,)
+        for j, ax_main in enumerate([ax_main1,ax_main2]):
+            ax_main.axvline(x=0,color='black',linestyle='dotted',linewidth=0.5)
+            ax_main.axhline(y=0,color='black',linestyle='dotted',linewidth=0.5)
+
+            ax_main.minorticks_on()
+
+            ax_main.tick_params(axis='both', which='both', direction='in', labelsize=11,tick1On=True, tick2On=True,)
+
+            ax_main.set_xlim(skymap1.grid_x.min()*1.4,  skymap1.grid_x.max()*.66)
+            ax_main.set_ylim(skymap1.grid_y.min()*.75,  skymap1.grid_y.max()*.75)
+
+            if i == 0:
+                bbox = dict(boxstyle='round', fc='blanchedalmond', ec='blue', alpha=1.)
+                ax_main.text(0.3, 0.85, plot["labels"][j], fontsize=12, bbox=bbox,
+                         transform=ax_main.transAxes, horizontalalignment='right')
+
+
+        bbox = dict(boxstyle='round', fc='blanchedalmond', ec='orange', alpha=1.)
+        ax_main2.text(0.4, 0.1, "{:.0f} days".format(round(skymap1.time/cgs.day,0)), fontsize=12, bbox=bbox,
+                     transform=ax_main2.transAxes, horizontalalignment='right')
+
+    cbar = fig.colorbar(_c1, ax=ax_main1, shrink=0.95, pad=0.01, extend='both')  # orientation = 'horizontal')
+    cbar.ax.tick_params(labelsize=11)
+    cbar.ax.set_title(r"$I/I_{\rm max}$", size=12, pad=12)
+
+    cbar = fig.colorbar(_c2, ax=ax_main2, shrink=0.95, pad=0.01, extend='both')  # orientation = 'horizontal')
+    cbar.ax.tick_params(labelsize=11)
+    # cbar.ax.set_title(r"$I/I_{\rm max}$", size=12, pad=12)
+
+    axes[0][0].set_ylabel(r"$I_{\nu;\rm m}(x)$", fontsize=12)
+    axes[1][0].set_ylabel("$Z$ [mas]", fontsize=12)
+    axes[2][0].set_ylabel("$Z$ [mas]", fontsize=12)
+    for ax_main in axes[-1][:]:
+        ax_main.set_xlabel("$X$ [mas]", fontsize=12)
+    axes[0][0].legend(fancybox=False, loc='upper left', columnspacing=0.8,
+                      # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                      shadow=False, ncol=1, fontsize=12, labelcolor='black',
+                      framealpha=0.0, borderaxespad=0.)
+    axes[1][0].legend(fancybox=False, loc='upper right', columnspacing=0.8,
+                      # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                      shadow=False, ncol=1, fontsize=12, labelcolor='black',
+                      framealpha=0.0, borderaxespad=0.)
+    axes[2][0].legend(fancybox=False, loc='upper right', columnspacing=0.8,
+                      # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                      shadow=False, ncol=1, fontsize=12, labelcolor='black',
+                      framealpha=0.0, borderaxespad=0.)
+
+    # Create the new axis for marginal X and Y labels
+    # ax = fig.add_subplot(111, frameon=False)
+
+    # Disable ticks. using ax.tick_params() works as well
+    # ax.set_xticks([])
+    # ax.set_yticks([])
+
+    # Set X and Y label. Add labelpad so that the text does not overlap the ticks
+    # ax.set_xlabel("The X label", labelpad=40, fontsize=12)
+    # ax.set_ylabel("The Y label", labelpad=40, fontsize=12)
+
+
+    plt.savefig(os.getcwd() + '/figs/' + plot['name'] + '.png', dpi=256)
+    plt.savefig(os.getcwd() + '/figs/' + plot['name'] + '.pdf')
+    if plot: plt.show()
+    plt.close(fig)
+
+def task_skymaps_tophat(do_run: bool, process_skymaps: bool, struct: dict, P: dict, name='tophat_skymap_props_fsrs'):
+
+    pba1 = run(
+        working_dir=os.getcwd()+f"/working_dirs/{name}"+"_num_ssa_ssc_fsrs/",
+        struct=struct, P=d2d(default=P, new=dict(
+            main=dict(),
+            grb=dict(method_ssc_fs='numeric', use_ssa_fs='yes',do_rs='yes',bw_type='fsrs',do_rs_radiation='no'))),
+        type='a', run=do_run, process_skymaps=False
+    )
+    pba2 = run(
+        working_dir=os.getcwd()+f"/working_dirs/{name}"+"_mix_ssa_ssc_fsrs/",
+        struct=struct, P=d2d(default=P, new=dict(
+            main=dict(),
+            grb=dict(method_ssc_fs='numeric', use_ssa_fs='yes',do_rs='yes',bw_type='fsrs',do_rs_radiation='yes'))),
+        type='a', run=do_run, process_skymaps=False
+    )
+    plot=dict(colors=("blue","green"),lss=("-","-"),labels=("FS","RS"),
+              xc=(dict(color='blue',linewidth=1.0,linestyle='--',label=r'$x_{c\;\,\rm FS}$',marker='o'),
+                  dict(color='green',linewidth=1.0,linestyle=':',label=r'$x_{c;\,\rm RS}$',marker='o')),
+              norm="log",vmin=None,vmax=None,cmap='jet',name=name,figsize=(5, 6)) # 9,6
+
+    # name='tophat_skymap_props_ssa_fsrs'
+    # pba1 = run(
+    #     working_dir=os.getcwd()+f"/working_dirs/{name}"+"_num_ssa_ssc_fsrs/",
+    #     struct=struct, P=d2d(default=P, new=dict(
+    #         main=dict(),
+    #         grb=dict(use_ssa_fs='yes',use_ssa_rs='yes',do_rs='yes',bw_type='fsrs',do_rs_radiation='yes'))),
+    #     type='a', run=do_run, process_skymaps=False
+    # )
+    # pba2 = run(
+    #     working_dir=os.getcwd()+f"/working_dirs/{name}"+"_mix_ssc_fsrs/",
+    #     struct=struct, P=d2d(default=P, new=dict(
+    #         main=dict(),
+    #         grb=dict(use_ssa_fs='no',use_ssa_rs='no',do_rs='yes',bw_type='fsrs',do_rs_radiation='yes'))),
+    #     type='a', run=do_run, process_skymaps=False
+    # )
+    # plot=dict(colors=("blue","green"),lss=("-","-"),labels=("SSA","no SSA"),
+    #           xc=(dict(color='black',linewidth=0.7,linestyle='--',label='$x_c$',marker='o'),
+    #               dict(color='black',linewidth=0.7,linestyle='--',label='$x_c$',marker='o')),
+    #           norm="log",vmin=None,vmax=None,cmap='jet',name=name)
+
+    # name='tophat_skymap_props'
+    # pba1 = run(
+    #     working_dir=os.getcwd()+f"/working_dirs/{name}"+"_num_ssa_ssc_fs/",
+    #     struct=struct, P=d2d(default=P, new=dict(
+    #         main=dict(),
+    #         grb=dict(method_ssc_fs='numeric', use_ssa_fs='yes',method_ele_fs='mix'))),
+    #     type='a', run=do_run, process_skymaps=False
+    # )
+    # pba2 = run(
+    #     working_dir=os.getcwd()+f"/working_dirs/{name}"+"_mix_ssa_ssc_fs/",
+    #     struct=struct, P=d2d(default=P, new=dict(
+    #         main=dict(),
+    #         grb=dict(method_ssc_fs='numeric', use_ssa_fs='yes'))),
+    #     type='a', run=do_run, process_skymaps=False
+    # )
+    # plot=dict(colors=("blue","green"),lss=("-","-"),labels=("Mix","Num"),
+    #           xc=(dict(color='black',linewidth=0.7,linestyle='--',label='$x_c$',marker='o'),
+    #               dict(color='black',linewidth=0.7,linestyle='--',label='$x_c$',marker='o')),
+    #           norm="log",vmin=None,vmax=None,cmap='jet',name=name)
+
+    if (process_skymaps):
+        prep = PBA.skymap_process.ProcessRawSkymap(conf=copy.deepcopy(P["grb"]["skymap_conf"]), verbose=False)
+        prep.process_multiples(infpaths=(pba1.workingdir+"raw_skymap_*.h5",
+                                         pba2.workingdir+"raw_skymap_*.h5"),
+                               outfpaths =(pba1.GRB.fpath_sky_map,
+                                           pba2.GRB.fpath_sky_map))
+    times = [10,50] ; freq= 1.e9
+    # times = [300,400,500,600] ; freq= 1.e9
+    skymaps1 = [pba1.GRB.get_skymap(time=time * cgs.day, freq=freq) for time in times] # mix
+    skymaps2 = [pba2.GRB.get_skymap(time=time * cgs.day, freq=freq) for time in times] # num
+    for skymap1,skymap2 in zip(skymaps1,skymaps2):
+        skymap2.im_hist -= skymap1.im_hist
+        skymap2.dist_x -= skymap1.dist_x
+        skymap2.dist_y -= skymap1.dist_y
+
+    plot_skymaps_two_rows_with_hist(skymaps=(skymaps1,skymaps2),plot=plot)
+
+
 # ------------ RESOLUTION / METHODS ---------------
-def plot_skymaps_comparison_tophat(do_run: bool, process_skymaps: bool, struct: dict, P: dict):
+def plot_skymaps_comparison_tophat(do_run: bool, process_skymaps: bool, struct: dict, P: dict, name="tophat_skymap_props"):
     freq= 1.e9
-    name="tophat_skymap_props"
+
     # task1 = dict(plot=dict(ls='-',color='black',marker='.',label='Default'),
     #              workingdir=os.getcwd()+f"/working_dirs/{name}"+"_num_ssa_ssc/",
     #              pars=dict(main=dict(theta_obs=np.pi / 4.),
@@ -322,7 +558,7 @@ def plot_skymaps_comparison_tophat(do_run: bool, process_skymaps: bool, struct: 
     task1 = dict(plot=dict(ls='-',color='black',marker='.',label='Default'),
                  workingdir=os.getcwd()+f"/working_dirs/{name}"+"_num_ssa_ssc_fs/",
                  pars=dict(main=dict(),
-                           grb=dict(method_ssc_fs='numeric', use_ssa_fs='yes',method_ele_fs='mix')))
+                           grb=dict(method_ssc_fs='numeric', use_ssa_fs='yes', method_ele_fs='mix')))
     task2 = dict(plot=dict(ls='-',color='blue',marker='.',label=r'FS \& RS'),
                  workingdir=os.getcwd()+f"/working_dirs/{name}"+"_mix_ssa_ssc_fs/",
                  pars=dict(main=dict(),
@@ -344,7 +580,6 @@ def plot_skymaps_comparison_tophat(do_run: bool, process_skymaps: bool, struct: 
                                          pba2.workingdir+"raw_skymap_*.h5"),
                              outfpaths =(pba1.GRB.fpath_sky_map,
                                          pba2.GRB.fpath_sky_map))
-
 
 
 
@@ -678,6 +913,8 @@ def plot_skymaps_comparison_tophat(do_run: bool, process_skymaps: bool, struct: 
     # if plot: plt.show()
     # plt.close(fig)
 
+
+
 def plot_skymaps_comparison_tophat_evol(do_run: bool, process_skymaps: bool, task: dict, struct: dict, P: dict):
 
     name="tophat_skymap_props"
@@ -866,6 +1103,8 @@ def plot_skymaps_comparison_gaussian(do_run: bool, process_skymaps: bool, task: 
     if plot: plt.show()
     plt.close(fig)
 
+
+
 if __name__ == '__main__':
     do_run = False
     process_skymaps = False
@@ -911,16 +1150,24 @@ if __name__ == '__main__':
                  )
     )
 
+    # task_skymaps_tophat(do_run=do_run, process_skymaps=process_skymaps, struct=struct, P=P,
+    #                     name='tophat_skymap_props_fsrs')
+
     # plot_skymap(do_run=do_run, process_skymaps=process_skymaps,
     #             task=dict(figname="skymap_props_compare", show=True),
     #             struct=struct, P=P)
-    plot_skymaps_comparison_tophat(do_run=do_run, process_skymaps=process_skymaps,
-                                   struct=struct, P=P)
+    # plot_skymaps_comparison_tophat(do_run=do_run, process_skymaps=process_skymaps,
+    #                                struct=struct, P=P)
     # plot_skymaps_comparison_tophat_evol(do_run=do_run, process_skymaps=process_skymaps,
     #                                     task=dict(show=True),
     #                                     struct=struct, P=P)
 
     # ------------------------------------------------------------------
+
+    struct = dict(struct="gaussian", Eiso_c=1.e53, Gamma0c=400., M0c=-1., theta_c=0.1, theta_w=0.3)
+    task_skymaps_tophat(do_run=do_run, process_skymaps=process_skymaps, struct=struct, P=P,
+                        name='gaussian_skymap_props_fsrs')
+
 
     P["grb"]["method_synchrotron_fs"] = "Joh06"
     P["grb"]["method_synchrotron_rs"] = "Joh06"
@@ -929,12 +1176,12 @@ if __name__ == '__main__':
     P["grb"]["method_ne_fs"] = "usenprime"
     P["grb"]["method_ne_rs"] = "usenprime"
 
-# plot_3d_skmap_stack(do_run=do_run, plot=plot, struct=struct, P=P)
-    # plot_skymaps_comparison_tophat(do_run=do_run, process_skymaps=process_skymaps,
-    #              task=dict(figname="skymap_props_compare", show=True),
-    #              struct=struct, P=P)
-    #
-    # struct = dict(struct="gaussian", Eiso_c=1.e53, Gamma0c=400., M0c=-1., theta_c=0.1, theta_w=0.3)
-    # plot_skymaps_comparison_gaussian(do_run=do_run, process_skymaps=process_skymaps,
-    #                                task=dict(figname="gauss_skymap_props_compare", show=True),
-    #                                struct=struct, P=P)
+    plot_3d_skmap_stack(do_run=do_run, plot=plot, struct=struct, P=P)
+    plot_skymaps_comparison_tophat(do_run=do_run, process_skymaps=process_skymaps,
+                 name="tophat_skymap_resolution",
+                 struct=struct, P=P)
+
+    struct = dict(struct="gaussian", Eiso_c=1.e53, Gamma0c=400., M0c=-1., theta_c=0.1, theta_w=0.3)
+    plot_skymaps_comparison_gaussian(do_run=do_run, process_skymaps=process_skymaps,
+                                   task=dict(figname="gauss_skymap_props_compare", show=True),
+                                   struct=struct, P=P)

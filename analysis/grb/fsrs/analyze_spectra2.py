@@ -1473,9 +1473,9 @@ def plot_total_observed_spectrum(do_run: bool, norm_method: str, xlim: tuple, ta
 
         if task_i["mode"] == "contour":
             # _c = ax.contourf(xs, ys, spec.T, cmap=cmap, locator=ticker.LogLocator(), norm=norm)
-            _c = ax.contourf(xs, ys, spec.T, cmap=cmap, locator=ticker.LogLocator(), norm=norm)
+            _c = ax.contourf(xs, ys, spec, cmap=cmap, locator=ticker.LogLocator(), norm=norm)
         else:
-            _c = ax.pcolormesh(xs, ys, spec.T, cmap=cmap, norm=norm)
+            _c = ax.pcolormesh(xs, ys, spec, cmap=cmap, norm=norm)
         bbox = dict(boxstyle='round', fc='blanchedalmond', ec='orange', alpha=0.5)
         ax.text(0.95, 0.07, text, fontsize=12, bbox=bbox,
                 transform=ax.transAxes, horizontalalignment='right')
@@ -1483,25 +1483,25 @@ def plot_total_observed_spectrum(do_run: bool, norm_method: str, xlim: tuple, ta
 
     task_i = task
     sp = PlotSpectra()
-    xs, ys, spec_fs = sp._get_spectrum(
+    freqs, times, spec_fs = sp._get_spectrum(
         ej=ej_fs.GRB, v_n="fluxdens", fs_or_rs="rs",
         ishell=ishell, ilayer=ilayer, sum_shells_layers=False, norm_method=norm_method)
-    xs, ys, spec_fsrs = sp._get_spectrum(
+    freqs, times, spec_fsrs = sp._get_spectrum(
         ej=ej_fsrs.GRB, v_n="fluxdens", fs_or_rs="rs",
         ishell=ishell, ilayer=ilayer, sum_shells_layers=False, norm_method=norm_method)
 
-    spec_rs = spec_fsrs - spec_fs
+    spec_rs = np.subtract(spec_fsrs , spec_fs)
 
-    fig, axes = plt.subplots(ncols=1, nrows=3, figsize=(5, 6), layout='constrained', sharex='all', sharey='all')
+    fig, axes = plt.subplots(ncols=1, nrows=3, figsize=(5, 5), layout='constrained', sharex='all', sharey='all')
     norm = LogNorm(vmin=task_i.get("vmin", spec_fsrs.max() * 1e-20),
                    vmax=task_i.get("vmax", spec_fsrs.max() * 1))
     cmap = plt.get_cmap(task_i.get("cmap", 'jet'))
     cmap.set_under(task_i.get("set_under", 'white'), alpha=0.2)
     cmap.set_over(task_i.get("set_over", 'white'), alpha=0.2)
 
-    _c = plot_one(axes[0], xs, ys, spec_fs, norm, cmap, r"FS")
-    _c = plot_one(axes[1], xs, ys, spec_rs, norm, cmap, r"RS")
-    _c = plot_one(axes[2], xs, ys, spec_fsrs, norm, cmap, r"FS \& RS")
+    _c = plot_one(axes[0], times, freqs, spec_fs, norm, cmap, r"FS")
+    _c = plot_one(axes[1], times, freqs, spec_rs, norm, cmap, r"RS")
+    _c = plot_one(axes[2], times, freqs, spec_fsrs, norm, cmap, r"FS \& RS")
 
     cbar = fig.colorbar(_c, ax=axes, shrink=0.95, pad=0.01, aspect=30, extend='both')  # orientation = 'horizontal')
     cbar.ax.tick_params(labelsize=11)
@@ -1510,7 +1510,7 @@ def plot_total_observed_spectrum(do_run: bool, norm_method: str, xlim: tuple, ta
     # use contourf() with proper hatch pattern and alpha value
     val1 = np.array((spec_rs > spec_fs), dtype=np.float64)
     val1[val1 < 1] = np.nan
-    cs = axes[-1].contourf(xs, ys, val1.T, hatches=['..'], alpha=0.0, color="green")  #,zorder=0
+    cs = axes[-1].contourf(times, freqs, val1, hatches=['..'], alpha=0.0, color="green")  #,zorder=0
     #
     # val1 = np.array((gam_dot_adi>gam_dot_syn) * (gam_dot_adi>gam_dot_ssc), dtype=np.float64)
     # val1[val1 < 1] = np.nan
@@ -1524,10 +1524,10 @@ def plot_total_observed_spectrum(do_run: bool, norm_method: str, xlim: tuple, ta
         ax.set_yscale('log')
         ax.minorticks_on()
         ax.tick_params(axis='both', which='both', direction='in', labelsize=11)
-        ax.legend(fancybox=True, loc='upper right', columnspacing=0.8,
-                  # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
-                  shadow=False, ncol=4, fontsize=12, labelcolor='black',
-                  framealpha=0.8, borderaxespad=0.)
+        # ax.legend(fancybox=True, loc='upper right', columnspacing=0.8,
+        #           # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+        #           shadow=False, ncol=4, fontsize=12, labelcolor='black',
+        #           framealpha=0.8, borderaxespad=0.)
         ax.set_rasterized(True)
         ax.set_ylabel(task_i["ylabel"], fontsize=12)
         # ax.set_title(task["title"], fontsize=12)
@@ -1753,7 +1753,7 @@ def plot_total_observed_spectrum_2(ej_fs: PBA.Ejecta, ej_fsrs: PBA.Ejecta, norm_
     task_i = task
     sp = PlotSpectra()
     fig, axes = plt.subplots(ncols=1, nrows=len(task_i["layers"]) + 1,
-                             figsize=(5, 9), layout='constrained', sharex='all', sharey='all')
+                             figsize=(5, 5), layout='constrained', sharex='all', sharey='all')
 
     def plot_one(ax, text, ilayer, ishell, sum_shells_layers, fs_rs_tot):
 
@@ -1788,8 +1788,8 @@ def plot_total_observed_spectrum_2(ej_fs: PBA.Ejecta, ej_fsrs: PBA.Ejecta, norm_
             _c = ax.contourf(times, ys, spec, cmap=cmap, locator=ticker.LogLocator(), norm=norm)
         else:
             _c = ax.pcolormesh(times, ys, spec, cmap=cmap, norm=norm)
-        bbox = dict(boxstyle='round', fc='blanchedalmond', ec='orange', alpha=0.5)
-        ax.text(0.95, 0.07, text, fontsize=12, bbox=bbox,
+        bbox = dict(boxstyle='round', fc='blanchedalmond', ec='orange', alpha=0.8)
+        ax.text(0.98, 0.07, text, fontsize=12, bbox=bbox,
                 transform=ax.transAxes, horizontalalignment='right')
 
         # use contourf() with proper hatch pattern and alpha value
@@ -1800,7 +1800,7 @@ def plot_total_observed_spectrum_2(ej_fs: PBA.Ejecta, ej_fsrs: PBA.Ejecta, norm_
         return _c
 
     for i, ilayer in enumerate(task_i["layers"][::-1]):
-        _c = plot_one(axes[i], f"il={ilayer}", ilayer, 0, False, task_i["fs_rs_total"])
+        _c = plot_one(axes[i], f"layer {ilayer}", ilayer, 0, False, task_i["fs_rs_total"])
     _c = plot_one(axes[-1], f"total", None, None, True, task_i["fs_rs_total"])
 
     cbar = fig.colorbar(_c, ax=axes, shrink=0.95, pad=0.01, aspect=40, extend='both')  # orientation = 'horizontal')
@@ -1874,7 +1874,7 @@ def tasks_gauss(do_run: bool, plot: bool, struct: dict, P: dict) -> PBA.PyBlastA
                                    norm="LogNorm", vmin=1e10, vmax=1e19, mode="contour",
                                    ylabel=r"$\nu$ [Hz]", xlabel=r"$t_{\rm obs}$ [s]",
                                    zlabel=r"$\nu F_{\rm total}$ [mJy]", title="Gauss jet; FS \& RS",
-                                   set_under='blue', set_over='red', layers=(0, 5, 10, 19),
+                                   set_under='blue', set_over='red', layers=(5, 19),
                                    plot_gm=False, plot_gc=False, plot_gM=False))
 
 
@@ -2066,7 +2066,7 @@ if __name__ == '__main__':
 
     # --- fs -- fs ---
     pba_fs = tasks_fs(do_run=do_run, plot=plot, struct=struct, P=P)
-    # tasks_fs_comparison(do_run=do_run, plot=plot, struct=struct, P=P)
+    tasks_fs_comparison(do_run=do_run, plot=plot, struct=struct, P=P)
 
     # --- fsrs -- rs ---
     # pba_fsrs = tasks_rs(do_run=do_run, plot=plot, struct=struct, P=P)
@@ -2081,5 +2081,5 @@ if __name__ == '__main__':
     #                               set_under='blue',set_over='red',
     #                               plot_gm=False,plot_gc=False,plot_gM=False))
 
-    # struct_gauss = dict(struct="gaussian",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.3)
-    # pba_gauss = tasks_gauss(do_run=do_run, plot=plot, struct=struct_gauss, P=P)
+    struct_gauss = dict(struct="gaussian",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.3)
+    pba_gauss = tasks_gauss(do_run=do_run, plot=plot, struct=struct_gauss, P=P)
