@@ -1,9 +1,11 @@
+import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import interpolate
 from scipy.spatial import cKDTree
 from glob import glob
 import pandas as pd
+import os
 
 from PyBlastAfterglowMag.interface import PyBlastAfterglow
 from PyBlastAfterglowMag.utils import cgs
@@ -111,8 +113,9 @@ def get_rms_scores_for_all_runs(data_freq:list[np.ndarray],
         for (obs_freq, obs_flux, t1, t2) in zip(data_freq,data_flux,t1s,t2s):
             # compute spectrum for this time interval (integrated over time)
             freqs, model_flux_dens = integrated_spectrum(t1=t1,t2=t2,working_dir=working_dir)
+            flux = model_flux_dens*freqs*1.e-26 # flux in cgs units (eg / cm^2 / s)
             # interpolate spectrum for observer freqs
-            model_fluxes = interpolate.interp1d(freqs, model_flux_dens*freqs*1.e-26,kind='linear')(obs_freq)
+            model_fluxes = interpolate.interp1d(freqs, flux,kind='linear')(obs_freq)
             # store result for later error calculation
             all_freqs.append(freqs)
             all_fluxes.append(obs_flux)
@@ -137,6 +140,9 @@ def load_observations(fname:str)->tuple[np.ndarray,np.ndarray,np.ndarray,np.ndar
             new_lines.append([float(val) for val in line.split()])
     data = np.reshape(np.array(new_lines),newshape=(len(new_lines),len(new_lines[0])))
     data[:,0] *= 2.417989242e14 # ev -> Hz
+    # data[:,1] *= 1.e26
+    # data[:,2] *= 1.e26
+    # data[:,3] *= 1.e26
     return (data[:,0], data[:,1], data[:,2], data[:,3]) # Hz, erg/cm^2/s/Hz, up_err, low_err
 
 def apply_ebl_absorption_to_data(freqs:np.ndarray, fluxes:np.ndarray, z:float)->np.ndarray:
@@ -157,38 +163,38 @@ def plot():
 
     # VHE intervals
     data = [
-        dict(name="int1",t1=68, t2=110, file='./magic_int1_points.txt',color='blue'),
-        dict(name="int2",t1=110, t2=180, file='./magic_int2_points.txt',color='orange'),
-        dict(name="int3",t1=180, t2=360, file='./magic_int3_points.txt',color='red'),
+        dict(name="int1",t1=68, t2=110, file='./magic_int1_points.txt',color='blue',label=r"$68-110$ [s]"),
+        dict(name="int2",t1=110, t2=180, file='./magic_int2_points.txt',color='orange',label=r"$180-360$ [s]"),
+        # dict(name="int3",t1=180, t2=360, file='./magic_int3_points.txt',color='red'),
         # dict(name="int4",t1=360, t2=625, file='./magic_int4_points.txt',color='green'),
         # dict(name="int5",t1=625, t2=2400, file='./magic_int5_points.txt',color='purple'),
     ]
 
     # process data
 
-    freqs, obs_data, model_data = [], [], []
-    # process data for each time interval
-    for data_i in data:
-        # load observations for this interval
-        freqs, fluxes, _, _ = load_observations(data_i["file"])
-        # apply EBL absorption to data (same as in the synthetic light curves)
-        fluxes = apply_ebl_absorption_to_data(freqs=freqs,fluxes=fluxes, z=z)
-        data_i["freqs"] = freqs
-        data_i["fluxes"] = fluxes
-
-    # compute error metric
-    working_dirs, scores = get_rms_scores_for_all_runs(
-        data_freq=[data_i["freqs"] for data_i in data],
-        data_flux=[data_i["fluxes"] for data_i in data],
-        t1s=[data_i["t1"] for data_i in data],
-        t2s=[data_i["t2"] for data_i in data],
-    )
-    df = pd.DataFrame.from_dict({"workingdir":working_dirs,"rms":scores})
-    df.to_csv("./runs.csv")
+    # freqs, obs_data, model_data = [], [], []
+    # # process data for each time interval
+    # for data_i in data:
+    #     # load observations for this interval
+    #     freqs, fluxes, _, _ = load_observations(data_i["file"])
+    #     # apply EBL absorption to data (same as in the synthetic light curves)
+    #     fluxes = apply_ebl_absorption_to_data(freqs=freqs,fluxes=fluxes, z=z)
+    #     data_i["freqs"] = freqs
+    #     data_i["fluxes"] = fluxes
+    #
+    # # compute error metric
+    # working_dirs, scores = get_rms_scores_for_all_runs(
+    #     data_freq=[data_i["freqs"] for data_i in data],
+    #     data_flux=[data_i["fluxes"] for data_i in data],
+    #     t1s=[data_i["t1"] for data_i in data],
+    #     t2s=[data_i["t2"] for data_i in data],
+    # )
+    # df = pd.DataFrame.from_dict({"workingdir":working_dirs,"rms":scores})
+    # df.to_csv("./runs.csv")
 
     # plot results
 
-    fig, ax = plt.subplots(ncols=1,nrows=1)
+    fig, ax = plt.subplots(ncols=1,nrows=1,figsize=(5,3),layout='constrained')
     for data_i in data:
         # load observations for this interval
         freqs, fluxes, err_u, err_l = load_observations(data_i["file"])
@@ -198,22 +204,40 @@ def plot():
         fluxes = apply_ebl_absorption_to_data(freqs=freqs,fluxes=fluxes, z=z)
 
         # plot
-        ax.plot(freqs,fluxes,color=data_i['color'],marker='o',ls='none',fillstyle='none')
+        # ax.plot(freqs,fluxes,color=data_i['color'],marker='o',ls='none',fillstyle='none')
         yerr = np.array(list(zip(err_l,err_u))).T
-        ax.errorbar(freqs,fluxes,yerr=yerr,fmt='o',color=data_i['color'], ecolor = data_i['color'],fillstyle='none')
+        ax.errorbar(freqs,fluxes,yerr=yerr,
+                    fmt='o',mfc='white',marker='o',capsize=2,color=data_i['color'],mec= data_i['color'], ecolor = data_i['color'],fillstyle='full',label=data_i['label'])
 
     # plot best model (load, sort by score, plot)
     df = pd.read_csv("./runs.csv",index_col=0)
     df.sort_values(by='rms',inplace=True)
-    working_dir, rms = df.iloc[3] # best model (lowest score)
-    for data_i in data:
-        freqs, model_flux_dens = integrated_spectrum(t1=data_i['t1'],t2=data_i['t2'], working_dir=working_dir)
-        ax.plot(freqs,model_flux_dens*freqs*1.e-26,color=data_i['color'],ls='-')
+    df.drop_duplicates('rms',inplace=True)
+    for i, ls in zip((0,),['-','--',':']):
+        working_dir, rms = df.iloc[i] # best model (lowest score)
+        print(working_dir, rms)
+        for data_i in data:
+            freqs, model_flux_dens = integrated_spectrum(t1=data_i['t1'],t2=data_i['t2'], working_dir=working_dir)
+            ax.plot(freqs,model_flux_dens*freqs*1.e-26,color=data_i['color'],ls=ls)
 
 
     ax.set(xscale='log',yscale='log',ylim=(1e-10,1e-7),xlim=(1e18,1e27))
-    ax.set_ylabel(r"$F_{\nu}$ [Jy]")
-    ax.set_xlabel(r"$\nu$ [Hz]")
+    ax.set_ylabel(r"Flux [erg cm$^{-2}$ s$^{-1}$]", fontsize=12)
+    ax.set_xlabel(r"$\nu$ [Hz]", fontsize=12)
+    ax.grid(ls=':')
+    ax.legend(fancybox=False, loc='lower left', columnspacing=0.8,
+              # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+              shadow=False, ncol=1, fontsize=12, labelcolor='black',
+              framealpha=0.0, borderaxespad=0.)
+    # ax.set_yscale('log')
+    ax.minorticks_on()
+    ax.tick_params(axis='both', which='both', direction='in', labelsize=11)
+    ax.set_title("GRB 190114C",fontsize=14)
+    name="tophat_fs_ssc_grid_GRB_190114C"
+    plt.savefig(os.getcwd() + '/figs/' + name + '.png', dpi=256)
+    plt.savefig(os.getcwd() + '/figs/' + name + '.pdf')
+    if plot: plt.show()
+    plt.close(fig)
     plt.show()
 
     # load VHE objservations
@@ -264,9 +288,23 @@ def plot():
     # ax.errorbar(data[:,0],data[:,1],yerr=np.array(list(zip(data[:,2]-data[:,1],data[:,1]-data[:,3]))).T,fmt='.', ecolor = 'red')
 
     ax.set(xscale='log',yscale='log',ylim=(1e-10,1e-7),xlim=(1e18,1e27))
-    ax.set_ylabel(r"$F_{\nu}$ [Jy]")
+    ax.set_ylabel(r"Flux [erg cm$^{-2}$ s$^{-1}$]")
     ax.set_xlabel(r"$\nu$ [Hz]")
     plt.show()
+
+# def preprocess(fname="./model_lcs.h5"):
+#     working_dirs = glob(data_dir + '*')
+#     dfile = h5py.File(fname,'w')
+#     for i, working_dir in enumerate(working_dirs):
+#         pba = PyBlastAfterglow(workingdir=working_dir+'/',readparfileforpaths=True)
+#         freqs = pba.GRB.get_lc_freqs(unique=True,spec=False)
+#         times = pba.GRB.get_lc_times(unique=True,spec=False)
+#         spec = pba.GRB.get_lc()
+#         dfile.create_dataset()
+#
+#         if i % 100 == 0:
+#             print(f"Processing {i}/{len(working_dirs)} min_score={min_score}")
+#     return (working_dirs, scores)
 
 if __name__ == '__main__':
     plot()
