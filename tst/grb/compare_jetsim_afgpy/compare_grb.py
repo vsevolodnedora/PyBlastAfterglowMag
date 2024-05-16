@@ -24,48 +24,48 @@ except:
 working_dir = os.getcwd() + '/tmp1/'
 fig_dir = os.getcwd() + '/figs/'
 
-def run(working_dir:str, struct:dict, P:dict, type:str="a") -> PBA.PyBlastAfterglow:
-    # clean he temporary direcotry
-    if os.path.isdir(working_dir):
-        shutil.rmtree(working_dir)
-    os.mkdir(working_dir)
-
-    # generate initial data for blast waves
-    pba_id = PBA.id_analytic.JetStruct(n_layers_pw=80,
-                                       n_layers_a=1 if struct["struct"]=="tophat" else 20)
-
-    # save piece-wise EATS ID
-    id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="piece-wise")
-    pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=working_dir+"id_pw.h5")
-
-    # save adaptive EATS ID
-    id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="adaptive")
-    pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=working_dir+"id_a.h5")
-
-    # create new parfile
-    P["grb"]["fname_ejecta_id"] = "id_a.h5" if type == "a" else "id_pw.h5"
-    PBA.parfile_tools.create_parfile(working_dir=working_dir, P=P)
-
-    # instantiate PyBlastAfterglow
-    pba = PBA.interface.PyBlastAfterglow(workingdir=working_dir)
-
-    # run the code with given parfile
-    pba.run(
-        path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",
-        loglevel="err"
-    )
-
-    # process skymap
-    if (pba.GRB.opts["do_skymap"]=="yes"):
-        conf = {"nx":128, "ny":64, "extend_grid":1.1, "fwhm_fac":0.5, "lat_dist_method":"integ",
-                "intp_filter":{ "type":'gaussian', "sigma":2, "mode":'reflect' }, # "gaussian"
-                "hist_filter":{ "type":'gaussian', "sigma":2, "mode":'reflect' }}
-        prep = PBA.skymap_process.ProcessRawSkymap(conf=conf, verbose=False)
-        prep.process_singles(infpaths=working_dir+"raw_skymap_*.h5",
-                             outfpath=pba.GRB.fpath_sky_map,
-                             remove_input=True)
-
-    return pba
+# def run(working_dir:str, struct:dict, P:dict, type:str="a") -> PBA.PyBlastAfterglow:
+#     # clean he temporary direcotry
+#     if os.path.isdir(working_dir):
+#         shutil.rmtree(working_dir)
+#     os.mkdir(working_dir)
+#
+#     # generate initial data for blast waves
+#     pba_id = PBA.id_analytic.JetStruct(n_layers_pw=80,
+#                                        n_layers_a=1 if struct["struct"]=="tophat" else 20)
+#
+#     # save piece-wise EATS ID
+#     id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="piece-wise")
+#     pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=working_dir+"id_pw.h5")
+#
+#     # save adaptive EATS ID
+#     id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="adaptive")
+#     pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=working_dir+"id_a.h5")
+#
+#     # create new parfile
+#     P["grb"]["fname_ejecta_id"] = "id_a.h5" if type == "a" else "id_pw.h5"
+#     PBA.parfile_tools.create_parfile(working_dir=working_dir, P=P)
+#
+#     # instantiate PyBlastAfterglow
+#     pba = PBA.interface.PyBlastAfterglow(workingdir=working_dir)
+#
+#     # run the code with given parfile
+#     pba.run(
+#         path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",
+#         loglevel="err"
+#     )
+#
+#     # process skymap
+#     if (pba.GRB.opts["do_skymap"]=="yes"):
+#         conf = {"nx":128, "ny":64, "extend_grid":1.1, "fwhm_fac":0.5, "lat_dist_method":"integ",
+#                 "intp_filter":{ "type":'gaussian', "sigma":2, "mode":'reflect' }, # "gaussian"
+#                 "hist_filter":{ "type":'gaussian', "sigma":2, "mode":'reflect' }}
+#         prep = PBA.skymap_process.ProcessRawSkymap(conf=conf, verbose=False)
+#         prep.process_singles(infpaths=working_dir+"raw_skymap_*.h5",
+#                              outfpath=pba.GRB.fpath_sky_map,
+#                              remove_input=True)
+#
+#     return pba
 
 def mrg(dict2:dict, dict1:dict):
     return {k: v | dict2[k] for k, v in dict1.items() if k in dict2.keys()}
@@ -127,8 +127,8 @@ def run_jetsim(freq:float, struct:dict, pba:PBA.PyBlastAfterglow):
         Eiso[theta > struct["theta_w"]] = 0.
     elif struct["struct"] == "gaussian":
         theta = np.linspace(0, np.pi, 1000)
-        Eiso = P["Eiso"] * np.exp(- 0.5 * (theta / P["theta_c"]) ** 2)
-        lf = (P["lf"] - 1) * np.exp(- 0.5 * (theta / P["theta_c"]) ** 2) + 1
+        Eiso = P["Eiso"] * np.exp(- 0.5 * (theta / struct["theta_c"]) ** 2)
+        lf = (P["lf"] - 1) * np.exp(- 0.5 * (theta / struct["theta_c"]) ** 2) + 1
         # Eiso[theta > struct["theta_w"]] = 0.
     else:
         raise KeyError("structure is not recognized")
@@ -275,7 +275,7 @@ def compare_lcs(struct:dict, pp:dict, plot:dict):
 
         # default : Analytic
         if plot["plot_analytic"]:
-            pba = run(working_dir=working_dir,struct=struct, type="a", P=mrg(pp,{
+            pba = PBA.wrappers.run(working_dir=working_dir,struct=struct, type="a", P=mrg(pp,{
                 "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
                 "grb":{"method_ele_fs":"analytic",
                        "method_synchrotron_fs":"WSPN99"}}))
@@ -285,7 +285,7 @@ def compare_lcs(struct:dict, pp:dict, plot:dict):
 
         # default : Semi-Analytic
         if plot["plot_semi_analytic"]:
-            pba = run(working_dir=working_dir,struct=struct, type="a", P=mrg(pp,{
+            pba = PBA.wrappers.run(working_dir=working_dir,struct=struct, type="a", P=mrg(pp,{
                 "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
                 "grb":{"method_ele_fs":"mix"}})) # "method_synchrotron_fs":"GSL"
             ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
@@ -294,7 +294,7 @@ def compare_lcs(struct:dict, pp:dict, plot:dict):
 
         # default : Numeric
         if plot["plot_numeric"]:
-            pba = run(working_dir=working_dir,struct=struct, type="a", P=mrg(pp,{
+            pba = PBA.wrappers.run(working_dir=working_dir,struct=struct, type="a", P=mrg(pp,{
                 "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
                 "grb":{}}))
             ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
@@ -640,7 +640,7 @@ def compare_lcs(struct:dict, pp:dict, plot:dict):
     if plot["show"]: plt.show()
 
 def compare_dyn(struct:dict, pp:dict, plot:dict):
-    pba = run(working_dir=working_dir,struct=struct,P=pp,type="a")
+    pba = PBA.wrappers.run(working_dir=working_dir,struct=struct,P=pp,type="a",loglevel="err")
     jetsimpy = run_jetsim(freq=-1.,struct=struct,pba=pba)
     fig,ax = plt.subplots(ncols=1,nrows=1,figsize=(5.5,4.))
 
@@ -683,7 +683,7 @@ def compare_dyn(struct:dict, pp:dict, plot:dict):
         if struct['struct'] == 'tophat':
             plot_momentum(ax,color=plot["colors"],ilayer=plot["layers"])
         elif struct['struct'] == 'gaussian':
-            pba = run(working_dir=working_dir,struct=struct,P=pp,type="a")
+            pba = PBA.wrappers.run(working_dir=working_dir,struct=struct,P=pp,type="a")
             jetsimpy = run_jetsim(freq=-1.,struct=struct,pba=pba)
             for ilayer, color in zip(plot["layers"],plot["colors"]):
                 plot_momentum(ax,color=color,ilayer=ilayer)
@@ -748,7 +748,7 @@ def compare_dyn(struct:dict, pp:dict, plot:dict):
     if plot["show"]: plt.show()
 
 def compare_skymaps(struct:dict, pp:dict, plot:dict):
-    pba = run(working_dir=working_dir,struct=struct, type="a", P=mrg(pp,{
+    pba = PBA.wrappers.run(working_dir=working_dir,struct=struct, type="a", P=mrg(pp,{
         "main":{}, "grb":{}}))
     skymap = pba.GRB.get_skymap(
         time=float(pp["main"]["skymap_times"].split()[-1]),
@@ -815,7 +815,7 @@ if __name__ == '__main__':
     compare_dyn(
         struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
         pp = dict(main=dict(n_ism = 1e-2),
-                  grb=dict(save_dynamics='yes',do_ele = "no",do_lc = "no")),
+                  grb=dict(save_dynamics='yes',do_mphys_in_situ="no",do_lc = "no")),
         plot=dict(
             layers=0,
             colors='blue',
@@ -826,8 +826,8 @@ if __name__ == '__main__':
     )
     compare_lcs(
         struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
-        pp = dict(main=dict(n_ism = 1e-2),
-                  grb=dict()),
+        pp = dict(main=dict(n_ism = 1e-2,ntb=3000),
+                  grb=dict(ebl_tbl_fpath='none')),
         plot = dict(plot_analytic=True,plot_semi_analytic=True,plot_numeric=False,iters=[
             dict(theta_obs=0.16,freq=1.e9,ls='-'),
             dict(theta_obs=0.0,freq=1.e18,ls='--'),
@@ -842,7 +842,7 @@ if __name__ == '__main__':
         struct = dict(struct="gaussian",Eiso_c=1.e52, Gamma0c= 300., M0c= -1., theta_c= 0.085, theta_w= 0.2618),
         pp = dict(main=dict(n_ism = 0.00031,d_l = 1.27e+26, z = 0.0099),
                             grb=dict(eps_e_fs = 0.0708, eps_b_fs = 0.0052, p_fs = 2.16,
-                                     save_dynamics='yes',do_ele = "no",do_lc = "no")),
+                                     save_dynamics='yes',do_mphys_in_situ='no',do_lc = "no",ebl_tbl_fpath='none')),
         plot=dict(
             layers=[0,8,16,19],
             colors=['blue','green','orange','red'],
@@ -854,7 +854,7 @@ if __name__ == '__main__':
     compare_lcs(
         struct = dict(struct="gaussian",Eiso_c=1.e52, Gamma0c= 300., M0c= -1., theta_c= 0.085, theta_w= 0.2618),
         pp = dict(main=dict(n_ism = 0.00031,d_l = 1.27e+26, z = 0.0099),
-                  grb=dict(eps_e_fs = 0.0708, eps_b_fs = 0.0052, p_fs = 2.16)),
+                  grb=dict(eps_e_fs = 0.0708, eps_b_fs = 0.0052, p_fs = 2.16,ebl_tbl_fpath='none')),
         plot = dict(plot_analytic=True,plot_semi_analytic=True,plot_numeric=False,iters=[
             dict(theta_obs=0.3752,freq=1.e9,ls='-'),
             dict(theta_obs=0.0,freq=1.e18,ls='--'),
@@ -869,7 +869,8 @@ if __name__ == '__main__':
                             skymap_freqs=f"array 1.e9", skymap_times=f"array {75.*86400.}"),
                   grb=dict(eps_e_fs = 0.0708, eps_b_fs = 0.0052, p_fs = 2.16,
                            do_skymap="yes",do_lc="no",
-                           method_ele_fs="analytic",  method_synchrotron_fs="WSPN99"
+                           method_ele_fs="analytic",  method_synchrotron_fs="WSPN99",
+                           ebl_tbl_fpath='none',
                            )),
         plot = dict( show=show, figname="skymaps_gauss" )
     )

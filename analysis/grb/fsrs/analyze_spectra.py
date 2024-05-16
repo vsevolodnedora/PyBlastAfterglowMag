@@ -1441,7 +1441,7 @@ def tasks_rs_comparison(do_run:bool, struct:dict, P:dict):
 
 
 if __name__ == '__main__':
-    do_run = False
+    do_run = True
     struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
     P = dict(
         main=dict(n_ism=1., tb0=3e3, ntb=1000,rtol=1e-7,theta_obs=0,

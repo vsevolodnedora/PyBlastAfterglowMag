@@ -3,6 +3,7 @@ import copy
 from more_itertools import numeric_range
 
 import package.src.PyBlastAfterglowMag as PBA
+from package.src.PyBlastAfterglowMag.utils import cgs,d2d
 import os, shutil, matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm, Normalize, TwoSlopeNorm, SymLogNorm, TwoSlopeNorm
 from matplotlib.ticker import AutoMinorLocator, ScalarFormatter, MaxNLocator, AutoLocator
@@ -63,60 +64,60 @@ Makoto Tashiro9, Jae-Woo Kim6, Minsung Jang6, and Soojong Pak
 """
 
 
-def d2d(default: dict, new: dict):
-    default_ = copy.deepcopy(default)
-    for key, new_dict_ in new.items():
-        if not key in default_.keys():
-            default_[key] = {}
-        for key_, val_ in new_dict_.items():
-            default_[key][key_] = val_
-    return default_
+# def d2d(default: dict, new: dict):
+#     default_ = copy.deepcopy(default)
+#     for key, new_dict_ in new.items():
+#         if not key in default_.keys():
+#             default_[key] = {}
+#         for key_, val_ in new_dict_.items():
+#             default_[key][key_] = val_
+#     return default_
 
 
-def run(working_dir: str, struct: dict, P: dict, type: str = "a", run: bool = True) -> PBA.PyBlastAfterglow:
-    # clean he temporary direcotry
-    if run and os.path.isdir(working_dir):
-        shutil.rmtree(working_dir)
-    if not os.path.isdir(working_dir):
-        os.mkdir(working_dir)
-
-    # generate initial data for blast waves
-    pba_id = PBA.id_analytic.JetStruct(n_layers_pw=80,
-                                       n_layers_a=1 if struct["struct"] == "tophat" else 20)
-
-    # save piece-wise EATS ID
-    id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="piece-wise")
-    pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=working_dir + "id_pw.h5")
-
-    # save adaptive EATS ID
-    id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="adaptive")
-    pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=working_dir + "id_a.h5")
-
-    # create new parfile
-    P["grb"]["fname_ejecta_id"] = "id_a.h5" if type == "a" else "id_pw.h5"
-    PBA.parfile_tools.create_parfile(working_dir=working_dir, P=P)
-
-    # instantiate PyBlastAfterglow
-    pba = PBA.interface.PyBlastAfterglow(workingdir=working_dir)
-
-    # run the code with given parfile
-    if run:
-        pba.run(
-            path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",
-            loglevel="info"
-        )
-
-    # process skymap
-    if (run and pba.GRB.opts["do_skymap"] == "yes"):
-        conf = {"nx": 128, "ny": 64, "extend_grid": 1.1, "fwhm_fac": 0.5, "lat_dist_method": "integ",
-                "intp_filter": {"type": 'gaussian', "sigma": 2, "mode": 'reflect'},  # "gaussian"
-                "hist_filter": {"type": 'gaussian', "sigma": 2, "mode": 'reflect'}}
-        prep = PBA.skymap_process.ProcessRawSkymap(conf=conf, verbose=False)
-        prep.process_singles(infpaths=working_dir + "raw_skymap_*.h5",
-                             outfpath=pba.GRB.fpath_sky_map,
-                             remove_input=True)
-
-    return pba
+# def run(working_dir: str, struct: dict, P: dict, type: str = "a", run: bool = True) -> PBA.PyBlastAfterglow:
+#     # clean he temporary direcotry
+#     if run and os.path.isdir(working_dir):
+#         shutil.rmtree(working_dir)
+#     if not os.path.isdir(working_dir):
+#         os.mkdir(working_dir)
+#
+#     # generate initial data for blast waves
+#     pba_id = PBA.id_analytic.JetStruct(n_layers_pw=80,
+#                                        n_layers_a=1 if struct["struct"] == "tophat" else 20)
+#
+#     # save piece-wise EATS ID
+#     id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="piece-wise")
+#     pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=working_dir + "id_pw.h5")
+#
+#     # save adaptive EATS ID
+#     id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="adaptive")
+#     pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=working_dir + "id_a.h5")
+#
+#     # create new parfile
+#     P["grb"]["fname_ejecta_id"] = "id_a.h5" if type == "a" else "id_pw.h5"
+#     PBA.parfile_tools.create_parfile(working_dir=working_dir, P=P)
+#
+#     # instantiate PyBlastAfterglow
+#     pba = PBA.interface.PyBlastAfterglow(workingdir=working_dir)
+#
+#     # run the code with given parfile
+#     if run:
+#         pba.run(
+#             path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",
+#             loglevel="info"
+#         )
+#
+#     # process skymap
+#     if (run and pba.GRB.opts["do_skymap"] == "yes"):
+#         conf = {"nx": 128, "ny": 64, "extend_grid": 1.1, "fwhm_fac": 0.5, "lat_dist_method": "integ",
+#                 "intp_filter": {"type": 'gaussian', "sigma": 2, "mode": 'reflect'},  # "gaussian"
+#                 "hist_filter": {"type": 'gaussian', "sigma": 2, "mode": 'reflect'}}
+#         prep = PBA.skymap_process.ProcessRawSkymap(conf=conf, verbose=False)
+#         prep.process_singles(infpaths=working_dir + "raw_skymap_*.h5",
+#                              outfpath=pba.GRB.fpath_sky_map,
+#                              remove_input=True)
+#
+#     return pba
 
 
 def _normalize_spec(spec: np.ndarray, xs: np.ndarray, times: np.ndarray, norm_method: None or str, mask_negatives=True):
@@ -132,7 +133,7 @@ def _normalize_spec(spec: np.ndarray, xs: np.ndarray, times: np.ndarray, norm_me
     elif norm_method == "*y /integ":
         spec = spec * np.power(xs, 1)[np.newaxis, :]
         integ = integrate.simps(y=spec, x=xs, axis=0)
-        spec = spec / integ[:, np.newaxis]
+        spec = spec / integ[np.newaxis,:]
     elif norm_method == "*y":
         spec *= xs[:, np.newaxis]
     elif norm_method == "*y^2":
@@ -140,7 +141,7 @@ def _normalize_spec(spec: np.ndarray, xs: np.ndarray, times: np.ndarray, norm_me
     elif norm_method == "/integ":
         # spec = spec / np.trapz(y=spec, x=ys, axis=1)[:,np.newaxis]
         integ = integrate.simps(y=spec, x=xs, axis=0)
-        spec = spec / integ[:, np.newaxis]
+        spec = spec / integ[np.newaxis,:]
     else:
         raise KeyError("Norm method is not recognized")
     if mask_negatives:
@@ -1357,7 +1358,7 @@ def plot_emission_region_prop_3(ej: PBA.Ejecta, fs_or_rs: str, xlim: tuple, task
 
 
 def plot_total_observed_spectrum_OLD(do_run: bool, norm_method: str, xlim: tuple, task: dict, ishell=0, ilayer=0):
-    ej_fs = run(
+    ej_fs = PBA.wrappers.run(
         working_dir=os.getcwd() + "/working_dirs/dyn_fsrs__rad_rs__num__ssa__ssc__fluxdens/",
         struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           use_ssa_fs='yes',
@@ -1367,7 +1368,7 @@ def plot_total_observed_spectrum_OLD(do_run: bool, norm_method: str, xlim: tuple
                                                           method_ssc_rs='numeric'))),
         type="a", run=do_run
     )
-    ej_fsrs = run(
+    ej_fsrs = PBA.wrappers.run(
         working_dir=os.getcwd() + "/working_dirs/dyn_fsrs__rad_fsrs__num__ssa__ssc__fluxdens/",
         struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           use_ssa_fs='yes',
@@ -1445,7 +1446,7 @@ def plot_total_observed_spectrum_OLD(do_run: bool, norm_method: str, xlim: tuple
 
 
 def plot_total_observed_spectrum(do_run: bool, norm_method: str, xlim: tuple, task: dict, ishell=0, ilayer=0):
-    ej_fs = run(
+    ej_fs = PBA.wrappers.run(
         working_dir=os.getcwd() + "/working_dirs/dyn_fsrs__rad_rs__num__ssa__ssc__fluxdens/",
         struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           use_ssa_fs='yes',
@@ -1455,7 +1456,7 @@ def plot_total_observed_spectrum(do_run: bool, norm_method: str, xlim: tuple, ta
                                                           method_ssc_rs='numeric'))),
         type="a", run=do_run
     )
-    ej_fsrs = run(
+    ej_fsrs = PBA.wrappers.run(
         working_dir=os.getcwd() + "/working_dirs/dyn_fsrs__rad_fsrs__num__ssa__ssc__fluxdens/",
         struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           use_ssa_fs='yes',
@@ -1611,9 +1612,9 @@ def plot_cooling_terms(ej: PBA.Ejecta, fs_or_rs: str, xlim: tuple, task: dict, i
 
 def tasks_fs(do_run: bool, plot: bool, struct: dict, P: dict,
              name: str = "dyn_fs__rad_fs__num__ssa__ssc") -> PBA.PyBlastAfterglow:
-    dyn_fs__rad_fs__num__ssa__ssc = run(
+    dyn_fs__rad_fs__num__ssa__ssc = PBA.wrappers.run(
         working_dir=os.getcwd() + f"/working_dirs/{name}/",
-        struct=struct, P=d2d(default=P, new=dict(grb=dict(method_ssc_fs='numeric', use_ssa_fs='yes'))),
+        struct=struct, P=d2d(default=P, new=dict(grb=dict(method_ssc_fs='numeric',method_pp_fs='numeric', use_ssa_fs='yes'))),
         type="a", run=do_run
     )
     # raise ValueError("Computed!!! :) ")
@@ -1634,7 +1635,7 @@ def tasks_fs(do_run: bool, plot: bool, struct: dict, P: dict,
         title="FS comoving spectra evolution", figname="spec_dyn_fs__rad_fs__num__ssa__ssc", show=plot,
         figsize=(5, 8),
         tasks=dict(
-            n_ele=dict(norm_method='/integ *y',  #'/integ *y',
+            n_ele=dict(norm_method='/integ',  #'/integ *y',
                        ylabel=r"$\gamma_{e}$",
                        zlabel=r"$(\gamma_{e} N_{e}) / N_{e;\, \rm tot}$",
                        norm="LogNorm", mode="contour", xlim=(3e3, 1e9), vmin=1e-6, vmax=1e0,
@@ -1677,7 +1678,7 @@ def tasks_fs(do_run: bool, plot: bool, struct: dict, P: dict,
 
 
 def tasks_rs(do_run: bool, plot: bool, struct: dict, P: dict) -> PBA.PyBlastAfterglow:
-    dyn_fs__rad_rs__num__ssa__ssc = run(
+    dyn_fs__rad_rs__num__ssa__ssc = PBA.wrappers.run(
         working_dir=os.getcwd() + "/working_dirs/dyn_fs__rad_rs__num__ssa__ssc/",
         struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           use_ssa_fs='yes',
@@ -1838,7 +1839,7 @@ def plot_total_observed_spectrum_2(ej_fs: PBA.Ejecta, ej_fsrs: PBA.Ejecta, norm_
 
 
 def tasks_gauss(do_run: bool, plot: bool, struct: dict, P: dict) -> PBA.PyBlastAfterglow:
-    dyn_fs__rad_rs__num__ssa__ssc = run(
+    dyn_fs__rad_rs__num__ssa__ssc = PBA.wrappers.run(
         working_dir=os.getcwd() + "/working_dirs/gauss_dyn_fs__rad_rs__num__ssa__ssc/",
         struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           use_ssa_fs='yes',
@@ -1855,7 +1856,7 @@ def tasks_gauss(do_run: bool, plot: bool, struct: dict, P: dict) -> PBA.PyBlastA
     #                                                      figname="tophat_bw_shock_props",show=plot
     #                                                      ))
 
-    dyn_fs__rad_fs__num__ssa__ssc = run(
+    dyn_fs__rad_fs__num__ssa__ssc = PBA.wrappers.run(
         working_dir=os.getcwd() + "/working_dirs/gauss_dyn_fs__rad_fs__num__ssa__ssc/",
         struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           use_ssa_fs='yes',
@@ -1880,7 +1881,7 @@ def tasks_gauss(do_run: bool, plot: bool, struct: dict, P: dict) -> PBA.PyBlastA
 
 def tasks_fs_comparison(do_run: bool, plot: bool, struct: dict, P: dict):
     # --- fs -- fs ---
-    dyn_fs__rad_fs__num = run(
+    dyn_fs__rad_fs__num = PBA.wrappers.run(
         working_dir=os.getcwd() + "/working_dirs/dyn_fs__rad_fs__num/",
         struct=struct, P=P,
         type="a", run=do_run
@@ -1890,22 +1891,22 @@ def tasks_fs_comparison(do_run: bool, plot: bool, struct: dict, P: dict):
     #     struct=struct, P = d2d(default=P, new=dict(grb=dict(method_ele_fs='analytic',use_ssa_fs='yes',method_synchrotron_fs="Dermer09"))),#dyn_fs__rad_rs__num__ssa
     #     type="a",run=do_run
     # )
-    dyn_fs__rad_fs__num__ssa = run(
+    dyn_fs__rad_fs__num__ssa = PBA.wrappers.run(
         working_dir=os.getcwd() + "/working_dirs/dyn_fs__rad_fs__num_ssa/",
         struct=struct, P=d2d(default=P, new=dict(grb=dict(use_ssa_fs='yes'))),  #method_synchrotron_fs="Dermer09"
         type="a", run=do_run
     )
-    dyn_fs__rad_fs__num__noadi = run(
+    dyn_fs__rad_fs__num__noadi = PBA.wrappers.run(
         working_dir=os.getcwd() + "/working_dirs/dyn_fs__rad_fs__num__noadi/",
         struct=struct, P=d2d(default=P, new=dict(grb=dict(num_ele_use_adi_loss_fs='no'))),
         type="a", run=do_run
     )
-    dyn_fs__rad_fs__num__ssc = run(
+    dyn_fs__rad_fs__num__ssc = PBA.wrappers.run(
         working_dir=os.getcwd() + "/working_dirs/dyn_fs__rad_fs__num__ssc/",
         struct=struct, P=d2d(default=P, new=dict(grb=dict(method_ssc_fs='numeric'))),
         type="a", run=do_run
     )
-    dyn_fs__rad_fs__mix = run(
+    dyn_fs__rad_fs__mix = PBA.wrappers.run(
         working_dir=os.getcwd() + "/working_dirs/dyn_fs__rad_fs__mix/",
         struct=struct,
         P=d2d(default=P, new=dict(grb=dict(method_ele_fs='mix'))),
@@ -1951,12 +1952,12 @@ def tasks_fs_comparison(do_run: bool, plot: bool, struct: dict, P: dict):
 
 def tasks_rs_comparison(do_run: bool, plot: bool, struct: dict, P: dict):
     # --- fsrs -- rs ---
-    dyn_fsrs__rad_rs__num = run(
+    dyn_fsrs__rad_rs__num = PBA.wrappers.run(
         working_dir=os.getcwd() + "/working_dirs/dyn_fsrs__rad_rs__num/",
         struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs'))),
         type="a", run=do_run
     )
-    dyn_fsrs__rad_rs__ana__ssa = run(
+    dyn_fsrs__rad_rs__ana__ssa = PBA.wrappers.run(
         working_dir=os.getcwd() + "/working_dirs/dyn_fsrs__rad_rs__ana__ssa/",
         struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           method_synchrotron_fs="Dermer09",
@@ -1965,28 +1966,28 @@ def tasks_rs_comparison(do_run: bool, plot: bool, struct: dict, P: dict):
                                                           use_ssa_rs='yes'))),
         type="a", run=do_run
     )
-    dyn_fsrs__rad_rs__num__ssa = run(
+    dyn_fsrs__rad_rs__num__ssa = PBA.wrappers.run(
         working_dir=os.getcwd() + "/working_dirs/dyn_fsrs__rad_rs__num__ssa/",
         struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           use_ssa_fs='yes',
                                                           use_ssa_rs='yes'))),
         type="a", run=do_run
     )
-    dyn_fsrs__rad_rs__num__noadi = run(
+    dyn_fsrs__rad_rs__num__noadi = PBA.wrappers.run(
         working_dir=os.getcwd() + "/working_dirs/dyn_fsrs__rad_rs__num__noadi/",
         struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           num_ele_use_adi_loss_fs='no',
                                                           num_ele_use_adi_loss_rs='no'))),
         type="a", run=do_run
     )
-    dyn_fsrs__rad_rs__num__ssc = run(
+    dyn_fsrs__rad_rs__num__ssc = PBA.wrappers.run(
         working_dir=os.getcwd() + "/working_dirs/dyn_fsrs__rad_rs__num__ssc/",
         struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           method_ssc_fs='numeric',
                                                           method_ssc_rs='numeric'))),
         type="a", run=do_run
     )
-    dyn_fsrs__rad_rs__mix = run(
+    dyn_fsrs__rad_rs__mix = PBA.wrappers.run(
         working_dir=os.getcwd() + "/working_dirs/dyn_fsrs__rad_rs__mix/",
         struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           method_ele_fs='mix',
@@ -2032,8 +2033,9 @@ def tasks_rs_comparison(do_run: bool, plot: bool, struct: dict, P: dict):
 
 
 if __name__ == '__main__':
-    do_run = False
+    do_run = True
     plot = True
+    # struct = dict(struct="tophat", Eiso_c=1.e55, Gamma0c=1000., M0c=-1., theta_c=0.05, theta_w=0.05)
     struct = dict(struct="tophat", Eiso_c=1.e53, Gamma0c=400., M0c=-1., theta_c=0.1, theta_w=0.1)
     # struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
     P = dict(

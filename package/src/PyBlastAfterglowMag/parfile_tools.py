@@ -370,7 +370,7 @@ class Defaults:
             s = -1,         # [ISM] wind environment slope, keep =0 for uniform ISM
             r_ej = -1,      # [ISM] radius at which first break in density profile [cm]
             r_ism = -1,     # [ISM] radius at which second break in density profile [cm]
-            n_ism = 10.,    # [ISM] ism number density if it is constnat [cm^-3]
+            n_ism = 1.,    # [ISM] ism number density if it is constnat [cm^-3]
             d_l = 3.09e26,  # [source] luminocity distance to the source
             z = 0.028,      # [source] redshift of the source
             theta_obs = 0   # [source] observer angle with respect to the polar axis

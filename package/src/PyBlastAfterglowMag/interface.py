@@ -3,13 +3,15 @@ import os
 import h5py
 from scipy import ndimage, interpolate
 import copy
+import shutil
 import subprocess
-from shutil import copyfile
-from multiprocessing import Pool
 
 from .utils import cgs, get_beta, find_nearest_index
 from .parfile_tools import read_parfile
 from .OLD_skymap_tools import compute_position_of_the_flux_centroid
+from .skymap_process import ProcessRawSkymap
+from .id_analytic import JetStruct
+from .parfile_tools import create_parfile
 
 ''' 
 pip uninstall --no-cache-dir PyBlastAfterglowMag & pip install .
@@ -947,6 +949,94 @@ class PyBlastAfterglow:
         # print("{} {} {} {}".format(path_to_cpp_executable, self.workingdir, self.parfile, self.loglevel))
         # subprocess.run(path_to_cpp_executable, input=self.workingdir)
         subprocess.check_call([path_to_cpp_executable, self.workingdir, self.parfile, loglevel])
+
+    def NEW_run(self, P: dict, run: bool = True, process_skymaps: bool = True,
+            path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info"):
+        """
+
+        :param P: dict with parameters
+        :param run:
+        :param process_skymaps:
+        :param path_to_cpp_executable:
+        :param loglevel:
+        :return:
+
+        Example P = dict(
+            main=dict(n_ism = 1e-2), # main parameters (ISM, grid, etc)
+            grb = dict(
+                type = "a" # "a" or "pw" for adaptive or piece-wise EATS integrator
+                grb=dict(save_dynamics='yes',do_mphys_in_situ='no',do_lc = "no",ebl_tbl_fpath='none',
+                    struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
+                    skymap_conf=dict(nx=64,ny32,extend_grid=2,fwhm_fac=.5,lat_dist_method="integ",
+                        intp_filter=dict(type=None,sigma=2,mode="reflect"), # of "gaussian"
+                        hist_filter=dict(type=None,sigma=2,mode="reflect")
+                    )
+                )
+            )
+        )
+
+        """
+        """
+        :
+        
+                conf = {"nx": 64, "ny": 32, "extend_grid": 2, "fwhm_fac": 0.5, "lat_dist_method": "integ",
+                    "intp_filter": {"type": None, "sigma": 2, "mode": 'reflect'},  # "gaussian"
+                    "hist_filter": {"type": None, "sigma": 2, "mode": 'reflect'}}
+        :param working_dir:
+        :param struct:
+        :param P:
+        :param type:
+        :param run:
+        :return:
+        """
+        # clean he temporary direcotry
+        if run and os.path.isdir(self.workingdir):
+            shutil.rmtree(self.workingdir)
+        if not os.path.isdir(self.workingdir):
+            os.mkdir(self.workingdir)
+
+        # generate initial data for blast waves
+        struct = copy.deepcopy(P["grb"]["struct"])
+        del P["grb"]["struct"]
+        if (struct["type"] in ["tophat","guassian"]):
+            pba_id = JetStruct(
+                n_layers_pw=80 if not "n_layers_pw" in struct.keys() else struct["n_layers_pw"],
+                n_layers_a=(1 if struct["struct"] == "tophat" else
+                            (20 if not "n_layers_a" in struct.keys() else struct["n_layers_a"])))
+        else:
+            raise KeyError("Not implemented")
+
+        # save piece-wise EATS ID
+        id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="piece-wise")
+        pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=self.workingdir + "id_pw.h5")
+
+        # save adaptive EATS ID
+        id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="adaptive")
+        pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=self.workingdir + "id_a.h5")
+
+        # create new parfile
+        P = copy.deepcopy(P)
+        type = P["grb"]["type"]
+        del P["grb"]["type"]
+        P["grb"]["fname_ejecta_id"] = "id_a.h5" if type == "a" else "id_pw.h5"
+        P["grb"]["method_eats"] = "piece-wise" if type == "pw" else "adaptive"
+        if (struct["struct"]=="tophat"): P["grb"]["nsublayers"] = 35 # for skymap resolution
+        grb_skymap_config = copy.deepcopy(P["grb"]["skymap_conf"])
+        del P["grb"]["skymap_conf"]
+        create_parfile(working_dir=self.workingdir, P=P)
+
+        # run the code with given parfile
+        if not os.path.isfile(path_to_cpp_executable):
+            raise IOError("executable is not found: {}".format(path_to_cpp_executable))
+        subprocess.check_call([path_to_cpp_executable, self.workingdir, self.parfile, loglevel])
+
+        # process skymap
+        if (process_skymaps and self.GRB.opts["do_skymap"] == "yes"):
+            prep = ProcessRawSkymap(conf=grb_skymap_config, verbose=False)
+            prep.process_singles(infpaths=self.workingdir + "raw_skymap_*.h5",
+                                 outfpath=self.GRB.fpath_sky_map,
+                                 remove_input=False)
+
 
     def clear(self):
         self.KN.clear()

@@ -113,3 +113,12 @@ def make_hash(workdir : str, grb_skymap_fpath : str, kn1_skymap_fpath : str, kn2
         + "--END"
     hash = hashlib.sha1(str.encode(s)).hexdigest()
     return (hash, s)
+
+def d2d(default: dict, new: dict):
+    default_ = copy.deepcopy(default)
+    for key, new_dict_ in new.items():
+        if not key in default_.keys():
+            default_[key] = {}
+        for key_, val_ in new_dict_.items():
+            default_[key][key_] = val_
+    return default_
