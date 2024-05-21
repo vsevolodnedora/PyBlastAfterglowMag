@@ -1,19 +1,17 @@
 ///////////////////////////////////////////////////////////////////////////////
 // PyBlastAfterglowMag
-// Copyright (C) 2019-2028, Vsevolod Nedora <vsevolod.nedora@gmail.com>
+// 2019-2024, Vsevolod Nedora <vsevolod.nedora@gmail.com>
 //
 // This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+// it under the terms of the MIT License
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
+// MIT License for more details.
 //
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+// You should have received a copy of the MIT License
+// along with this program.
 ///////////////////////////////////////////////////////////////////////////////
 // This package contains utilities for
 // TODO describe
@@ -38,12 +36,8 @@
 // . Many...
 ///////////////////////////////////////////////////////////////////////////////
 
-// 12/2022
-// Version 1 (base) Adding the content of PyBlastAfterglow lib here
-// Added parfile reader and setupe the project structure
-// Issues:
 
-#define USE_OPENMP true
+#define USE_OPENMP true // Switch to use openmp or not
 
 // include necessary files
 #include "utilitites/utils.h"
@@ -53,9 +47,6 @@
 #include "model_evolve.h"
 #include "model_magnetar.h"
 //#include "model_h"
-
-
-
 
 class PyBlastAfterglow{
     struct Pars{
@@ -91,7 +82,6 @@ public:
         p_pars = std::make_unique<Pars>();
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "PyBlastAfterglow");
         commonTables = CommonTables();
-//        commonTables.ebl.load_h5_table();
         p_mag = std::make_unique<Magnetar>(loglevel);
         p_grb = std::make_unique<Ejecta>(t_grid, commonTables, loglevel);
         p_ej  = std::make_unique<Ejecta>(t_grid, commonTables, loglevel);
@@ -204,7 +194,6 @@ public:
     }
 };
 
-
 /// -------------- Code configuration ------------------
 struct { // TODO move here code options not to be changed by user
     struct {
@@ -221,10 +210,10 @@ int main(int argc, char** argv) {
     /// ------------------------------------------------------
     if (argc<4){
         // test cases || GRG
-        working_dir = "../tst/grb/compare_jetsim_afgpy/tmp1/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/grb/compare_jetsim_afgpy/tmp1/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 
         // analysis
-//        working_dir = "../analysis/grb/fsrs/tmp1/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../analysis/grb/fsrs/tmp1/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_fs__num__ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_fs__num_ssa/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_fs__num__ssa__ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;

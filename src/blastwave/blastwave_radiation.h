@@ -1113,7 +1113,8 @@ public:
                             m_data[BW::Q::itcomov][it],
                             m_data[BW::Q::iM3][it],
                             m_data[BW::Q::irho3][it],
-                            m_data[BW::Q::iU_p3][it]
+                            m_data[BW::Q::iU_p3][it],
+                            m_data[BW::Q::ithickness_rs][it]
                     );
                 else
                     p_mphys_rs->evaluateElectronDistributionNumericMixed(
@@ -1146,7 +1147,8 @@ public:
                         m_data[BW::Q::itcomov][it],
                         m_data[BW::Q::iM2][it],
                         m_data[BW::Q::irho2][it],
-                        m_data[BW::Q::iU_p][it]
+                        m_data[BW::Q::iU_p][it],
+                        m_data[BW::Q::ithickness][it]
                 );
             else // Evolve electron distribution numerically (or analytically)
                 p_mphys->evaluateElectronDistributionNumericMixed(

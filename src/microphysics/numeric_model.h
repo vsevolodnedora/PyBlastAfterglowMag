@@ -294,7 +294,7 @@ public:
         double varbl = nunu * (CGS::h/CGS::me/CGS::c/CGS::c) * (CGS::h/CGS::me/CGS::c/CGS::c);
         double res = 0.;
         if (varbl > 1)
-            res = 0.652 * (varbl*varbl - 1) * std::log(varbl) / (varbl*varbl*varbl);
+            res = 0.652 * CGS::c * CGS::sigmaT * (varbl*varbl - 1) * std::log(varbl) / (varbl*varbl*varbl);
         return res;
     }
     double computePP(double nu1, Vector & photon_density){

@@ -341,7 +341,8 @@ public: // -------------------- NUMERIC -------------------------------- //
         model.setSolver();
     }
 
-    void initializeElectronDistribution(double tcomov, double m2, double rho2, double u_p){
+    void initializeElectronDistribution(double tcomov, double m2, double rho2, double u_p, double dr_comov_){
+        dr_comov = dr_comov_;
         source.N_ele_tot = m2 / CGS::mp;
         source.vol = m2 / rho2;
         source.u_e = u_p * eps_e;
@@ -549,6 +550,10 @@ public: // -------------------- NUMERIC -------------------------------- //
             total_rad.a[i] = total_rad.a[i] / n_ele * accel_frac * n_prime; // absorption (depth) requires the comoving particle density
             total_rad.intensity[i] = computeIntensity(
                     total_rad.j[i], total_rad.a[i]*dr_comov, METHOD_TAU::iAPPROX);
+            if (!std::isfinite(total_rad.j[i]) || total_rad.j[i] < 0.){
+                std::cerr << AT<< " nan in total_rad.j\n";
+                exit(1);
+            }
         }
 
         /// store the result in long arrays for entire evolution

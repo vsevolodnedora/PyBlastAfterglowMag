@@ -286,6 +286,7 @@ struct Photons : BaseState{
 
     /// store the current state for this timestep in total_rad vector
     void save_to_all(size_t it){
+
         for (size_t i_ = 0; i_ < numbins; i_++){
             f_all[i_ + numbins * it] = f[i_];
             j_all[i_ + numbins * it] = j[i_];
