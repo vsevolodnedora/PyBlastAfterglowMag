@@ -120,6 +120,7 @@ public: // ---------------- ANALYTIC -------------------------- //
         is_dense_output = getBoolOpt("save_spec", opts, AT, p_log, false, true);
 
         /// allocate memory for spectra to be used in EATS interpolation
+
         if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleAnalyt)
             allocateForAnalyticSpectra(nr, ish, il);
         else

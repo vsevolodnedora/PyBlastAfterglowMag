@@ -1429,7 +1429,7 @@ private:
         }
 
         /// update Magnetar energy injecton into kN blast waves
-        if (!p_pars->p_ej->do_eninj_inside_rhs) {
+        if (!p_pars->p_ej->do_eninj_inside_rhs && (p_pars->p_magnetar->run_magnetar || p_pars->p_magnetar->load_magnetar)) {
             double tinj = time;
             double ldip = p_pars->p_magnetar->getMagValInt(MAG::Q::ildip, tinj);
             double lacc = p_pars->p_magnetar->getMagValInt(MAG::Q::ilacc, tinj);
