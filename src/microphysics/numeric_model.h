@@ -285,50 +285,78 @@ public:
     }
 
     /**
+     * Annihilation rate
      * https://iopscience.iop.org/article/10.1088/0004-637X/732/2/77/pdf
      * https://arxiv.org/abs/2205.12146
      * @param nunu
      * @return
      */
-    inline static double R_kernel(const double nunu){
-        double varbl = nunu * (CGS::h/CGS::me/CGS::c/CGS::c) * (CGS::h/CGS::me/CGS::c/CGS::c);
+    inline static double R_kernel(double nu, double nu_t){
+        double x = nu * nu_t;
+        double varbl = x * (CGS::h/CGS::me/CGS::c/CGS::c) * (CGS::h/CGS::me/CGS::c/CGS::c);
         double res = 0.;
         if (varbl > 1)
-            res = 0.652 * CGS::c * CGS::sigmaT * (varbl*varbl - 1) * std::log(varbl) / (varbl*varbl*varbl);
+            res = 0.652 * CGS::c * CGS::sigmaT * (varbl * varbl - 1) * std::log(varbl) / (varbl*varbl*varbl);
         return res;
     }
-    double computePP(double nu1, Vector & photon_density){
-        /// find neares index to nu1 in syn.e grid
+
+    double computePPinjection(double nu, Vector & photon_density){
+        /// find neares index to nu in syn.e grid
         size_t idx = syn.numbins-1;
         for (size_t i = 0; i < syn.numbins-1; i++)
-            if ((syn.e[i] < nu1) && (syn.e[i+1] >= nu1)){
+            if ((syn.e[i] < nu) && (syn.e[i + 1] >= nu)){
                 idx=i;
                 break;
             }
-
         double integ = 0;
-        int k1 = -1;
-        if (nu1 >= syn.e[syn.numbins-1])
-            k1 = syn.numbins-1;
         for (size_t i=0; i<syn.numbins-1; i++){
-            if (syn.e[i]*nu1*CGS::h*CGS::h/CGS::me/CGS::me/CGS::c4 < 1.)
+            if (syn.e[i] * nu * CGS::h * CGS::h / CGS::me / CGS::me / CGS::c4 < 1.)
                 continue;
-            if (nu1 > ele.e[i])
-                k1 = i;
-            integ += photon_density[i] * R_kernel(nu1 * syn.e[i]) * (syn.e[i+1]-syn.e[i]);
+            integ += photon_density[i] * R_kernel(nu, syn.e[i]) * (syn.e[i + 1] - syn.e[i]); //
         }
-        double res = CGS::c * CGS::sigmaT * photon_density[idx] * integ;
-        if (!std::isfinite(res) || res < 0){
-            std::cerr << AT << " res = "<<res<< " in pp-roduction\n";
-            exit(1);
-        }
-//        if (res!=0){
-//            int z = 0;
+        double fac = 4. * CGS::me * CGS::c2 / CGS::h;
+        double res = fac * photon_density[idx] * integ; // Eq.51 in Micelli&Nava
+//
+//        double integ = 0;
+//        int k1 = -1;
+//        if (nu >= syn.e[syn.numbins-1])
+//            k1 = syn.numbins-1;
+//        for (size_t i=0; i<syn.numbins-1; i++){
+//            if (syn.e[i]*nu*CGS::h*CGS::h/CGS::me/CGS::me/CGS::c4 < 1.)
+//                continue;
+//            if (nu > ele.e[i])
+//                k1 = i;
+//            integ += photon_density[i] * R_kernel(nu * syn.e[i]) * (syn.e[i+1]-syn.e[i]);
 //        }
+//        double res = CGS::c * CGS::sigmaT * photon_density[idx] * integ;
+//        if (!std::isfinite(res) || res < 0){
+//            std::cerr << AT << " res = "<<res<< " in pp-roduction\n";
+//            exit(1);
+//        }
+////        if (res!=0){
+////            int z = 0;
+////        }
         return res;
     }
 
-
+    void computePPabsorption(Vector & photon_density){
+        /// clear the array
+        std::fill(ssc.a.begin(), ssc.a.end(),0.);
+#ifdef USE_OPENMP
+#pragma omp parallel for num_threads( 4 ) if (USE_OPENMP)
+#endif
+        for (size_t i = 0; i < ssc.numbins; i++) {
+            double integ = 0;
+            for (size_t j = 0; j < syn.numbins-1; j++) {
+                integ += R_kernel(ssc.e[i], syn.e[j]) * photon_density[j] * (syn.e[j+1]-syn.e[j]);
+            }
+            ssc.a[i] = integ / CGS::c;
+        }
+//        std::cout << ssc.e << "\n";
+//        std::cout << ssc.a << "\n";
+//        print_xy_as_numpy(ssc.e,ssc.a,ssc.numbins,1);
+//        int z =1;
+    }
 
     /**
      * Define a factor that is dependent on the magnetic field B.
@@ -695,12 +723,9 @@ public:
 
 
     void addPPSource(Vector & photon_density){
-        double fac = 4. * CGS::me * CGS::c * CGS::c / CGS::h;
         for (size_t i = 0; i < n_grid_points; i++){
             double nu1 = 2. * ele.e[i] * CGS::me * CGS::c * CGS::c / CGS::h;
-            double pp_inj = fac * computePP(nu1, photon_density);
-//            std::cout << source_grid[i] << " | " << pp_inj*source.vol << "\n";
-            source_grid[i] += pp_inj*source.vol;
+            source_grid[i] += computePPinjection(nu1, photon_density) * source.vol;
         }
     }
 

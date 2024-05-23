@@ -507,6 +507,10 @@ public: // -------------------- NUMERIC -------------------------------- //
         if (m_methods_ssc == METHOD_SSC::iNumSSC)
             model.computeSSCSpectrum(total_rad.f); // using syn.f[]+ssc.f[] -> compute -> ssc.j[], ssc.f[]
 
+        /// Compute PP
+        if (m_methods_pp ==METHOD_PP::iPPnum)
+            model.computePPabsorption(total_rad.f);
+
         /// 5. compute new photon density
         double T = dr_comov / CGS::c; // escape time (See Huang+2022)
         double fac = T / source.vol; // volume = 4. * M_PI * r * r * dr_comov;
@@ -517,28 +521,38 @@ public: // -------------------- NUMERIC -------------------------------- //
                 total_rad.f[i] += ssc.j[i] * fac / (CGS::h * ssc.e[i]);
 
         /// 5. Substract photons due to pair-production from new photon density
-        if (m_methods_pp==METHOD_PP::iPPnum)
-            for (size_t i = 0; i < ssc.numbins; i++) {
-                double pp_loss = model.computePP(ssc.e[i], total_rad.f);
-                total_rad.f[i] = std::max(0., total_rad.f[i] - pp_loss);
-    //            double val1 = ssc.f[i];
-    //            double val2 = model.computePP(syn.e[i]);
-    //            std::cout << val1 << " | " << val2 << " -> " << std::max(0., ssc.f[i] - model.computePP(ssc.e[i])) << "\n";
-            }
+//        if (m_methods_pp==METHOD_PP::iPPnum)
+//            for (size_t i = 0; i < ssc.numbins; i++) {
+//                double pp_loss = model.computePPinjection(ssc.e[i], total_rad.f);
+//                total_rad.f[i] = std::max(0., total_rad.f[i] - pp_loss);
+//    //            double val1 = ssc.f[i];
+//    //            double val2 = model.computePPinjection(syn.e[i]);
+//    //            std::cout << val1 << " | " << val2 << " -> " << std::max(0., ssc.f[i] - model.computePPinjection(ssc.e[i])) << "\n";
+//            }
+//        /// 6. convert photon field back to emissivity (to account for photons lost to pp-production)
+//        for (size_t i=0; i < syn.numbins; i++) {
+//            total_rad.j[i] = total_rad.f[i] / fac * (CGS::h * ssc.e[i]);
+//            total_rad.a[i] = syn.a[i];
+//        }
 
-        /// 6. convert photon field back to emissivity (to account for photons lost to pp-production)
-        for (size_t i=0; i < syn.numbins; i++) {
-            total_rad.j[i] = total_rad.f[i] / fac * (CGS::h * ssc.e[i]);
-            total_rad.a[i] = syn.a[i];
-        }
+        for (size_t i=0; i < syn.numbins; i++)
+            total_rad.j[i] = syn.j[i];
         if ((m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum) && (m_methods_ssc==METHOD_SSC::iNumSSC))
+            for (size_t i=0; i < ssc.numbins; i++)
+                total_rad.j[i] += ssc.j[i];
+
+        for (size_t i = 0; i < syn.numbins; i++)
+            total_rad.a[i] = syn.a[i];
+        if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum)
             for (size_t i = 0; i < syn.numbins; i++)
                 total_rad.a[i] += ssc.a[i];
+
+        std::cout << ssc.a << "\n";
 
         /// 7. compute total numer of electrons (solution)
         double n_ele=0.;
         for (size_t i = 0; i < ele.numbins-1; i++)
-            n_ele+=ele.f[i]*(ele.e[i+1]-ele.e[i]); //total number of electrons
+            n_ele += ele.f[i] * (ele.e[i+1]-ele.e[i]); //total number of electrons
 //        n_ele *= accel_frac;// Deep Newtonian corretion
         if (n_ele <= 0){
             (*p_log)(LOG_ERR,AT) << " n_ele = "<<n_ele<<"\n";
@@ -549,8 +563,8 @@ public: // -------------------- NUMERIC -------------------------------- //
         for (size_t i = 0; i < syn.numbins; i++) {
             total_rad.j[i] = total_rad.j[i] / n_ele * accel_frac;
             total_rad.a[i] = total_rad.a[i] / n_ele * accel_frac * n_prime; // absorption (depth) requires the comoving particle density
-            total_rad.intensity[i] = computeIntensity(
-                    total_rad.j[i], total_rad.a[i]*dr_comov, METHOD_TAU::iAPPROX);
+            double dtau = total_rad.a[i]*dr_comov;
+            total_rad.intensity[i] = computeIntensity(total_rad.j[i], dtau, METHOD_TAU::iAPPROX);
             if (!std::isfinite(total_rad.j[i]) || total_rad.j[i] < 0.){
                 std::cerr << AT<< " nan in total_rad.j\n";
                 exit(1);
