@@ -288,7 +288,8 @@ public:
      * Annihilation rate
      * https://iopscience.iop.org/article/10.1088/0004-637X/732/2/77/pdf
      * https://arxiv.org/abs/2205.12146
-     * @param nunu
+     * @param nu_t
+     * @param nu
      * @return
      */
     inline static double R_kernel(double nu, double nu_t){
@@ -348,6 +349,7 @@ public:
         for (size_t i = 0; i < ssc.numbins; i++) {
             double integ = 0;
             for (size_t j = 0; j < syn.numbins-1; j++) {
+                /// Eq. 49 in Micelli & Nava
                 integ += R_kernel(ssc.e[i], syn.e[j]) * photon_density[j] * (syn.e[j+1]-syn.e[j]);
             }
             ssc.a[i] = integ / CGS::c;

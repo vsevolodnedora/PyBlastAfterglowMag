@@ -7,58 +7,58 @@ fig_dir = os.getcwd()+'/figs/'
 def mrg(dict2:dict, dict1:dict):
     return {k: v | dict2[k] for k, v in dict1.items() if k in dict2.keys()}
 
-def run(working_dir:str, struct:dict, P:dict, type:str="a", run:bool=True) -> PBA.PyBlastAfterglow:
-    # clean he temporary direcotry
-    if os.path.isdir(working_dir):
-        shutil.rmtree(working_dir)
-    os.mkdir(working_dir)
-
-    # generate initial data for blast waves
-    pba_id = PBA.id_analytic.JetStruct(n_layers_pw=80,
-                                       n_layers_a=1 if struct["struct"]=="tophat" else 20)
-
-    # save piece-wise EATS ID
-    id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="piece-wise")
-    pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=working_dir+"id_pw.h5")
-
-    # save adaptive EATS ID
-    id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="adaptive")
-    pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=working_dir+"id_a.h5")
-
-    # create new parfile
-    P["grb"]["fname_ejecta_id"] = "id_a.h5" if type == "a" else "id_pw.h5"
-    PBA.parfile_tools.create_parfile(working_dir=working_dir, P=P)
-
-    # instantiate PyBlastAfterglow
-    pba = PBA.interface.PyBlastAfterglow(workingdir=working_dir)
-
-    # run the code with given parfile
-    if run:
-        pba.run(
-            path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",
-            loglevel="info"
-        )
-
-    # process skymap
-    if (run and pba.GRB.opts["do_skymap"]=="yes"):
-        conf = {"nx":128, "ny":64, "extend_grid":1.1, "fwhm_fac":0.5, "lat_dist_method":"integ",
-                "intp_filter":{ "type":'gaussian', "sigma":2, "mode":'reflect' }, # "gaussian"
-                "hist_filter":{ "type":'gaussian', "sigma":2, "mode":'reflect' }}
-        prep = PBA.skymap_process.ProcessRawSkymap(conf=conf, verbose=False)
-        prep.process_singles(infpaths=working_dir+"raw_skymap_*.h5",
-                             outfpath=pba.GRB.fpath_sky_map,
-                             remove_input=True)
-
-    return pba
+# def run(working_dir:str, struct:dict, P:dict, type:str="a", run:bool=True) -> PBA.PyBlastAfterglow:
+#     # clean he temporary direcotry
+#     if os.path.isdir(working_dir):
+#         shutil.rmtree(working_dir)
+#     os.mkdir(working_dir)
+#
+#     # generate initial data for blast waves
+#     pba_id = PBA.id_analytic.JetStruct(n_layers_pw=80,
+#                                        n_layers_a=1 if struct["struct"]=="tophat" else 20)
+#
+#     # save piece-wise EATS ID
+#     id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="piece-wise")
+#     pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=working_dir+"id_pw.h5")
+#
+#     # save adaptive EATS ID
+#     id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="adaptive")
+#     pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=working_dir+"id_a.h5")
+#
+#     # create new parfile
+#     P["grb"]["fname_ejecta_id"] = "id_a.h5" if type == "a" else "id_pw.h5"
+#     PBA.parfile_tools.create_parfile(working_dir=working_dir, P=P)
+#
+#     # instantiate PyBlastAfterglow
+#     pba = PBA.interface.PyBlastAfterglow(workingdir=working_dir)
+#
+#     # run the code with given parfile
+#     if run:
+#         pba.run(
+#             path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",
+#             loglevel="info"
+#         )
+#
+#     # process skymap
+#     if (run and pba.GRB.opts["do_skymap"]=="yes"):
+#         conf = {"nx":128, "ny":64, "extend_grid":1.1, "fwhm_fac":0.5, "lat_dist_method":"integ",
+#                 "intp_filter":{ "type":'gaussian', "sigma":2, "mode":'reflect' }, # "gaussian"
+#                 "hist_filter":{ "type":'gaussian', "sigma":2, "mode":'reflect' }}
+#         prep = PBA.skymap_process.ProcessRawSkymap(conf=conf, verbose=False)
+#         prep.process_singles(infpaths=working_dir+"raw_skymap_*.h5",
+#                              outfpath=pba.GRB.fpath_sky_map,
+#                              remove_input=True)
+#
+#     return pba
 
 def plot(struct:dict,pp:dict,plot:dict):
 
 
     fig,ax = plt.subplots(ncols=1,nrows=1,figsize=(4.6,3.2))
 
-    pba = run(working_dir=working_dir,struct=struct,P=mrg(dict(
+    pba = PBA.wrappers.run_grb(working_dir=working_dir, struct=struct, P=mrg(dict(
         main=dict(),
-        grb=dict(do_rs_radiation='no',do_rs='no',bw_type='fs')),pp),type="a",run=True)
+        grb=dict(do_rs_radiation='no',do_rs='no',bw_type='fs')),pp), type="a", run=True)
     ax.plot(
         pba.GRB.get_lc_times(unique=True,spec=False),
         pba.GRB.get_lc(key="fluxdens", xkey="freqs", key_time="times", freq=1e9, time=None,
@@ -67,9 +67,9 @@ def plot(struct:dict,pp:dict,plot:dict):
 
     )
 
-    pba = run(working_dir=working_dir,struct=struct,P=mrg(dict(
+    pba = PBA.wrappers.run_grb(working_dir=working_dir, struct=struct, P=mrg(dict(
         main=dict(),
-        grb=dict(do_rs_radiation='yes',do_rs='yes',bw_type='fsrs')),pp),type="a",run=True)
+        grb=dict(do_rs_radiation='yes',do_rs='yes',bw_type='fsrs')),pp), type="a", run=True)
     ax.plot(
         pba.GRB.get_lc_times(unique=True,spec=False),
         pba.GRB.get_lc(key="fluxdens", xkey="freqs", key_time="times", freq=1e9, time=None,
@@ -100,9 +100,9 @@ def plot_burster(struct:dict,pp:dict,plot:dict):
 
     fig,axes = plt.subplots(ncols=1,nrows=len(v_ns),figsize=(5,8),sharex='all')
 
-    pba = run(working_dir=working_dir,struct=struct,P=mrg(dict(
+    pba = PBA.wrappers.run_grb(working_dir=working_dir, struct=struct, P=mrg(dict(
         main=dict(),
-        grb=dict(do_rs_radiation='no',do_rs='no',bw_type='fs')),pp),type="a",run=True)
+        grb=dict(do_rs_radiation='no',do_rs='no',bw_type='fs')),pp), type="a", run=True)
     for i, d in enumerate(v_ns):
         ax = axes[i]
         ax.plot(
@@ -111,9 +111,9 @@ def plot_burster(struct:dict,pp:dict,plot:dict):
             color='blue',label='FS', ls='-'
         )
 
-    pba = run(working_dir=working_dir,struct=struct,P=mrg(dict(
+    pba = PBA.wrappers.run_grb(working_dir=working_dir, struct=struct, P=mrg(dict(
         main=dict(),
-        grb=dict(do_rs_radiation='yes',do_rs='yes',bw_type='fsrs')),pp),type="a",run=True)
+        grb=dict(do_rs_radiation='yes',do_rs='yes',bw_type='fsrs')),pp), type="a", run=True)
     for i, d in enumerate(v_ns):
         ax = axes[i]
         ax.plot(

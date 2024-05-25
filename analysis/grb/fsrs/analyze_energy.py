@@ -143,7 +143,7 @@ def GammaEff(Gamma, gammaAdi):
 #     return pba
 
 def plot_fs_energy(struct:dict,pp:dict,plot:dict):
-    pba = PBA.wrappers.run(working_dir=working_dir,struct=struct,P=pp,type='a')
+    pba = PBA.wrappers.run_grb(working_dir=working_dir, struct=struct, P=pp, type='a')
     #
     fig, axes = plt.subplots(figsize=(5.5,5.), ncols=1, nrows=2, sharex="all")
     if not hasattr(axes,'__len__'): axes = [axes]
@@ -310,7 +310,7 @@ def plot_fs_energy(struct:dict,pp:dict,plot:dict):
     plt.show()
 
 def plot_fs_energy2(struct:dict,pp:dict,plot:dict):
-    pba = PBA.wrappers.run(working_dir=working_dir,struct=struct,P=pp,type='a')
+    pba = PBA.wrappers.run_grb(working_dir=working_dir, struct=struct, P=pp, type='a')
     #
     fig, axes = plt.subplots(figsize=(5.5,6.), ncols=1, nrows=3, sharex="all",layout='constrained',
                              gridspec_kw=dict(height_ratios=[1,2,2]))
@@ -599,9 +599,9 @@ def plot_fs_energy2(struct:dict,pp:dict,plot:dict):
 
 def plot_fs_energy_rad(struct:dict,pp:dict,plot:dict,fs_or_rs="fs",ishell=0,ilayer=0):
 
-    pba = PBA.wrappers.run(working_dir=working_dir,struct=struct,
-              P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad=-1,epsilon_e_rad_rs=-1))),
-              type="a")
+    pba = PBA.wrappers.run_grb(working_dir=working_dir, struct=struct,
+                               P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad=-1,epsilon_e_rad_rs=-1))),
+                               type="a")
 
 
     p = float(pba.GRB.pars["p_fs" if fs_or_rs == "fs" else "p_rs"])
@@ -709,9 +709,9 @@ def plot_fs_energy_rad(struct:dict,pp:dict,plot:dict,fs_or_rs="fs",ishell=0,ilay
     # axes[0].plot(pba.GRB.get_dyn_arr(v_n="R",ishell=0,ilayer=0),
     #              pba.GRB.get_dyn_arr(v_n="mom",ishell=0,ilayer=0),color='black',ls='--',label=r'$Semi-radiative$')
 
-    pba = PBA.wrappers.run(working_dir=working_dir,struct=struct,
-              P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad=0,epsilon_e_rad_rs=0))),
-              type="a")
+    pba = PBA.wrappers.run_grb(working_dir=working_dir, struct=struct,
+                               P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad=0,epsilon_e_rad_rs=0))),
+                               type="a")
 
     mom_adi =  pba.GRB.get_dyn_arr(v_n="mom",ishell=0,ilayer=0)
     if (pba.GRB.opts["do_rs"] == "yes"):
@@ -721,9 +721,9 @@ def plot_fs_energy_rad(struct:dict,pp:dict,plot:dict,fs_or_rs="fs",ishell=0,ilay
     # axes[0].plot(pba.GRB.get_dyn_arr(v_n="R",ishell=0,ilayer=0),
     #              pba.GRB.get_dyn_arr(v_n="mom",ishell=0,ilayer=0),color='black',ls='-',label=r'$Adiabatic$')
 
-    pba = PBA.wrappers.run(working_dir=working_dir,struct=struct,
-              P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad=1,epsilon_e_rad_rs=1))),
-              type="a")
+    pba = PBA.wrappers.run_grb(working_dir=working_dir, struct=struct,
+                               P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad=1,epsilon_e_rad_rs=1))),
+                               type="a")
 
     mom_rad = pba.GRB.get_dyn_arr(v_n="mom",ishell=0,ilayer=0)
     if (pba.GRB.opts["do_rs"] == "yes"):
@@ -770,7 +770,7 @@ def plot_fs_energy_rad(struct:dict,pp:dict,plot:dict,fs_or_rs="fs",ishell=0,ilay
     plt.show()
 
 def plot_id(struct:dict,pp:dict,plot:dict):
-    pba = PBA.wrappers.run(working_dir=working_dir,struct=struct,P=pp,type='a',do_run=False)
+    pba = PBA.wrappers.run_grb(working_dir=working_dir, struct=struct, P=pp, type='a', do_run=False)
     fig,axes = plt.subplots(ncols=1,nrows=2,sharex='all',layout='constrained')
 
     # plot energy

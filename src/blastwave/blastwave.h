@@ -1521,7 +1521,7 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
     double theta  = Y[i+ SOL::QS::itheta];
     double M2     = Y[i+ SOL::QS::iM2];
     // ****************************************
-    if (Gamma < 1) {
+    if (Gamma < 1 || M2 < 0 || theta < 0) {
         (*p_log)(LOG_ERR, AT) << "Wrong value in RHS: Gamma="<<Gamma
             << " Gamma0="<<p_pars->Gamma0
             << " E0=" <<p_pars->E0
@@ -1574,6 +1574,10 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
 
     double dthetadr = 0.0;
     if ((theta < p_pars->theta_max) && (!p_pars->end_spreading)) {
+        if (theta < 0){
+            (*p_log)(LOG_ERR,AT) << " theta="<<theta<<"\n";
+            exit(1);
+        }
         switch (p_pars->method_limit_spread) {
 
             case iNone:
@@ -1584,7 +1588,8 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
                     dthetadr = p_spread->getDthetaDr(Gamma, GammaSh, R, gammaAdi, theta);
                 break;
             case iGammaVal:
-                if (Gamma*beta < p_pars->value_of_mom_when_spread_start)
+                if (Gamma*beta < std::max(p_pars->value_of_mom_when_spread_start,
+                                          p_pars->fraction_of_mom0_when_spread_start*p_pars->mom0))
                     dthetadr = p_spread->getDthetaDr(Gamma, GammaSh, R, gammaAdi, theta);
                 break;
             case iRd:
@@ -1650,6 +1655,10 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
     // -- Radiative losses
     double eps_rad = p_pars->eps_rad;
     if (p_pars->eps_rad < 0){
+        if (Eint2 < 0 || M2 < 0 || Gamma < 1){
+            (*p_log)(LOG_ERR,AT) << " Eint="<<Eint2<<" M2="<<M2<<" Gamma="<<Gamma<<"\n";
+            exit(1);
+        }
         eps_rad = p_pars->p_mphys->computeRadiationLoss(
                 dM2dR*p_pars->M0, dEsh2dR*p_pars->M0*CGS::c*CGS::c,
                 R, Gamma, GammaSh, gammaAdi, M2*p_pars->M0, Eint2*p_pars->M0*CGS::c*CGS::c,
@@ -1694,7 +1703,9 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
     double dttdr = EQS::evalElapsedTime(R, EQS::MomFromGam(Gamma),dthetadr,spread);
     // ****************************************
 
-    if (!std::isfinite(dRdt) || !std::isfinite(dGammadR) || !std::isfinite(dlnV2dR) || !std::isfinite(dthetadr)) {
+    if (!std::isfinite(dRdt) || !std::isfinite(dGammadR) ||
+        !std::isfinite(dlnV2dR) || !std::isfinite(dthetadr) ||
+        !std::isfinite(dEint2dR) || !std::isfinite(dthetadr)) {
         (*p_log)(LOG_ERR,AT)  << " nan in derivatives. Exiting..." << "\n";
         exit(1);
     }
@@ -1704,7 +1715,7 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
 ////            exit(1);
 //            dthetadr = 0.;
 //        }
-    if (!std::isfinite(dRdt) || !std::isfinite(dGammadR) || dM2dR < 0.
+    if (!std::isfinite(dRdt) || !std::isfinite(dGammadR) || dM2dR < 0. || dthetadr < 0
         || !std::isfinite(dlnV2dR) || !std::isfinite(dthetadr)) {
         (*p_log)(LOG_ERR,AT) << " nan in derivatives. "
                              << " dRdt="<<dRdt<<"\n"
@@ -1776,7 +1787,7 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
         if (p_pars->prev_idx_x == 0)
             Gamma = p_pars->Gamma0;
         else
-            Gamma = 1.+1.e-5;
+            Gamma = 1.+1.e-5; //
 //            exit(1);
     }
     if (deltaR4 < 0){
@@ -1863,7 +1874,8 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
                     dthetadr = p_spread->getDthetaDr(Gamma, GammaSh, R, gammaAdi, theta);
                 break;
             case iGammaVal:
-                if (Gamma*beta < p_pars->value_of_mom_when_spread_start)
+                if (Gamma*beta < std::max(p_pars->value_of_mom_when_spread_start,
+                                          p_pars->fraction_of_mom0_when_spread_start*p_pars->mom0))
                     dthetadr = p_spread->getDthetaDr(Gamma, GammaSh, R, gammaAdi, theta);
                 break;
             case iRd:

@@ -30,67 +30,67 @@ def d2d(default: dict, new: dict):
     return default_
 
 
-def run(working_dir: str, struct: dict, P: dict, type: str = "a", run: bool = True,
-        process_skymaps: bool = True) -> PBA.PyBlastAfterglow:
-    """
-            conf = {"nx": 64, "ny": 32, "extend_grid": 2, "fwhm_fac": 0.5, "lat_dist_method": "integ",
-                "intp_filter": {"type": None, "sigma": 2, "mode": 'reflect'},  # "gaussian"
-                "hist_filter": {"type": None, "sigma": 2, "mode": 'reflect'}}
-    :param working_dir:
-    :param struct:
-    :param P:
-    :param type:
-    :param run:
-    :return:
-    """
-    # clean he temporary direcotry
-    if run and os.path.isdir(working_dir):
-        shutil.rmtree(working_dir)
-    if not os.path.isdir(working_dir):
-        os.mkdir(working_dir)
-
-    # generate initial data for blast waves
-    struct = copy.deepcopy(struct)
-    pba_id = PBA.id_analytic.JetStruct(
-        n_layers_pw=80 if not "n_layers_pw" in struct.keys() else struct["n_layers_pw"],
-        n_layers_a=(1 if struct["struct"] == "tophat" else
-                    (20 if not "n_layers_a" in struct.keys() else struct["n_layers_a"])))
-
-    # save piece-wise EATS ID
-    id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="piece-wise")
-    pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=working_dir + "id_pw.h5")
-
-    # save adaptive EATS ID
-    id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="adaptive")
-    pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=working_dir + "id_a.h5")
-
-    # create new parfile
-    P = copy.deepcopy(P)
-    P["grb"]["fname_ejecta_id"] = "id_a.h5" if type == "a" else "id_pw.h5"
-    P["grb"]["method_eats"] = "piece-wise" if type == "pw" else "adaptive"
-    if (struct["struct"]=="tophat"): P["grb"]["nsublayers"] = 35 # for skymap resolution
-    grb_skymap_config = copy.deepcopy(P["grb"]["skymap_conf"])
-    del P["grb"]["skymap_conf"]
-    PBA.parfile_tools.create_parfile(working_dir=working_dir, P=P)
-
-    # instantiate PyBlastAfterglow
-    pba = PBA.interface.PyBlastAfterglow(workingdir=working_dir)
-
-    # run the code with given parfile
-    if run:
-        pba.run(
-            path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",
-            loglevel="info"
-        )
-
-    # process skymap
-    if (process_skymaps and pba.GRB.opts["do_skymap"] == "yes"):
-        prep = PBA.skymap_process.ProcessRawSkymap(conf=grb_skymap_config, verbose=False)
-        prep.process_singles(infpaths=working_dir + "raw_skymap_*.h5",
-                             outfpath=pba.GRB.fpath_sky_map,
-                             remove_input=False)
-
-    return pba
+# def run(working_dir: str, struct: dict, P: dict, type: str = "a", run: bool = True,
+#         process_skymaps: bool = True) -> PBA.PyBlastAfterglow:
+#     """
+#             conf = {"nx": 64, "ny": 32, "extend_grid": 2, "fwhm_fac": 0.5, "lat_dist_method": "integ",
+#                 "intp_filter": {"type": None, "sigma": 2, "mode": 'reflect'},  # "gaussian"
+#                 "hist_filter": {"type": None, "sigma": 2, "mode": 'reflect'}}
+#     :param working_dir:
+#     :param struct:
+#     :param P:
+#     :param type:
+#     :param run:
+#     :return:
+#     """
+#     # clean he temporary direcotry
+#     if run and os.path.isdir(working_dir):
+#         shutil.rmtree(working_dir)
+#     if not os.path.isdir(working_dir):
+#         os.mkdir(working_dir)
+#
+#     # generate initial data for blast waves
+#     struct = copy.deepcopy(struct)
+#     pba_id = PBA.id_analytic.JetStruct(
+#         n_layers_pw=80 if not "n_layers_pw" in struct.keys() else struct["n_layers_pw"],
+#         n_layers_a=(1 if struct["struct"] == "tophat" else
+#                     (20 if not "n_layers_a" in struct.keys() else struct["n_layers_a"])))
+#
+#     # save piece-wise EATS ID
+#     id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="piece-wise")
+#     pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=working_dir + "id_pw.h5")
+#
+#     # save adaptive EATS ID
+#     id_dict, id_pars = pba_id.get_1D_id(pars=struct, type="adaptive")
+#     pba_id.save_1d_id(id_dict=id_dict, id_pars=id_pars, outfpath=working_dir + "id_a.h5")
+#
+#     # create new parfile
+#     P = copy.deepcopy(P)
+#     P["grb"]["fname_ejecta_id"] = "id_a.h5" if type == "a" else "id_pw.h5"
+#     P["grb"]["method_eats"] = "piece-wise" if type == "pw" else "adaptive"
+#     if (struct["struct"]=="tophat"): P["grb"]["nsublayers"] = 35 # for skymap resolution
+#     grb_skymap_config = copy.deepcopy(P["grb"]["skymap_conf"])
+#     del P["grb"]["skymap_conf"]
+#     PBA.parfile_tools.create_parfile(working_dir=working_dir, P=P)
+#
+#     # instantiate PyBlastAfterglow
+#     pba = PBA.interface.PyBlastAfterglow(workingdir=working_dir)
+#
+#     # run the code with given parfile
+#     if run:
+#         pba.run(
+#             path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",
+#             loglevel="info"
+#         )
+#
+#     # process skymap
+#     if (process_skymaps and pba.GRB.opts["do_skymap"] == "yes"):
+#         prep = PBA.skymap_process.ProcessRawSkymap(conf=grb_skymap_config, verbose=False)
+#         prep.process_singles(infpaths=working_dir + "raw_skymap_*.h5",
+#                              outfpath=pba.GRB.fpath_sky_map,
+#                              remove_input=False)
+#
+#     return pba
 
 
 def plot_skymaps_3d(ax: plt.axes, skymaps: list[PBA.Skymap]):
@@ -466,14 +466,14 @@ def plot_skymaps_two_rows_with_hist(skymaps:type[list[PBA.Skymap],list[PBA.Skyma
 
 def task_skymaps_tophat(do_run: bool, process_skymaps: bool, struct: dict, P: dict, name='tophat_skymap_props_fsrs'):
 
-    pba1 = run(
+    pba1 = PBA.wrappers.run_grb(
         working_dir=os.getcwd()+f"/working_dirs/{name}"+"_num_ssa_ssc_fsrs/",
         struct=struct, P=d2d(default=P, new=dict(
             main=dict(),
             grb=dict(method_ssc_fs='numeric', use_ssa_fs='yes',do_rs='yes',bw_type='fsrs',do_rs_radiation='no'))),
         type='a', run=do_run, process_skymaps=False
     )
-    pba2 = run(
+    pba2 = PBA.wrappers.run_grb(
         working_dir=os.getcwd()+f"/working_dirs/{name}"+"_mix_ssa_ssc_fsrs/",
         struct=struct, P=d2d(default=P, new=dict(
             main=dict(),
@@ -564,12 +564,12 @@ def plot_skymaps_comparison_tophat(do_run: bool, process_skymaps: bool, struct: 
                  pars=dict(main=dict(),
                            grb=dict(method_ssc_fs='numeric', use_ssa_fs='yes')))
 
-    pba1 = run(
+    pba1 = PBA.wrappers.run_grb(
         working_dir=task1["workingdir"], struct=struct, P=d2d(default=P, new=task1["pars"]),
         type='a', run=do_run, process_skymaps=False
     )
 
-    pba2 = run(
+    pba2 = PBA.wrappers.run_grb(
         working_dir=task2["workingdir"], struct=struct, P=d2d(default=P, new=task2["pars"]),
         type='a', run=do_run, process_skymaps=False
     )
@@ -946,7 +946,7 @@ def plot_skymaps_comparison_tophat_evol(do_run: bool, process_skymaps: bool, tas
     times = [25,35,50,75]
     fig, axes = plt.subplots(ncols=1, nrows=2, sharex='all', figsize=(5, 3), layout='constrained')
     for task in tasks:
-        pba = run(
+        pba = PBA.wrappers.run_grb(
             working_dir=task["workingdir"], struct=struct, P=d2d(default=P, new=task["pars"]),
             type='a', run=do_run, process_skymaps=process_skymaps
         )
@@ -1035,7 +1035,7 @@ def plot_skymaps_comparison_gaussian(do_run: bool, process_skymaps: bool, task: 
             struct["n_layers_pw"] = res_pw
             struct["n_layers_a"] = res_a
             workingdir = f"/working_dirs/{name + '_' + eats_type + '_' + (str(res_a) if eats_type == 'a' else str(res_pw))}/"
-            pba = run(
+            pba = PBA.wrappers.run_grb(
                 working_dir=os.getcwd() + workingdir,
                 struct=struct, P=d2d(default=P, new=dict(
                     main=dict(theta_obs=np.pi / 4.),
@@ -1150,17 +1150,17 @@ if __name__ == '__main__':
                  )
     )
 
-    # task_skymaps_tophat(do_run=do_run, process_skymaps=process_skymaps, struct=struct, P=P,
-    #                     name='tophat_skymap_props_fsrs')
+    task_skymaps_tophat(do_run=do_run, process_skymaps=process_skymaps, struct=struct, P=P,
+                        name='tophat_skymap_props_fsrs')
 
-    # plot_skymap(do_run=do_run, process_skymaps=process_skymaps,
-    #             task=dict(figname="skymap_props_compare", show=True),
-    #             struct=struct, P=P)
-    # plot_skymaps_comparison_tophat(do_run=do_run, process_skymaps=process_skymaps,
-    #                                struct=struct, P=P)
-    # plot_skymaps_comparison_tophat_evol(do_run=do_run, process_skymaps=process_skymaps,
-    #                                     task=dict(show=True),
-    #                                     struct=struct, P=P)
+    plot_skymap(do_run=do_run, process_skymaps=process_skymaps,
+                task=dict(figname="skymap_props_compare", show=True),
+                struct=struct, P=P)
+    plot_skymaps_comparison_tophat(do_run=do_run, process_skymaps=process_skymaps,
+                                   struct=struct, P=P)
+    plot_skymaps_comparison_tophat_evol(do_run=do_run, process_skymaps=process_skymaps,
+                                        task=dict(show=True),
+                                        struct=struct, P=P)
 
     # ------------------------------------------------------------------
 

@@ -543,11 +543,12 @@ public: // -------------------- NUMERIC -------------------------------- //
 
         for (size_t i = 0; i < syn.numbins; i++)
             total_rad.a[i] = syn.a[i];
-        if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum)
-            for (size_t i = 0; i < syn.numbins; i++)
-                total_rad.a[i] += ssc.a[i];
+//        if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum)
+//            for (size_t i = 0; i < syn.numbins; i++)
+//                total_rad.a[i] += ssc.a[i];
 
-        std::cout << ssc.a << "\n";
+
+//        std::cout << ssc.a << "\n";
 
         /// 7. compute total numer of electrons (solution)
         double n_ele=0.;
@@ -557,6 +558,17 @@ public: // -------------------- NUMERIC -------------------------------- //
         if (n_ele <= 0){
             (*p_log)(LOG_ERR,AT) << " n_ele = "<<n_ele<<"\n";
             exit(1);
+        }
+
+        /// account for PP-producted as an attenuation process (Following Micelli & Nava 2023)
+        if ((m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum) && (m_methods_pp==METHOD_PP::iPPnum)){
+            for (size_t i = 0; i < syn.numbins; i++){
+                double abs = ssc.a[i] ;/// n_ele * accel_frac * n_prime;
+                double tau_pp = abs * dr_comov;
+                double atten = (-std::expm1(-tau_pp)/tau_pp);
+                if (tau_pp > 0.)
+                    total_rad.j[i] = total_rad.j[i] * atten;
+            }
         }
 
         /// 8. compute final required emissivity and absorption (normalized)

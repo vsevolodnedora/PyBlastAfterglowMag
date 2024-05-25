@@ -243,9 +243,9 @@ public:
                 }
                 method_limit_spread = METHOD_LIMIT_SPREAD::iGamma0Frac;
             }
-            else if(opts.at(opt) == "GammaVal") {
+            else if(opts.at(opt) == "MomValAndFrac") {
                 p_pars->value_of_mom_when_spread_start =
-                        (double)getDoublePar("mom_when_start_spread",pars, AT,p_log,.75, true);
+                        (double)getDoublePar("mom_when_start_spread",pars, AT,p_log,2., true);
                 method_limit_spread = METHOD_LIMIT_SPREAD::iGammaVal;
             }
             else if(opts.at(opt) == "Rd") {
@@ -258,8 +258,8 @@ public:
                                       << " Possible options: "
                                       << " None "
                                       << " Rd "
-                                      << " GammaVal "
-                                      << " Gamma0Frac "
+                                      << " MomValAndFrac "
+                                      << " Mom0Frac "
                                       << " Exiting...\n";
 //                std::cerr << AT << "\n";
                 exit(1);
