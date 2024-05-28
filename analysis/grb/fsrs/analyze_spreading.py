@@ -80,12 +80,12 @@ def plot_dyn(ax, ej:PBA.Ejecta, v_n_x : str, v_n_y : str, layers=(), plot_layer 
 
 if __name__ == '__main__':
     figname = "gauss_spread_comparison"
-    run = False
+    run = True
     # struct = dict(struct="gaussian",Eiso_c=1.e52, Gamma0c= 300., M0c= -1., theta_c= 0.085, theta_w= 0.2618)
     struct = dict(struct="gaussian",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.3)
     P=dict(main=dict(n_ism = 1., tb0=1e4, ntb=4000,rtol=1e-6,
                      lc_freqs = "array 1e9 1e18"),
-           grb=dict(save_dynamics='yes',do_rs='no',bw_type='fs',do_mphys_in_situ = "no",do_lc = "no",
+           grb=dict(structure=struct,eats_type='a',save_dynamics='yes',do_rs='no',bw_type='fs',do_mphys_in_situ = "no",do_lc = "no",
                     do_rs_radiation="no",
                     # method_spread='None'
                     # exponential_rho4='no'
@@ -93,8 +93,8 @@ if __name__ == '__main__':
            )
     pba_default = PBA.wrappers.run_grb(
         working_dir=os.getcwd()+"/working_dirs/dyn_spread_default/",
-        struct=struct, P = d2d(default=P, new=dict(grb=dict())),
-        type="a",run=run
+        P = d2d(default=P, new=dict(grb=dict())),
+        run=run
     )
     # pba_gp12 = PBA.wrappers.run_grb(
     #     working_dir=os.getcwd()+"/working_dirs/dyn_spread_gp12/",
@@ -103,13 +103,13 @@ if __name__ == '__main__':
     # )
     pba_hu00 = PBA.wrappers.run_grb(
         working_dir=os.getcwd()+"/working_dirs/dyn_spread_hu00/",
-        struct=struct, P = d2d(default=P, new=dict(grb=dict(method_spread='Adi'))),
-        type="a",run=run
+        P = d2d(default=P, new=dict(grb=dict(method_spread='Adi'))),
+        run=run
     )
     pba_afgpy = PBA.wrappers.run_grb(
         working_dir=os.getcwd()+"/working_dirs/dyn_spread_afgpy/",
-        struct=struct, P = d2d(default=P, new=dict(grb=dict(method_spread='AFGPY'))),
-        type="a",run=run
+        P = d2d(default=P, new=dict(grb=dict(method_spread='AFGPY'))),
+        run=run
     )
 
 

@@ -217,15 +217,14 @@ def get_str_val(v_n, val):
 
 def grid_run_tophat():
     ncpus = 4
-    # struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
+    struct=dict(type="a",struct="tophat", Eiso_c=1.e53, Gamma0c=400., M0c=-1., theta_c=0.1, theta_w=0.1,
+                n_layers_pw=80, n_layers_a=1)
     P = dict(
         working_dir=os.getcwd() + f"/working_dirs/",
-        struct=dict(type="a",struct="tophat", Eiso_c=1.e53, Gamma0c=400., M0c=-1., theta_c=0.1, theta_w=0.1,
-                    n_layers_pw=80, n_layers_a=1),
         main=dict(n_ism=1., tb0=1., tb1=1e8, ntb=1000, rtol=5e-7, theta_obs=0, z=0.4245, d_l=2.3e9*cgs.pc,
                   lc_freqs='array logspace 1e9 1e29 96',
                   lc_times='array logspace 10 1e6 128'),
-        grb=dict(save_dynamics='yes', save_spec='no', do_lc='yes',
+        grb=dict(structure=struct,eats_type='a',save_dynamics='yes', save_spec='no', do_lc='yes',
                  # method_nonrel_dist_fs='none',
                  # method_nonrel_dist_rs='none',s
                  eps_e_fs=0.1, eps_b_fs=0.001, p_fs=2.2,

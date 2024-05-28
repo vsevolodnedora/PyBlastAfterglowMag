@@ -8,7 +8,7 @@ from .utils import (cgs, latex_float, make_prefix_for_pars, make_hash, find_near
 from .skymap_plotting_tools import (plot_skymap_with_hists, full_plot_skymap_with_hists, plot_pcolomesh)
 from .skymap_process import ProcessRawSkymap
 
-from .wrappers import run
+from .wrappers import run_grb, run_kn
 
 # case-depended methods
 # from .wrappers import (CasesFS, CasesFSRS, runset_for_skymap)

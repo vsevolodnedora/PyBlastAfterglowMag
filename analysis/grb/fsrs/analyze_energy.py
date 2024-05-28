@@ -142,8 +142,8 @@ def GammaEff(Gamma, gammaAdi):
 #
 #     return pba
 
-def plot_fs_energy(struct:dict,pp:dict,plot:dict):
-    pba = PBA.wrappers.run_grb(working_dir=working_dir, struct=struct, P=pp, type='a')
+def plot_fs_energy(pp:dict,plot:dict):
+    pba = PBA.wrappers.run_grb(working_dir=working_dir, P=pp)
     #
     fig, axes = plt.subplots(figsize=(5.5,5.), ncols=1, nrows=2, sharex="all")
     if not hasattr(axes,'__len__'): axes = [axes]
@@ -309,8 +309,8 @@ def plot_fs_energy(struct:dict,pp:dict,plot:dict):
     plt.savefig(fig_dir+plot["figname"]+".png", dpi=256)
     plt.show()
 
-def plot_fs_energy2(struct:dict,pp:dict,plot:dict):
-    pba = PBA.wrappers.run_grb(working_dir=working_dir, struct=struct, P=pp, type='a')
+def plot_fs_energy2(pp:dict,plot:dict):
+    pba = PBA.wrappers.run_grb(working_dir=working_dir, P=pp)
     #
     fig, axes = plt.subplots(figsize=(5.5,6.), ncols=1, nrows=3, sharex="all",layout='constrained',
                              gridspec_kw=dict(height_ratios=[1,2,2]))
@@ -597,11 +597,10 @@ def plot_fs_energy2(struct:dict,pp:dict,plot:dict):
     plt.savefig(fig_dir+plot["figname"]+".png", dpi=256)
     plt.show()
 
-def plot_fs_energy_rad(struct:dict,pp:dict,plot:dict,fs_or_rs="fs",ishell=0,ilayer=0):
+def plot_fs_energy_rad(pp:dict,plot:dict,fs_or_rs="fs",ishell=0,ilayer=0):
 
-    pba = PBA.wrappers.run_grb(working_dir=working_dir, struct=struct,
-                               P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad=-1,epsilon_e_rad_rs=-1))),
-                               type="a")
+    pba = PBA.wrappers.run_grb(working_dir=working_dir,
+                               P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad=-1,epsilon_e_rad_rs=-1,eats_type='a'))))
 
 
     p = float(pba.GRB.pars["p_fs" if fs_or_rs == "fs" else "p_rs"])
@@ -709,9 +708,8 @@ def plot_fs_energy_rad(struct:dict,pp:dict,plot:dict,fs_or_rs="fs",ishell=0,ilay
     # axes[0].plot(pba.GRB.get_dyn_arr(v_n="R",ishell=0,ilayer=0),
     #              pba.GRB.get_dyn_arr(v_n="mom",ishell=0,ilayer=0),color='black',ls='--',label=r'$Semi-radiative$')
 
-    pba = PBA.wrappers.run_grb(working_dir=working_dir, struct=struct,
-                               P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad=0,epsilon_e_rad_rs=0))),
-                               type="a")
+    pba = PBA.wrappers.run_grb(working_dir=working_dir,
+                               P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad=0,epsilon_e_rad_rs=0,eats_type='a'))))
 
     mom_adi =  pba.GRB.get_dyn_arr(v_n="mom",ishell=0,ilayer=0)
     if (pba.GRB.opts["do_rs"] == "yes"):
@@ -721,9 +719,8 @@ def plot_fs_energy_rad(struct:dict,pp:dict,plot:dict,fs_or_rs="fs",ishell=0,ilay
     # axes[0].plot(pba.GRB.get_dyn_arr(v_n="R",ishell=0,ilayer=0),
     #              pba.GRB.get_dyn_arr(v_n="mom",ishell=0,ilayer=0),color='black',ls='-',label=r'$Adiabatic$')
 
-    pba = PBA.wrappers.run_grb(working_dir=working_dir, struct=struct,
-                               P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad=1,epsilon_e_rad_rs=1))),
-                               type="a")
+    pba = PBA.wrappers.run_grb(working_dir=working_dir,
+                               P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad=1,epsilon_e_rad_rs=1,eats_type='a'))))
 
     mom_rad = pba.GRB.get_dyn_arr(v_n="mom",ishell=0,ilayer=0)
     if (pba.GRB.opts["do_rs"] == "yes"):
@@ -769,8 +766,8 @@ def plot_fs_energy_rad(struct:dict,pp:dict,plot:dict,fs_or_rs="fs",ishell=0,ilay
     plt.savefig(fig_dir+plot["figname"]+".png", dpi=256)
     plt.show()
 
-def plot_id(struct:dict,pp:dict,plot:dict):
-    pba = PBA.wrappers.run_grb(working_dir=working_dir, struct=struct, P=pp, type='a', do_run=False)
+def plot_id(pp:dict,plot:dict):
+    pba = PBA.wrappers.run_grb(working_dir=working_dir, P=pp, run=False)
     fig,axes = plt.subplots(ncols=1,nrows=2,sharex='all',layout='constrained')
 
     # plot energy
@@ -836,20 +833,20 @@ def plot_id(struct:dict,pp:dict,plot:dict):
 
 if __name__ == '__main__':
     ''' -------- TOPHAT ---------- '''
+    # struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
     # plot_fs_energy(
-    #     struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
     #     pp = dict(main=dict(n_ism = 1, tb0=3e3),
-    #               grb=dict(save_dynamics='yes',do_mphys_in_situ="no",do_lc = "no",# method_spread='None'
+    #               grb=dict(structure=struct,eats_type='a',save_dynamics='yes',do_mphys_in_situ="no",do_lc = "no",# method_spread='None'
     #                        )),
     #     plot=dict(figname = "tophat_fs_energy", text="FS",
     #               xlim=(1e14,1e19), ylim1=(1e-4,2), ylim2=(1e-3,1e3), rdec=True, bm=True,
     #               theta_spread_0=True, theta_spread_1=True)
     # )
+    # struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
     # plot_fs_energy(
-    #     struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
     #     pp = dict(main=dict(n_ism = 1., tb0=3e3, ntb=1000,rtol=1e-7,
     #                         lc_freqs = "array 1e9 1e18"),
-    #               grb=dict(save_dynamics='yes',do_rs='yes',bw_type='fsrs',do_mphys_in_situ="no",do_lc = "no",do_rs_radiation="no",
+    #               grb=dict(structure=struct,eats_type='a',save_dynamics='yes',do_rs='yes',bw_type='fsrs',do_mphys_in_situ="no",do_lc = "no",do_rs_radiation="no",
     #                        # method_spread='AFGPY'
     #                        # exponential_rho4='no'
     #                        )),
@@ -858,11 +855,11 @@ if __name__ == '__main__':
     #               theta_spread_0=True, theta_spread_1=True)
     # )
     ''' ---------- RAD.LOSSES -------- '''
+    struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
     plot_fs_energy_rad(
-        struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
         pp = dict(main=dict(n_ism = 1., tb0=3e3, ntb=3000,rtol=1e-7,
                             lc_freqs = "array 1e9 1e18"),
-                  grb=dict(save_dynamics='yes',#do_rs='yes',bw_type='fsrs',
+                  grb=dict(structure=struct,eats_type='a',save_dynamics='yes',#do_rs='yes',bw_type='fsrs',
                            do_mphys_in_situ="yes",do_lc = "no",do_rs_radiation="no",
                            method_gamma_min_fs='useU_e',
                            method_gamma_min_rs='useU_e',
@@ -883,20 +880,20 @@ if __name__ == '__main__':
     )
 
     ''' ---------- GAUSSIAN --------- '''
+    struct = dict(struct="gaussian",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.3)
     plot_id(
-        struct = dict(struct="gaussian",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.3),
         pp = dict(main=dict(),
-                  grb=dict()),
+                  grb=dict(structure=struct,eats_type='a')),
         plot=dict(figname = "gaussian_structure_adaptive", text="Structure",
                   xlim=(1e14,1e19), ylim1=(1e50,3e53), ylim2=(1e0,1e3), ylim3=(0.,np.pi/2.),#ylim4=(1e-10,np.pi/2.),
                   layers=(0,5,10,15,20), colors=("red","orange","yellow","green","blue"))
     )
 
+    struct = dict(struct="gaussian",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.3)
     plot_fs_energy2(
-        struct = dict(struct="gaussian",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.3),
         pp = dict(main=dict(n_ism = 1., tb0=3e3, ntb=2000,rtol=1e-7,
                             lc_freqs = "array 1e9 1e18"),
-                  grb=dict(save_dynamics='yes',do_rs='yes',bw_type='fsrs',do_mphys_in_situ="no",do_lc = "no",do_rs_radiation="no",
+                  grb=dict(structure=struct,eats_type='a',save_dynamics='yes',do_rs='yes',bw_type='fsrs',do_mphys_in_situ="no",do_lc = "no",do_rs_radiation="no",
                            # method_spread='AFGPY'
                            # exponential_rho4='no'
                            )),

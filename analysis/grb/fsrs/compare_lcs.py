@@ -58,7 +58,7 @@ def plot(struct:dict,pp:dict,plot:dict):
 
     pba = PBA.wrappers.run_grb(working_dir=working_dir, struct=struct, P=mrg(dict(
         main=dict(),
-        grb=dict(do_rs_radiation='no',do_rs='no',bw_type='fs')),pp), type="a", run=True)
+        grb=dict(do_rs_radiation='no',do_rs='no',bw_type='fs',eats_type='a')),pp), run=True)
     ax.plot(
         pba.GRB.get_lc_times(unique=True,spec=False),
         pba.GRB.get_lc(key="fluxdens", xkey="freqs", key_time="times", freq=1e9, time=None,
@@ -69,7 +69,7 @@ def plot(struct:dict,pp:dict,plot:dict):
 
     pba = PBA.wrappers.run_grb(working_dir=working_dir, struct=struct, P=mrg(dict(
         main=dict(),
-        grb=dict(do_rs_radiation='yes',do_rs='yes',bw_type='fsrs')),pp), type="a", run=True)
+        grb=dict(do_rs_radiation='yes',do_rs='yes',bw_type='fsrs',eats_type='a')),pp), run=True)
     ax.plot(
         pba.GRB.get_lc_times(unique=True,spec=False),
         pba.GRB.get_lc(key="fluxdens", xkey="freqs", key_time="times", freq=1e9, time=None,
@@ -85,7 +85,7 @@ def plot(struct:dict,pp:dict,plot:dict):
     plt.legend()
     plt.show()
 
-def plot_burster(struct:dict,pp:dict,plot:dict):
+def plot_burster(pp:dict,plot:dict):
 
     v_ns = (
         dict(v_ns=("rho2","rho3"),ylabel=r'$\rho$'),
@@ -100,9 +100,9 @@ def plot_burster(struct:dict,pp:dict,plot:dict):
 
     fig,axes = plt.subplots(ncols=1,nrows=len(v_ns),figsize=(5,8),sharex='all')
 
-    pba = PBA.wrappers.run_grb(working_dir=working_dir, struct=struct, P=mrg(dict(
+    pba = PBA.wrappers.run_grb(working_dir=working_dir, P=mrg(dict(
         main=dict(),
-        grb=dict(do_rs_radiation='no',do_rs='no',bw_type='fs')),pp), type="a", run=True)
+        grb=dict(do_rs_radiation='no',do_rs='no',bw_type='fs',eats_type='a')),pp), run=True)
     for i, d in enumerate(v_ns):
         ax = axes[i]
         ax.plot(
@@ -111,9 +111,9 @@ def plot_burster(struct:dict,pp:dict,plot:dict):
             color='blue',label='FS', ls='-'
         )
 
-    pba = PBA.wrappers.run_grb(working_dir=working_dir, struct=struct, P=mrg(dict(
+    pba = PBA.wrappers.run_grb(working_dir=working_dir, P=mrg(dict(
         main=dict(),
-        grb=dict(do_rs_radiation='yes',do_rs='yes',bw_type='fsrs')),pp), type="a", run=True)
+        grb=dict(do_rs_radiation='yes',do_rs='yes',bw_type='fsrs',eats_type='a')),pp),run=True)
     for i, d in enumerate(v_ns):
         ax = axes[i]
         ax.plot(
@@ -144,9 +144,12 @@ def plot_burster(struct:dict,pp:dict,plot:dict):
     plt.show()
 
 if __name__ == '__main__':
-    plot_burster(struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
+    struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
+    plot_burster(
          pp = dict(main=dict(n_ism=1, tb0=3e3, ntb=1000,rtol=1e-7,theta_obs=0),
                    grb=dict(
+                       structure=struct,
+                       eats_type='a',
                        # method_ele_fs='analytic',method_ele_rs='analytic',method_synchrotron_fs='WSPN99',
                        save_dynamics='yes'
                    #method_spread='None'

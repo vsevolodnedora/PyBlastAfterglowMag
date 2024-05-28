@@ -5,6 +5,7 @@
 #ifndef SRC_COMMON_H
 #define SRC_COMMON_H
 
+
 #include "../utilitites/utils.h"
 #include "../utilitites/interpolators.h"
 #include "../utilitites/H5Easy.h"
@@ -17,11 +18,17 @@ struct EBL{
     std::string table_fpath = "../../../data/EBL/Franceschini18/table.h5";
     void load_h5_table(){
         if (!std::experimental::filesystem::exists(table_fpath)) {
-            table_fpath = "../data/EBL/Franceschini18/table.h5"; // try another path
-            if (!std::experimental::filesystem::exists(table_fpath)) {
-                std::cerr << AT << " EBL data file not found: " + table_fpath << "\n";
+            /// try to find the table using an absolute position of the code
+            table_fpath = std::filesystem::current_path();
+            std::string delimiter = "/PyBlastAfterglowMag/";
+            size_t pos = table_fpath.find(delimiter);
+            std::string left = table_fpath.substr(0, pos);
+            left = left + delimiter + "data/EBL/Franceschini18/table.h5";
+            if (!std::experimental::filesystem::exists(left)) {
+                std::cerr << AT << " EBL data file not found: " + left << "\n";
                 exit(1);
             }
+            table_fpath = left;
         }
         LoadH5 ldata;
         ldata.setFileName(table_fpath);

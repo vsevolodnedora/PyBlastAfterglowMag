@@ -44,6 +44,8 @@ def load_corr_file2(corr_fpath,
                     dist="pw",
                     ):
     # load the corr file
+    if not os.path.isfile(corr_fpath):
+        raise FileNotFoundError(f"file not found: {corr_fpath}")
     dfile = h5py.File(corr_fpath, mode="r")
     for key in dfile.keys():
         print(key, np.array(dfile[key]).shape)
@@ -164,10 +166,11 @@ def compute_ek_hist(_vinf, _mass):
 def prepare_kn_ej_id_2d(nlayers, corr_fpath, outfpath,
                         r0type="fromrho", t0=100, r0frac=0.5,
                         dist="pw"):
-    thetas, cthetas, betas, masses = load_corr_file2(corr_fpath=corr_fpath,
-                                            reinterpolate_theta=True,
-                                            new_theta_len=nlayers if ((not nlayers is None) and (nlayers > 0)) else None,
-                                            dist=dist)
+    thetas, cthetas, betas, masses = load_corr_file2(
+        corr_fpath=corr_fpath,
+        reinterpolate_theta=True,
+        new_theta_len=nlayers if ((not nlayers is None) and (nlayers > 0)) else None,
+        dist=dist)
 
     # theta_corr, vinf_corr, mass_corr = clean_data_corr(thetas, betas, masses, remove_pi_over_2=True)
     ctheta_corr, vinf_corr, mass_corr = clean_data_corr(cthetas, betas, masses, remove_pi_over_2=True)

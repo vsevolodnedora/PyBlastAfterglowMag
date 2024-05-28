@@ -53,6 +53,7 @@
 #include <iterator>
 #include <fstream>
 #include <experimental/filesystem> // requires only for deleting files
+#include <filesystem> // used for getting absolute path for EBL tables
 
 // C++17 features for optional data
 #include <optional>

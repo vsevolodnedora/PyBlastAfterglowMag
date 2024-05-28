@@ -1447,7 +1447,7 @@ if __name__ == '__main__':
         main=dict(n_ism=1., tb0=3e3, ntb=1000,rtol=1e-7,theta_obs=0,
                   lc_freqs='array logspace 1e8 1e27 64',
                   lc_times='array logspace 3e3 1e10 128'),
-        grb=dict(save_dynamics='yes',do_spec='yes',save_spec='yes',do_lc='yes',
+        grb=dict(eats_type='a',save_dynamics='yes',do_spec='yes',save_spec='yes',do_lc='yes',
                  method_nonrel_dist_fs='none',
                  method_nonrel_dist_rs='none',
                  # eps_b_fs = 1e-7,

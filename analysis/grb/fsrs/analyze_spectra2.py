@@ -1610,14 +1610,14 @@ def plot_cooling_terms(ej: PBA.Ejecta, fs_or_rs: str, xlim: tuple, task: dict, i
     plt.close(fig)
 
 
-def tasks_fs(do_run: bool, plot: bool, struct: dict, P: dict,
+def tasks_fs(do_run: bool, plot: bool, P: dict,
              name: str = "dyn_fs__rad_fs__num__ssa__ssc") -> PBA.PyBlastAfterglow:
     dyn_fs__rad_fs__num__ssa__ssc = PBA.wrappers.run_grb(
         working_dir=os.getcwd() + f"/working_dirs/{name}/",
-        struct=struct, P=d2d(default=P, new=dict(
+        P=d2d(default=P, new=dict(
             grb=dict(method_ssc_fs='numeric',method_pp_fs='numeric', use_ssa_fs='yes')
         )),
-        type="a", run=do_run
+        run=do_run
     )
     # raise ValueError("Computed!!! :) ")
 
@@ -1679,15 +1679,15 @@ def tasks_fs(do_run: bool, plot: bool, struct: dict, P: dict,
     return dyn_fs__rad_fs__num__ssa__ssc
 
 
-def tasks_rs(do_run: bool, plot: bool, struct: dict, P: dict) -> PBA.PyBlastAfterglow:
+def tasks_rs(do_run: bool, plot: bool, P: dict) -> PBA.PyBlastAfterglow:
     dyn_fs__rad_rs__num__ssa__ssc = PBA.wrappers.run_grb(
         working_dir=os.getcwd() + "/working_dirs/dyn_fs__rad_rs__num__ssa__ssc/",
-        struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
+        P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           use_ssa_fs='yes',
                                                           use_ssa_rs='yes',
                                                           method_ssc_fs='numeric',
                                                           method_ssc_rs='numeric'))),
-        type="a", run=do_run
+        run=do_run
     )
 
     # plot_cooling_terms(dyn_fs__rad_rs__num__ssa__ssc.GRB,fs_or_rs="rs",xlim=(3e3,3e7),
@@ -1840,15 +1840,15 @@ def plot_total_observed_spectrum_2(ej_fs: PBA.Ejecta, ej_fsrs: PBA.Ejecta, norm_
     plt.close(fig)
 
 
-def tasks_gauss(do_run: bool, plot: bool, struct: dict, P: dict) -> PBA.PyBlastAfterglow:
+def tasks_gauss(do_run: bool, plot: bool, P: dict) -> PBA.PyBlastAfterglow:
     dyn_fs__rad_rs__num__ssa__ssc = PBA.wrappers.run_grb(
         working_dir=os.getcwd() + "/working_dirs/gauss_dyn_fs__rad_rs__num__ssa__ssc/",
-        struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
+        P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           use_ssa_fs='yes',
                                                           use_ssa_rs='yes',
                                                           method_ssc_fs='numeric',
                                                           method_ssc_rs='numeric'))),
-        type="a", run=do_run
+        run=do_run
     )
     #
     # plot_emission_region_prop_3(ej=dyn_fs__rad_rs__num__ssa__ssc.GRB,fs_or_rs="fs",
@@ -1860,13 +1860,13 @@ def tasks_gauss(do_run: bool, plot: bool, struct: dict, P: dict) -> PBA.PyBlastA
 
     dyn_fs__rad_fs__num__ssa__ssc = PBA.wrappers.run_grb(
         working_dir=os.getcwd() + "/working_dirs/gauss_dyn_fs__rad_fs__num__ssa__ssc/",
-        struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
+        P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           use_ssa_fs='yes',
                                                           use_ssa_rs='yes',
                                                           do_rs_radiation="no",
                                                           method_ssc_fs='numeric',
                                                           method_ssc_rs='numeric'))),
-        type="a", run=do_run
+        run=do_run
     )
 
     plot_total_observed_spectrum_2(
@@ -1881,12 +1881,12 @@ def tasks_gauss(do_run: bool, plot: bool, struct: dict, P: dict) -> PBA.PyBlastA
                                    plot_gm=False, plot_gc=False, plot_gM=False))
 
 
-def tasks_fs_comparison(do_run: bool, plot: bool, struct: dict, P: dict):
+def tasks_fs_comparison(do_run: bool, plot: bool, P: dict):
     # --- fs -- fs ---
     dyn_fs__rad_fs__num = PBA.wrappers.run_grb(
         working_dir=os.getcwd() + "/working_dirs/dyn_fs__rad_fs__num/",
-        struct=struct, P=P,
-        type="a", run=do_run
+        P=P,
+        run=do_run
     )
     # dyn_fs__rad_fs__ana__ssa = run(
     #     working_dir=os.getcwd()+"/working_dirs/dyn_fs__rad_fs__ana_ssa/",
@@ -1895,24 +1895,23 @@ def tasks_fs_comparison(do_run: bool, plot: bool, struct: dict, P: dict):
     # )
     dyn_fs__rad_fs__num__ssa = PBA.wrappers.run_grb(
         working_dir=os.getcwd() + "/working_dirs/dyn_fs__rad_fs__num_ssa/",
-        struct=struct, P=d2d(default=P, new=dict(grb=dict(use_ssa_fs='yes'))),  #method_synchrotron_fs="Dermer09"
-        type="a", run=do_run
+        P=d2d(default=P, new=dict(grb=dict(use_ssa_fs='yes'))),  #method_synchrotron_fs="Dermer09"
+        run=do_run
     )
     dyn_fs__rad_fs__num__noadi = PBA.wrappers.run_grb(
         working_dir=os.getcwd() + "/working_dirs/dyn_fs__rad_fs__num__noadi/",
-        struct=struct, P=d2d(default=P, new=dict(grb=dict(num_ele_use_adi_loss_fs='no'))),
-        type="a", run=do_run
+        P=d2d(default=P, new=dict(grb=dict(num_ele_use_adi_loss_fs='no'))),
+        run=do_run
     )
     dyn_fs__rad_fs__num__ssc = PBA.wrappers.run_grb(
         working_dir=os.getcwd() + "/working_dirs/dyn_fs__rad_fs__num__ssc/",
-        struct=struct, P=d2d(default=P, new=dict(grb=dict(method_ssc_fs='numeric'))),
-        type="a", run=do_run
+        P=d2d(default=P, new=dict(grb=dict(method_ssc_fs='numeric'))),
+        run=do_run
     )
     dyn_fs__rad_fs__mix = PBA.wrappers.run_grb(
         working_dir=os.getcwd() + "/working_dirs/dyn_fs__rad_fs__mix/",
-        struct=struct,
         P=d2d(default=P, new=dict(grb=dict(method_ele_fs='mix'))),
-        type="a", run=do_run
+        run=do_run
     )
 
     for (model1, model2, name, label) in [
@@ -1956,45 +1955,45 @@ def tasks_rs_comparison(do_run: bool, plot: bool, struct: dict, P: dict):
     # --- fsrs -- rs ---
     dyn_fsrs__rad_rs__num = PBA.wrappers.run_grb(
         working_dir=os.getcwd() + "/working_dirs/dyn_fsrs__rad_rs__num/",
-        struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs'))),
-        type="a", run=do_run
+        P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs'))),
+        run=do_run
     )
     dyn_fsrs__rad_rs__ana__ssa = PBA.wrappers.run_grb(
         working_dir=os.getcwd() + "/working_dirs/dyn_fsrs__rad_rs__ana__ssa/",
-        struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
+        P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           method_synchrotron_fs="Dermer09",
                                                           method_synchrotron_rs="Dermer09",
                                                           use_ssa_fs='yes',
                                                           use_ssa_rs='yes'))),
-        type="a", run=do_run
+        run=do_run
     )
     dyn_fsrs__rad_rs__num__ssa = PBA.wrappers.run_grb(
         working_dir=os.getcwd() + "/working_dirs/dyn_fsrs__rad_rs__num__ssa/",
-        struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
+        P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           use_ssa_fs='yes',
                                                           use_ssa_rs='yes'))),
-        type="a", run=do_run
+        run=do_run
     )
     dyn_fsrs__rad_rs__num__noadi = PBA.wrappers.run_grb(
         working_dir=os.getcwd() + "/working_dirs/dyn_fsrs__rad_rs__num__noadi/",
-        struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
+        P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           num_ele_use_adi_loss_fs='no',
                                                           num_ele_use_adi_loss_rs='no'))),
-        type="a", run=do_run
+        run=do_run
     )
     dyn_fsrs__rad_rs__num__ssc = PBA.wrappers.run_grb(
         working_dir=os.getcwd() + "/working_dirs/dyn_fsrs__rad_rs__num__ssc/",
-        struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
+        P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           method_ssc_fs='numeric',
                                                           method_ssc_rs='numeric'))),
-        type="a", run=do_run
+        run=do_run
     )
     dyn_fsrs__rad_rs__mix = PBA.wrappers.run_grb(
         working_dir=os.getcwd() + "/working_dirs/dyn_fsrs__rad_rs__mix/",
-        struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
+        P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           method_ele_fs='mix',
-                                                          method_ele_rs='mix'))),
-        type="a", run=do_run
+                                                           method_ele_rs='mix'))),
+        run=do_run
     )
 
     for (model1, model2, name, label) in [
@@ -2044,7 +2043,7 @@ if __name__ == '__main__':
         main=dict(n_ism=1., tb0=3e3, ntb=1000, rtol=5e-7, theta_obs=0,
                   lc_freqs='array logspace 1e8 1e29 96',
                   lc_times='array logspace 3e3 1e10 128'),
-        grb=dict(save_dynamics='yes', save_spec='yes', do_lc='yes',
+        grb=dict(structure=struct,eats_type='a',save_dynamics='yes', save_spec='yes', do_lc='yes',
                  # method_nonrel_dist_fs='none',
                  # method_nonrel_dist_rs='none',
                  eps_e_fs=0.1, eps_b_fs=0.001, p_fs=2.2,
@@ -2060,21 +2059,21 @@ if __name__ == '__main__':
                  # method_ele_rs="mix",
                  # num_ele_use_adi_loss_fs='no',
                  # num_ele_use_adi_loss_rs='no',
-                 gam1_fs=1., gam2_fs=1e8, ngam_fs=401,
-                 gam1_rs=1., gam2_rs=1e8, ngam_rs=401,
-                 freq1_fs=1e6, freq2_fs=1e32, nfreq_fs=401,
-                 freq1_rs=1e6, freq2_rs=1e32, nfreq_rs=401,
+                 # gam1_fs=1., gam2_fs=1e8, ngam_fs=401,
+                 # gam1_rs=1., gam2_rs=1e8, ngam_rs=401,
+                 # freq1_fs=1e6, freq2_fs=1e32, nfreq_fs=401,
+                 # freq1_rs=1e6, freq2_rs=1e32, nfreq_rs=401,
                  # ebl_tbl_fpath="none"
                  )
     )
 
     # --- fs -- fs ---
-    pba_fs = tasks_fs(do_run=do_run, plot=plot, struct=struct, P=P)
-    tasks_fs_comparison(do_run=do_run, plot=plot, struct=struct, P=P)
+    pba_fs = tasks_fs(do_run=do_run, plot=plot, P=P)
+    tasks_fs_comparison(do_run=do_run, plot=plot, P=P)
 
     # --- fsrs -- rs ---
-    # pba_fsrs = tasks_rs(do_run=do_run, plot=plot, struct=struct, P=P)
-    # tasks_rs_comparison(do_run=do_run, plot=plot, struct=struct, P=P)
+    # pba_fsrs = tasks_rs(do_run=do_run, plot=plot, P=P)
+    # tasks_rs_comparison(do_run=do_run, plot=plot, P=P)
 
     # plot_total_observed_spectrum(
     #     do_run=do_run,norm_method="*y",
@@ -2085,5 +2084,5 @@ if __name__ == '__main__':
     #                               set_under='blue',set_over='red',
     #                               plot_gm=False,plot_gc=False,plot_gM=False))
 
-    struct_gauss = dict(struct="gaussian",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.3)
-    pba_gauss = tasks_gauss(do_run=do_run, plot=plot, struct=struct_gauss, P=P)
+    P["grb"]["structure"] = dict(struct="gaussian",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.3)
+    pba_gauss = tasks_gauss(do_run=do_run, plot=plot, P=P)

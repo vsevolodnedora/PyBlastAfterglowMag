@@ -370,7 +370,7 @@ class Defaults:
             s = -1,         # [ISM] wind environment slope, keep =0 for uniform ISM
             r_ej = -1,      # [ISM] radius at which first break in density profile [cm]
             r_ism = -1,     # [ISM] radius at which second break in density profile [cm]
-            n_ism = 1.,    # [ISM] ism number density if it is constnat [cm^-3]
+            n_ism = 1.,     # [ISM] ism number density if it is constnat [cm^-3]
             d_l = 3.09e26,  # [source] luminocity distance to the source
             z = 0.028,      # [source] redshift of the source
             theta_obs = 0   # [source] observer angle with respect to the polar axis
@@ -399,8 +399,8 @@ class Defaults:
             gam2_fs = 1.e8,    # [numeric] upper lim for comoving electron spectrum
             ngam_fs = 451,     # [numeric] size of the electron grid points for Chang-Cooper scheme
             freq1_fs = 1.e5,   # [numeric] lower lim for comoving synchrotron spectrum
-            freq2_fs = 1.e22,  # [numeric] uppers lim for comoving synchrotron spectrum
-            nfreq_fs = 401,    # [numeric] size of the freq. grid points for Chang-Cooper scheme
+            freq2_fs = 1.e32,  # [numeric] uppers lim for comoving synchrotron spectrum
+            nfreq_fs = 601,    # [numeric] size of the freq. grid points for Chang-Cooper scheme
             # --- Reverse shock Microphsyics ---
             eps_e_rs = 0.1,
             eps_b_rs = 0.01,
@@ -413,15 +413,16 @@ class Defaults:
             gam2_rs = 1.e7,    # [numeric] upper lim for comoving electron spectrum
             ngam_rs = 451,     # [numeric] size of the electron grid points for Chang-Cooper scheme
             freq1_rs = 1.e5,   # [numeric] lower lim for comoving synchrotron spectrum
-            freq2_rs = 1.e22,  # [numeric] uppers lim for comoving synchrotron spectrum
-            nfreq_rs = 401,    # [numeric] size of the freq. grid points for Chang-Cooper scheme
+            freq2_rs = 1.e32,  # [numeric] uppers lim for comoving synchrotron spectrum
+            nfreq_rs = 601,    # [numeric] size of the freq. grid points for Chang-Cooper scheme
             # -------------------
             n_store_substeps = 10,  # use n steps of ODE solver to average over and store (used if iout >> 1)
             tprompt = 1.e3,         # [RS] duration of the ejection (for RS initial width Delta=tprompt*c)
             a = 1,                  # [spread] if method_spread="AA", controls dtheta/dR slope
             rs_shutOff_criterion_rho = 1e-50, # [RS] criterion for rho4 when to shut down the reverse shock
             min_Gamma0_for_rs=0.,   # [RS] If initial Gamma0 of a BW (layer) < this value, use 'fs' RHS not 'fsrs'
-            mom0_frac_when_start_spread = 0.9, # [spread] frac, when to allow spread, \Gamma\beta < frac * Gamma\beta_0
+            mom_when_start_spread=2,# [spread] Val for \Gamma\beta below which spread is allowed
+            mom0_frac_when_start_spread = 0.9, # [spread] if \Gamma\beta < frac * \Gamma_0\beta_0 spread is allowed
             rs_Gamma0_frac_no_exceed = .92, # [RS] if Gamma > frac*Gamma0; set dGammadR = 0 (prevent error acceleration)
             save_dyn_every_it = 10, # [numeric] if to save dynamics, save every it'th iteration,
             rtol_phi = 1e-6,        # [eats] relative tolerance for adaptive quadrature for EATS integration
@@ -481,7 +482,7 @@ class Defaults:
             do_nucinj = "no", # [numeric] include r-process heating in ejecta (UNFINISHED)
 
             method_spread = "our",              # [spread] method for lateral spreading
-            method_limit_spread = "Mom0Frac",   # [numeric] how to limit spreading of the blastwave
+            method_limit_spread="MomValAndFrac",# [numeric] how to limit spreading of the blastwave
             method_dgdr = "our",                # [numeric] choice of equation for BW dynamical evolution dGamma/dR
             method_eos = "Nava13",              # [numeric] choice of EOS for the blast wave
             method_dmdr = "usingdthdr",         # [numeric] choice of equation for accreted mass dm/dr
@@ -542,6 +543,8 @@ class Defaults:
         opts = dict()
     )
 
+
+
 def _create_parfile_part(lines:list,part:str,sep1:str,sep2:str,default:dict,new:dict):
     sep_pars = "* Parameters"
     sep_opts = "* Settings"
@@ -591,7 +594,7 @@ def create_parfile(working_dir : str, P : dict):
             lines=lines,part="kn",
             sep1="# ----------------------- kN afterglow ----------------------",
             sep2="# --------------------------- END ---------------------------",
-            default=copy.deepcopy(Defaults.parfile_kn_part),
+            default=copy.deepcopy(Defaults.parfile_grb_part),
             new=P
         )
 
@@ -607,3 +610,4 @@ def create_parfile(working_dir : str, P : dict):
     with open(working_dir+"parfile.par", 'w') as f:
         for line in lines:
             f.write(f"{line}\n")
+
