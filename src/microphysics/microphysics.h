@@ -563,7 +563,7 @@ public: // -------------------- NUMERIC -------------------------------- //
         /// account for PP-producted as an attenuation process (Following Micelli & Nava 2023)
         if ((m_eleMethod==METHODS_SHOCK_ELE::iShockEleNum) && (m_methods_pp==METHOD_PP::iPPnum)){
             for (size_t i = 0; i < syn.numbins; i++){
-                double abs = ssc.a[i] ;/// n_ele * accel_frac * n_prime;
+                double abs = ssc.a[i] ;// / n_ele * accel_frac * n_prime;
                 double tau_pp = abs * dr_comov;
                 double atten = (-std::expm1(-tau_pp)/tau_pp);
                 if (tau_pp > 0.)

@@ -296,7 +296,7 @@ public:
         double x = nu * nu_t;
         double varbl = x * (CGS::h/CGS::me/CGS::c/CGS::c) * (CGS::h/CGS::me/CGS::c/CGS::c);
         double res = 0.;
-        if (varbl > 1)
+        if (varbl - 1 > 0)
             res = 0.652 * CGS::c * CGS::sigmaT * (varbl * varbl - 1) * std::log(varbl) / (varbl*varbl*varbl);
         return res;
     }
