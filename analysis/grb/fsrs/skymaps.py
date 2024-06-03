@@ -262,16 +262,16 @@ def plot_3d_skmap_stack(do_run: bool, plot: bool, struct: dict, P: dict, name="t
 
 def plot_skymap(do_run: bool, process_skymaps: bool, task: dict, struct: dict, P: dict, name="tophat_skymap_hists"):
     workingdir = f"/working_dirs/{name}/"
-    pba = run(
+    pba = PBA.wrappers.run_grb(
         working_dir=os.getcwd() + workingdir,
-        struct=struct, P=d2d(default=P, new=dict(
+        P=d2d(default=P, new=dict(
             main=dict(theta_obs=np.pi / 4.),
             grb=dict(do_rs="yes",bw_type="fsrs",
                 #method_ssc_fs='numeric',
                 #use_ssa_fs='yes'
                 # nsublayers=35
             ))),
-        type='a', run=do_run, process_skymaps=process_skymaps
+        run=do_run, process_skymaps=process_skymaps
     )
     # freq = pba.GRB.get_skymap_freqs()[0]
     # skymaps = [pba.GRB.get_skymap(time, freq=freq) for time in pba.GRB.get_skymap_times()]
@@ -464,21 +464,21 @@ def plot_skymaps_two_rows_with_hist(skymaps:type[list[PBA.Skymap],list[PBA.Skyma
     if plot: plt.show()
     plt.close(fig)
 
-def task_skymaps_tophat(do_run: bool, process_skymaps: bool, struct: dict, P: dict, name='tophat_skymap_props_fsrs'):
+def task_skymaps_tophat(do_run: bool, process_skymaps: bool, P: dict, name='tophat_skymap_props_fsrs'):
 
     pba1 = PBA.wrappers.run_grb(
         working_dir=os.getcwd()+f"/working_dirs/{name}"+"_num_ssa_ssc_fsrs/",
-        struct=struct, P=d2d(default=P, new=dict(
+        P=d2d(default=P, new=dict(
             main=dict(),
             grb=dict(method_ssc_fs='numeric', use_ssa_fs='yes',do_rs='yes',bw_type='fsrs',do_rs_radiation='no'))),
-        type='a', run=do_run, process_skymaps=False
+        run=do_run, process_skymaps=False
     )
     pba2 = PBA.wrappers.run_grb(
         working_dir=os.getcwd()+f"/working_dirs/{name}"+"_mix_ssa_ssc_fsrs/",
-        struct=struct, P=d2d(default=P, new=dict(
+        P=d2d(default=P, new=dict(
             main=dict(),
             grb=dict(method_ssc_fs='numeric', use_ssa_fs='yes',do_rs='yes',bw_type='fsrs',do_rs_radiation='yes'))),
-        type='a', run=do_run, process_skymaps=False
+        run=do_run, process_skymaps=False
     )
     plot=dict(colors=("blue","green"),lss=("-","-"),labels=("FS","RS"),
               xc=(dict(color='blue',linewidth=1.0,linestyle='--',label=r'$x_{c\;\,\rm FS}$',marker='o'),
@@ -544,7 +544,7 @@ def task_skymaps_tophat(do_run: bool, process_skymaps: bool, struct: dict, P: di
 
 
 # ------------ RESOLUTION / METHODS ---------------
-def plot_skymaps_comparison_tophat(do_run: bool, process_skymaps: bool, struct: dict, P: dict, name="tophat_skymap_props"):
+def plot_skymaps_comparison_tophat(do_run: bool, process_skymaps: bool, P: dict, name="tophat_skymap_props"):
     freq= 1.e9
 
     # task1 = dict(plot=dict(ls='-',color='black',marker='.',label='Default'),
@@ -565,13 +565,13 @@ def plot_skymaps_comparison_tophat(do_run: bool, process_skymaps: bool, struct: 
                            grb=dict(method_ssc_fs='numeric', use_ssa_fs='yes')))
 
     pba1 = PBA.wrappers.run_grb(
-        working_dir=task1["workingdir"], struct=struct, P=d2d(default=P, new=task1["pars"]),
-        type='a', run=do_run, process_skymaps=False
+        working_dir=task1["workingdir"], P=d2d(default=P, new=task1["pars"]),
+        run=do_run, process_skymaps=False
     )
 
     pba2 = PBA.wrappers.run_grb(
-        working_dir=task2["workingdir"], struct=struct, P=d2d(default=P, new=task2["pars"]),
-        type='a', run=do_run, process_skymaps=False
+        working_dir=task2["workingdir"], P=d2d(default=P, new=task2["pars"]),
+        run=do_run, process_skymaps=False
     )
 
     if (process_skymaps):
@@ -915,7 +915,7 @@ def plot_skymaps_comparison_tophat(do_run: bool, process_skymaps: bool, struct: 
 
 
 
-def plot_skymaps_comparison_tophat_evol(do_run: bool, process_skymaps: bool, task: dict, struct: dict, P: dict):
+def plot_skymaps_comparison_tophat_evol(do_run: bool, process_skymaps: bool, task: dict, P: dict):
 
     name="tophat_skymap_props"
     show=True
@@ -947,8 +947,8 @@ def plot_skymaps_comparison_tophat_evol(do_run: bool, process_skymaps: bool, tas
     fig, axes = plt.subplots(ncols=1, nrows=2, sharex='all', figsize=(5, 3), layout='constrained')
     for task in tasks:
         pba = PBA.wrappers.run_grb(
-            working_dir=task["workingdir"], struct=struct, P=d2d(default=P, new=task["pars"]),
-            type='a', run=do_run, process_skymaps=process_skymaps
+            working_dir=task["workingdir"], P=d2d(default=P, new=task["pars"]),
+            run=do_run, process_skymaps=process_skymaps
         )
         freq = pba.GRB.get_skymap_freqs()[0]
         skymaps = [pba.GRB.get_skymap(time, freq=freq) for time in pba.GRB.get_skymap_times()]
@@ -1027,24 +1027,25 @@ def plot_skymaps_comparison_tophat_evol(do_run: bool, process_skymaps: bool, tas
     if show: plt.show()
     if plot: plt.show()
     plt.close(fig)
-def plot_skymaps_comparison_gaussian(do_run: bool, process_skymaps: bool, task: dict, struct: dict, P: dict, name="guass_skymap"):
+def plot_skymaps_comparison_gaussian(do_run: bool, process_skymaps: bool, task: dict, P: dict, name="guass_skymap"):
     fig, axes = plt.subplots(ncols=1, nrows=2, sharex='all', figsize=(5, 3), layout='constrained')
 
     for (color, eats_type) in zip(['blue', 'green'], ["a", "pw"]):
         for (ls, (res_a, res_pw)) in zip(['-', '--'], [(21, 80), (51, 160)]):
-            struct["n_layers_pw"] = res_pw
-            struct["n_layers_a"] = res_a
+            P["grb"]["structure"]["n_layers_pw"] = res_pw
+            P["grb"]["structure"]["n_layers_a"] = res_a
             workingdir = f"/working_dirs/{name + '_' + eats_type + '_' + (str(res_a) if eats_type == 'a' else str(res_pw))}/"
             pba = PBA.wrappers.run_grb(
                 working_dir=os.getcwd() + workingdir,
-                struct=struct, P=d2d(default=P, new=dict(
+                P=d2d(default=P, new=dict(
                     main=dict(theta_obs=np.pi / 4.),
                     grb=dict(
+                        eats_type=eats_type
                         #method_ssc_fs='numeric',
                         #use_ssa_fs='yes'
                         # nsublayers=res_a
                     ))),
-                type=eats_type, run=do_run, process_skymaps=process_skymaps
+                run=do_run, process_skymaps=process_skymaps
             )
             freq = pba.GRB.get_skymap_freqs()[0]
             skymaps = [pba.GRB.get_skymap(time, freq=freq) for time in pba.GRB.get_skymap_times()]
@@ -1121,7 +1122,7 @@ if __name__ == '__main__':
                   # skymap_times='array 43200 86400 172800 345600 691200 1.382e+6 2.765e+6 4.147e+6 5.53e+6 8.294e+6 1.106e+7 1.486e+7 2.212e+7 3.145e+7 4.424e+7 6.411e+7 7.776e+7 8.8474e+7',
                   skymap_times='array logspace 3e4 3e8 32',
                   ),
-        grb=dict(save_dynamics='no', save_spec='no', do_lc='no', do_skymap='yes',
+        grb=dict(strucute=struct,eats_type='a',save_dynamics='no', save_spec='no', do_lc='no', do_skymap='yes',
                  # method_nonrel_dist_fs='none',
                  # method_nonrel_dist_rs='none',
                  eps_e_fs=0.1, eps_b_fs=0.001, p_fs=2.2,
@@ -1150,22 +1151,24 @@ if __name__ == '__main__':
                  )
     )
 
-    task_skymaps_tophat(do_run=do_run, process_skymaps=process_skymaps, struct=struct, P=P,
+    task_skymaps_tophat(do_run=do_run, process_skymaps=process_skymaps, P=P,
                         name='tophat_skymap_props_fsrs')
 
     plot_skymap(do_run=do_run, process_skymaps=process_skymaps,
                 task=dict(figname="skymap_props_compare", show=True),
                 struct=struct, P=P)
     plot_skymaps_comparison_tophat(do_run=do_run, process_skymaps=process_skymaps,
-                                   struct=struct, P=P)
+                                   P=P)
     plot_skymaps_comparison_tophat_evol(do_run=do_run, process_skymaps=process_skymaps,
                                         task=dict(show=True),
-                                        struct=struct, P=P)
+                                        P=P)
 
     # ------------------------------------------------------------------
 
     struct = dict(struct="gaussian", Eiso_c=1.e53, Gamma0c=400., M0c=-1., theta_c=0.1, theta_w=0.3)
-    task_skymaps_tophat(do_run=do_run, process_skymaps=process_skymaps, struct=struct, P=P,
+    P["grb"]["structure"] = struct
+
+    task_skymaps_tophat(do_run=do_run, process_skymaps=process_skymaps, P=P,
                         name='gaussian_skymap_props_fsrs')
 
 
@@ -1179,9 +1182,9 @@ if __name__ == '__main__':
     plot_3d_skmap_stack(do_run=do_run, plot=plot, struct=struct, P=P)
     plot_skymaps_comparison_tophat(do_run=do_run, process_skymaps=process_skymaps,
                  name="tophat_skymap_resolution",
-                 struct=struct, P=P)
+                 P=P)
 
     struct = dict(struct="gaussian", Eiso_c=1.e53, Gamma0c=400., M0c=-1., theta_c=0.1, theta_w=0.3)
     plot_skymaps_comparison_gaussian(do_run=do_run, process_skymaps=process_skymaps,
                                    task=dict(figname="gauss_skymap_props_compare", show=True),
-                                   struct=struct, P=P)
+                                   P=P)

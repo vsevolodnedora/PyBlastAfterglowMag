@@ -727,7 +727,8 @@ public:
     void addPPSource(Vector & photon_density){
         for (size_t i = 0; i < n_grid_points; i++){
             double nu1 = 2. * ele.e[i] * CGS::me * CGS::c * CGS::c / CGS::h;
-            source_grid[i] += computePPinjection(nu1, photon_density) * source.vol;
+            double n_ele_from_pp = computePPinjection(nu1, photon_density) * source.vol;
+            source_grid[i] += n_ele_from_pp;
         }
     }
 

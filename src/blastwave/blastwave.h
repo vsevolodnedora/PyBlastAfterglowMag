@@ -1790,11 +1790,11 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
             Gamma = 1.+1.e-5; //
 //            exit(1);
     }
-    if (deltaR4 < 0){
-        (*p_log)(LOG_ERR, AT) << " deltaR4 < 1 deltaR4="<<deltaR4<<" -> 0\n";
-        if (p_pars->prev_idx_x == 0)
-            deltaR4 = 0;
-    }
+//    if (deltaR4 < 0){
+//        (*p_log)(LOG_ERR, AT) << " deltaR4 < 1 deltaR4="<<deltaR4<<" -> 0\n";
+//        if (p_pars->prev_idx_x == 0)
+//            deltaR4 = 0;
+//    }
 //        if(Gamma>p_pars->Gamma0){
 //            (*p_log)(LOG_ERR, AT) << " Gamma > Gamma0; Gamma="<<Gamma
 //                <<" Gamma0="<<p_pars->Gamma0<<" dGammadt_last="<<p_pars->prev_dGammadR<<"\n";
