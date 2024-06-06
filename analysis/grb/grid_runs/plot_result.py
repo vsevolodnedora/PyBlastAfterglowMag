@@ -195,6 +195,7 @@ def plot():
     # plot results
 
     fig, ax = plt.subplots(ncols=1,nrows=1,figsize=(5,3),layout='constrained')
+    data_to_save = []
     for data_i in data:
         # load observations for this interval
         freqs, fluxes, err_u, err_l = load_observations(data_i["file"])
@@ -207,7 +208,12 @@ def plot():
         # ax.plot(freqs,fluxes,color=data_i['color'],marker='o',ls='none',fillstyle='none')
         yerr = np.array(list(zip(err_l,err_u))).T
         ax.errorbar(freqs,fluxes,yerr=yerr,
-                    fmt='o',mfc='white',marker='o',capsize=2,color=data_i['color'],mec= data_i['color'], ecolor = data_i['color'],fillstyle='full',label=data_i['label'])
+                    fmt='o',mfc='white',marker='o',capsize=2,color=data_i['color'],mec= data_i['color'],
+                    ecolor = data_i['color'],fillstyle='full',label=data_i['label'])
+        data_to_save.append(
+            {"freqs":freqs, "fluxes":fluxes, "err_l":err_l, "err_u":err_u} | data_i
+        )
+    # print(data_to_save)
 
     # plot best model (load, sort by score, plot)
     df = pd.read_csv("./runs.csv",index_col=0)

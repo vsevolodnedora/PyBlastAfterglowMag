@@ -1509,7 +1509,7 @@ void BlastWave::rhs_dispatcher(double * out_Y, size_t i, double x, double const 
 }
 
 
-/// right hand side of the blast wave evolution equation (ODE)
+/// right hand side of the blast wave evolution equation (ODE) with FS only
 void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
     // ****************************************
     double R      = Y[i+ SOL::QS::iR];
@@ -1765,7 +1765,7 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
 //        if (mom+out_Y[i + QS::imom])
 }
 
-/// right hand side of the blast wave evolution equation (ODE)
+/// right hand side of the blast wave evolution equation (ODE) with FS and RS
 void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) {
     // ****************************************
     double R      = Y[i+ SOL::QS::iR];

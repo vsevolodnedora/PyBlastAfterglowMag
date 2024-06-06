@@ -372,7 +372,7 @@ class Defaults:
             r_ism = -1,     # [ISM] radius at which second break in density profile [cm]
             n_ism = 1.,     # [ISM] ism number density if it is constnat [cm^-3]
             d_l = 3.09e26,  # [source] luminocity distance to the source
-            z = 0.028,      # [source] redshift of the source
+            z = 0.028,      # [source] redshift of the source (used for EBL table interpolation as well)
             theta_obs = 0   # [source] observer angle with respect to the polar axis
         ),
         opts=dict(
@@ -420,7 +420,7 @@ class Defaults:
             tprompt = 1.e3,         # [RS] duration of the ejection (for RS initial width Delta=tprompt*c)
             a = 1,                  # [spread] if method_spread="AA", controls dtheta/dR slope
             rs_shutOff_criterion_rho = 1e-50, # [RS] criterion for rho4 when to shut down the reverse shock
-            min_Gamma0_for_rs=0.,   # [RS] If initial Gamma0 of a BW (layer) < this value, use 'fs' RHS not 'fsrs'
+            min_Gamma0_for_rs=5.,   # [RS] If initial Gamma0 of a BW (layer) < this value, use only 'fs' RHS not 'fsrs'
             mom_when_start_spread=2,# [spread] Val for \Gamma\beta below which spread is allowed
             mom0_frac_when_start_spread = 0.9, # [spread] if \Gamma\beta < frac * \Gamma_0\beta_0 spread is allowed
             rs_Gamma0_frac_no_exceed = .92, # [RS] if Gamma > frac*Gamma0; set dGammadR = 0 (prevent error acceleration)
