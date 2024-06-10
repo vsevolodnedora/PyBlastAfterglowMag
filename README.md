@@ -30,10 +30,10 @@ C++ requirements are noted in `Makefile`. Then, execute
 or  
 `cd src/`  
 `make alterantive`  
-depending on how h5lib was installed, it might be tricky to complile.  
+depending on how h5lib was installed, it might be tricky to compile.  
 Check if `/src/pba.out` was successfully generated.  
 
-2. Install the python interface to the code input/output. 
+2. Install the Python interface for the code input/output. 
 Python requirements are noted in `package/requirements.py`. 
 A separate conda environment is advised. Installation of the package is done via `pip` as:  
 `cd package/`  
