@@ -573,10 +573,10 @@ public: // -------------------- NUMERIC -------------------------------- //
 
         /// 8. compute final required emissivity and absorption (normalized)
         for (size_t i = 0; i < syn.numbins; i++) {
-            total_rad.j[i] = total_rad.j[i] / n_ele * accel_frac;
             total_rad.a[i] = total_rad.a[i] / n_ele * accel_frac * n_prime; // absorption (depth) requires the comoving particle density
             double dtau = total_rad.a[i]*dr_comov;
-            total_rad.intensity[i] = computeIntensity(total_rad.j[i], dtau, METHOD_TAU::iAPPROX);
+            total_rad.intensity[i] = computeIntensity(total_rad.j[i] * accel_frac, dtau, METHOD_TAU::iAPPROX);
+            total_rad.j[i] = total_rad.j[i] * accel_frac / n_ele;
             if (!std::isfinite(total_rad.j[i]) || total_rad.j[i] < 0.){
                 std::cerr << AT<< " nan in total_rad.j\n";
                 exit(1);
@@ -600,7 +600,7 @@ public: // -------------------- NUMERIC -------------------------------- //
     void storeDenseOutput(size_t it, double n_ele){
         // Normalize to get emissivity per particle (for EATS)
         for (size_t i = 0; i < syn.numbins; i++) {
-            syn.j[i] = syn.j[i] / n_ele * accel_frac;
+            syn.j[i] = syn.j[i] * accel_frac;// / n_ele;
             syn.a[i] = syn.a[i] / n_ele * accel_frac * n_prime; // absorption (depth) requires the comoving particle density
             double dtau = syn.a[i]*dr_comov;
             syn.intensity[i] = computeIntensity(syn.j[i], dtau, METHOD_TAU::iAPPROX);
@@ -608,7 +608,7 @@ public: // -------------------- NUMERIC -------------------------------- //
 
         if (m_methods_ssc != METHOD_SSC::inoSSC) {
             for (size_t i = 0; i < ssc.numbins; i++) {
-                ssc.j[i] = ssc.j[i] / n_ele * accel_frac;
+                ssc.j[i] = ssc.j[i] * accel_frac; // / n_ele;
                 ssc.a[i] = ssc.a[i] / n_ele * accel_frac * n_prime; // absorption (depth) requires the comoving particle density
                 double dtau = ssc.a[i]*dr_comov;
                 ssc.intensity[i] = computeIntensity(ssc.j[i], dtau, METHOD_TAU::iAPPROX);

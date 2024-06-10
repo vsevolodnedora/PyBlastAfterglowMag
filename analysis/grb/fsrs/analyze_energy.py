@@ -195,8 +195,11 @@ def plot_fs_energy(pp:dict,plot:dict):
         GammaEff3[~np.isfinite(GammaEff3)] = 0.
         Eint3 *= GammaEff3
 
-        Ekin4 = (Gamma0 - 1.0) * (M0 - M3) * PBA.utils.cgs.c ** 2
-        Ekin3 = (Gamma - 1.0) * M3 * PBA.utils.cgs.c ** 2 # TODO Is it Gamma43 or Gamma here????
+        Ekin4 = (Gamma0 - 1.0) * M0 * PBA.utils.cgs.c ** 2 \
+              - (Gamma0 - Gamma) * M3 * PBA.utils.cgs.c ** 2 \
+              # + (Gamma - 1.0) * M3 * PBA.utils.cgs.c ** 2
+        # Ekin3 = (Gamma43 - 1.0) * M3 * PBA.utils.cgs.c ** 2 # TODO Is it Gamma43 or Gamma here????
+        Ekin3 = (Gamma43 - 1.0) * M3 * PBA.utils.cgs.c ** 2 # TODO Is it Gamma43 or Gamma here????
 
         # axes[0].plot(tburst, Etot3/E0, label=r"$E_{\rm tot; 3}$", color='green')
         axes[0].plot(R, Eint3/E0, label=r"$E_{\rm int; 3}$", color='green', ls="--")
@@ -833,27 +836,27 @@ def plot_id(pp:dict,plot:dict):
 
 if __name__ == '__main__':
     ''' -------- TOPHAT ---------- '''
-    # struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
-    # plot_fs_energy(
-    #     pp = dict(main=dict(n_ism = 1, tb0=3e3),
-    #               grb=dict(structure=struct,eats_type='a',save_dynamics='yes',do_mphys_in_situ="no",do_lc = "no",# method_spread='None'
-    #                        )),
-    #     plot=dict(figname = "tophat_fs_energy", text="FS",
-    #               xlim=(1e14,1e19), ylim1=(1e-4,2), ylim2=(1e-3,1e3), rdec=True, bm=True,
-    #               theta_spread_0=True, theta_spread_1=True)
-    # )
-    # struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
-    # plot_fs_energy(
-    #     pp = dict(main=dict(n_ism = 1., tb0=3e3, ntb=1000,rtol=1e-7,
-    #                         lc_freqs = "array 1e9 1e18"),
-    #               grb=dict(structure=struct,eats_type='a',save_dynamics='yes',do_rs='yes',bw_type='fsrs',do_mphys_in_situ="no",do_lc = "no",do_rs_radiation="no",
-    #                        # method_spread='AFGPY'
-    #                        # exponential_rho4='no'
-    #                        )),
-    #     plot=dict(figname = "tophat_fsrs_energy", text="FS \& RS",
-    #               xlim=(1e14,1e19), ylim1=(1e-4,2), ylim2=(1e-3,1e3), rdec=False, bm=True,method_ele_fs='mix',
-    #               theta_spread_0=True, theta_spread_1=True)
-    # )
+    struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
+    plot_fs_energy(
+        pp = dict(main=dict(n_ism = 1, tb0=3e3),
+                  grb=dict(structure=struct,eats_type='a',save_dynamics='yes',do_mphys_in_situ="no",do_lc = "no",# method_spread='None'
+                           )),
+        plot=dict(figname = "tophat_fs_energy", text="FS",
+                  xlim=(1e14,1e19), ylim1=(1e-4,2), ylim2=(1e-3,1e3), rdec=True, bm=True,
+                  theta_spread_0=True, theta_spread_1=True)
+    )
+    struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
+    plot_fs_energy(
+        pp = dict(main=dict(n_ism = 1., tb0=3e3, ntb=1000,rtol=1e-7,
+                            lc_freqs = "array 1e9 1e18"),
+                  grb=dict(structure=struct,eats_type='a',save_dynamics='yes',do_rs='yes',bw_type='fsrs',do_mphys_in_situ="no",do_lc = "no",do_rs_radiation="no",
+                           # method_spread='AFGPY'
+                           # exponential_rho4='no'
+                           )),
+        plot=dict(figname = "tophat_fsrs_energy", text="FS \& RS",
+                  xlim=(1e14,1e19), ylim1=(1e-4,2), ylim2=(1e-3,1e3), rdec=False, bm=True,method_ele_fs='mix',
+                  theta_spread_0=True, theta_spread_1=True)
+    )
     ''' ---------- RAD.LOSSES -------- '''
     struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
     plot_fs_energy_rad(

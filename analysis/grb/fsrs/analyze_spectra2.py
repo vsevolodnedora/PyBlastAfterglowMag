@@ -120,7 +120,11 @@ Makoto Tashiro9, Jae-Woo Kim6, Minsung Jang6, and Soojong Pak
 #     return pba
 
 
-def _normalize_spec(spec: np.ndarray, xs: np.ndarray, times: np.ndarray, norm_method: None or str, mask_negatives=True):
+def _normalize_spec(spec: np.ndarray, xs: np.ndarray, norm_method: None or str, mask_negatives=True):
+
+    if (spec.ndim == 1):
+        spec = spec[:, np.newaxis]
+
     if not norm_method:
         return spec
     if norm_method == "/integ *y^2":
@@ -160,7 +164,7 @@ class PlotSpectra:
 
     @staticmethod
     def _get_spectrum(ej: PBA.Ejecta, v_n: str, fs_or_rs: str, norm_method: str,
-                      ishell: int = 0, ilayer: int = 0, sum_shells_layers: bool = False):
+                      ishell: int = 0, ilayer: int = 0, time: float or None =None, sum_shells_layers: bool = False):
 
         if v_n in ["n_ele", "gam_dot_syn", "gam_dot_adi", "gam_dot_ssc", "yg"]:
             xkey = "gams"
@@ -180,7 +184,7 @@ class PlotSpectra:
         if v_n == "syn_tau": ele_syn_ssc = "syn_a"
 
         spec = ej.get_lc(key=ele_syn_ssc + '_' + fs_or_rs if ele_syn_ssc != "fluxdens" else "fluxdens",
-                         xkey=xkey, key_time=key_time, freq=None, time=None,
+                         xkey=xkey, key_time=key_time, freq=None, time=time,
                          ishell=ishell, ilayer=ilayer,
                          spec=is_spec, sum_shells_layers=sum_shells_layers)
 
@@ -222,8 +226,13 @@ class PlotSpectra:
             raise ValueError(f"v_n={v_n} fs_rs={fs_or_rs} ishell={ishell} ilayer={ilayer} (np.sum(spec) == 0)")
         xs = ej.get_grid(key=xkey, spec=is_spec)
         times = ej.get_grid(key=key_time, spec=is_spec)
+        if not time is None:
+            times = [times[PBA.utils.find_nearest_index(times, time)]]
 
-        spec = _normalize_spec(spec=spec, xs=xs, times=times, norm_method=norm_method, mask_negatives=True)
+        spec = _normalize_spec(spec=spec, xs=xs, norm_method=norm_method, mask_negatives=True)
+
+        if not time is None:
+            return xs, np.ndarray.flatten(spec)
 
         return (xs, times, spec)
 
@@ -352,41 +361,7 @@ class PlotSpectra:
     @staticmethod
     def _plot_rad_spectrum(ax, fig, times: np.ndarray, ys: np.ndarray, spec: np.ndarray,
                            ej: PBA.Ejecta, fs_or_rs: str, v_n: str, task_i: dict):
-        # task_i = task[v_n]
-        if task_i['norm'] == "LogNorm":
-            norm = LogNorm(vmin=task_i.get("vmin", spec.max() * 1e-5), vmax=task_i.get("vmax", spec.max() * 2))
-        elif task_i['norm'] == "SymLogNorm":
-            norm = SymLogNorm(linthresh=task_i.get("vmin", 1e-4),
-                              vmin=task_i.get("vmin", 1e-4),
-                              vmax=task_i.get("vmax", 1e4), base=10)
-        else:
-            raise KeyError(f"norm {task_i['norm']} is not recognized")
 
-        cmap = plt.get_cmap(task_i.get("cmap", 'jet'))
-        cmap.set_under(task_i.get("set_under", 'white'), alpha=0.2)
-        cmap.set_over(task_i.get("set_over", 'white'), alpha=0.2)
-
-        if not v_n.__contains__("tau") and task_i["mode"] == "contour":
-            spec = np.ma.masked_where(spec < norm.vmin, spec)
-            spec = np.ma.masked_where(spec > norm.vmax, spec)
-            # if np.sum(np.asarray(spec,dtype='int')) :
-            #     raise ValueError("nothing to plot")
-            # _c = ax.pcolormesh(xs, ys, spec, cmap=cmap, norm=norm)
-
-        if task_i["mode"] == "contour":
-            _c = ax.contourf(times, ys, spec, cmap=cmap, locator=ticker.LogLocator(), norm=norm)
-        else:
-            _c = ax.pcolormesh(times, ys, spec, cmap=cmap, norm=norm)
-
-        cbar = fig.colorbar(_c, ax=ax, shrink=0.95, pad=0.01, extend='both')  # orientation = 'horizontal')
-        cbar.ax.tick_params(labelsize=11)
-        cbar.set_label(task_i["zlabel"], size=12)
-        # tick_locator = ticker.MaxNLocator(nbins=15)
-        # cbar.locator = tick_locator
-        # cbar.set_norm(norm)
-        # cbar.update_normal(_c)
-        # cbar.update_ticks()
-        ax.set_ylabel(task_i["ylabel"], fontsize=12)
         if task_i["plot_num"]:
             gamma_min = ej.get_dyn_arr(v_n="gamma_min" if fs_or_rs == "fs" else "gamma_min_rs", ishell=0, ilayer=0)
             gamma_c = ej.get_dyn_arr(v_n="gamma_c" if fs_or_rs == "fs" else "gamma_c_rs", ishell=0, ilayer=0)
@@ -448,6 +423,43 @@ class PlotSpectra:
                 color='gray', lw=0.9, ls='-',
                 label=r"$\nu'_{\rm p}$"
             )
+
+
+    # task_i = task[v_n]
+        if task_i['norm'] == "LogNorm":
+            norm = LogNorm(vmin=task_i.get("vmin", spec.max() * 1e-5), vmax=task_i.get("vmax", spec.max() * 2))
+        elif task_i['norm'] == "SymLogNorm":
+            norm = SymLogNorm(linthresh=task_i.get("vmin", 1e-4),
+                              vmin=task_i.get("vmin", 1e-4),
+                              vmax=task_i.get("vmax", 1e4), base=10)
+        else:
+            raise KeyError(f"norm {task_i['norm']} is not recognized")
+
+        cmap = plt.get_cmap(task_i.get("cmap", 'jet'))
+        cmap.set_under(task_i.get("set_under", 'white'), alpha=0.2)
+        cmap.set_over(task_i.get("set_over", 'white'), alpha=0.2)
+
+        if not v_n.__contains__("tau") and task_i["mode"] == "contour":
+            spec = np.ma.masked_where(spec < norm.vmin, spec)
+            spec = np.ma.masked_where(spec > norm.vmax, spec)
+            # if np.sum(np.asarray(spec,dtype='int')) :
+            #     raise ValueError("nothing to plot")
+            # _c = ax.pcolormesh(xs, ys, spec, cmap=cmap, norm=norm)
+
+        if task_i["mode"] == "contour":
+            _c = ax.contourf(times, ys, spec, cmap=cmap, locator=ticker.LogLocator(), norm=norm)
+        else:
+            _c = ax.pcolormesh(times, ys, spec, cmap=cmap, norm=norm)
+
+        cbar = fig.colorbar(_c, ax=ax, shrink=0.95, pad=0.01, extend='both')  # orientation = 'horizontal')
+        cbar.ax.tick_params(labelsize=11)
+        cbar.set_label(task_i["zlabel"], size=12)
+        # tick_locator = ticker.MaxNLocator(nbins=15)
+        # cbar.locator = tick_locator
+        # cbar.set_norm(norm)
+        # cbar.update_normal(_c)
+        # cbar.update_ticks()
+        ax.set_ylabel(task_i["ylabel"], fontsize=12)
 
         if "ylim" in task_i.keys(): ax.set_ylim(*task_i["ylim"])
         if "xlim" in task_i.keys(): ax.set_xlim(*task_i["xlim"])
@@ -516,7 +528,7 @@ def plot_spectra_evolution(ej: PBA.Ejecta, fs_or_rs: str, tasks: dict, title: st
         ax.legend(fancybox=True, loc='upper right', columnspacing=0.8,
                   # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
                   shadow=False, ncol=4, fontsize=12, labelcolor='black',
-                  framealpha=0.4, borderaxespad=0.)
+                  framealpha=0.8, borderaxespad=0.)
         ax.set_rasterized(True)
         # start, end = ax.get_xlim()
         # ax.xaxis.set_ticks(np.logspace(np.log10(start), np.log10(end), 9))
@@ -1610,12 +1622,115 @@ def plot_cooling_terms(ej: PBA.Ejecta, fs_or_rs: str, xlim: tuple, task: dict, i
     plt.close(fig)
 
 
+def plot_several_model_1D_spectrum_at_given_times(task:dict) -> None:
+    """
+    :param task: dict(
+            runs=[dict(run=dyn_fs__rad_fs__num,name="Default",color='black',ls='-'),
+                  dict(run=dyn_fs__rad_fs__num__ssc,name="SSC",color='black',ls='--'),
+                  dict(run=dyn_fs__rad_fs__num__ssc_pp,name="SSC & PP",color='black',ls=':')],
+            times=(1e2,1e4,1e6), norm_method=None, ylabel=r"$N_e$",
+            figname=f"spec_fs_ele_ratio_def_ssc_sscpp", show=plot,
+        )
+    :param task:
+    :return:
+    """
+    fig,axes = plt.subplots(ncols=1,nrows=len(task["times"]),figsize=(5,6),layout="constrained",sharex='all')
+    pl = PlotSpectra()
+
+    def plot_(ax,t:float):
+        ys,spec1=np.zeros(1,),np.zeros(1,)
+        for (j, run) in enumerate(task["runs"]):
+            ys, spec1 = pl._get_spectrum(
+                ej=run["run"], v_n=task["v_n"], fs_or_rs=task["fs_or_rs"], norm_method=task["norm_method"],time=t,
+            )
+            ax.plot(ys, spec1,color=run['color'],ls=run['ls'],label=run["label"],lw=run['lw'])
+            if "plot_max" in run.keys() and run["plot_max"]:
+                idx = np.argmax(spec1)
+                # label = 'peak'
+                ax.axvline(x=ys[idx], color=run['color'], linewidth=0.8, linestyle="-.")
+        return (ys, spec1)
+
+    for (i, (ax, t)) in enumerate(zip(axes,task["times"])):
+        ys, spec1 = plot_(ax=ax, t=t)
+        ax.set_ylim(np.max(spec1)*1e-5,np.max(spec1)*10)
+        # for (j, run) in enumerate(task["runs"]):
+        #     ys, spec1 = pl._get_spectrum(
+        #         ej=run["run"], v_n=task["v_n"], fs_or_rs=task["fs_or_rs"], norm_method=task["norm_method"],time=t,
+        #     )
+        #     ax.plot(ys, spec1,color=run['color'],ls=run['ls'],label=run["label"],lw=run['lw'])
+        #     ax.set_ylim(np.max(spec1)*1e-5,np.max(spec1)*10)
+        #
+        #     times = run["run"].get_dyn_arr(v_n="tburst", ishell=0, ilayer=0)
+        #     idx = PBA.utils.find_nearest_index(times, t)
+        #     if run["plot_gm"]:
+        #         gamma_min = run["run"].get_dyn_arr(v_n="gamma_min" if task["fs_or_rs"] == "fs" else "gamma_min_rs", ishell=0, ilayer=0)
+        #         ax.axvline(x=gamma_min[idx], color=run['color'], linewidth=1, linestyle=":", label=r"$\gamma_{\rm m}$")
+        #     if run["plot_gc"]:
+        #         gamma_c = run["run"].get_dyn_arr(v_n="gamma_c" if task["fs_or_rs"] == "fs" else "gamma_c_rs", ishell=0, ilayer=0)
+        #         ax.axvline(x=gamma_c[idx], color=run['color'], linewidth=1, linestyle="--", label=r"$\gamma_{\rm c}$")
+        #     if run["plot_gM"]:
+        #         gamma_max = run["run"].get_dyn_arr(v_n="gamma_max" if task["fs_or_rs"] == "fs" else "gamma_max_rs", ishell=0, ilayer=0)
+        #         ax.axvline(x=gamma_max[idx], color=run['color'], linewidth=1, linestyle="-.", label=r"$\gamma_{\rm M}$")
+        #     if "plot_max" in run.keys() and run["plot_max"]:
+        #         idx = np.argmax(spec1)
+        #         # label = 'peak'
+        #         ax.axvline(x=ys[idx], color=run['color'], linewidth=0.8, linestyle="-.")
+        bbox = dict(boxstyle='round', fc='blanchedalmond', ec='orange', alpha=1.)
+        ax.text(0.21, 0.85, "${}$ s".format(PBA.utils.latex_float(t)), fontsize=12, bbox=bbox,
+                      transform=ax.transAxes, horizontalalignment='right')
+
+        if task["include_zoom_in"] and i==len(axes)-1:
+            x1, x2, y1, y2 = -1.5, -0.9, -2.5, -1.9  # subregion of the original image
+            axins = ax.inset_axes(
+                [0.05, 0.05, 0.45, 0.45],
+                xlim=(x1, x2), ylim=(y1, y2), xticklabels=[], yticklabels=[])
+            plot_(ax=axins,t=t)
+            # sub region of the original image
+            x1, x2, y1, y2 = 4e26, 2e28, 1e37, 2e40
+            axins.set_xlim(x1, x2)
+            axins.set_ylim(y1, y2)
+            axins.set_xscale('log')
+            axins.set_yscale('log')
+            axins.grid(ls=':')
+            axins.set_xticklabels('')
+            axins.set_yticklabels('')
+            axins.minorticks_on()
+            axins.tick_params(axis='both', which='both', labelleft=False,
+                              labelright=True, tick1On=True, tick2On=True,
+                              labelsize=12,
+                              direction='in',
+                              bottom=True, top=True, left=True, right=True)
+            ax.indicate_inset_zoom(axins, edgecolor="black")
+
+    for ax in axes:
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.minorticks_on()
+        ax.grid(ls=':')
+        ax.tick_params(axis='both', which='both', direction='in', labelsize=11)
+        ax.set_ylabel(task["ylabel"], fontsize=12)
+    axes[0].legend(fancybox=False, loc='upper right', columnspacing=0.8,
+              # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+              shadow=False, ncol=1, fontsize=12, labelcolor='black',
+              framealpha=0.0, borderaxespad=0.)
+    # ax.set_rasterized(True)
+    axes[-1].set_xlabel(task["xlabel"], fontsize=12)
+
+    # ax.set_title(task["title"], fontsize=12)
+    # ax.set_xlim(*xlim)
+    plt.savefig(os.getcwd() + '/figs/' + task["figname"] + '.png', dpi=256)
+    plt.savefig(os.getcwd() + '/figs/' + task["figname"] + '.pdf')
+    if task["show"]: plt.show()
+    if plot: plt.show()
+    plt.close(fig)
+
+
 def tasks_fs(do_run: bool, plot: bool, P: dict,
              name: str = "dyn_fs__rad_fs__num__ssa__ssc") -> PBA.PyBlastAfterglow:
     dyn_fs__rad_fs__num__ssa__ssc = PBA.wrappers.run_grb(
         working_dir=os.getcwd() + f"/working_dirs/{name}/",
         P=d2d(default=P, new=dict(
-            grb=dict(method_ssc_fs='numeric',method_pp_fs='numeric', use_ssa_fs='yes')
+            grb=dict(method_ssc_fs='numeric',method_pp_fs='none', use_ssa_fs='yes')
         )),
         run=do_run
     )
@@ -1628,14 +1743,14 @@ def tasks_fs(do_run: bool, plot: bool, P: dict,
 
     # plot_emission_region_prop(dyn_fs__rad_fs__num__ssa__ssc.GRB,fs_or_rs="fs",xlim=(3e3,1e9),
     #                           task=dict(show=True,figname="rad_ele_energy_dens_fs"))
-    plot_emission_region_prop_energies(dyn_fs__rad_fs__num__ssa__ssc.GRB, fs_or_rs="fs",
-                                       xlim=(1e14, 1e19), ylim=(1e-3,1),
-                                       task=dict(show=True, figname="tophat_eps_rad"))
+    # plot_emission_region_prop_energies(dyn_fs__rad_fs__num__ssa__ssc.GRB, fs_or_rs="fs",
+    #                                    xlim=(1e14, 1e19), ylim=(1e-3,1),
+    #                                    task=dict(show=True, figname="tophat_eps_rad"))
 
     plot_spectra_evolution(
         ej=dyn_fs__rad_fs__num__ssa__ssc.GRB, fs_or_rs='fs',
-        title="FS comoving spectra evolution", figname="spec_dyn_fs__rad_fs__num__ssa__ssc", show=plot,
-        figsize=(5, 8),
+        title="tophat-FS comoving spectra evolution", figname="spec_dyn_fs__rad_fs__num__ssa__ssc", show=plot,
+        figsize=(5, 6.5),
         tasks=dict(
             n_ele=dict(norm_method='/integ *y',  #'/integ *y',
                        ylabel=r"$\gamma_{e}$",
@@ -1645,11 +1760,11 @@ def tasks_fs(do_run: bool, plot: bool, P: dict,
             # yg=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$Y_g$ [cgs]",
             #         norm="LogNorm",
             #         plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False),
-            syn_j=dict(norm_method="*y", ylabel=r"$\nu'$ [Hz]", zlabel=r"$\nu' j'_{\rm syn}$ [cgs]",
-                       norm="LogNorm", ylim=(1e12, 1e28), xlim=(3e3, 1e9), vmin=1e-9, vmax=1e-3, mode="contour",
+            syn_j=dict(norm_method="*y", ylabel=r"$\nu'$ [Hz]", zlabel=r"$\nu' j'_{\rm syn}$ [erg cm$^{-2}$ s$^{-1}$]",
+                       norm="LogNorm", ylim=(1e12, 1e28), xlim=(3e3, 1e9), vmin=1e25, vmax=1e44, mode="contour",
                        plot_num=True, plot_nuc=True, plot_nuM=True, plot_nua=False, plot_tau1=False, plot_max=True),
-            ssc_j=dict(norm_method="*y", ylabel=r"$\nu'$ [Hz]", zlabel=r"$\nu' j'_{\rm ssc}$ [cgs]",
-                       norm="LogNorm", ylim=(1e18, 1e30), xlim=(3e3, 1e9), vmin=1e-9, vmax=1e-3, mode="contour",
+            ssc_j=dict(norm_method="*y", ylabel=r"$\nu'$ [Hz]", zlabel=r"$\nu' j'_{\rm ssc}$ [erg cm$^{-2}$ s$^{-1}$]",
+                       norm="LogNorm", ylim=(1e18, 1e30), xlim=(3e3, 1e9), vmin=1e25, vmax=1e44, mode="contour",
                        plot_num=True, plot_nuc=True, plot_nuM=False, plot_nua=False, plot_tau1=False, plot_max=True),
             # syn_a=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$\alpha'_{\rm syn}$ [cgs]",
             #          norm="LogNorm",mode="contour",
@@ -1659,11 +1774,11 @@ def tasks_fs(do_run: bool, plot: bool, P: dict,
                          norm="SymLogNorm", mode=None,
                          plot_num=False, plot_nuc=False, plot_nuM=False, plot_nua=True, plot_tau1=True, plot_max=False,
                          ylim=(1e6, 1e14), xlim=(3e3, 1e9)),
-            total_j=dict(norm_method="*y", ylabel=r"$\nu'$ [Hz]", zlabel=r"$\nu' I'_{\rm total}$ [cgs]",
-                         norm="LogNorm", mode="contour",
-                         plot_num=False, plot_nuc=False, plot_nuM=False, plot_nua=False, plot_tau1=False,
-                         plot_max=False,
-                         ylim=(1e12, 1e28), xlim=(3e3, 1e9), vmin=1e-9, vmax=1e-3),
+            # total_i=dict(norm_method="*y", ylabel=r"$\nu'$ [Hz]", zlabel=r"$\nu' I'_{\rm total}$ [cgs]",
+            #              norm="LogNorm", mode="contour",
+            #              plot_num=False, plot_nuc=False, plot_nuM=False, plot_nua=False, plot_tau1=False,
+            #              plot_max=False,
+            #              ylim=(1e12, 1e28), xlim=(3e3, 1e9), vmin=1e25, vmax=1e44),
                          # vmin=1e-15, vmax=1e-3),  # vmin=1e-17,vmax=1e-3
         ))
     plot_spectra_evolution(
@@ -1698,39 +1813,41 @@ def tasks_rs(do_run: bool, plot: bool, P: dict) -> PBA.PyBlastAfterglow:
     # plot_emission_region_prop(dyn_fs__rad_rs__num__ssa__ssc.GRB,fs_or_rs="rs",xlim=(3e3,3e7),
     #                           task=dict(show=True,figname="rad_ele_energy_dens_rs"))
     #
-    # plot_spectra_evolution(
-    #     ej=dyn_fs__rad_rs__num__ssa__ssc.GRB,fs_or_rs='rs',
-    #     title="FS comoving spectra evolution", figname="spec_dyn_fsrs__rad_rs__num__ssa__ssc", show=plot,
-    #     figsize=(5,6),
-    #     tasks=dict(
-    #         n_ele=dict(norm_method="/integ *y",#'*y /integ',
-    #                    ylabel=r"$\gamma_{e}$",
-    #                    zlabel=r"$(\gamma_{e} N_{e}) / N_{e;\, \rm tot}$",
-    #                    norm="LogNorm",mode="contour",#"contour",
-    #                    plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False,
-    #                    vmin=1e-6,vmax=1e0,ylim=(1,1e4)),
-    #         # yg=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$Y_g$ [cgs]",
-    #         #         norm="LogNorm",
-    #         #         plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False),
-    #         syn_j=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm syn}$ [cgs]",
-    #                    norm="LogNorm",ylim=(1e7,1e25),vmin=1e-12,vmax=1e-6,mode="contour",
-    #                    plot_num=True,plot_nuc=True,plot_nuM=True,plot_nua=False,plot_tau1=False,plot_max=True),
-    #         # ssc_j=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm ssc}$ [cgs]",
-    #         #            norm="LogNorm", ylim=(1e16,1e28),mode=None,#,vmin=1e-9,vmax=1e-3 "contour",
-    #         #            plot_num=True,plot_nuc=True,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=True),
-    #         # syn_a=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$\alpha'_{\rm syn}$ [cgs]",
-    #         #          norm="LogNorm",mode="contour",
-    #         #          plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=False,
-    #         #          ylim=(1e6,1e12)),
-    #         syn_tau=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$\tau'_{\rm ssa}$",
-    #                      norm="SymLogNorm",mode=None,
-    #                      plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=True,plot_tau1=True,plot_max=False,
-    #                      ylim=(1e7,1e14), xlim=(3e3,3e7)),
-    #         total_i=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' I'_{\rm total}$ [cgs]",
-    #                      norm="LogNorm",vmin=1e-12,vmax=1e-6,mode="contour",
-    #                      plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=False,
-    #                      ylim=(1e7,1e25), xlim=(3e3,3e7)),# ,vmin=1e-15,vmax=1e-3 vmin=1e-17,vmax=1e-3
-    #     ))
+    plot_spectra_evolution(
+        ej=dyn_fs__rad_rs__num__ssa__ssc.GRB,fs_or_rs='rs',
+        title="FS comoving spectra evolution", figname="spec_dyn_fsrs__rad_rs__num__ssa__ssc", show=plot,
+        figsize=(5,6),
+        tasks=dict(
+            n_ele=dict(norm_method=None,#"/integ *y",#'*y /integ',
+                       ylabel=r"$\gamma_{e}$",
+                       zlabel=r"$(\gamma_{e} N_{e}) / N_{e;\, \rm tot}$",
+                       norm="LogNorm",mode="contour",#"contour",
+                       plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False,
+                       # vmin=1e-6,vmax=1e0,ylim=(1,1e4)
+                       vmin=1e34,vmax=1e54,ylim=(1,1e4)
+                       ),
+            # yg=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$Y_g$ [cgs]",
+            #         norm="LogNorm",
+            #         plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False),
+            syn_j=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm syn}$ [cgs]",
+                       norm="LogNorm",ylim=(1e7,1e25),vmin=1e25, vmax=1e44,mode="contour",
+                       plot_num=True,plot_nuc=True,plot_nuM=True,plot_nua=False,plot_tau1=False,plot_max=True),
+            # ssc_j=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm ssc}$ [cgs]",
+            #            norm="LogNorm", ylim=(1e16,1e28),mode=None,#,vmin=1e-9,vmax=1e-3 "contour",
+            #            plot_num=True,plot_nuc=True,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=True),
+            # syn_a=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$\alpha'_{\rm syn}$ [cgs]",
+            #          norm="LogNorm",mode="contour",
+            #          plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=False,
+            #          ylim=(1e6,1e12)),
+            syn_tau=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$\tau'_{\rm ssa}$",
+                         norm="SymLogNorm",mode=None,
+                         plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=True,plot_tau1=True,plot_max=False,
+                         ylim=(1e7,1e14), xlim=(3e3,3e7)),
+            # total_i=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' I'_{\rm total}$ [cgs]",
+            #              norm="LogNorm",vmin=1e-12,vmax=1e-6,mode="contour",
+            #              plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=False,
+            #              ylim=(1e7,1e25), xlim=(3e3,3e7)),# ,vmin=1e-15,vmax=1e-3 vmin=1e-17,vmax=1e-3
+        ))
     plot_spectra_evolution(
         ej=dyn_fs__rad_rs__num__ssa__ssc.GRB, fs_or_rs='rs',
         title="FS comoving spectra evolution", figname="spec_dyn_fsrs__fluxdens_rs__num__ssa__ssc", show=plot,
@@ -1881,6 +1998,7 @@ def tasks_gauss(do_run: bool, plot: bool, P: dict) -> PBA.PyBlastAfterglow:
                                    plot_gm=False, plot_gc=False, plot_gM=False))
 
 
+
 def tasks_fs_comparison(do_run: bool, plot: bool, P: dict):
     # --- fs -- fs ---
     dyn_fs__rad_fs__num = PBA.wrappers.run_grb(
@@ -1908,10 +2026,47 @@ def tasks_fs_comparison(do_run: bool, plot: bool, P: dict):
         P=d2d(default=P, new=dict(grb=dict(method_ssc_fs='numeric'))),
         run=do_run
     )
+    dyn_fs__rad_fs__num__ssc_pp = PBA.wrappers.run_grb(
+        working_dir=os.getcwd() + "/working_dirs/dyn_fs__rad_fs__num__ssc_pp/",
+        P=d2d(default=P, new=dict(grb=dict(method_ssc_fs='numeric',method_pp_fs='numeric'))),
+        run=do_run
+    )
     dyn_fs__rad_fs__mix = PBA.wrappers.run_grb(
         working_dir=os.getcwd() + "/working_dirs/dyn_fs__rad_fs__mix/",
         P=d2d(default=P, new=dict(grb=dict(method_ele_fs='mix'))),
         run=do_run
+    )
+    # exit(0)
+    # plot_several_model_1D_spectrum_at_given_times(
+    #     task=dict(
+    #         runs=[dict(run=dyn_fs__rad_fs__mix.GRB,label="Mix",color='red',ls='-',plot_gm=False,plot_gc=False,plot_gM=False),
+    #               dict(run=dyn_fs__rad_fs__num.GRB,label="Default",color='blue',ls='-',plot_gm=False,plot_gc=False,plot_gM=False),
+    #               dict(run=dyn_fs__rad_fs__num__noadi.GRB,label="no Adi",color='green',ls='--',plot_gm=False,plot_gc=False,plot_gM=False)],
+    #         times=(4e3,1e6,1e7), norm_method=None, xlabel=r"$\gamma_e$", ylabel=r"$N_e$",v_n="n_ele",fs_or_rs="fs",
+    #         figname=f"spec_fs_ele_ratio_mix_def_noadi", show=plot,
+    #     )
+    # )
+
+    # plot_several_model_1D_spectrum_at_given_times(
+    #     task=dict(
+    #         runs=[dict(run=dyn_fs__rad_fs__mix.GRB,label="Mix",color='red',ls='-',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False),
+    #               dict(run=dyn_fs__rad_fs__num.GRB,label="Default",color='blue',ls='-',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False),
+    #               dict(run=dyn_fs__rad_fs__num__ssc.GRB,label="SSC",color='green',ls='--',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False),
+    #               dict(run=dyn_fs__rad_fs__num__ssc_pp.GRB,label="SSC \& PP",color='magenta',ls=':',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False)],
+    #         times=(4e3,1e6,1e7), norm_method=None, xlabel=r"$\gamma_e$", ylabel=r"$N_e$",v_n="n_ele",fs_or_rs="fs",
+    #         figname=f"spec_fs_ele_ratio_def_ssc_sscpp", show=plot,
+    #     )
+    # )
+    plot_several_model_1D_spectrum_at_given_times(
+        task=dict(
+            runs=[dict(run=dyn_fs__rad_fs__mix.GRB,label="Mix",color='red',ls='-',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False,plot_max=True),
+                  dict(run=dyn_fs__rad_fs__num.GRB,label="Default",color='blue',ls='-',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False,plot_max=True),
+                  # dict(run=dyn_fs__rad_fs__num__ssa.GRB,label="SSA",color='orange',ls='-',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False),
+                  dict(run=dyn_fs__rad_fs__num__ssc.GRB,label="SSC",color='green',ls='--',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False,plot_max=True),
+                  dict(run=dyn_fs__rad_fs__num__ssc_pp.GRB,label="SSC \& PP",color='magenta',ls=':',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False)],
+            times=(4e3,1e6,1e7), norm_method="*y", xlabel=r"$\nu$", ylabel=r"$\nu' I'_{\rm total}$ [erg cm$^{-2}$ s$^{-1}$]",v_n="total_i",fs_or_rs="fs",
+            figname=f"spec_fs_syn_ratio_def_ssc_sscpp", show=plot, include_zoom_in=True
+        )
     )
 
     for (model1, model2, name, label) in [
@@ -2034,7 +2189,7 @@ def tasks_rs_comparison(do_run: bool, plot: bool, struct: dict, P: dict):
 
 
 if __name__ == '__main__':
-    do_run = True
+    do_run = False
     plot = True
     # struct = dict(struct="tophat", Eiso_c=1.e55, Gamma0c=1000., M0c=-1., theta_c=0.05, theta_w=0.05)
     struct = dict(struct="tophat", Eiso_c=1.e53, Gamma0c=400., M0c=-1., theta_c=0.1, theta_w=0.1)
@@ -2047,8 +2202,8 @@ if __name__ == '__main__':
                  # method_nonrel_dist_fs='none',
                  # method_nonrel_dist_rs='none',
                  eps_e_fs=0.1, eps_b_fs=0.001, p_fs=2.2,
-                 gamma_max_fs=4e7, method_gamma_max_fs="useConst",
-                 gamma_max_rs=4e7, method_gamma_max_rs="useConst",
+                 # gamma_max_fs=4e7, method_gamma_max_fs="useConst",
+                 # gamma_max_rs=4e7, method_gamma_max_rs="useConst",
                  max_substeps_fs=1000, max_substeps_rs=1000,
                  # ngam_fs=1001,gam1_rs=1,gam2_rs=1e4,ngam_rs=1001,
                  # eps_b_fs = 1e-7,
@@ -2069,10 +2224,10 @@ if __name__ == '__main__':
 
     # --- fs -- fs ---
     pba_fs = tasks_fs(do_run=do_run, plot=plot, P=P)
-    tasks_fs_comparison(do_run=do_run, plot=plot, P=P)
+    # tasks_fs_comparison(do_run=do_run, plot=plot, P=P)
 
     # --- fsrs -- rs ---
-    # pba_fsrs = tasks_rs(do_run=do_run, plot=plot, P=P)
+    pba_fsrs = tasks_rs(do_run=do_run, plot=plot, P=P)
     # tasks_rs_comparison(do_run=do_run, plot=plot, P=P)
 
     # plot_total_observed_spectrum(
