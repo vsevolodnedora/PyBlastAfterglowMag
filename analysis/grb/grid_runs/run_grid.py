@@ -215,15 +215,15 @@ def get_str_val(v_n, val):
     val = str(val).replace(".", "")
     return val
 
-def grid_run_tophat():
-    ncpus = 4
+def grid_run_tophat(z:float,d_l:float):
+    ncpus = 8
     struct=dict(type="a",struct="tophat", Eiso_c=1.e53, Gamma0c=400., M0c=-1., theta_c=0.1, theta_w=0.1,
                 n_layers_pw=80, n_layers_a=1)
     P = dict(
         working_dir=os.getcwd() + f"/working_dirs/",
-        main=dict(n_ism=1., tb0=1., tb1=1e8, ntb=1000, rtol=5e-7, theta_obs=0, z=0.4245, d_l=2.3e9*cgs.pc,
+        main=dict(n_ism=1., tb0=1., tb1=1e9, ntb=2000, rtol=5e-7, theta_obs=0, z=z, d_l=d_l,
                   lc_freqs='array logspace 1e9 1e29 96',
-                  lc_times='array logspace 10 1e6 128'),
+                  lc_times='array logspace 10 2e7 128'),
         grb=dict(structure=struct,eats_type='a',save_dynamics='yes', save_spec='no', do_lc='yes',
                  # method_nonrel_dist_fs='none',
                  # method_nonrel_dist_rs='none',s
@@ -262,14 +262,14 @@ def grid_run_tophat():
     # n_ism = 1 Eiso = 3e53
     # Angle: expected 13 https://www.aanda.org/articles/aa/pdf/2022/03/aa41788-21.pdf
     pars = {
-        "n_ism":    np.array([1.0, 0.5, 0.1, 0.05, 0.01, 0.001]),
-        # "theta_obs":np.array([0., 15., 45.0, 60., 75., 90.]) * np.pi / 180.0,  # [75*np.pi/180]#
-        "Eiso_c":   np.array([1e51, 1.e52, 1.e53, 1e54, 1e55]),
-        "Gamma0c":  np.array([100., 300., 600., 1000.]),
+        "n_ism":    np.array([0.5, 0.1, 0.05, 0.01, 0.001]),
+        "theta_obs":np.array([0.,2.,4.]) * np.pi / 180.0,  # [75*np.pi/180]#
+        "Eiso_c":   np.array([1.e52, 1.e53, 1e54, 1e55]),
+        "Gamma0c":  np.array([300., 600., 1000.]),
         # "theta_c":  np.array([5., 10., 15., 20.]) * np.pi / 180.,
-        "theta_w":  np.array([5., 10., 15., 20.]) * np.pi / 180.,
+        "theta_w":  np.array([3., 5., 7., 12.]) * np.pi / 180.,
         "p_fs":     np.array([2.2, 2.4, 2.6, 2.8]),  # [2.05, 2.1, 2.2, 2.3, 2.4, 2.6, 2.8, 3.0],
-        "eps_e_fs": np.array([1e-1, 1e-2, 1e-3]),  # [0.001, 0.005, 0.01, 0.05, 0.1, 0.2, 0.3, 0.5],
+        "eps_e_fs": np.array([0.3, 1e-1, 1e-2, 1e-3]),  # [0.001, 0.005, 0.01, 0.05, 0.1, 0.2, 0.3, 0.5],
         "eps_b_fs": np.array([1e-2, 1e-3, 1e-4, 1e-5]),  # [0.001, 0.005, 0.01, 0.05, 0.1],
     }
     ranges = [pars[key] for key in pars.keys()]
@@ -300,4 +300,7 @@ def grid_run_tophat():
 
 
 if __name__ == '__main__':
-    grid_run_tophat()
+    # GRB 190114C
+    # grid_run_tophat(z=0.4245,d_l=2.3e9*cgs.pc) # https://www.aanda.org/articles/aa/pdf/2022/03/aa41788-21.pdf
+    # GRB 221009A
+    grid_run_tophat(z=0.151,d_l=2.28e27) # https://www.semanticscholar.org/reader/0301f515a7cc3f9bfc75de86c58e3abfb13ec13f
