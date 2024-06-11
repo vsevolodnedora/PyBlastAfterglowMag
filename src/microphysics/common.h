@@ -19,7 +19,7 @@ struct EBL{
     void load_h5_table(){
         if (!std::experimental::filesystem::exists(table_fpath)) {
             /// try to find the table using an absolute position of the code
-            table_fpath = std::filesystem::current_path();
+            table_fpath = std::experimental::filesystem::current_path();
             std::string delimiter = "/PyBlastAfterglowMag/";
             size_t pos = table_fpath.find(delimiter);
             std::string left = table_fpath.substr(0, pos);
