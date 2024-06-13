@@ -1460,22 +1460,22 @@ def plot_total_observed_spectrum_OLD(do_run: bool, norm_method: str, xlim: tuple
 def plot_total_observed_spectrum(do_run: bool, norm_method: str, xlim: tuple, task: dict, ishell=0, ilayer=0):
     ej_fs = PBA.wrappers.run_grb(
         working_dir=os.getcwd() + "/working_dirs/dyn_fsrs__rad_rs__num__ssa__ssc__fluxdens/",
-        struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
+        P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           use_ssa_fs='yes',
                                                           use_ssa_rs='yes',
                                                           do_rs_radiation="no",
                                                           method_ssc_fs='numeric',
                                                           method_ssc_rs='numeric'))),
-        type="a", run=do_run
+        run=do_run
     )
     ej_fsrs = PBA.wrappers.run_grb(
         working_dir=os.getcwd() + "/working_dirs/dyn_fsrs__rad_fsrs__num__ssa__ssc__fluxdens/",
-        struct=struct, P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
+        P=d2d(default=P, new=dict(grb=dict(do_rs='yes', bw_type='fsrs',
                                                           use_ssa_fs='yes',
                                                           use_ssa_rs='yes',
                                                           method_ssc_fs='numeric',
                                                           method_ssc_rs='numeric'))),
-        type="a", run=do_run
+        run=do_run
     )
 
     def plot_one(ax, xs, ys, spec, norm, cmap, text):
@@ -1499,22 +1499,25 @@ def plot_total_observed_spectrum(do_run: bool, norm_method: str, xlim: tuple, ta
     freqs, times, spec_fs = sp._get_spectrum(
         ej=ej_fs.GRB, v_n="fluxdens", fs_or_rs="rs",
         ishell=ishell, ilayer=ilayer, sum_shells_layers=False, norm_method=norm_method)
+    spec_fs = spec_fs / 1.e26 # mJy -> cgs
     freqs, times, spec_fsrs = sp._get_spectrum(
         ej=ej_fsrs.GRB, v_n="fluxdens", fs_or_rs="rs",
         ishell=ishell, ilayer=ilayer, sum_shells_layers=False, norm_method=norm_method)
+    spec_fsrs = spec_fsrs / 1.e26 # mJy -> cgs
 
     spec_rs = np.subtract(spec_fsrs , spec_fs)
 
-    fig, axes = plt.subplots(ncols=1, nrows=3, figsize=(5, 5), layout='constrained', sharex='all', sharey='all')
+    fig, axes = plt.subplots(ncols=1, nrows=1, figsize=(5, 2.5), layout='constrained', sharex='all', sharey='all')
+    if not hasattr(axes,'__len__'): axes = [axes]
     norm = LogNorm(vmin=task_i.get("vmin", spec_fsrs.max() * 1e-20),
                    vmax=task_i.get("vmax", spec_fsrs.max() * 1))
     cmap = plt.get_cmap(task_i.get("cmap", 'jet'))
     cmap.set_under(task_i.get("set_under", 'white'), alpha=0.2)
     cmap.set_over(task_i.get("set_over", 'white'), alpha=0.2)
 
-    _c = plot_one(axes[0], times, freqs, spec_fs, norm, cmap, r"FS")
-    _c = plot_one(axes[1], times, freqs, spec_rs, norm, cmap, r"RS")
-    _c = plot_one(axes[2], times, freqs, spec_fsrs, norm, cmap, r"FS \& RS")
+    # _c = plot_one(axes[0], times, freqs, spec_fs, norm, cmap, r"FS")
+    # _c = plot_one(axes[1], times, freqs, spec_rs, norm, cmap, r"RS")
+    _c = plot_one(axes[0], times, freqs, spec_fsrs, norm, cmap, r"FS \& RS")
 
     cbar = fig.colorbar(_c, ax=axes, shrink=0.95, pad=0.01, aspect=30, extend='both')  # orientation = 'horizontal')
     cbar.ax.tick_params(labelsize=11)
@@ -1755,7 +1758,9 @@ def tasks_fs(do_run: bool, plot: bool, P: dict,
             n_ele=dict(norm_method='/integ *y',  #'/integ *y',
                        ylabel=r"$\gamma_{e}$",
                        zlabel=r"$(\gamma_{e} N_{e}) / N_{e;\, \rm tot}$",
-                       norm="LogNorm", mode="contour", xlim=(3e3, 1e9), vmin=1e-6, vmax=1e0,
+                       norm="LogNorm", mode="contour", xlim=(3e3, 1e9),
+                       vmin=1e-6, vmax=1e0,
+                       # vmin=1e36, vmax=1e60,
                        plot_gm=True, plot_gc=True, plot_gM=True, plot_max=False),
             # yg=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$Y_g$ [cgs]",
             #         norm="LogNorm",
@@ -1771,7 +1776,7 @@ def tasks_fs(do_run: bool, plot: bool, P: dict,
             #          plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=False,
             #          ylim=(1e6,1e12), xlim=(3e3,1e9)),
             syn_tau=dict(norm_method=None, ylabel=r"$\nu'$ [Hz]", zlabel=r"$\tau'_{\rm ssa}$",
-                         norm="SymLogNorm", mode=None,
+                         norm="SymLogNorm", mode=None, set_over='red',
                          plot_num=False, plot_nuc=False, plot_nuM=False, plot_nua=True, plot_tau1=True, plot_max=False,
                          ylim=(1e6, 1e14), xlim=(3e3, 1e9)),
             # total_i=dict(norm_method="*y", ylabel=r"$\nu'$ [Hz]", zlabel=r"$\nu' I'_{\rm total}$ [cgs]",
@@ -1816,20 +1821,20 @@ def tasks_rs(do_run: bool, plot: bool, P: dict) -> PBA.PyBlastAfterglow:
     plot_spectra_evolution(
         ej=dyn_fs__rad_rs__num__ssa__ssc.GRB,fs_or_rs='rs',
         title="FS comoving spectra evolution", figname="spec_dyn_fsrs__rad_rs__num__ssa__ssc", show=plot,
-        figsize=(5,6),
+        figsize=(5,5.5),
         tasks=dict(
-            n_ele=dict(norm_method=None,#"/integ *y",#'*y /integ',
+            n_ele=dict(norm_method="/integ *y",#'*y /integ',
                        ylabel=r"$\gamma_{e}$",
                        zlabel=r"$(\gamma_{e} N_{e}) / N_{e;\, \rm tot}$",
                        norm="LogNorm",mode="contour",#"contour",
                        plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False,
-                       # vmin=1e-6,vmax=1e0,ylim=(1,1e4)
-                       vmin=1e34,vmax=1e54,ylim=(1,1e4)
+                       vmin=1e-6,vmax=1e0,ylim=(1,1e4)
+                       # vmin=1e34,vmax=1e54,ylim=(1,1e4)
                        ),
             # yg=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$Y_g$ [cgs]",
             #         norm="LogNorm",
             #         plot_gm=True,plot_gc=True,plot_gM=True,plot_max=False),
-            syn_j=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm syn}$ [cgs]",
+            syn_j=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm syn}$ [erg cm$^{-2}$ s$^{-1}$]",
                        norm="LogNorm",ylim=(1e7,1e25),vmin=1e25, vmax=1e44,mode="contour",
                        plot_num=True,plot_nuc=True,plot_nuM=True,plot_nua=False,plot_tau1=False,plot_max=True),
             # ssc_j=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' j'_{\rm ssc}$ [cgs]",
@@ -1840,7 +1845,7 @@ def tasks_rs(do_run: bool, plot: bool, P: dict) -> PBA.PyBlastAfterglow:
             #          plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=False,plot_tau1=False,plot_max=False,
             #          ylim=(1e6,1e12)),
             syn_tau=dict(norm_method=None,ylabel= r"$\nu'$ [Hz]",zlabel=r"$\tau'_{\rm ssa}$",
-                         norm="SymLogNorm",mode=None,
+                         norm="SymLogNorm",mode=None,set_over='red',
                          plot_num=False,plot_nuc=False,plot_nuM=False,plot_nua=True,plot_tau1=True,plot_max=False,
                          ylim=(1e7,1e14), xlim=(3e3,3e7)),
             # total_i=dict(norm_method="*y",ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' I'_{\rm total}$ [cgs]",
@@ -1880,9 +1885,11 @@ def plot_total_observed_spectrum_2(ej_fs: PBA.Ejecta, ej_fsrs: PBA.Ejecta, norm_
         ys, times, spec_fs = sp._get_spectrum(
             ej=ej_fs, v_n=task_i["v_n"], fs_or_rs="rs",
             ishell=ishell, ilayer=ilayer, sum_shells_layers=sum_shells_layers, norm_method=norm_method)
+        spec_fs = spec_fs / 1.e26 # mJy -> cgs
         ys, times, spec_fsrs = sp._get_spectrum(
             ej=ej_fsrs, v_n=task_i["v_n"], fs_or_rs="rs",
             ishell=ishell, ilayer=ilayer, sum_shells_layers=sum_shells_layers, norm_method=norm_method)
+        spec_fsrs = spec_fsrs / 1.e26 # mJy -> cgs
 
         spec_rs = spec_fsrs - spec_fs
         if fs_rs_tot == "total":
@@ -1991,10 +1998,10 @@ def tasks_gauss(do_run: bool, plot: bool, P: dict) -> PBA.PyBlastAfterglow:
         ej_fsrs=dyn_fs__rad_rs__num__ssa__ssc.GRB, norm_method="*y",
         xlim=(3e3, 3e7), task=dict(show=True, figname="gauss_fluxdens_plot",
                                    v_n="fluxdens", fs_rs_total="total",
-                                   norm="LogNorm", vmin=1e10, vmax=1e19, mode="contour",
+                                   norm="LogNorm",vmin=1e-16,vmax=1e-6, mode="contour",
                                    ylabel=r"$\nu$ [Hz]", xlabel=r"$t_{\rm obs}$ [s]",
-                                   zlabel=r"$\nu F_{\rm total}$ [mJy]", title="Gauss jet; FS \& RS",
-                                   set_under='blue', set_over='red', layers=(5, 19),
+                                   zlabel=r"$\nu F_{\rm total}$ [erg cm$^{-2}$ s$^{-1}$]", title="Gauss jet; FS \& RS",
+                                   set_under='blue', set_over='red', layers=(5, 10),
                                    plot_gm=False, plot_gc=False, plot_gM=False))
 
 
@@ -2223,20 +2230,20 @@ if __name__ == '__main__':
     )
 
     # --- fs -- fs ---
-    pba_fs = tasks_fs(do_run=do_run, plot=plot, P=P)
+    # pba_fs = tasks_fs(do_run=do_run, plot=plot, P=P)
     # tasks_fs_comparison(do_run=do_run, plot=plot, P=P)
 
     # --- fsrs -- rs ---
-    pba_fsrs = tasks_rs(do_run=do_run, plot=plot, P=P)
+    # pba_fsrs = tasks_rs(do_run=do_run, plot=plot, P=P)
     # tasks_rs_comparison(do_run=do_run, plot=plot, P=P)
 
     # plot_total_observed_spectrum(
     #     do_run=do_run,norm_method="*y",
     #     xlim=(3e3,3e7), task=dict(show=True,figname="tophat_fluxdens_plot",
-    #                               norm="LogNorm",vmin=1e10,vmax=1e21,mode="contour",
+    #                               norm="LogNorm",vmin=1e-16,vmax=1e-6,mode="contour",
     #                               ylabel=r"$\nu$ [Hz]", xlabel=r"$t_{\rm obs}$ [s]",
-    #                               zlabel=r"$\nu F_{\rm total}$ [mJy]",title="Tophat jet; FS \& RS",
-    #                               set_under='blue',set_over='red',
+    #                               zlabel=r"$\nu F_{\rm total}$ [erg cm$^{-2}$ s$^{-1}$]",title="Tophat jet; FS \& RS",
+    #                               set_under='blue',set_over='red',cmap='jet',
     #                               plot_gm=False,plot_gc=False,plot_gM=False))
 
     P["grb"]["structure"] = dict(struct="gaussian",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.3)

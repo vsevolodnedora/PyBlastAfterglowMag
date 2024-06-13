@@ -21,7 +21,7 @@ except:
     print("Error! could not import jetsim")
 
 # temprary dir to save PyBlastAfterglow output into
-working_dir = os.getcwd() + '/tmp1/'
+working_dir = os.getcwd() + '/working_dirs/'
 fig_dir = os.getcwd() + '/figs/'
 
 # def run(working_dir:str, struct:dict, P:dict, type:str="a") -> PBA.PyBlastAfterglow:
@@ -254,9 +254,9 @@ def plot_jetsim_skymap(ax, image):
 
 
 
-def compare_lcs(struct:dict, pp:dict, plot:dict):
+def compare_lcs(pp:dict, plot:dict,working_dir:str, run:bool=True):
 
-    fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(5.6, 4.2))
+    fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(5.2, 3.4))
     ax = axes
 
     # prepare initial data (piecewise and adaptive)
@@ -270,12 +270,12 @@ def compare_lcs(struct:dict, pp:dict, plot:dict):
     #     (0, 1e9, ":")
     # ]:
 
-    for iter in plot["iters"]:
+    for i, iter in enumerate(plot["iters"]):
         i_freq,i_thetaobs,i_ls = iter["freq"], iter["theta_obs"], iter["ls"]
 
         # default : Analytic
         if plot["plot_analytic"]:
-            pba = PBA.wrappers.run(working_dir=working_dir,struct=struct, type="a", P=mrg(pp,{
+            pba = PBA.wrappers.run_grb(working_dir=working_dir+f'analytic_{i}/',run=run, P=mrg(pp, {
                 "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
                 "grb":{"method_ele_fs":"analytic",
                        "method_synchrotron_fs":"WSPN99"}}))
@@ -285,7 +285,7 @@ def compare_lcs(struct:dict, pp:dict, plot:dict):
 
         # default : Semi-Analytic
         if plot["plot_semi_analytic"]:
-            pba = PBA.wrappers.run(working_dir=working_dir,struct=struct, type="a", P=mrg(pp,{
+            pba = PBA.wrappers.run_grb(working_dir=working_dir+f'mix_{i}/',run=run, P=mrg(pp, {
                 "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
                 "grb":{"method_ele_fs":"mix"}})) # "method_synchrotron_fs":"GSL"
             ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
@@ -294,7 +294,7 @@ def compare_lcs(struct:dict, pp:dict, plot:dict):
 
         # default : Numeric
         if plot["plot_numeric"]:
-            pba = PBA.wrappers.run(working_dir=working_dir,struct=struct, type="a", P=mrg(pp,{
+            pba = PBA.wrappers.run_grb(working_dir=working_dir+f'num_{i}/', run=run, P=mrg(pp, {
                 "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
                 "grb":{}}))
             ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
@@ -303,10 +303,10 @@ def compare_lcs(struct:dict, pp:dict, plot:dict):
 
         ''' -------------------- REFERENCES --------------- '''
 
-        t_, f_ = run_afgpy(i_freq, struct, pba)
+        t_, f_ = run_afgpy(i_freq, pp["grb"]["structure"], pba)
         _ll, = ax.plot(t_ / PBA.utils.cgs.day, f_, color='black', ls=i_ls, lw=.8)
 
-        t_, f_ = run_jetsim(i_freq, struct, pba)
+        t_, f_ = run_jetsim(i_freq,  pp["grb"]["structure"], pba)
         _ll, = ax.plot(t_ / PBA.utils.cgs.day, f_, color='gray', ls=i_ls, lw=.8)
 
         lls.append(_ll)
@@ -639,10 +639,10 @@ def compare_lcs(struct:dict, pp:dict, plot:dict):
         plt.savefig(fig_dir+plot["figname"]+'.pdf')
     if plot["show"]: plt.show()
 
-def compare_dyn(struct:dict, pp:dict, plot:dict):
-    pba = PBA.wrappers.run(working_dir=working_dir,struct=struct,P=pp,type="a",loglevel="err")
-    jetsimpy = run_jetsim(freq=-1.,struct=struct,pba=pba)
-    fig,ax = plt.subplots(ncols=1,nrows=1,figsize=(5.5,4.))
+def compare_dyn(pp:dict, plot:dict):
+    pba = PBA.wrappers.run_grb(working_dir=working_dir, P=copy.deepcopy(pp), loglevel="err")
+    jetsimpy = run_jetsim(freq=-1.,struct= pp["grb"]["structure"],pba=pba)
+    fig,ax = plt.subplots(ncols=1,nrows=1,figsize=(5.,3.))
 
     def plot_momentum(ax, color, ilayer):
         ax.plot(
@@ -680,11 +680,11 @@ def compare_dyn(struct:dict, pp:dict, plot:dict):
         )
 
     def plot_(ax):
-        if struct['struct'] == 'tophat':
+        if  pp["grb"]["structure"]["struct"] == 'tophat':
             plot_momentum(ax,color=plot["colors"],ilayer=plot["layers"])
-        elif struct['struct'] == 'gaussian':
-            pba = PBA.wrappers.run(working_dir=working_dir,struct=struct,P=pp,type="a")
-            jetsimpy = run_jetsim(freq=-1.,struct=struct,pba=pba)
+        elif  pp["grb"]["structure"]["struct"] == 'gaussian':
+            pba = PBA.wrappers.run_grb(working_dir=working_dir, P=copy.deepcopy(pp))
+            jetsimpy = run_jetsim(freq=-1.,struct=pp["grb"]["structure"],pba=pba)
             for ilayer, color in zip(plot["layers"],plot["colors"]):
                 plot_momentum(ax,color=color,ilayer=ilayer)
 
@@ -698,7 +698,7 @@ def compare_dyn(struct:dict, pp:dict, plot:dict):
             xlim=(x1, x2), ylim=(y1, y2), xticklabels=[], yticklabels=[])
         plot_(axins)
         # sub region of the original image
-        x1, x2, y1, y2 = 1e7, 1e9, 1e-1, 5.
+        x1, x2, y1, y2 = 5e7, 2e9, 1e-1, 5.
         axins.set_xlim(x1, x2)
         axins.set_ylim(y1, y2)
         axins.set_xscale('log')
@@ -747,8 +747,8 @@ def compare_dyn(struct:dict, pp:dict, plot:dict):
         plt.savefig(fig_dir+plot["figname"]+'.pdf')
     if plot["show"]: plt.show()
 
-def compare_skymaps(struct:dict, pp:dict, plot:dict):
-    pba = PBA.wrappers.run(working_dir=working_dir,struct=struct, type="a", P=mrg(pp,{
+def compare_skymaps(pp:dict, plot:dict):
+    pba = PBA.wrappers.run_grb(working_dir=working_dir, P=mrg(pp, {
         "main":{}, "grb":{}}))
     skymap = pba.GRB.get_skymap(
         time=float(pp["main"]["skymap_times"].split()[-1]),
@@ -767,7 +767,7 @@ def compare_skymaps(struct:dict, pp:dict, plot:dict):
                             #              'height_ratios': [1, ]})
 
     # --- reference ---
-    image = run_jetsim(freq=float(pp["main"]["skymap_freqs"].split()[-1]), struct=struct, pba=pba)
+    image = run_jetsim(freq=float(pp["main"]["skymap_freqs"].split()[-1]), struct=pp["grb"]["structure"], pba=pba)
 
 
     # ax_main = axes[1,0]
@@ -812,36 +812,38 @@ def compare_skymaps(struct:dict, pp:dict, plot:dict):
 if __name__ == '__main__':
     show = True
     ''' tophat jet '''
-    compare_dyn(
-        struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
-        pp = dict(main=dict(n_ism = 1e-2),
-                  grb=dict(save_dynamics='yes',do_mphys_in_situ="no",do_lc = "no")),
-        plot=dict(
-            layers=0,
-            colors='blue',
-            include_zoom_in=False,
-            show=show,
-            figname="dyn_tophat"
-        )
-    )
-    compare_lcs(
-        struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1),
-        pp = dict(main=dict(n_ism = 1e-2,ntb=3000),
-                  grb=dict(ebl_tbl_fpath='none')),
-        plot = dict(plot_analytic=True,plot_semi_analytic=True,plot_numeric=False,iters=[
-            dict(theta_obs=0.16,freq=1.e9,ls='-'),
-            dict(theta_obs=0.0,freq=1.e18,ls='--'),
-            dict(theta_obs=0.16,freq=1.e18,ls='-.'),
-            dict(theta_obs=0.0,freq=1.e9,ls=':')
-        ], xlim=(1e-1, 1e3), ylim=(1e-9, 5e2),
-                    bbox_to_anchor_2=(0.35, 0.16), bbox_to_anchor_1=(0.78, 0.52), show=show, figname="lcs_tophat")
-    )
+    struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
+    # compare_dyn(
+    #     pp = dict(main=dict(n_ism = 1e-2),
+    #               grb=dict(structure=struct,eats_type='a',save_dynamics='yes',do_mphys_in_situ="no",do_lc = "no")),
+    #     plot=dict(
+    #         layers=0,
+    #         colors='blue',
+    #         include_zoom_in=False,
+    #         show=show,
+    #         figname="dyn_tophat"
+    #     )
+    # )
+    # struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
+    # compare_lcs(
+    #     pp = dict(main=dict(n_ism = 1e-2,ntb=3000),
+    #               grb=dict(structure=struct,eats_type='a',ebl_tbl_fpath='none')),
+    #     plot = dict(plot_analytic=True,plot_semi_analytic=True,plot_numeric=False,iters=[
+    #         dict(theta_obs=0.16,freq=1.e9,ls='-'),
+    #         dict(theta_obs=0.0,freq=1.e18,ls='--'),
+    #         dict(theta_obs=0.16,freq=1.e18,ls='-.'),
+    #         dict(theta_obs=0.0,freq=1.e9,ls=':')
+    #     ], xlim=(1e-1, 1e3), ylim=(1e-9, 5e2),
+    #                 bbox_to_anchor_2=(0.35, 0.16), bbox_to_anchor_1=(0.78, 0.52), show=show, figname="lcs_tophat"),
+    #     working_dir=working_dir+"tmp_tophat_",
+    #     run=False
+    # )
 
     ''' gaussian jet'''
+    struct = dict(struct="gaussian",Eiso_c=1.e52, Gamma0c= 300., M0c= -1., theta_c= 0.085, theta_w= 0.2618)
     compare_dyn(
-        struct = dict(struct="gaussian",Eiso_c=1.e52, Gamma0c= 300., M0c= -1., theta_c= 0.085, theta_w= 0.2618),
         pp = dict(main=dict(n_ism = 0.00031,d_l = 1.27e+26, z = 0.0099),
-                            grb=dict(eps_e_fs = 0.0708, eps_b_fs = 0.0052, p_fs = 2.16,
+                            grb=dict(structure=struct,eats_type='a',eps_e_fs = 0.0708, eps_b_fs = 0.0052, p_fs = 2.16,
                                      save_dynamics='yes',do_mphys_in_situ='no',do_lc = "no",ebl_tbl_fpath='none')),
         plot=dict(
             layers=[0,8,16,19],
@@ -852,22 +854,24 @@ if __name__ == '__main__':
         )
     )
     compare_lcs(
-        struct = dict(struct="gaussian",Eiso_c=1.e52, Gamma0c= 300., M0c= -1., theta_c= 0.085, theta_w= 0.2618),
+        # struct = dict(struct="gaussian",Eiso_c=1.e52, Gamma0c= 300., M0c= -1., theta_c= 0.085, theta_w= 0.2618),
         pp = dict(main=dict(n_ism = 0.00031,d_l = 1.27e+26, z = 0.0099),
-                  grb=dict(eps_e_fs = 0.0708, eps_b_fs = 0.0052, p_fs = 2.16,ebl_tbl_fpath='none')),
+                  grb=dict(structure=struct,eats_type='a',eps_e_fs = 0.0708, eps_b_fs = 0.0052, p_fs = 2.16,ebl_tbl_fpath='none')),
         plot = dict(plot_analytic=True,plot_semi_analytic=True,plot_numeric=False,iters=[
             dict(theta_obs=0.3752,freq=1.e9,ls='-'),
             dict(theta_obs=0.0,freq=1.e18,ls='--'),
             dict(theta_obs=0.3752,freq=1.e18,ls='-.'),
             dict(theta_obs=0.0,freq=1.e9,ls=':')
-            ], xlim=(1e-1, 1e3), ylim=(1e-10, 1e2),
-                    bbox_to_anchor_2=(0.65, 0.16), bbox_to_anchor_1=(0.78, 0.65), show=show, figname="lcs_gauss")
+            ], xlim=(1e-1, 1e3), ylim=(1e-11, 1e2),
+                    bbox_to_anchor_2=(0.65, 0.16), bbox_to_anchor_1=(0.78, 0.65), show=show, figname="lcs_gauss"),
+        working_dir=working_dir+"tmp_gauss_",
+        run=False
     )
+    struct = dict(struct="gaussian",Eiso_c=1.e52, Gamma0c= 300., M0c= -1., theta_c= 0.085, theta_w= 0.2618)
     compare_skymaps(
-        struct = dict(struct="gaussian",Eiso_c=1.e52, Gamma0c= 300., M0c= -1., theta_c= 0.085, theta_w= 0.2618),
         pp = dict(main=dict(n_ism = 0.00031,d_l = 1.27e+26, z = 0.0099, theta_obs = 0.3752,
                             skymap_freqs=f"array 1.e9", skymap_times=f"array {75.*86400.}"),
-                  grb=dict(eps_e_fs = 0.0708, eps_b_fs = 0.0052, p_fs = 2.16,
+                  grb=dict(structure=struct,eats_type='a',eps_e_fs = 0.0708, eps_b_fs = 0.0052, p_fs = 2.16,
                            do_skymap="yes",do_lc="no",
                            method_ele_fs="analytic",  method_synchrotron_fs="WSPN99",
                            ebl_tbl_fpath='none',

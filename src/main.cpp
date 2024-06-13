@@ -209,16 +209,18 @@ int main(int argc, char** argv) {
     std::string working_dir = "../"; std::string parfilename = "parfile.par";
     /// ------------------------------------------------------
     if (argc<4){
-        // test cases || GRG
+        // test cases
 //        working_dir = "../tst/grb/compare_jetsim_afgpy/tmp1/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/kn/knafg_nrinformed/workingdir_DD2_M135135_M0/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../tst/kn/knafg_nrinformed/tmp1/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 
         // analysis
-        working_dir = "../analysis/grb/fsrs/tmp1/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-//        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_fs__num__ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../analysis/grb/fsrs/tmp1/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_fs__num__ssa__ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_fs__num_ssa/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_fs__num__ssa__ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_rs__num__ssa__ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-//        working_dir = "../analysis/grb/fsrs/tmp1/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_spread_gp12/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 
         // test cases || GRG
 //        working_dir = "../tst/grb/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO; // gauss, skymap

@@ -22,9 +22,9 @@ include_directories ( ${HDF5_INCLUDE_DIR} )
 #SET(MY_VARIABLE "option_value" CACHE STRING "../tst/dynamics/parfile.par")
 set_target_properties(${TARGET_NAME} PROPERTIES VS_DEBUGGER_COMMAND_ARGUMENTS "../tst/dynamics/parfile.par" )
 
-add_executable(src src/main.cpp src/composition.h src/model_ejecta.h src/old/ejecta_grb.h src/old/ejecta_radiation.h src/initial_data.h src/blastwave.h src/radiation.h)
+add_executable(src src/main.cpp)
 
-target_link_libraries(${PROJECT_NAME} stdc++fs HDF5::HDF5)
+target_link_libraries(${PROJECT_NAME} stdc++fs HDF5::HDF5) # gsl -- remove GSL
 
 #cmake_minimum_required(VERSION 3.24)
 #project(PyBlastAfterglowMag)

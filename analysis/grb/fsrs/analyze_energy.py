@@ -195,10 +195,15 @@ def plot_fs_energy(pp:dict,plot:dict):
         GammaEff3[~np.isfinite(GammaEff3)] = 0.
         Eint3 *= GammaEff3
 
-        Ekin4 = (Gamma0 - 1.0) * M0 * PBA.utils.cgs.c ** 2 \
-              - (Gamma0 - Gamma) * M3 * PBA.utils.cgs.c ** 2 \
-              # + (Gamma - 1.0) * M3 * PBA.utils.cgs.c ** 2
-        # Ekin3 = (Gamma43 - 1.0) * M3 * PBA.utils.cgs.c ** 2 # TODO Is it Gamma43 or Gamma here????
+
+        # Ekin4 = (Gamma0*(M0-M3) - M0 + Gamma*M3) * PBA.utils.cgs.c ** 2
+        Ekin4 = ((Gamma0-1)*M0 - (Gamma0-Gamma)*M3) * PBA.utils.cgs.c ** 2
+
+
+        # Ekin4 = (Gamma0 - 1.0) * M0 * PBA.utils.cgs.c ** 2 \
+        #       - (Gamma0 - Gamma) * M3 * PBA.utils.cgs.c ** 2
+        #       # + (Gamma - 1.0) * M3 * PBA.utils.cgs.c ** 2
+        # # Ekin3 = (Gamma43 - 1.0) * M3 * PBA.utils.cgs.c ** 2 # TODO Is it Gamma43 or Gamma here????
         Ekin3 = (Gamma43 - 1.0) * M3 * PBA.utils.cgs.c ** 2 # TODO Is it Gamma43 or Gamma here????
 
         # axes[0].plot(tburst, Etot3/E0, label=r"$E_{\rm tot; 3}$", color='green')
