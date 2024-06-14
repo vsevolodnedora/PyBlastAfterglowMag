@@ -120,11 +120,11 @@ def run_jetsim(freq:float, struct:dict, pba:PBA.PyBlastAfterglow):
     )
     # tabulated energy/LF structure
     if struct["struct"] == "tophat":
-        theta = np.linspace(0, np.pi, 1000)
+        theta = np.linspace(0, struct["theta_w"]*1.01, 500)
         Eiso = np.full_like(theta,P["Eiso"]) # P["Eiso"] * np.exp(- 0.5 * (theta / P["theta_c"]) ** 2)
         lf = np.full_like(theta, P["lf"]) #(P["lf"] - 1) * np.exp(- 0.5 * (theta / P["theta_c"]) ** 2) + 1
-        lf[theta > struct["theta_w"]] = 0.
-        Eiso[theta > struct["theta_w"]] = 0.
+        lf[theta > struct["theta_c"]] = 0.
+        Eiso[theta > struct["theta_c"]] = 0.
     elif struct["struct"] == "gaussian":
         theta = np.linspace(0, np.pi, 1000)
         Eiso = P["Eiso"] * np.exp(- 0.5 * (theta / struct["theta_c"]) ** 2)
@@ -163,10 +163,11 @@ def run_jetsim(freq:float, struct:dict, pba:PBA.PyBlastAfterglow):
             tmin=pba.main_pars["tb0"],
             tmax=pba.main_pars["tb1"],
             spread=pba.GRB.opts["method_spread"] != "None",    # (default = True) with/without spreading effect
-            coast=True,      # (default = True) with/without coasting. If this is "False", the initial lorentz factor data will be omitted.
+            coast=False      # (default = True) with/without coasting. If this is "False", the initial lorentz factor data will be omitted.
+            # tail=False
         )
         # define the observing time and frequency
-        tday = np.logspace(-2, 3, 100)
+        tday = np.logspace(-1, 3, 100)
         tsecond = tday * 3600 * 24
         # nu = 3e9
         # calculate the afterglow flux density (unit: mJy)
@@ -174,7 +175,7 @@ def run_jetsim(freq:float, struct:dict, pba:PBA.PyBlastAfterglow):
             tsecond,           # [second] observing time span
             freq,                # [Hz]     observing frequency
             copy.deepcopy(P),                 # parameter dictionary for radiation
-            rtol=1e-2,         # (default=1e-2) integration error tolerance
+            rtol=1e-4,         # (default=1e-2) integration error tolerance
             model="sync",      # default radiation model
         )
         # _t, _ref_F_afgpy, _ref_F = np.loadtxt(os.getcwd() + '/' + fname, unpack=True)
@@ -639,7 +640,7 @@ def compare_lcs(pp:dict, plot:dict,working_dir:str, run:bool=True):
         plt.savefig(fig_dir+plot["figname"]+'.pdf')
     if plot["show"]: plt.show()
 
-def compare_dyn(pp:dict, plot:dict):
+def compare_dyn(pp:dict, plot:dict,working_dir:str):
     pba = PBA.wrappers.run_grb(working_dir=working_dir, P=copy.deepcopy(pp), loglevel="err")
     jetsimpy = run_jetsim(freq=-1.,struct= pp["grb"]["structure"],pba=pba)
     fig,ax = plt.subplots(ncols=1,nrows=1,figsize=(5.,3.))
@@ -812,7 +813,7 @@ def compare_skymaps(pp:dict, plot:dict):
 if __name__ == '__main__':
     show = True
     ''' tophat jet '''
-    struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
+    # struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
     # compare_dyn(
     #     pp = dict(main=dict(n_ism = 1e-2),
     #               grb=dict(structure=struct,eats_type='a',save_dynamics='yes',do_mphys_in_situ="no",do_lc = "no")),
@@ -822,22 +823,23 @@ if __name__ == '__main__':
     #         include_zoom_in=False,
     #         show=show,
     #         figname="dyn_tophat"
-    #     )
+    #     ),
+    #     working_dir=working_dir+"tmp_tophat_dyn_",
     # )
-    # struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
-    # compare_lcs(
-    #     pp = dict(main=dict(n_ism = 1e-2,ntb=3000),
-    #               grb=dict(structure=struct,eats_type='a',ebl_tbl_fpath='none')),
-    #     plot = dict(plot_analytic=True,plot_semi_analytic=True,plot_numeric=False,iters=[
-    #         dict(theta_obs=0.16,freq=1.e9,ls='-'),
-    #         dict(theta_obs=0.0,freq=1.e18,ls='--'),
-    #         dict(theta_obs=0.16,freq=1.e18,ls='-.'),
-    #         dict(theta_obs=0.0,freq=1.e9,ls=':')
-    #     ], xlim=(1e-1, 1e3), ylim=(1e-9, 5e2),
-    #                 bbox_to_anchor_2=(0.35, 0.16), bbox_to_anchor_1=(0.78, 0.52), show=show, figname="lcs_tophat"),
-    #     working_dir=working_dir+"tmp_tophat_",
-    #     run=False
-    # )
+    struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
+    compare_lcs(
+        pp = dict(main=dict(n_ism = 1e-2,ntb=3000),
+                  grb=dict(structure=struct,eats_type='a',ebl_tbl_fpath='none')),
+        plot = dict(plot_analytic=True,plot_semi_analytic=True,plot_numeric=False,iters=[
+            dict(theta_obs=0.16,freq=1.e9,ls='-'),
+            dict(theta_obs=0.0,freq=1.e18,ls='--'),
+            dict(theta_obs=0.16,freq=1.e18,ls='-.'),
+            dict(theta_obs=0.0,freq=1.e9,ls=':')
+        ], xlim=(1e-1, 1e3), ylim=(1e-9, 5e2),
+                    bbox_to_anchor_2=(0.35, 0.16), bbox_to_anchor_1=(0.78, 0.52), show=show, figname="lcs_tophat"),
+        working_dir=working_dir+"tmp_tophat_",
+        run=False
+    )
 
     ''' gaussian jet'''
     struct = dict(struct="gaussian",Eiso_c=1.e52, Gamma0c= 300., M0c= -1., theta_c= 0.085, theta_w= 0.2618)
@@ -851,7 +853,8 @@ if __name__ == '__main__':
             include_zoom_in=True,
             show=show,
             figname="dyn_gauss"
-        )
+        ),
+        working_dir=working_dir+"tmp_gauss_dyn_",
     )
     compare_lcs(
         # struct = dict(struct="gaussian",Eiso_c=1.e52, Gamma0c= 300., M0c= -1., theta_c= 0.085, theta_w= 0.2618),
