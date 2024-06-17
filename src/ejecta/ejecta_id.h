@@ -203,7 +203,17 @@ private:
                     ldata.setVarName(m_v_ns[i_v_n]);
                     m_data[i_v_n][ish] = std::move ( ldata.getDataVDouble() ); // load 1D vec
                 }
+                for (size_t il = 0; il < m_data[0][0].size(); il++){
+                    double mom = m_data[EjectaID2::Q::imom][ish][il];
+                    double Gamma = EQS::GamFromMom(mom);
+                    std::cout << " mom="<<mom << " Gamma="<<Gamma<<" beta="<<EQS::BetFromMom(mom)<<"\n";
+                    if (Gamma <= 1.){
+                        (*p_log)(LOG_ERR,AT)<<"Bad Value ID: ish="<<ish<<" il="<<il<<" mom="<<mom<<"\n";
+                        exit(1);
+                    }
+                }
             }
+
             nlayers = m_data[0][0].size();
             theta_wing = ldata.getAttr("theta_wing");
             theta_core = ldata.getAttr("theta_core");

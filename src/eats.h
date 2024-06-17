@@ -187,19 +187,34 @@ class EATS {
         mu = p_pars->obsangle(a_theta, i_phi, p_pars->theta_obs);
         p_pars->theta = a_theta;
 
+        if (mu < p_pars->m_mu[0]){
+            (*p_pars->p_log)(LOG_WARN,AT) << "mu="<<mu<< " < m_mu[0]="<<p_pars->m_mu[0]
+                                          << " theta="<<a_theta<< " phi="<<i_phi
+                                          << " theta_obs="<<p_pars->theta_obs<< " r="<<r << " gam="<<gam
+                                          << " Requested obs. time corresponds to t_burst < grid boundary. \n";
+            return 0.;
+        }
+        if (mu > p_pars->m_mu[p_pars->m_i_end_r-1]){
+            (*p_pars->p_log)(LOG_WARN,AT) << "mu="<<mu<< " > m_mu[end]="<<p_pars->m_mu[0]
+                                          << " (end_idx="<<p_pars->m_i_end_r<<") "
+                                          << " theta="<<a_theta<< " phi="<<i_phi
+                                          << " theta_obs="<<p_pars->theta_obs<< " r="<<r << " gam="<<gam
+                                          << " Requested obs. time corresponds to t_burst < grid boundary. \n";
+            return 0.;
+        }
+
         /// find indeces of the BW dynamics that correspond to this EATS time
         size_t ia = findIndex(mu, p_pars->m_mu, p_pars->m_i_end_r);
         size_t ib = ia + 1;
 
         double t_e = interpSegLin(ia, ib, mu, p_pars->m_mu, p_pars->m_tburst);
 
-
         /// interpolate the time in burster frame that corresponds to the t_obs in observer frame
 //        double t_e = interpSegLin(ia, ib, mu, p_pars->m_mu, p_pars->m_tburst);
         t_e = check_emission_time(t_e, mu, p_pars->t_obs, p_pars->m_mu, (int) p_pars->m_i_end_r);
         if ((t_e < 0.0)||(!std::isfinite(t_e))) {
             // REMOVING LOGGER
-            (*p_pars->p_log)(LOG_ERR,AT) << " t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";
+            (*p_pars->p_log)(LOG_ERR,AT) << " t_e < 0 = " << t_e << "\n";
 //            std::cerr << AT  << "Error t_e < 0 = " << t_e << " Change R0/R1 parameters " << "\n";
             return 0.;
         }

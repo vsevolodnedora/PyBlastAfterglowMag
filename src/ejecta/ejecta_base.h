@@ -550,6 +550,7 @@ public:
         }
     }
 
+    /// Warning this function does not allow shell to have radial structure!
     bool _computeEjectaSkyMapA(ImageExtend & im,//std::vector<VecVector> & raw_data,
                                double obs_time, double obs_freq,
                                size_t & nsublayers, size_t & nrestarts,
@@ -581,9 +582,10 @@ public:
 
             /// find how many sublayers lie withing jet openning angle and how many phi-cells are there in total_rad
             std::vector<size_t> sublayers_l{};
+            auto &bw_pars = p_cumShells[ilayer]->getBW(0)->getPars();
             auto &bw_rad = p_cumShells[ilayer]->getBW(0)->getFsEATS();
             double theta_l = p_cumShells[ilayer]->getBW(0)->getPars()->theta_c_l;
-            size_t ncells_il = 0;
+
             for (size_t ith = 0; ith < nsublayers; ith++) {
                 cthetas[ith] = theta_pw[ith] + (theta_pw[ith + 1] - theta_pw[ith]) * 0.5;
                 size_t cil = EjectaID2::CellsInLayer_(ith);
@@ -604,8 +606,12 @@ public:
                 if (nrestarts>max_restarts){
                     (*p_log)(LOG_ERR, AT)
                         <<" maximum number of restarts exceeded for [il="<<ilayer<<"] "
+                        << " G0="<<bw_pars->Gamma0<<" theta_l="<<bw_pars->theta_c_l<<" theta_h="<<bw_pars->theta_c_h
+                        << " j_syn_sum="<<std::accumulate(bw_pars->p_mphys->syn.j_all.begin(),
+                                                          bw_pars->p_mphys->syn.j_all.end(),0.)
                         << " nrestarts=" << nrestarts << " sublayers=" << nsublayers <<"\n";
-                    exit(1);
+//                    exit(1);
+                    return true;
                 }
                 nsublayers = nsublayers_new;
                 nrestarts+=1;
@@ -666,8 +672,12 @@ public:
                                        <<" Increasing nsublayers="<<nsublayers<<"->"<<nsublayers_new<<"\n";
                 if (nrestarts>max_restarts){
                     (*p_log)(LOG_ERR, AT)<<" maximum number of restarts exceeded for [il="<<ilayer<<"] "
-                                         << " nrestarts=" << nrestarts << " sublayers=" << nsublayers <<"\n";
-                    exit(1);
+                            << " G0="<<bw_pars->Gamma0<<" theta_l="<<bw_pars->theta_c_l<<" theta_h="<<bw_pars->theta_c_h
+                            << " j_syn_sum="<<std::accumulate(bw_pars->p_mphys->syn.j_all.begin(),
+                                                              bw_pars->p_mphys->syn.j_all.end(),0.)
+                            << " nrestarts=" << nrestarts << " sublayers=" << nsublayers <<"\n";
+//                    exit(1);
+                    return true;
                 }
                 nsublayers = nsublayers_new;
                 nrestarts+=1;
@@ -681,8 +691,12 @@ public:
                                        <<" Increasing nsublayers="<<nsublayers<<"->"<<nsublayers_new<<"\n";
                 if (nrestarts>max_restarts){
                     (*p_log)(LOG_ERR, AT)<<" maximum number of restarts exceeded for [il="<<ilayer<<"] "
-                                         << " nrestarts=" << nrestarts << " sublayers=" << nsublayers <<"\n";
-                    exit(1);
+                            << " G0="<<bw_pars->Gamma0<<" theta_l="<<bw_pars->theta_c_l<<" theta_h="<<bw_pars->theta_c_h
+                            << " j_syn_sum="<<std::accumulate(bw_pars->p_mphys->syn.j_all.begin(),
+                                                              bw_pars->p_mphys->syn.j_all.end(),0.)
+                            << " nrestarts=" << nrestarts << " sublayers=" << nsublayers <<"\n";
+                    return true;
+//                    exit(1);
                 }
                 nsublayers = nsublayers_new;
                 nrestarts+=1;
@@ -695,8 +709,13 @@ public:
                                        <<" Increasing nsublayers="<<nsublayers<<"->"<<nsublayers_new<<"\n";
                 if (nrestarts>max_restarts){
                     (*p_log)(LOG_ERR, AT)<<" maximum number of restarts exceeded for [il="<<ilayer<<"] "
-                                         << " nrestarts=" << nrestarts << " sublayers=" << nsublayers <<"\n";
-                    exit(1);
+                                         << " nrestarts=" << nrestarts << " sublayers=" << nsublayers
+                            << " G0="<<bw_pars->Gamma0<<" theta_l="<<bw_pars->theta_c_l<<" theta_h="<<bw_pars->theta_c_h
+                            << " j_syn_sum="<<std::accumulate(bw_pars->p_mphys->syn.j_all.begin(),
+                                                              bw_pars->p_mphys->syn.j_all.end(),0.)
+                            <<"\n";
+//                    exit(1);
+                    return true;
                 }
                 nsublayers = nsublayers_new;
                 nrestarts+=1;
