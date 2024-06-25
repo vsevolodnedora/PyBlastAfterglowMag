@@ -25,7 +25,7 @@ from tqdm import tqdm
 
 working_dir = os.getcwd() + '/tmp1/'
 fig_dir = os.getcwd() + '/figs/'
-path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out"
+path_to_cpp_executable="/home/enlil/vnedora/work_new/GIT/PyBlastAfterglowMag/src/pba.out"
 
 def d2d(default: dict, new: dict):
     default_ = copy.deepcopy(default)
@@ -168,7 +168,8 @@ def plot_spectrum(ej:PBA.Ejecta, task_i:dict):
     plt.close(fig)
 
 class DispatcherRunPyBlastAfterglow:
-    def __init__(self,default_pars:dict, list_pars:list[dict]):
+    def __init__(self,default_pars:dict, list_pars:list[dict], overwrite:bool):
+        self.overwrite = overwrite
         self.default = default_pars
         self.pars = list_pars
     def __call__(self, idx):
@@ -176,22 +177,37 @@ class DispatcherRunPyBlastAfterglow:
         # merge default parameters and the required parameters
         pars = copy.deepcopy( self.pars[idx] )
         P = copy.deepcopy( self.default )
-        P["working_dir"] = P["working_dir"] + pars["name"] + '/'
+        # P["working_dir"] = P["working_dir"] + pars["name"] + '/'
         for par,val in pars.items():
             # check struct
-            if par in P["struct"].keys():   P["struct"][par] = val
+            if par in P["grb"]["structure"].keys():   P["grb"]["structure"][par] = val
             if par in P["main"].keys():     P["main"][par] = val
             if par in P["grb"].keys():      P["grb"][par] = val
+
         # run simulation with given parameters & plot final spectrum
-        pba = run(P=P,run=True,process_skymaps=True)
-        plot_spectrum(pba.GRB,
-                      task_i=dict(ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' F'_{\rm total}$ [cgs]",
-                                  xlabel=r"$t_{\rm obs}$ [s]", figname="spectrum",show=False))
-        finish_time = time.perf_counter()
-        with open(pba.GRB.workingdir+'runtime.txt', 'w') as f:
-            f.write("{:.3f}".format(finish_time-start_time))
-        print(f"Run #{idx} finished in {finish_time-start_time:.2f} seconds. ")
-        pba.clear()
+        working_dir = P["working_dir"] + pars["name"] + '/'
+        is_exists = True
+        if (P["grb"]["do_lc"]=="yes"): is_exists = is_exists & os.path.isfile(working_dir+P["grb"]["fname_light_curve"])
+        if (P["grb"]["do_skymap"]=="yes"): is_exists = is_exists & os.path.isfile(working_dir+P["grb"]["fname_sky_map"])
+        if is_exists and not self.overwrite:
+            print(f"Result already exists: {working_dir}")
+        else:
+            pba = PBA.wrappers.run_grb(
+                working_dir=working_dir,
+                P=P,
+                run=True,
+                process_skymaps=False,
+                loglevel="err",
+                path_to_cpp=path_to_cpp_executable
+            )
+            plot_spectrum(pba.GRB,
+                          task_i=dict(ylabel= r"$\nu'$ [Hz]",zlabel=r"$\nu' F'_{\rm total}$ [cgs]",
+                                      xlabel=r"$t_{\rm obs}$ [s]", figname="spectrum",show=False))
+            finish_time = time.perf_counter()
+            with open(pba.GRB.workingdir+'runtime.txt', 'w') as f:
+                f.write("{:.3f}".format(finish_time-start_time))
+            print(f"Run #{idx} finished in {finish_time-start_time:.2f} seconds. ")
+            pba.clear()
 
 def get_str_val(v_n, val):
     # if v_n == "theta_obs":
@@ -215,16 +231,17 @@ def get_str_val(v_n, val):
     val = str(val).replace(".", "")
     return val
 
-def grid_run_tophat(z:float,d_l:float):
+def grid_run_tophat(z:float,d_l:float,grid_runs_dir:str):
     ncpus = 8
     struct=dict(type="a",struct="tophat", Eiso_c=1.e53, Gamma0c=400., M0c=-1., theta_c=0.1, theta_w=0.1,
                 n_layers_pw=80, n_layers_a=1)
     P = dict(
-        working_dir=os.getcwd() + f"/working_dirs/",
+        working_dir=os.getcwd() + '/' + grid_runs_dir + '/',
         main=dict(n_ism=1., tb0=1., tb1=1e9, ntb=2000, rtol=5e-7, theta_obs=0, z=z, d_l=d_l,
                   lc_freqs='array logspace 1e9 1e29 96',
                   lc_times='array logspace 10 2e7 128'),
-        grb=dict(structure=struct,eats_type='a',save_dynamics='yes', save_spec='no', do_lc='yes',
+        grb=dict(structure=struct,eats_type='a',save_dynamics='yes', save_spec='no', do_lc='yes',do_skymap='no',
+                 fname_light_curve="lc.h5",fname_sky_map="skymap.h5",
                  # method_nonrel_dist_fs='none',
                  # method_nonrel_dist_rs='none',s
                  eps_e_fs=0.1, eps_b_fs=0.001, p_fs=2.2,
@@ -288,7 +305,7 @@ def grid_run_tophat(z:float,d_l:float):
     print(f"Total runs to be performed {len(pars_cobinations)}")
 
     # initialize the run class
-    run_grb = DispatcherRunPyBlastAfterglow(P, pars_cobinations)
+    run_grb = DispatcherRunPyBlastAfterglow(default_pars=P, list_pars=pars_cobinations, overwrite=False)
 
     # perform simulations in parallel
     start_time = time.perf_counter()
@@ -298,9 +315,80 @@ def grid_run_tophat(z:float,d_l:float):
 
     print(f"Program finished in {finish_time-start_time:.2f} seconds. ")
 
+def grid_run_gauss(z:float,d_l:float,grid_runs_dir:str):
+    ncpus = 8
+    struct=dict(type="a",struct="gaussian", Eiso_c=1.e53, Gamma0c=400., M0c=-1., theta_c=0.1, theta_w=0.3,
+                n_layers_pw=80, n_layers_a=21)
+    skymap_conf=dict(nx=128, ny=64, extend_grid=2, fwhm_fac=0.5, lat_dist_method="integ",
+                     intp_filter=dict(type="gaussian", size=2, sigma=1.5, mode='reflect'),  # "gaussian"
+                     hist_filter=dict(type="gaussian", size=2, sigma=1.5, mode='reflect'))
+    P = dict(
+        working_dir=os.getcwd() + '/' + grid_runs_dir + '/',
+        main=dict(n_ism=1., tb0=3., tb1=1e15, ntb=2000,iout=2, rtol=5e-7, theta_obs=0., z=z, d_l=d_l,
+                  lc_freqs='array logspace 1e9 1e24 96',
+                  lc_times='array logspace 10 2e7 128',
+                  skymap_freqs="array 4.5e9 4.6e14", # Radio of VLA and Optical of HST
+                  skymap_times="array logspace 1e3 1e8 100",
+                  ),
+        grb=dict(structure=struct,eats_type='a',do_rs='no',bw_type='fs',do_lc='yes',do_skymap='yes',
+                 fname_light_curve="lc.h5",fname_sky_map="skymap.h5",
+                 eps_e_fs=0.1, eps_b_fs=0.001, p_fs=2.2,
+                 gamma_max_fs=4e7, method_gamma_max_fs="useConst",
+                 gamma_max_rs=4e7, method_gamma_max_rs="useConst",
+                 max_substeps_fs=1000, max_substeps_rs=1000,
+                 method_ssc_fs='none',method_pp_fs='none',use_ssa_fs='no',
+                 method_ssc_rs='none',method_pp_rs='none',use_ssa_rs='no',
+                 ebl_tbl_fpath='none',do_mphys_in_situ='no',do_mphys_in_ppr='yes',
+                 skymap_conf=skymap_conf
+                 )
+    )
+    if not os.path.isdir(P["working_dir"]):
+        os.mkdir(P["working_dir"])
+
+    # grb190114c
+    # Distance is from H.E.S.S collaboration paper
+    # n_ism = 1 Eiso = 3e53
+    # Angle: expected 13 https://www.aanda.org/articles/aa/pdf/2022/03/aa41788-21.pdf
+    pars = {
+        "n_ism":    np.array([0.025,0.015]),
+        "theta_obs":np.array([20.,25.]) * np.pi / 180.0,  # [75*np.pi/180]#
+        "Eiso_c":   np.array([1e54,2e54]),
+        "Gamma0c":  np.array([300.]),
+        "theta_c":  np.array([3.,4.]) * np.pi / 180.,
+        "theta_w":  np.array([22.,28.]) * np.pi / 180.,
+        "p_fs":     np.array([2.2, 2.3]),  # [2.05, 2.1, 2.2, 2.3, 2.4, 2.6, 2.8, 3.0],
+        "eps_e_fs": np.array([0.01,0.001]),  # [0.001, 0.005, 0.01, 0.05, 0.1, 0.2, 0.3, 0.5],
+        "eps_b_fs": np.array([1e-3,1e-4]),  # [0.001, 0.005, 0.01, 0.05, 0.1],
+    }
+    ranges = [pars[key] for key in pars.keys()]
+    pars_cobinations = []
+    all_combinations = product(*ranges)
+    for combination in all_combinations:
+        if (("theta_c" in pars) and ("theta_w" in pars)):
+            # skip if jet core exceeds jet winds (artifact of permutations)
+            if combination[list(pars.keys()).index("theta_c")] > combination[list(pars.keys()).index("theta_w")]:
+                continue
+        # create a dict with {par:value} for each parameter and value in current permitation
+        pars_cobinations.append({par:val for par,val in zip(list(pars.keys()), combination)})
+        # create a str containing the par_value for each par and value (used later to label the run)
+        pars_cobinations[-1]["name"] = "".join([par.replace("_","")+get_str_val(par,val)+'_'
+                                                for par,val in zip(pars.keys(),combination)])
+    print(f"Total runs to be performed {len(pars_cobinations)}")
+
+    # initialize the run class
+    run_grb = DispatcherRunPyBlastAfterglow(default_pars=P, list_pars=pars_cobinations, overwrite=False)
+
+    # perform simulations in parallel
+    start_time = time.perf_counter()
+    with Pool(ncpus) as pool:
+        pool.map(run_grb, range(len(pars_cobinations)))
+    finish_time = time.perf_counter()
+
+    print(f"Program finished in {finish_time-start_time:.2f} seconds. ")
 
 if __name__ == '__main__':
     # GRB 190114C
     # grid_run_tophat(z=0.4245,d_l=2.3e9*cgs.pc) # https://www.aanda.org/articles/aa/pdf/2022/03/aa41788-21.pdf
     # GRB 221009A
-    grid_run_tophat(z=0.151,d_l=2.28e27) # https://www.semanticscholar.org/reader/0301f515a7cc3f9bfc75de86c58e3abfb13ec13f
+    # grid_run_tophat(z=0.151,d_l=2.28e27,grid_runs_dir="working_dirs") # https://www.semanticscholar.org/reader/0301f515a7cc3f9bfc75de86c58e3abfb13ec13f
+    grid_run_gauss(z=0.0099,d_l=1.27e+26,grid_runs_dir="working_dirs_gauss")

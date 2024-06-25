@@ -433,11 +433,11 @@ class Defaults:
             beta_min_fs = 1e-5,     # [numeric] if < betaShock; do not compute any microphsyics (FS)
             beta_min_rs = 1e-5,     # [numeric] if < betaShock; do not compute any microphsyics (RS)
             # --- Skymap adaptive calculation; resize untill 'min_sublayers' each of which has 'min_non_zero_cells'
-            nsublayers = 10,        # [numeric] initial division of a theta-layer into sublayers (may give I=0 cells -> 'redo')
+            nsublayers = 5,         # [numeric] initial division of a theta-layer into sublayers (may give I=0 cells -> 'redo')
             frac_to_increase = 1.5, # [numeric] frac. to increase nsublayers id skymap is not resolved (see below)
-            max_restarts = 10,      # [numeric] max number of increasing 'nsublayers' to resolve the jet
+            max_restarts = 12,      # [numeric] max number of increasing 'nsublayers' to resolve the jet
             min_sublayers = 3,      # [numeric] criterion, min number sublayers each of which has 'min_non_zero_cells'
-            min_non_zero_cells = 3, # [numeric] criterion, min number of phi-cells with intensity > 0 for jet to be resolved
+            min_non_zero_cells = 5, # [numeric] criterion, min number of phi-cells with intensity > 0 for jet to be resolved
             im_max_theta = 1.5708   # [numeric] max value in intensity calculations for skymap
         ),
         opts=dict(

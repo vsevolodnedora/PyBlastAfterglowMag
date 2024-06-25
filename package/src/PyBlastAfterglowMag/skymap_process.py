@@ -87,7 +87,10 @@ class ProcessRawSkymap():
             res = interpolate.griddata(np.vstack((xxs, yys)).T, fluxes,
                                    np.array((x_grid, y_grid)).T, method=method, fill_value=0.)
         except:
-            raise ValueError("Failed interpolation")
+            print(f"WARNING Failed interpolation. Grid X:[{xxs.min()},{xxs.max()}] Y:[{yys.min()},{yys.max()}] "
+                  f"fluxes:[{fluxes.min()},{fluxes.max()}] Returning zeroes...")
+            return np.zeros_like(x_grid).T
+            # raise ValueError("Failed interpolation")
 
         return res
 
@@ -117,6 +120,8 @@ class ProcessRawSkymap():
 
             # skip empty shells
             if ((np.sum(int_i) == 0)):
+                continue
+            if (len(xrs_i) < 2 or len(yrs_i) < 2):
                 continue
 
             # if (len(xrs_i) % 2 > 0):
@@ -148,6 +153,11 @@ class ProcessRawSkymap():
             ymin.append( yrs_i.min() )
             i_min.append( int_i.min() )
             i_max.append( int_i.max() )
+
+            if (np.min(xrs_i) == np.max(xrs_i)):
+                raise ValueError(f"shell={ish} xmin=xmax={np.min(xrs_i)} Interpolation will fail")
+            if (np.min(yrs_i) == np.max(yrs_i)):
+                raise ValueError(f"shell={ish} ymin=ymax={np.min(yrs_i)} Interpolation will fail")
 
         xmin_neg = np.array(xmin_neg)
         xmin_pos = np.array(xmin_pos)
@@ -275,8 +285,11 @@ class ProcessRawSkymap():
             all_zz_pjcj.append(  _zz_cj[ _zz_cj > 0 ] if (remove_zeros) else _zz_cj )
 
             if (len(all_xrs_pjcj[-1]) < 3):
-                raise ValueError(f"Empty shell {ish} ncells[ii]={ncells[ii]} "
-                                 f"len(all_xrs[ii][:ncells[ii]]={all_xrs[ii][:ncells[ii]]}); after 'remove_zeros' {len(all_zz_pjcj[-1])}")
+                # raise ValueError(f"Empty shell {ish} ncells[ii]={ncells[ii]} "
+                #                  f"len(all_xrs[ii][:ncells[ii]]={all_xrs[ii][:ncells[ii]]}); after 'remove_zeros' {len(all_zz_pjcj[-1])}")
+                if self.verb:
+                    print(f"Empty shell {ish} ncells[ii]={ncells[ii]} "
+                                     f"len(all_xrs[ii][:ncells[ii]]={all_xrs[ii][:ncells[ii]]}); after 'remove_zeros' {len(all_zz_pjcj[-1])}")
 
             if (return_sph_coords):
                 _ctheta_cj  = all_theta[ii][ncells[ii]:]

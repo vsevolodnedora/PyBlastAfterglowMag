@@ -34,6 +34,8 @@ class JetStruct:
         self.thetas_c = np.zeros(n_layers_a)
         # self.thetas_c_l = np.zeros(n_layers_a)
 
+        self.beta0_min = 1.e-5 # if structure gives layer with too small velocity -- code takes too long
+
 
     @staticmethod
     def _CellsInLayer(i_layer):
@@ -92,7 +94,7 @@ class JetStruct:
         # set piece-wise
 
         self._setThetaGridPW()
-        ang_size_layer = 2.0 * np.pi * ( 2.0 * np.sin(0.5 * theta_w) * np.sin(0.5 * theta_w) );
+        ang_size_layer = 2.0 * np.pi * ( 2.0 * np.sin(0.5 * theta_w) * np.sin(0.5 * theta_w) )
         for i  in range(len(self.cthetas0)):
             self.dist_E0_pw[i] = E_iso_c * ang_size_layer / (4.0 * np.pi) * np.exp( -1. * self.cthetas0[i] * self.cthetas0[i] / (theta_c * theta_c) )
 
@@ -112,7 +114,6 @@ class JetStruct:
         # plt.show()
 
         # set adaptive
-        # self.nlayers_a = n_layers_a
         self._setThetaGridA()
         self.dist_E0_a = np.zeros( self.nlayers_a )
         self.dist_Mom0_a = np.zeros( self.nlayers_a )
@@ -132,6 +133,19 @@ class JetStruct:
 
             self.dist_E0_a[i] *= ( frac_of_solid_ang / 2. )
             self.dist_M0_a[i] *= ( frac_of_solid_ang / 2. )
+
+        # remove data that might cause issue in C++ code (too slow blastwaves)
+        mask = BetFromMom(self.dist_Mom0_a) > self.beta0_min
+        self.dist_E0_a = self.dist_E0_a[mask]
+        self.dist_Mom0_a = self.dist_Mom0_a[mask]
+        self.dist_M0_a = self.dist_M0_a[mask]
+        self.dist_Ye_a = self.dist_Ye_a[mask]
+        self.dist_s_a = self.dist_s_a[mask]
+        self.thetas_c_l = self.thetas_c_l[mask]
+        self.thetas_c_h = self.thetas_c_h[mask]
+        self.thetas_c = self.thetas_c[mask]
+
+        self.nlayers_a = len(self.dist_Mom0_a)
 
         i = 0
 
@@ -231,9 +245,11 @@ class JetStruct:
         return (res, pars)
 
     def save_1d_id(self, id_dict : dict, id_pars : dict, outfpath : str):
+        if os.path.isfile(outfpath):
+            os.remove(outfpath)
         with h5py.File(outfpath, "w") as dfile:
             for key, data in id_dict.items():
-                dfile.create_dataset(name=key, data=data)
+                dfile.create_dataset(name=key, data=np.array(data))
             for key, data in id_pars.items():
                 dfile.attrs.create(key, data=id_pars[key])
 

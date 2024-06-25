@@ -2054,20 +2054,23 @@ def tasks_fs_comparison(do_run: bool, plot: bool, P: dict):
     #     )
     # )
 
-    # plot_several_model_1D_spectrum_at_given_times(
-    #     task=dict(
-    #         runs=[dict(run=dyn_fs__rad_fs__mix.GRB,label="Mix",color='red',ls='-',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False),
-    #               dict(run=dyn_fs__rad_fs__num.GRB,label="Default",color='blue',ls='-',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False),
-    #               dict(run=dyn_fs__rad_fs__num__ssc.GRB,label="SSC",color='green',ls='--',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False),
-    #               dict(run=dyn_fs__rad_fs__num__ssc_pp.GRB,label="SSC \& PP",color='magenta',ls=':',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False)],
-    #         times=(4e3,1e6,1e7), norm_method=None, xlabel=r"$\gamma_e$", ylabel=r"$N_e$",v_n="n_ele",fs_or_rs="fs",
-    #         figname=f"spec_fs_ele_ratio_def_ssc_sscpp", show=plot,
-    #     )
-    # )
+    plot_several_model_1D_spectrum_at_given_times(
+        task=dict(
+            runs=[dict(run=dyn_fs__rad_fs__mix.GRB,label="Mix",color='red',ls='-',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False),
+                  dict(run=dyn_fs__rad_fs__num.GRB,label="Default",color='blue',ls='-',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False),
+                  dict(run=dyn_fs__rad_fs__num__noadi.GRB,label="no Adi",color='orange',ls='-',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False),
+                  dict(run=dyn_fs__rad_fs__num__ssc.GRB,label="SSC",color='green',ls='--',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False),
+                  dict(run=dyn_fs__rad_fs__num__ssc_pp.GRB,label="SSC \& PP",color='magenta',ls=':',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False)],
+            times=(4e3,1e6,1e7), norm_method=None, xlabel=r"$\gamma_e$", ylabel=r"$N_e$",v_n="n_ele",fs_or_rs="fs",
+            include_zoom_in=False,
+            figname=f"spec_fs_ele_ratio_def_ssc_sscpp", show=plot,
+        )
+    )
     plot_several_model_1D_spectrum_at_given_times(
         task=dict(
             runs=[dict(run=dyn_fs__rad_fs__mix.GRB,label="Mix",color='red',ls='-',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False,plot_max=True),
                   dict(run=dyn_fs__rad_fs__num.GRB,label="Default",color='blue',ls='-',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False,plot_max=True),
+                  # dict(run=dyn_fs__rad_fs__num__noadi.GRB,label="no Adi",color='orange',ls='-',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False,plot_max=True),
                   # dict(run=dyn_fs__rad_fs__num__ssa.GRB,label="SSA",color='orange',ls='-',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False),
                   dict(run=dyn_fs__rad_fs__num__ssc.GRB,label="SSC",color='green',ls='--',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False,plot_max=True),
                   dict(run=dyn_fs__rad_fs__num__ssc_pp.GRB,label="SSC \& PP",color='magenta',ls=':',lw=0.7,plot_gm=False,plot_gc=False,plot_gM=False)],
@@ -2231,7 +2234,7 @@ if __name__ == '__main__':
 
     # --- fs -- fs ---
     # pba_fs = tasks_fs(do_run=do_run, plot=plot, P=P)
-    # tasks_fs_comparison(do_run=do_run, plot=plot, P=P)
+    tasks_fs_comparison(do_run=do_run, plot=plot, P=P)
 
     # --- fsrs -- rs ---
     # pba_fsrs = tasks_rs(do_run=do_run, plot=plot, P=P)
