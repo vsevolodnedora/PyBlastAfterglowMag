@@ -98,7 +98,7 @@ public: // ---------------- ANALYTIC -------------------------- //
     }
 
     void setPars( StrDbMap & pars, StrStrMap & opts, size_t nr, size_t ish, size_t il,
-                  double theta_h_, double tcomov0_ ){
+                  double theta_h_, double tcomov0_, bool do_allocate ){
         setBasePars(pars, opts);
         if (tcomov0_<=0.){
             (*p_log)(LOG_ERR,AT) << "Bad value: tcomov="<<tcomov0_<<"\n";
@@ -120,11 +120,12 @@ public: // ---------------- ANALYTIC -------------------------- //
         is_dense_output = getBoolOpt("save_spec", opts, AT, p_log, false, true);
 
         /// allocate memory for spectra to be used in EATS interpolation
-
-        if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleAnalyt)
-            allocateForAnalyticSpectra(nr, ish, il);
-        else
-            allocateForNumericSpectra(pars, nr, ish, il);
+        if (do_allocate) {
+            if (m_eleMethod == METHODS_SHOCK_ELE::iShockEleAnalyt)
+                allocateForAnalyticSpectra(nr, ish, il);
+            else
+                allocateForNumericSpectra(pars, nr, ish, il);
+        }
 
     }
     void allocateForAnalyticSpectra(size_t nr, size_t ish, size_t il){

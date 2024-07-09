@@ -854,11 +854,13 @@ public:
         /// Set Electron And Radiation Model
         p_pars->p_mphys->setPars(pars, opts, p_pars->nr, p_pars->ishell, p_pars->ilayer,
                                  p_pars->theta_c_h,
-                                 EQS::initTComov(p_pars->R0, p_pars->beta0, p_pars->Gamma0));
+                                 EQS::initTComov(p_pars->R0, p_pars->beta0, p_pars->Gamma0),
+                                 p_pars->m_method_rad == METHODS_RAD::icomovspec);
         if (p_pars->do_rs)
             p_pars->p_mphys_rs->setPars(pars, opts, p_pars->nr,p_pars->ishell, p_pars->ilayer,
                                         p_pars->theta_c_h,
-                                        EQS::initTComov(p_pars->R0, p_pars->beta0, p_pars->Gamma0));
+                                        EQS::initTComov(p_pars->R0, p_pars->beta0, p_pars->Gamma0),
+                                        p_pars->m_method_rad == METHODS_RAD::icomovspec);
 
         /// Set EATS functions (interpolator functions)
         if (p_pars->m_method_rad == METHODS_RAD::icomovspec) {
