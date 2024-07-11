@@ -11,28 +11,49 @@
 #include "../utilitites/quadratures.h"
 
 inline namespace EQS{
-    inline double MomFromGam(const double gam){
-        return std::sqrt(gam * gam - 1.);
+//    inline double MomFromGam(const double gam){
+//        return std::sqrt(gam * gam - 1.);
+//    }
+//    inline double GamFromMom(const double mom){
+//        return std::sqrt(1.0+mom*mom);
+//    }
+//    inline double BetFromMom(const double mom){
+//        return mom / EQS::GamFromMom(mom);
+//    }
+//    inline double MomFromBeta(const double beta){
+//        return beta * beta / std::sqrt(1.0 - beta * beta);
+//    }
+//    inline double BetaFromGamma(const double Gamma){
+//        /// return sqrt(1.0 - pow(Gamma, -2)); || std::sqrt(1.-std::pow(Gamma*Gamma,-2.))
+//        /// return (1. / Gamma) * sqrt( (Gamma - 1.) * (Gamma + 1.) );
+//        return BetFromMom(MomFromGam(Gamma));
+//    }
+//    inline double GammaFromBeta(const double beta){
+//        /// return sqrt(1. + (betaSh * betaSh / (1. - betaSh * betaSh)));
+//        /// return sqrt(1.0 / (1.0 - (betaSh * betaSh)));
+//        return GamFromMom(MomFromBeta(beta));
+//    }
+    inline double BetaFromGamma(const double gam){
+        /// sqrt(1 - 1/gam^2) = sqrt((gam-1)*(gam+1)/gam^2)
+        return std::sqrt((gam-1.)*(gam+1.)) / gam;
     }
-    inline double GamFromMom(const double mom){
-        return std::sqrt(1.0+mom*mom);
+    inline double GammaFromBeta(const double bet){
+        return 1./std::sqrt((1.-bet)*(1.+bet));
     }
-    inline double BetFromMom(const double mom){
-        return mom / EQS::GamFromMom(mom);
+    inline double MomFromGamma(const double gam){
+        return gam*BetaFromGamma(gam);
     }
-    inline double MomFromBeta(const double beta){
-        return beta * beta / std::sqrt(1.0 - beta * beta);
+    inline double MomFromBeta(const double bet){
+        return GammaFromBeta(bet)*bet;
     }
-    inline double BetaFromGamma(const double Gamma){
-        /// return sqrt(1.0 - pow(Gamma, -2)); || std::sqrt(1.-std::pow(Gamma*Gamma,-2.))
-        /// return (1. / Gamma) * sqrt( (Gamma - 1.) * (Gamma + 1.) );
-        return BetFromMom(MomFromGam(Gamma));
+    inline double BetaFromMom(const double mom){
+        return mom/std::sqrt(mom*mom+1.);
     }
-    inline double GammaFromBeta(const double beta){
-        /// return sqrt(1. + (betaSh * betaSh / (1. - betaSh * betaSh)));
-        /// return sqrt(1.0 / (1.0 - (betaSh * betaSh)));
-        return GamFromMom(MomFromBeta(beta));
+    inline double GammaFromMom(const double mom){
+        return std::sqrt(mom*mom+1.);
     }
+
+
 
 
     double GammaRel(const double Gamma1, const double Gamma2){
@@ -121,7 +142,7 @@ inline namespace EQS{
 //        double beta0 = Beta(Gamma0);
         double result;
         double xx = 1. + mom0*mom0*mom0/(std::sqrt(1.+mom0*mom0));//Gamma0 * Gamma0 * beta0;
-        double beta0 = BetFromMom(mom0);
+        double beta0 = BetaFromMom(mom0);
         if (use_spread){
             double dThetadr0 = 0.0;
             result= r0 / (CGS::c * beta0) * (sqrt(1. + r0 * r0 * dThetadr0 * dThetadr0)) - r0 / CGS::c;
@@ -143,7 +164,7 @@ inline namespace EQS{
 
     double evalElapsedTime(double R, double mom, double dthetadr, bool spread){
         double xx = 1. + mom*mom*mom/(std::sqrt(1.+mom*mom));
-        double beta = BetFromMom(mom);
+        double beta = BetaFromMom(mom);
         double dttdr = 0.;
         if (spread)
             dttdr = 1. / (CGS::c * beta) * sqrt(1. + R * R * dthetadr * dthetadr) - (1. / CGS::c);
@@ -1028,7 +1049,7 @@ private:
         double Q0 = 2.0;
         double Q = sqrt(2.0)*3.0;
         double th = theta;
-        double u = EQS::MomFromGam(Gamma);
+        double u = EQS::MomFromGamma(Gamma);
         double thC = m_thetaC;
         double th0 = m_theta_b0;
         double bes = 4*u*Gamma/(4*u*u+3);
@@ -1052,7 +1073,7 @@ private:
     [[nodiscard]] double dthetadr_our(double Gamma, double GammaSh, double R, double gammaAdi, double theta) const{
         double Q0 = 2.0;
         double Q = sqrt(2.0)*3.0;
-        double mom = EQS::MomFromGam(GammaSh);
+        double mom = EQS::MomFromGamma(GammaSh);
         double vperp = sqrt(gammaAdi * (gammaAdi - 1.0) * (Gamma - 1.0)
                      / (1.0 + gammaAdi * (Gamma - 1.0))) * CGS::c; // Huang+2000
         if((theta < 0.5 * CGS::pi) && (Q0 * mom * m_thetaC < 1)){

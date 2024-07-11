@@ -297,8 +297,8 @@ public:
         p_pars->M0        = (double)id->get(ish,il,EjectaID2::Q::imass);//latStruct.dist_M0_pw[ilayer];
         p_pars->R0        = (double)id->get(ish,il,EjectaID2::Q::ir);//latStruct.dist_M0_pw[ilayer];
         p_pars->mom0      = (double)id->get(ish,il,EjectaID2::Q::imom);//latStruct.dist_Mom0_pw[ilayer];
-        p_pars->Gamma0    = EQS::GamFromMom(id->get(ish,il,EjectaID2::Q::imom));//latStruct.dist_Mom0_pw[ilayer];
-        p_pars->beta0     = EQS::BetaFromGamma(p_pars->Gamma0);
+        p_pars->Gamma0    = EQS::GammaFromMom(id->get(ish,il,EjectaID2::Q::imom));//latStruct.dist_Mom0_pw[ilayer];
+        p_pars->beta0     = EQS::BetaFromMom(id->get(ish,il,EjectaID2::Q::imom));
         p_pars->s0        = (double)id->get(ish,il,EjectaID2::Q::ientr);//latStruct.dist_s_pw[ilayer];
         p_pars->tb0       = m_tb_arr.empty() ? 0 : m_tb_arr[0];
         p_pars->theta_a   = 0.;

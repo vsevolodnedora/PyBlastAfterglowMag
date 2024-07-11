@@ -271,7 +271,7 @@ public:
         Dat[BW::Q::iR][it]        = sol[i + SOL::QS::iR]; // TODO you do not need 'i' -- this is p_pars->ii_eq
         Dat[BW::Q::iRsh][it]      = sol[i + SOL::QS::iRsh];
         Dat[BW::Q::itt][it]       = sol[i + SOL::QS::itt];
-        Dat[BW::Q::imom][it]      = EQS::MomFromGam(sol[i + SOL::QS::iGamma]);
+        Dat[BW::Q::imom][it]      = EQS::MomFromGamma(sol[i + SOL::QS::iGamma]);
         Dat[BW::Q::iGamma][it]    = sol[i + SOL::QS::iGamma];
         Dat[BW::Q::ibeta][it]     = EQS::BetaFromGamma(sol[i + SOL::QS::iGamma]);//sol[i+QS::iGamma];
         Dat[BW::Q::itheta][it]    = sol[i + SOL::QS::itheta];
@@ -305,7 +305,7 @@ public:
             Dat[BW::Q::i_Wmom][it]    = sol[i + SOL::QS::iWmom];
             Dat[BW::Q::i_Wepwn][it]   = sol[i + SOL::QS::iWepwn];
             Dat[BW::Q::i_Wenb][it]    = sol[i + SOL::QS::iWenb];
-            Dat[BW::Q::i_WGamma][it]  = EQS::GamFromMom(sol[i + SOL::QS::iWmom]);
+            Dat[BW::Q::i_WGamma][it]  = EQS::GammaFromMom(sol[i + SOL::QS::iWmom]);
         }
 
         if (sol[i+SOL::QS::iR] < 1. || Dat[BW::Q::iGamma][it] < 1. || sol[i + SOL::QS::iGamma] < 1) {
@@ -619,7 +619,7 @@ public:
             Dat[BW::Q::iGamma43][it] = (double)EQS::get_Gamma43(
                     Dat[BW::Q::iGamma][it],
                     p_pars->Gamma0,
-                    EQS::BetFromMom(Dat[BW::Q::imom][it]),
+                    EQS::BetaFromMom(Dat[BW::Q::imom][it]),
                     p_pars->beta0);
 
             Dat[BW::Q::irho4][it] = EQS::rho4(Dat[BW::Q::iR][it],
@@ -1642,7 +1642,7 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
 //                dGammadR = 0.;
 //            }
 //        }
-    double dtcomov_dR = 1.0 / EQS::MomFromGam(Gamma) / CGS::c;
+    double dtcomov_dR = 1.0 / EQS::MomFromGamma(Gamma) / CGS::c;
 
 
     // -- Energies --
@@ -1700,7 +1700,7 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
         dttdr = 1. / (CGS::c * Gamma * Gamma * betaSh * (1. + betaSh));
 #endif
     bool spread = p_spread->m_method != LatSpread::METHODS::iNULL;
-    double dttdr = EQS::evalElapsedTime(R, EQS::MomFromGam(Gamma),dthetadr,spread);
+    double dttdr = EQS::evalElapsedTime(R, EQS::MomFromGamma(Gamma),dthetadr,spread);
     // ****************************************
 
     if (!std::isfinite(dRdt) || !std::isfinite(dGammadR) ||

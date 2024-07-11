@@ -205,8 +205,8 @@ private:
                 }
                 for (size_t il = 0; il < m_data[0][0].size(); il++){
                     double mom = m_data[EjectaID2::Q::imom][ish][il];
-                    double Gamma = EQS::GamFromMom(mom);
-                    std::cout << " mom="<<mom << " Gamma="<<Gamma<<" beta="<<EQS::BetFromMom(mom)<<"\n";
+                    double Gamma = EQS::GammaFromMom(mom);
+                    std::cout << " mom="<<mom << " Gamma="<<Gamma<<" beta="<<EQS::BetaFromMom(mom)<<"\n";
                     if (Gamma <= 1.){
                         (*p_log)(LOG_ERR,AT)<<"Bad Value ID: ish="<<ish<<" il="<<il<<" mom="<<mom<<"\n";
                         exit(1);
@@ -232,10 +232,17 @@ private:
             for (size_t i_v_n = 0; i_v_n < m_v_ns.size(); i_v_n++) {
                 ldata.setVarName(m_v_ns[i_v_n]);
                 VecVector vec = ldata.getData2Ddouble();
-                if (vec.size() == nshells and vec[0].size() == nlayers)
+                if (vec.size() == nshells and vec[0].size() == nlayers) {
+                    (*p_log)(LOG_INFO,AT)
+                        << "Loading " << m_v_ns[i_v_n]
+                        << " [nshells="<<vec.size()<<" nlayers="<<vec[0].size()<<"]"<<"\n";
                     m_data[i_v_n] = std::move(vec);
-                else
-                    m_data[i_v_n] = std::move( VecVector(nshells,Vector(nlayers,0.)) );
+                }
+                else {
+                    (*p_log)(LOG_INFO,AT)
+                            << "Not Found " << m_v_ns[i_v_n] << "  Filling with zeroes "<<"\n";
+                    m_data[i_v_n] = std::move(VecVector(nshells, Vector(nlayers, 0.)));
+                }
             }
             /// check main parameters (in case of mistakes in ID)
             for (size_t ish = 0; ish < nshells; ish++){
@@ -314,7 +321,7 @@ private:
                 }
                 break ;
         }
-        (*p_log)(LOG_INFO,AT) << "Energy and mass are rescaled."<<"\n";
+        (*p_log)(LOG_INFO,AT) << "Energy and mass are rescaled for cells_in_layer"<<"\n";
         /// ---------------------------
         if (loadr0){
             /// pass
@@ -322,10 +329,10 @@ private:
         }
         else{
             /// pass
-            (*p_log)(LOG_INFO,AT) << "Computing R0 for BWs from momenta and Global t0"<<"\n";
+            (*p_log)(LOG_INFO,AT) << "Computing R0 for BWs from momenta and Global t0="<<t0<<"\n";
             for (size_t ish = 0; ish < nshells; ish++) {
                 for (size_t i = 0; i < nlayers; i++) {
-                    m_data[Q::ir][ish][i] = BetFromMom(m_data[Q::imom][ish][i]) * CGS::c * t0;
+                    m_data[Q::ir][ish][i] = BetaFromMom(m_data[Q::imom][ish][i]) * CGS::c * t0;
                 }
             }
         }

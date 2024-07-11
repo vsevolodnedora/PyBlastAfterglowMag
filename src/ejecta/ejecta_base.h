@@ -254,7 +254,7 @@ public:
                 /// If ID is not correct, skip this blastwave initialization (will not be evolved)
                 if (id->get(ish,il,EjectaID2::Q::ir) <= 0 ||
                     id->get(ish,il,EjectaID2::Q::iek) <= 0 ||
-                    EQS::BetaFromGamma(EQS::GamFromMom(id->get(ish,il,EjectaID2::Q::imom))) <= 1.e-6 ||
+                    EQS::BetaFromMom(id->get(ish,il,EjectaID2::Q::imom)) <= 1.e-6 ||
                     id->get(ish,il,EjectaID2::Q::imass) <= 0){
                     empty_bws[il]+=" "+std::to_string(ish);
                     n_unitinitilized_shells++;
