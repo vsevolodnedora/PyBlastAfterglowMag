@@ -1,4 +1,4 @@
-import numpy as np;
+import numpy as np
 from sympy.polys.benchmarks.bench_solvers import k2
 
 np.set_printoptions(precision=2)
@@ -53,68 +53,30 @@ df = SIMS[SIMS["given_time"] == "new"]
 
 get_ej_data = lambda name : DATA_PATH+name+'/'+"ej_collated.h5"
 
-class ProcessRaw():
-    def __init__(self, simumlation : dict):
-        self.sim = simumlation
-        self.dfile = None
-
-    def process_raw_ejecta_files(self, infiles : str = "ejecta_*.h5", fname_output : str = "ej_collated.h5",
-                                 mode:str="mass", overwrite:bool=False) -> None:
-        # dir = "/media/vsevolod/T7/work/KentaData/"
-        # simname = "SFHoTim276_12_15_0025_150mstg_B0_HLLC" + "/"
-        name = self.sim["name"]
-        datadir = self.sim["datadir"]
-        collated_ej_data_fpath = datadir + fname_output
-        # skip if file exists and no overwrite option set
-        if (os.path.isfile(collated_ej_data_fpath)and(not overwrite)):
-            return None
-        if (not os.path.isdir(datadir)):
-            raise FileNotFoundError(f"Datadir for {name} is not found Looking for {datadir}")
-        files = glob(datadir + infiles)
-        if (len(files) == 0):
-            raise FileNotFoundError(f"Files {infiles} not found in {datadir}")
-        id = PBA.id_kenta.ProcessRawFiles(files=files, verbose=True, mode=mode)
-        id.process_save(collated_ej_data_fpath)
-
-    def getProcessed(self, fname_output : str = "ej_collated.h5") -> h5py.File:
-        if (self.dfile is None):
-            self.dfile = h5py.File(self.sim["datadir"] + fname_output,"r")
-        return self.dfile
-
-    def getText(self) -> np.ndarray:
-        return np.array(self.dfile["text"])
-
-    def getData(self, v_n : str, text : int or None):
-        if not ("time={}".format(text) in self.dfile.keys()):
-            print(self.dfile.keys())
-            raise KeyError("time={} is not found in dfile.keys() See above")
-        if text == None:
-            data = np.stack([self.dfile["time={}".format(time)][v_n] for time in self.getText()],axis=2)
-        else:
-            np.array(self.dfile["time={}".format(text)][v_n])
-
-def process(sim : dict) -> None:
-    ej = ProcessRaw(simumlation = sim)
-    ej.process_raw_ejecta_files()
-    print("Data collation is successful")
-
-get_Gamma = lambda beta: np.float64(np.sqrt(1. / (1. - np.float64(beta) ** 2.)))
+# -------------------------------------------------------------------------------
+EJ_TEXT_PATH = str(__file__).split("analysis/kn/")[0] + "analysis/kn/ejecta/"
+df_text = pd.read_csv(EJ_TEXT_PATH+"ejecta_fasttail_vals_at_massmax.csv",index_col=0)
 
 def find_nearest_index(array, value):
     ''' Finds index of the value in the array that is the closest to the provided one '''
     idx = (np.abs(array - value)).argmin()
     return idx
 
-def task_process():
-    pr = ProcessRaw(simumlation=SIMS.T["DD2_135_135_res150_floor"])
-    pr.process_raw_ejecta_files(infiles= "ejecta_*.h5", fname_output= "ej_collated.h5", mode="mass",overwrite=False)
-    #pr.process_raw_ejecta_files(infiles="Mdot_ejecta_*.h5", fname_output="mdot_ej_collated.h5", mode="mdot",overwrite=False)
-    # Collate data for simulations (USE ONLY ONCE)\
-    for sim_key, sim_dic in SIMS.items():
-        pr = ProcessRaw(simumlation=sim_dic)
-        #pr.process_raw_ejecta_files(infiles= "ejecta_*.h5", fname_output= "ej_collated.h5", mode="mass",overwrite=False)
-        #pr.process_raw_ejecta_files(infiles="Mdot_ejecta_*.h5", fname_output="mdot_ej_collated.h5", mode="mdot",overwrite=False)
+def get_2d_ek(ej:PBA.id_kenta.EjectaData, text:float)->tuple[np.ndarray,np.ndarray,np.ndarray]:
+    thetas = ej.get_theta()
+    vinf = ej.get_vinf()
+    vinf = vinf[:-1]
+    vinf_c = 0.5 * (vinf[1:] + vinf[:-1])
+    mom = PBA.utils.MomFromBeta(vinf_c)
+    ctheta = 0.5 * (thetas[1:] + thetas[:-1])
+    ek = ej.get(v_n="mass",text=text) #* PBA.utils.cgs.solar_m
+    ek = 0.5 * (ek[:,1:] + ek[:,1:]) [:,:-1]
+    ek = 0.5 * (ek[1:,:] + ek[1:,:])
+    ek *= PBA.cgs.solar_m * (vinf_c * PBA.cgs.c)**2
+    ek = ek.T
 
+    # mask = ctheta < np.pi/2.
+    return (mom, ctheta, ek)
 
 def piecewise_linear(x, x0, x1, y0, k1, k2, k3):
     condlist = [x < x0,
@@ -126,7 +88,6 @@ def piecewise_linear(x, x0, x1, y0, k1, k2, k3):
                 lambda x: k3 * x + y0 - k2*x0 + k2*x1 - k3*x1 #k3 * x + (y0 - k1 * x0) + (k1 - k2) * x0 + (k2 - k3) * x1
                 ]
     return np.piecewise(x, condlist, funclist)
-
 def piecewise_power(x, x0, x1, y0, k1, k2, k3):
     condlist = [x < x0,
                 (x >= x0) & (x < x1),
@@ -161,7 +122,6 @@ class Fit1D:
         adjusted_r_squared = 1 - (1 - r_squared) * (len(y_values) - 1) / (len(y_values) - n - 1)
         return adjusted_r_squared
 
-
     def fit(self, x_values:np.ndarray, y_values:np.ndarray):
         # Find the index of the maximum y-value
         max_index = np.argmax(y_values)
@@ -175,8 +135,11 @@ class Fit1D:
         initial_guesses = [x_max, x_zero, max(y_values), 2, -4, -8]
 
         # Fit the model to the data
-        popt, _ = curve_fit(piecewise_linear, x_values, y_values, p0=initial_guesses)
-        print(popt)
+        # popt, _ = curve_fit(piecewise_linear, x_values, y_values, p0=initial_guesses,absolute_sigma=True)
+        def residuals(x, *args):
+            return (piecewise_linear(x, *args) - y_values)**2
+        popt, _ = curve_fit(residuals, x_values, np.zeros_like(y_values), p0=initial_guesses,absolute_sigma=True)
+        # print(popt)
         # Extract the optimized parameters
         x0_opt, x1_opt, y0_opt, k1_opt, k2_opt, k3_opt = popt
 
@@ -258,43 +221,17 @@ def fit_data(x, y,name:str):
 #     plt.savefig(os.getcwd()+f'/figs/{figname}.png',dpi=256)
 #     plt.savefig(os.getcwd()+f'/figs/{figname}.pdf')
 #     plt.show()
-def get_text_max_mass(ej:PBA.id_kenta.EjectaData, crit:str='fast')->float:
-    return float( ej.getText()[np.argmax(ej.total_mass_vs_text(crit=crit))] )
-def get_text_max_mom(ej:PBA.id_kenta.EjectaData, crit:str='fast')->float:
-    vals = []
-    for it, text in enumerate(ej.getText()):
-        ej_mass = ej.get(v_n="mass",text=text)
-        mask = ej.get_vinf_mask(crit=crit)
-        ej_vinf = ej.get_vinf()
 
-        mass_ = np.sum(ej_mass[:,mask],axis=0)
-        mom = ej_vinf[mask]*PBA.utils.get_Gamma(ej_vinf[mask])
-        idx_ = np.argmax(mom[mass_ > 0.]) if len(mom[mass_ > 0.]) > 0 else 0
 
-        vals.append(mom[idx_])
-    return float ( ej.getText()[np.argmax(vals)] )
-def get_2d_ek(ej:PBA.id_kenta.EjectaData, text:float)->tuple[np.ndarray,np.ndarray,np.ndarray]:
-    thetas = ej.get_theta()
-    vinf = ej.get_vinf()
-    vinf = vinf[:-1]
-    vinf_c = 0.5 * (vinf[1:] + vinf[:-1])
-    mom = get_Gamma(vinf_c) * vinf_c
-    ctheta = 0.5 * (thetas[1:] + thetas[:-1])
-    ek = ej.get(v_n="mass",text=text) #* PBA.utils.cgs.solar_m
-    ek = 0.5 * (ek[:,1:] + ek[:,1:]) [:,:-1]
-    ek = 0.5 * (ek[1:,:] + ek[1:,:])
-    ek *= PBA.cgs.solar_m * vinf_c**2 * PBA.cgs.c**2
-    ek = ek.T
-    return (mom, ctheta, ek)
-def plot_all_sim_ejecta_mass(yscale="linear",xscale="linear",ylim=(0,0.04),xlim=(1e-3,4),title="Volume integrated ejecta mass",
-                             figname="figname"):
+def plot_all_sim_ejecta_mass(ylim=(0,0.04),xlim=(1e-3,4), figname="figname"):
     do_cumulative = True
     get_cumulative = lambda val : np.cumsum(val[::-1])[::-1] if do_cumulative else val
 
-    fig, axes = plt.subplots(ncols=1,nrows=3,figsize=(4.6,2*3.2),layout='constrained',sharex='col',#sharex='col',sharey='row',
+    fig, axes = plt.subplots(ncols=1,nrows=3,figsize=(4.6,2*3.2),
+                             layout='constrained',sharex='col',#sharex='col',sharey='row',
                              gridspec_kw={'height_ratios': [2,2,1]})
 
-    df_fit = pd.read_csv(os.getcwd()+'/'+'piecewise_line_fits.csv')
+    # df_fit = pd.read_csv(os.getcwd()+'/'+'piecewise_line_fits.csv',index_col=0)
 
     infos = dict()
     idx = 0
@@ -325,14 +262,18 @@ def plot_all_sim_ejecta_mass(yscale="linear",xscale="linear",ylim=(0,0.04),xlim=
     axes[1].indicate_inset_zoom(axins, edgecolor="black")
 
     # for idx, sim_dic in enumerate(df.iterrows()):
-    for (sim_dic, fit_dic) in zip(df.iterrows(), df_fit.iterrows()):
-        sim_dic = sim_dic[1]
-        fit_dic = fit_dic[1]
-        ej = PBA.id_kenta.EjectaData(get_ej_data(sim_dic["name"]),verbose=True)
+    # for (sim_dic,fit_dic) in zip(df.iterrows(), df_fit.iterrows()):
+    for (name, sim_dic) in df.iterrows():
+        text_dict = df_text.loc[name]
+        # sim_dic = sim_dic[1]
+
+        # name = sim_dic[0]
+        ej = PBA.id_kenta.EjectaData(get_ej_data(sim_dic['name']),verbose=True)
         mom, _, ek = get_2d_ek(ej=ej,
                                # text=get_text_max_mass(ej=ej,crit='fast')
-                               text=get_text_max_mom(ej=ej,crit='fast')
+                               text=float(sim_dic['tmerg'])+float(text_dict['text'])
                                )
+
         ek = np.sum(ek,axis=1)
         # ej_mass = ej.get(v_n="mass",text=get_text_max_mass(ej=ej,crit='fast'))
         # ek = np.cumsum(np.sum(ek,axis=0)[::-1] * PBA.cgs.solar_m * vinf_c**2 * PBA.cgs.c**2)[::-1]/np.sum(ek * PBA.cgs.solar_m * vinf_c**2 * PBA.cgs.c**2)
@@ -344,7 +285,7 @@ def plot_all_sim_ejecta_mass(yscale="linear",xscale="linear",ylim=(0,0.04),xlim=
         l_mom = l_mom[mask]
         l_ek = l_ek[mask]
 
-        N = 5
+        N = 3
         l_ek = np.convolve(l_ek, np.ones(N)/N, mode='valid')
         l_mom = np.convolve(l_mom, np.ones(N)/N, mode='valid')
 
@@ -353,8 +294,9 @@ def plot_all_sim_ejecta_mass(yscale="linear",xscale="linear",ylim=(0,0.04),xlim=
         axes[1].plot(10**l_mom, 10**l_ek, color=sim_dic["color"], ls=sim_dic["ls"], label=sim_dic["label"],lw=1.2)#, lw=0.7, drawstyle='steps')
 
         l_mom_pred, l_ek_pred, info = fit_data(l_mom, l_ek,name=sim_dic["name"])
+
         info["label"] = sim_dic["label"]
-        infos[sim_dic["name"]] = info
+        infos[name] = info
         axes[0].plot(10**l_mom_pred, get_cumulative(10**l_ek_pred), color=sim_dic["color"], ls=sim_dic["ls"],lw=.6)#, lw=0.7, drawstyle='steps')
         axes[1].plot(10**l_mom_pred, 10**l_ek_pred, color=sim_dic["color"], ls=sim_dic["ls"],lw=.6)#, lw=0.7, drawstyle='steps')
         axes[2].plot(10**l_mom_pred, (10**l_ek-10**l_ek_pred) / 10**l_ek, color=sim_dic["color"], ls=sim_dic["ls"], lw=0.7)
@@ -363,12 +305,15 @@ def plot_all_sim_ejecta_mass(yscale="linear",xscale="linear",ylim=(0,0.04),xlim=
         axins.plot(10**l_mom_pred, 10**l_ek_pred, color=sim_dic["color"], ls=sim_dic["ls"],lw=.6)#, lw=0.7, drawstyle='steps')
 
         '''
+        fit_dic = df_fit.loc[name]
         y_pred = piecewise_power(10**l_mom,x0=fit_dic['x0'],x1=fit_dic['x1'],y0=fit_dic['y0'],
                                  k1=fit_dic['k1'],k2=fit_dic['k2'],k3=fit_dic['k3'])
         # y_pred = 10**piecewise_linear(l_mom,x0=fit_dic['x0'],x1=fit_dic['x1'],y0=fit_dic['y0'],
         #                          k1=fit_dic['k1'],k2=fit_dic['k2'],k3=fit_dic['k3'])
-        axes[0].plot(10**l_mom, get_cumulative(y_pred), color='gray', ls=sim_dic["ls"],lw=.6)#, lw=0.7, drawstyle='steps')
+        axes[0].plot(10**l_mom, get_cumulative(y_pred), color='gray', ls=sim_dic["ls"],lw=1.2)#, lw=0.7, drawstyle='steps')
+        axes[1].plot(10**l_mom, y_pred, color='gray', ls=sim_dic["ls"],lw=1.2)#, lw=0.7, drawstyle='steps')
         '''
+
         # axes[0].plot(mom, get_cumulative(ek), color=sim_dic["color"], ls=sim_dic["ls"], label=sim_dic["label"],lw=1.2)#, lw=0.7, drawstyle='steps')
 
         # mom_pred, ek_pred, info = fit_data(mom, ek,name=sim_dic["name"])
@@ -376,13 +321,14 @@ def plot_all_sim_ejecta_mass(yscale="linear",xscale="linear",ylim=(0,0.04),xlim=
         # axes[0].plot(mom_pred, get_cumulative(ek_pred), color=sim_dic["color"], ls=sim_dic["ls"],lw=.6)#, lw=0.7, drawstyle='steps')
         # axes[1].plot(mom_pred, (ek-ek_pred) / ek, color=sim_dic["color"], ls=sim_dic["ls"], lw=0.7)
 
+        # break
 
     axes[0].plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-', label='Simulation',lw=1.2)#, lw=0.7, drawstyle='steps')
     axes[0].plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-',label='Fit',lw=.6)#, lw=0.7, drawstyle='steps')
 
 
     info = pd.DataFrame.from_dict(infos).T
-    info.to_csv(os.getcwd()+'/piecewise_line_fits.csv')
+    info.to_csv(os.getcwd()+'/piecewise_line_fits.csv',index=True)
     info["y0"] = ["${}$".format(PBA.utils.latex_float(y0)) for y0 in info["y0"]]
     del info["chi2"]
     info = info[['label', 'x0', 'x1', 'y0', 'k1', 'k2', 'k3', 'r2']]
@@ -431,6 +377,34 @@ def plot_all_sim_ejecta_mass(yscale="linear",xscale="linear",ylim=(0,0.04),xlim=
     plt.savefig(os.getcwd()+f'/figs/{figname}.pdf')
     plt.show()
 
+
+def plot_ej_mom_theta_dist_for_text():
+    fig, axes = plt.subplots(ncols=len(df),nrows=1,figsize=(3*4.6,3.2),layout='constrained',sharey='all')
+
+    i = 0
+    for sim, sim_dict in df.iterrows():
+        text_dict = df_text.loc[sim]
+        ej = PBA.id_kenta.EjectaData(get_ej_data(sim_dict['name']),verbose=True)
+        mom,ctheta,ek = get_2d_ek(ej=ej,text=sim_dict['tmerg']+text_dict['text'])
+
+        cmap = plt.get_cmap('viridis')
+        norm = LogNorm(vmin=ek.max()*1e-7, vmax=ek.max())
+
+        ax = axes[i]
+        im = ax.pcolormesh(ctheta*180./np.pi,mom, ek, cmap=cmap, norm=norm)
+        # ax0.set_yscale('log')
+        # fig.colorbar(im, ax=ax)
+        ax.set_yscale('log')
+        ax.set_title(sim_dict['label'])
+        # ax.set_ylim()
+        i+=1
+    axes[0].set_ylabel(r"$\Gamma\beta$",fontsize=12)
+    for ax in axes:
+        ax.tick_params(labelsize=12,axis='both', which='both',direction='in',tick1On=True, tick2On=True)
+        ax.minorticks_on()
+        ax.set_xlabel(r"Polar Angle [deg]",fontsize=12)
+    plt.show()
+
 def plot_sim_ekecta_mass(sim_dic:dict, text=20):
     ej = PBA.id_kenta.EjStruct(get_ej_data(sim_dic["name"]),verbose=True)
     data = ej.get_2D_id(text=text, method_r0="from_beta",t0=1e3)
@@ -443,7 +417,7 @@ def plot_sim_ekecta_mass(sim_dic:dict, text=20):
     vinf = ej.get_vinf()
     vinf = vinf[:-1]
     vinf_c = 0.5 * (vinf[1:] + vinf[:-1])
-    mom = get_Gamma(vinf_c) * vinf_c
+    mom = PBA.MomFromBeta(vinf_c)
     ctheta = 0.5 * (thetas[1:] + thetas[:-1])
     ek = ej.get(v_n="mass",text=text) #* PBA.utils.cgs.solar_m
     ek = 0.5 * (ek[:,1:] + ek[:,1:]) [:,:-1]
@@ -566,7 +540,7 @@ def plot_sim_ekecta_mass__(sim_dic:dict):
     #     res.append(mass_vs_vinf(text))
     # res = np.reshape(np.array(res),newshape=(len(texts),(len(vinf))))
     vinf_c = 0.5 * (vinf[1:] + vinf[:-1])
-    mom_c = get_Gamma(vinf_c) * vinf_c
+    mom_c = PBA.MomFromBeta(vinf_c) #get_Gamma(vinf_c) * vinf_c
     mom_c = mom_c[:-1]
     theta_c = 0.5 * (thetas[1:] + thetas[:-1])
 
@@ -603,15 +577,21 @@ def plot_sim_ekecta_mass__(sim_dic:dict):
     plt.show()
 
 
-def plot_sim_ekecta_mass_old(sim_dic:dict):
-    ej = PBA.id_kenta.EjectaData(get_ej_data(sim_dic["name"]),verbose=True)
+def plot_sim_ekecta_mass_old(sim_name:str):
+
+    text_dict = df_text.loc[sim_name]
+    sim_dict = df.loc[sim_name]
+
+    ej = PBA.id_kenta.EjectaData(get_ej_data(sim_dict["name"]),verbose=True)
     texts = ej.getText()
     vinf = ej.get_vinf()
     thetas = ej.get_theta()
-    print(ej.get_vinf().shape, ej.get_theta().shape,ej.get(v_n="mass",text=ej.getText()[0]).shape)
+    print(ej.get_vinf().shape,
+          ej.get_theta().shape,
+          ej.get(v_n="mass",text=text_dict['text']+sim_dict['tmerg']).shape)
     vinf_centers = 0.5 * (vinf[1:]+vinf[:-1])
     vinf_centers = vinf_centers[:-1]
-    moms = vinf_centers*PBA.utils.get_Gamma(vinf_centers)
+    moms = PBA.MomFromBeta(vinf_centers)
     ej_data_vs_mom,ej_data_vs_theta = [],[]
     for text in texts:
         ej_mass = ej.get(v_n="mass",text=text)
@@ -638,12 +618,16 @@ def plot_sim_ekecta_mass_old(sim_dic:dict):
     fig, axes = plt.subplots(nrows=2,ncols=1)
 
     ax = axes[0]
-    im = ax.pcolormesh(texts-sim_dic["tmerg"], moms, ej_data_vs_mom.T, cmap=cmap, norm=norm)
-    im = ax.pcolormesh(texts-sim_dic["tmerg"], thetas, ej_data_vs_theta.T, cmap=cmap, norm=norm)
+    im = ax.pcolormesh(texts-sim_dict["tmerg"], moms, ej_data_vs_mom.T, cmap=cmap, norm=norm)
+    im = ax.pcolormesh(texts-sim_dict["tmerg"], thetas, ej_data_vs_theta.T, cmap=cmap, norm=norm)
     # ax0.set_yscale('log')
     fig.colorbar(im, ax=ax)
     ax.set_title('pcolormesh with levels')
     plt.show()
+
+
+
+''' --------------------------------------------------- '''
 
 def plot_rho_max(df:pd.DataFrame):
 
@@ -664,122 +648,6 @@ def plot_rho_max(df:pd.DataFrame):
     ax.legend()
     ax.set_yscale("log")
     plt.show()
-
-
-
-# compute mass-averaged quantites for EACH text
-def get_vave_theta_rms(sim_dic:dict, crit:str) -> pd.DataFrame:
-    vals = {"vave":[], "mom_max":[], "ye_ave":[], "theta_rms":[],
-            "entr_ave":[],"eps_ave":[],"temp_ave":[],
-            "time":[], "mass":[], "ek":[]}
-
-    ej = PBA.id_kenta.EjectaData(get_ej_data(sim_dic["name"]),verbose=True)
-
-    for it, text in enumerate(ej.getText()):
-
-        ej_mass = ej.get(v_n="mass",text=text)
-
-        mask = ej.get_vinf_mask(crit=crit)
-
-        vals["mass"].append( np.sum(ej_mass[:,mask]) )
-
-        ej_vinf = ej.get_vinf()
-        vals["vave"].append( np.sum(ej_mass[:,mask]*ej_vinf[mask])/np.sum(ej_mass[:,mask]) )
-
-        mass_ = np.sum(ej_mass[:,mask],axis=0)
-        mom = ej_vinf[mask]*PBA.utils.get_Gamma(ej_vinf[mask])
-        idx_ = np.argmax(mom[mass_ > 0.]) if len(mom[mass_ > 0.]) > 0 else 0
-        vals["mom_max"].append(mom[idx_])
-
-        solar_m = 1.989e+33
-        c = 2.9979e10
-        vals["ek"].append( np.sum( ej_mass[:,mask] * solar_m * (ej_vinf[np.newaxis, mask] * c) ** 2 ))
-
-
-        for v_n in ["ye","entr","eps","temp"]:
-            ave = ej.get(v_n=v_n,text=text)
-            vals[f"{v_n}_ave"].append( np.sum(ej_mass[:,mask]*ave[:,mask])/np.sum(ej_mass[:,mask]) )
-
-        thetas = ej.get_theta()
-        vals["theta_rms"].append( (180. / np.pi) * np.sqrt(np.sum(np.sum(ej_mass[:,mask], axis=1) * thetas ** 2) / np.sum(ej_mass[:,mask])) )
-    # vals = {key:np.array(vals) for (key,val) in vals.items()}
-    # print(vals["mom_max"])
-
-    tmerg = sim_dic["tmerg"]
-    times = ej.getText()
-    vals["time"] = times - tmerg
-
-    return pd.DataFrame.from_dict(vals)
-def plot_all_sim_ejecta_massave_vel(crit=None, yscale="linear", figsize=(5,10), xlim:tuple=(-2,40),ylim:tuple=(0,1e-2),
-                                    do_vave=False,do_mom_max=False, do_theta=False, do_ye=False,
-                                    figname:str= "mej_vej_theta.png"):
-    nrows = sum([1,do_ye,do_vave,do_mom_max,do_theta])
-    fig, ax = plt.subplots(ncols=1,nrows=nrows,sharex="all",figsize=figsize,layout='constrained')
-    if (nrows == 1):
-        ax = [ax]
-    #ax2 = ax.twinx()
-    for idx, sim_dic in enumerate(df.iterrows()):
-        sim_dic = sim_dic[1]
-
-        df_ave = get_vave_theta_rms(sim_dic=sim_dic, crit=crit)
-        time = df_ave["time"]
-
-        ax[0].plot(time[time>0], df_ave["mass"][time>0], color=sim_dic["color"], label=sim_dic["label"], ls=sim_dic["ls"], lw=.8)
-
-        # ---
-
-        if do_vave: ax[1].plot(time[time>0], df_ave["vave"][time>0]*get_Gamma(df_ave["vave"][time>0]), color=sim_dic["color"], ls=sim_dic["ls"], lw=.8)
-        if do_mom_max:
-            N = 3
-            moving_average = np.convolve(df_ave["mom_max"][time>0], np.ones(N)/N, mode='valid')
-            moving_average_t = np.convolve(time[time>0], np.ones(N)/N, mode='valid')
-            ax[2].plot(moving_average_t, moving_average, color=sim_dic["color"], ls=sim_dic["ls"], lw=.8)
-        if do_theta: ax[3].plot(time[time>0], df_ave["theta_rms"][time>0], color=sim_dic["color"], ls=sim_dic["ls"],lw=.8)
-        if do_ye: ax[4].plot(time[time>0], df_ave["ye_ave"][time>0], color=sim_dic["color"], ls=sim_dic["ls"], lw=.8)
-        # ax[4].plot(df_ave["time"], df_ave["entr_ave"], color=sim_dic["color"], ls=sim_dic["ls"],lw=.8)
-        # ax[5].plot(df_ave["time"], df_ave["eps_ave"], color=sim_dic["color"], ls=sim_dic["ls"], lw=.8)
-
-
-
-    for _ax in ax:
-        _ax.tick_params(labelsize=12,axis='both', which='both',direction='in',tick1On=True, tick2On=True)
-        _ax.minorticks_on()
-        _ax.grid(ls=':',lw=0.8)
-    # ax[0].set_ylim(*ylim)
-    ax[0].set_yscale(yscale)
-    ax[0].legend(fancybox=False,loc= 'upper center',columnspacing=0.4,
-                 #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
-                 shadow=False, ncol= 2, fontsize= 12,
-                 framealpha=0., borderaxespad= 0., frameon=False)
-    #ax[5].set_yscale("log")
-    # ax[-1].set_xlabel("Extraction time [ms]",fontsize=14)
-    ax[-1].set_xlabel(r"$t_{\rm ext} - t_{\rm merg}$ [ms]", fontsize=12)
-    ax[0].set_ylabel(
-        r"$M_{\rm ft}$ [M$_{\odot}$]" if crit=="fast" else r"$M_{\rm ej}$ [M$_{\odot}$]",
-        fontsize=12)
-    if do_vave: ax[1].set_ylabel(
-        r"$\langle \Gamma_{\rm ft}\beta_{\rm ft} \rangle$ [c]" if crit=="fast" else r"$\langle \Gamma\beta \rangle$ [c]",
-        fontsize=12)
-    if do_mom_max: ax[2].set_ylabel(
-        r"$(\Gamma_{\rm ft}\beta_{\rm ft})_{\rm max}$" if crit=="fast" else r"$(\Gamma\beta)_{\rm max}$",
-        fontsize=12)
-    if do_theta: ax[3].set_ylabel(
-        r"$\langle \theta_{\rm RMS; ft} \rangle$ [deg]" if crit=="fast" else r"$\langle \theta_{\rm RMS} \rangle$ [deg]",
-        fontsize=12)
-    if do_ye: ax[4].set_ylabel(
-        r"$\langle Y_{e;\,\rm ft} \rangle$" if crit=="fast" else r"$\langle Y_{e;\,\rm ej} \rangle$"
-        ,fontsize=12)
-    ax[-1].set_xlim(*xlim)
-    ax[0].set_ylim(*ylim)
-    # ax[4].set_ylabel(r"$\langle s \rangle$ [$k_b/$baryon",fontsize=14)
-    # ax[5].set_ylabel(r"$\langle \epsilon \rangle$",fontsize=14)
-    # ax[0].set_title(title,fontsize=12)
-    # ax.grid(which="both",axis="both")
-    plt.tight_layout()
-    plt.savefig(os.getcwd() +'/figs/' + figname, dpi=512)
-    plt.savefig(os.getcwd() +'/figs/' + figname.replace(".png", ".pdf"))
-    plt.show()
-
 
 # Definition of a retarded time for ejecta mass flux
 def get_tret(r : float, vinf_ave0 : float =.7) -> float:
@@ -885,22 +753,27 @@ def plot_rho_mdot_rext(ylim=(1e-7, 1e-2), ylim2=(1, 6), xlim=(-2, 2.), crit="fas
     plt.show()
 
 
+
+
 if __name__ == '__main__':
+
     # process new simulation data -> collated.h5
     # task_process()
 
     ''' ejecta properties at a given extraction time '''
+    # plot_ej_mom_theta_dist_for_text()
     # plot_all_sim_ejecta_mass_evol(crit=None,yscale="linear",ylim=(0., 0.01),figname="ejecta_mass_evol",
     #                          title="Volume integrated ejecta mass")
-    plot_all_sim_ejecta_mass(figname="cumulative_ejecta_mass",
-                             # ylim=(1e43,1e51),xlim=(1e-2,4),
-                             ylim=(1e43,1e51),xlim=(1e-2,4),
-                             yscale='log',xscale='linear',
-                             title="Cumulative normalized ejecta mass distribution")
+
+    plot_all_sim_ejecta_mass(figname="cumulative_ejecta_mass", ylim=(1e43,1e51),xlim=(1e-2,4))
+
+
+
     # plot_sim_ekecta_mass(sim_dic=df.loc["SFHo_13_14_res150"])
     # plot_sim_ekecta_mass(sim_dic=df.loc["DD2_135_135_res150"])
 
     # plot_rho_max(df=df)
+    # plot_sim_ekecta_mass_old(sim_name="SFHo_13_14_res150")
 
     ''' Ej. prop. as a function of extraction time '''
     # plot_all_sim_ejecta_massave_vel(yscale='linear', figsize=(4.6,3.2), xlim=(-2,35),
