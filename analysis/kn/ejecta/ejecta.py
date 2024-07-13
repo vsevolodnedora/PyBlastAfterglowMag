@@ -62,40 +62,44 @@ def find_nearest_index(array, value):
     idx = (np.abs(array - value)).argmin()
     return idx
 
-def get_2d_ek(ej:PBA.id_kenta.EjectaData, text:float)->tuple[np.ndarray,np.ndarray,np.ndarray]:
+def get_2d_ek(ej:PBA.id_kenta.EjectaData, text:float)->tuple[np.ndarray,np.ndarray,np.ndarray, np.ndarray]:
     thetas = ej.get_theta()
     vinf = ej.get_vinf()
     vinf = vinf[:-1]
     vinf_c = 0.5 * (vinf[1:] + vinf[:-1])
     mom = PBA.utils.MomFromBeta(vinf_c)
     ctheta = 0.5 * (thetas[1:] + thetas[:-1])
-    ek = ej.get(v_n="mass",text=text) #* PBA.utils.cgs.solar_m
-    ek = 0.5 * (ek[:,1:] + ek[:,1:]) [:,:-1]
-    ek = 0.5 * (ek[1:,:] + ek[1:,:])
-    ek *= PBA.cgs.solar_m * (vinf_c * PBA.cgs.c)**2
-    ek = ek.T
+    mass = ej.get(v_n="mass",text=text)
+    mass = 0.5 * (mass[:,1:] + mass[:,:-1]) [:,:-1]
+    mass = 0.5 * (mass[1:,:] + mass[:-1,:])
+    ek = mass * PBA.cgs.solar_m * (vinf_c[np.newaxis,:] * PBA.cgs.c)**2
 
     # mask = ctheta < np.pi/2.
-    return (mom, ctheta, ek)
+    return (mom, ctheta, ek.T, mass.T)
 
-def piecewise_linear(x, x0, x1, y0, k1, k2, k3):
+def piecewise_linear(x, x0, x1, x2, y0, k1, k2, k3):
     condlist = [x < x0,
                 (x >= x0) & (x < x1),
-                x >= x1]
+                (x >= x1) & (x < x2),
+                x >= x2]
     funclist = [lambda x: k1 * x + y0 - k1 * x0,
-                lambda x: k2 * x + y0 - k2 * x0, # k2 * x + (y0 - k1 * x0) + (k1 - k2) * x0, #
+                lambda x: y0,
+                lambda x: k2 * x + y0 - k2 * x1,
+                # k2 * x + (y0 - k1 * x0) + (k1 - k2) * x0, #
                 # lambda x: k3 * x + y0 - k1*x0 + k1*x0 - k2*x0 + k2*x1 - k3*x1 #k3 * x + (y0 - k1 * x0) + (k1 - k2) * x0 + (k2 - k3) * x1
-                lambda x: k3 * x + y0 - k2*x0 + k2*x1 - k3*x1 #k3 * x + (y0 - k1 * x0) + (k1 - k2) * x0 + (k2 - k3) * x1
+                lambda x: k3 * x + y0 - k2*x1 + k2*x2 - k3*x2 #k3 * x + (y0 - k1 * x0) + (k1 - k2) * x0 + (k2 - k3) * x1
                 ]
     return np.piecewise(x, condlist, funclist)
-def piecewise_power(x, x0, x1, y0, k1, k2, k3):
+def piecewise_power(x, x0, x1, x2, y0, k1, k2, k3):
     condlist = [x < x0,
                 (x >= x0) & (x < x1),
-                x >= x1]
-    funclist = [lambda x: y0*(x/x0)**k1,# k1 * x + y0 - k1 * x0,
-                lambda x: y0*(x/x0)**k2,#k2 * x + y0 - k2 * x0, # k2 * x + (y0 - k1 * x0) + (k1 - k2) * x0, #
+                (x >= x1) & (x < x2),
+                x >= x2]
+    funclist = [lambda x: y0*(x/x0)**k1, # k1 * x + y0 - k1 * x0,
+                lambda x: y0,
+                lambda x: y0*(x/x1)**k2, #k2 * x + y0 - k2 * x0, # k2 * x + (y0 - k1 * x0) + (k1 - k2) * x0, #
                 # lambda x: k3 * x + y0 - k1*x0 + k1*x0 - k2*x0 + k2*x1 - k3*x1 #k3 * x + (y0 - k1 * x0) + (k1 - k2) * x0 + (k2 - k3) * x1
-                lambda x: y0*(x/x1)**k3 * (x1/x0)**k2 #k3 * x + y0 - k2*x0 + k2*x1 - k3*x1 #k3 * x + (y0 - k1 * x0) + (k1 - k2) * x0 + (k2 - k3) * x1
+                lambda x: y0*(x/x2)**k3 * (x2/x1)**k2 #k3 * x + y0 - k2*x0 + k2*x1 - k3*x1 #k3 * x + (y0 - k1 * x0) + (k1 - k2) * x0 + (k2 - k3) * x1
                 ]
     return np.piecewise(x, condlist, funclist)
 class Fit1D:
@@ -132,16 +136,28 @@ class Fit1D:
         # The x-value closest to zero
         x_zero = x_values[zero_index]
         # Initial guesses for the parameters
-        initial_guesses = [x_max, x_zero, max(y_values), 2, -4, -8]
+        initial_guesses = [x_max, max(x_values)*0.05, max(x_values)*0.75, max(y_values), -7, -7, -20]
 
         # Fit the model to the data
         # popt, _ = curve_fit(piecewise_linear, x_values, y_values, p0=initial_guesses,absolute_sigma=True)
         def residuals(x, *args):
-            return (piecewise_linear(x, *args) - y_values)**2
-        popt, _ = curve_fit(residuals, x_values, np.zeros_like(y_values), p0=initial_guesses,absolute_sigma=True)
+            # res = np.zeros_like(x)
+            # mask1 = x<x[np.argmax(y_values)]
+            # res[mask1] = (piecewise_linear(x[mask1], *args) - y_values[mask1])
+            # mask2 = x>=x[np.argmax(y_values)]
+            # res[mask2] = (piecewise_linear(x[mask2], *args) - y_values[mask2])
+            res = (piecewise_linear(x, *args) - y_values)
+            # mask = np.where((x>args[1])&(x<args[2]))
+            # res[mask] = (10**piecewise_linear(x, *args) - 10**y_values)[mask]
+            # res[np.where(x<args[0])]**4
+            # res[np.where((x>args[1])&(x<args[2]))]*=2
+            # res[np.where((x>args[2]))]*=2
+            # res[np.argmax(y_values)-2:np.argmax(y_values)+2] *= 10
+            return res
+        popt, _ = curve_fit(residuals, x_values, np.zeros_like(y_values), p0=initial_guesses,absolute_sigma=False)
         # print(popt)
         # Extract the optimized parameters
-        x0_opt, x1_opt, y0_opt, k1_opt, k2_opt, k3_opt = popt
+        x0_opt, x1_opt, x2_opt, y0_opt, k1_opt, k2_opt, k3_opt = popt
 
         # Generate x-values for plotting the fitted function
         x_fit = x_values#np.linspace(np.min(x_values), np.max(x_values), 1000)
@@ -173,7 +189,7 @@ class Fit1D:
         # plt.show()
 
         return x_fit, y_fit, dict(chi2=reduced_chi_squared, r2=adjusted_r_squared,
-                                  x0=10**x0_opt,x1=10**x1_opt,y0=10**y0_opt,k1=k1_opt,k2=k2_opt,k3=k3_opt
+                                  x0=10**x0_opt,x1=10**x1_opt,x2=10**x2_opt,y0=10**y0_opt,k1=k1_opt,k2=k2_opt,k3=k3_opt
                                   # pars=popt
                                   )
 
@@ -223,7 +239,7 @@ def fit_data(x, y,name:str):
 #     plt.show()
 
 
-def plot_all_sim_ejecta_mass(ylim=(0,0.04),xlim=(1e-3,4), figname="figname"):
+def plot_all_sim_ejecta_mass(ylim=(0,0.04),xlim=(1e-3,4), figname="figname", sim:str or None=None):
     do_cumulative = True
     get_cumulative = lambda val : np.cumsum(val[::-1])[::-1] if do_cumulative else val
 
@@ -242,7 +258,7 @@ def plot_all_sim_ejecta_mass(ylim=(0,0.04),xlim=(1e-3,4), figname="figname"):
         xlim=(x1, x2), ylim=(y1, y2), xticklabels=[], yticklabels=[])
 
     # sub region of the original image
-    x1, x2, y1, y2 = 1e-1, 5e-1, 1e48, 4e49
+    x1, x2, y1, y2 = 8e-2, 5e-1, 2e48, 2e49
     axins.set_xlim(x1, x2)
     axins.set_ylim(y1, y2)
     axins.set_xscale('log')
@@ -266,15 +282,19 @@ def plot_all_sim_ejecta_mass(ylim=(0,0.04),xlim=(1e-3,4), figname="figname"):
     for (name, sim_dic) in df.iterrows():
         text_dict = df_text.loc[name]
         # sim_dic = sim_dic[1]
+        if sim and name != sim:
+            continue
 
         # name = sim_dic[0]
         ej = PBA.id_kenta.EjectaData(get_ej_data(sim_dic['name']),verbose=True)
-        mom, _, ek = get_2d_ek(ej=ej,
+        mom, _, ek, mass = get_2d_ek(ej=ej,
                                # text=get_text_max_mass(ej=ej,crit='fast')
                                text=float(sim_dic['tmerg'])+float(text_dict['text'])
                                )
-
+        # ek = np.sum(mass,axis=1)
         ek = np.sum(ek,axis=1)
+        # ek = np.sum(mass,axis=1)*PBA.cgs.solar_m#*(PBA.cgs.c**2*PBA.BetaFromMom(mom)**2)
+
         # ej_mass = ej.get(v_n="mass",text=get_text_max_mass(ej=ej,crit='fast'))
         # ek = np.cumsum(np.sum(ek,axis=0)[::-1] * PBA.cgs.solar_m * vinf_c**2 * PBA.cgs.c**2)[::-1]/np.sum(ek * PBA.cgs.solar_m * vinf_c**2 * PBA.cgs.c**2)
         # ek = np.cumsum(ek[::-1])[::-1]#/np.sum(ek)
@@ -285,9 +305,9 @@ def plot_all_sim_ejecta_mass(ylim=(0,0.04),xlim=(1e-3,4), figname="figname"):
         l_mom = l_mom[mask]
         l_ek = l_ek[mask]
 
-        N = 3
-        l_ek = np.convolve(l_ek, np.ones(N)/N, mode='valid')
-        l_mom = np.convolve(l_mom, np.ones(N)/N, mode='valid')
+        # N = 5
+        # l_ek = np.convolve(l_ek, np.ones(N)/N, mode='valid')
+        # l_mom = np.convolve(l_mom, np.ones(N)/N, mode='valid')
 
 
         axes[0].plot(10**l_mom, get_cumulative(10**l_ek), color=sim_dic["color"], ls=sim_dic["ls"], label=sim_dic["label"],lw=1.2)#, lw=0.7, drawstyle='steps')
@@ -299,7 +319,7 @@ def plot_all_sim_ejecta_mass(ylim=(0,0.04),xlim=(1e-3,4), figname="figname"):
         infos[name] = info
         axes[0].plot(10**l_mom_pred, get_cumulative(10**l_ek_pred), color=sim_dic["color"], ls=sim_dic["ls"],lw=.6)#, lw=0.7, drawstyle='steps')
         axes[1].plot(10**l_mom_pred, 10**l_ek_pred, color=sim_dic["color"], ls=sim_dic["ls"],lw=.6)#, lw=0.7, drawstyle='steps')
-        axes[2].plot(10**l_mom_pred, (10**l_ek-10**l_ek_pred) / 10**l_ek, color=sim_dic["color"], ls=sim_dic["ls"], lw=0.7)
+        axes[2].plot(10**l_mom_pred, (l_ek-l_ek_pred), color=sim_dic["color"], ls=sim_dic["ls"], lw=0.7)
 
         axins.plot(10**l_mom, 10**l_ek, color=sim_dic["color"], ls=sim_dic["ls"], label=sim_dic["label"],lw=1.2)
         axins.plot(10**l_mom_pred, 10**l_ek_pred, color=sim_dic["color"], ls=sim_dic["ls"],lw=.6)#, lw=0.7, drawstyle='steps')
@@ -346,9 +366,10 @@ def plot_all_sim_ejecta_mass(ylim=(0,0.04),xlim=(1e-3,4), figname="figname"):
     #for idx in range(len(df)):
     axes[0].set_yscale('log')
     axes[1].set_yscale('log')
+    # axes[2].set_yscale('log')
     axes[0].set_ylim(*ylim)
     axes[1].set_ylim(*ylim)
-    axes[2].set_ylim(-2.5,1.1)
+    axes[2].set_ylim(-0.5,0.5)
     axes[-1].set_xlim(*xlim)
 
     # ax.set_yscale(yscale)
@@ -370,7 +391,8 @@ def plot_all_sim_ejecta_mass(ylim=(0,0.04),xlim=(1e-3,4), figname="figname"):
     axes[0].set_ylabel(r"$E_{\rm k} (> \Gamma \beta)$ [erg]",fontsize=12)
     axes[1].set_ylabel(r"$E_{\rm k}$ [erg]",fontsize=12)
     # ax.set_title(title,fontsize=12)
-    axes[-1].set_ylabel(r"$\Delta E_{\rm k}$ [erg]",fontsize=12)
+    # axes[-1].set_ylabel(r"$\Delta E_{\rm k}$ [erg]",fontsize=12)
+    axes[-1].set_ylabel(r"$\log_{10}(E_{\rm k;\,sph})-\log_{10}(E_{\rm k;\,fit})$ [erg]",fontsize=12)
 
     plt.tight_layout()
     plt.savefig(os.getcwd()+f'/figs/{figname}.png',dpi=256)
