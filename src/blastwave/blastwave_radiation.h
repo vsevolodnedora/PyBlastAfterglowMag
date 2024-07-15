@@ -267,6 +267,7 @@ static void fluxDensPieceWiseWithObs(
     if ((!std::isfinite(gm))||(!std::isfinite(B))||(!std::isfinite(ne))){
         (*p_pars->p_log)(LOG_ERR,AT)
                 << "[ish=" << p_pars->ishell << ", " << "il=" << p_pars->ilayer << "] "
+                << "i_end_r="<<p_pars->i_end_r
                 << " nanss {"
                 << " ia=" << ia << " ib=" << ib << " ta=" << ta << " tb=" << tb << " r=" << r << " mu=" << mu
                 << " nu_obs=" << nu_obs << " t_e=" << t_e
@@ -898,6 +899,10 @@ public:
         if ((m_data[BW::Q::ibeta][it] < p_syna->beta_min)){
             if (p_pars->i_end_r > it-1)
                 p_pars->i_end_r = it-1;
+            (*p_log)(LOG_WARN,AT)
+                << "[il="<< p_pars->ilayer << " ish=" << p_pars->ishell << "] it=" << it << " beta="
+                << m_data[BW::Q::ibeta][it] << " < beta_min=" << p_syna->beta_min
+                << " -> i_end_r=" << p_pars->i_end_r << "\n";
             return false;
         }
 
@@ -984,6 +989,7 @@ public:
 //                               m_data[Q::iGamma][it],
                     m_data[BW::Q::iGammaRsh][it],
                     m_data[BW::Q::itt][it], // TODO WHICH TIME IS HERE? tbirst? tcomov? observer time (TT)
+                    m_data[BW::Q::itburst][it], // TODO WHICH TIME IS HERE? tbirst? tcomov? observer time (TT)
                     m_data[BW::Q::itcomov][it], // TODO WHICH TIME IS HERE? tbirst? tcomov? observer time (TT)
 //                               m_data[Q::itburst][it], // emission time (TT)
                     m_data[BW::Q::irho3][it] / CGS::mp,
@@ -1048,7 +1054,9 @@ public:
                 m_data[BW::Q::iGamma][it],
 //                               m_data[Q::iGamma][it],
                 m_data[BW::Q::iGammaFsh][it],
+
                 m_data[BW::Q::itt][it], // TODO WHICH TIME IS HERE? tbirst? tcomov? observer time (TT)
+                m_data[BW::Q::itburst][it], // TODO WHICH TIME IS HERE? tbirst? tcomov? observer time (TT)
                 m_data[BW::Q::itcomov][it], // TODO WHICH TIME IS HERE? tbirst? tcomov? observer time (TT)
 //                               m_data[Q::itburst][it], // emission time (TT)
                 m_data[BW::Q::irho2][it] / CGS::mp,
@@ -1068,6 +1076,8 @@ public:
         m_data[BW::Q::iz_cool][it] = p_mphys->z_cool;
         m_data[BW::Q::inprime][it] = p_mphys->n_prime;
         m_data[BW::Q::iacc_frac][it] = p_mphys->accel_frac;
+        if (p_mphys->accel_frac<1.)
+            int z = 1;
 
         if (m_data[BW::Q::igm][it] == 0){
             (*p_log)(LOG_ERR,AT)<< " in evolved blast wave, found gm = 0" << "\n";

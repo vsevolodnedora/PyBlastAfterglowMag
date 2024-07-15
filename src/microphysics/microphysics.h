@@ -163,7 +163,7 @@ public: // ---------------- ANALYTIC -------------------------- //
         else if (m_sychMethod == METHODS_SYNCH::iMARG21) {
             // defined in Margalit+21 arXiv:2111.00012
             syn_an.computeAnalyticSynchMARG21(em, abs, nuprime, mu_e * nn,
-                                              eps_e / eps_t, Theta, z_cool, accel_frac,do_ssa);
+                                              eps_e / eps_t, Theta, z_cool, accel_frac, do_ssa);
         }
         else{
             (*p_log)(LOG_ERR,AT)<<" analytic synchrotron method is not supported \n";
@@ -755,13 +755,12 @@ public: // --------------------- FOR BW ---------------------------------- //
         /// compute radiative losses by integrating synchrotron spectrum (analytic synchrotron spectrum)
         double rho2 = EQS::rho2t(Gamma,gammaAdi,rho);
         double U_p = get_shock_Up(GammaSh,rho2,m,Eint);
-        updateSockProperties(U_p,Gamma,GammaSh,
-                                              x,tcomov,rho2/CGS::mp,
-                                              m/CGS::mp);
+        updateSockProperties(U_p,Gamma,GammaSh,x,t_b,tcomov,
+                             rho2/CGS::mp,m/CGS::mp);
         double thickness = EQS::shock_thickness(m,rho2,
                                          0.,theta,Gamma,R,ncells);
         double p_tot = computePtot(dmdR);
-        p_tot*=accel_frac;
+        p_tot *= accel_frac;
         p_tot = std::max(p_tot,0.);
         /// compute total amount of energy radaited
         double drcomov = thickness * GammaSh;

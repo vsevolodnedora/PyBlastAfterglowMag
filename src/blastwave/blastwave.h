@@ -239,7 +239,7 @@ public:
         p_spread->m_theta_b0 = p_pars->theta_b0;
         // ***************************************
     }
-    /// check the evolution result
+    /// check the evolution result TODO This function seems redundant
     void checkEvolutionEnd(){
         /// limit the evaluation to the latest 'R' that is not 0 (before termination)
         if (p_pars->end_evolution)
@@ -262,7 +262,9 @@ public:
                 <<"beta0="<<p_pars->beta0<< " i_end_r = 0"<<"\n";
             exit(1);
         }
-        p_pars->i_end_r = i_end_r;
+        if (p_pars->i_end_r != 0 && p_pars->i_end_r!=m_tb_arr.size())
+            int z = 1;
+//        p_pars->i_end_r = i_end_r;
     }
     /// add the current solution 'sol' to the 'm_data' which is Vector of Arrays (for all variables)
     void insertSolution( const double * sol, double t, size_t it, size_t i, VecVector & Dat ) {

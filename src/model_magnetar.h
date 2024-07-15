@@ -1199,10 +1199,10 @@ public:
         double b_pwn = pow(u_b_pwn*8.0*M_PI,0.5); //be careful: epsilon_B=epsilon_B^pre/8/PI for epsilon_B^pre used in Murase et al. 2018
         /// --------------------------------------------
         m_data[PWN::Q::iB][it]     = b_pwn;
-        m_data[PWN::Q::iGamma][it] = EQS::GamFromMom(m_data[PWN::Q::imom][it]);
-        m_data[PWN::Q::ibeta][it]  = EQS::BetFromMom(m_data[PWN::Q::imom][it]);
+        m_data[PWN::Q::iGamma][it] = EQS::GammaFromMom(m_data[PWN::Q::imom][it]);
+        m_data[PWN::Q::ibeta][it]  = EQS::BetaFromMom(m_data[PWN::Q::imom][it]);
         m_data[PWN::Q::itheta][it] = p_pars->ctheta0;
-        m_data[PWN::Q::iGammaTermShock][it] = EQS::GamFromMom(m_data[PWN::Q::imom][it]); // TODO Replace with proper calc. of the temrination shock vel.
+        m_data[PWN::Q::iGammaTermShock][it] = EQS::GammaFromMom(m_data[PWN::Q::imom][it]); // TODO Replace with proper calc. of the temrination shock vel.
         m_data[PWN::Q::idr][it] = it > 0 ? m_data[PWN::Q::iR][it] - m_data[PWN::Q::iR][it-1] : 0.;// TODO replace with proper eval of 'dr' for emitting volume (around shock)
     }
 

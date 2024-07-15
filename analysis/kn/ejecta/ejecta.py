@@ -77,48 +77,31 @@ def get_2d_ek(ej:PBA.id_kenta.EjectaData, text:float)->tuple[np.ndarray,np.ndarr
     # mask = ctheta < np.pi/2.
     return (mom, ctheta, ek.T, mass.T)
 
-def piecewise_linear(x, x0, x1, x2, y0, k1, k2, k3):
-    condlist = [x < x0,
-                (x >= x0) & (x < x1),
-                (x >= x1) & (x < x2),
-                x >= x2]
-    funclist = [lambda x: k1 * x + y0 - k1 * x0,
-                lambda x: y0,
-                lambda x: k2 * x + y0 - k2 * x1,
-                # k2 * x + (y0 - k1 * x0) + (k1 - k2) * x0, #
-                # lambda x: k3 * x + y0 - k1*x0 + k1*x0 - k2*x0 + k2*x1 - k3*x1 #k3 * x + (y0 - k1 * x0) + (k1 - k2) * x0 + (k2 - k3) * x1
-                lambda x: k3 * x + y0 - k2*x1 + k2*x2 - k3*x2 #k3 * x + (y0 - k1 * x0) + (k1 - k2) * x0 + (k2 - k3) * x1
-                ]
-    return np.piecewise(x, condlist, funclist)
-def piecewise_power(x, x0, x1, x2, y0, k1, k2, k3):
-    condlist = [x < x0,
-                (x >= x0) & (x < x1),
-                (x >= x1) & (x < x2),
-                x >= x2]
-    funclist = [lambda x: y0*(x/x0)**k1, # k1 * x + y0 - k1 * x0,
-                lambda x: y0,
-                lambda x: y0*(x/x1)**k2, #k2 * x + y0 - k2 * x0, # k2 * x + (y0 - k1 * x0) + (k1 - k2) * x0, #
-                # lambda x: k3 * x + y0 - k1*x0 + k1*x0 - k2*x0 + k2*x1 - k3*x1 #k3 * x + (y0 - k1 * x0) + (k1 - k2) * x0 + (k2 - k3) * x1
-                lambda x: y0*(x/x2)**k3 * (x2/x1)**k2 #k3 * x + y0 - k2*x0 + k2*x1 - k3*x1 #k3 * x + (y0 - k1 * x0) + (k1 - k2) * x0 + (k2 - k3) * x1
-                ]
-    return np.piecewise(x, condlist, funclist)
-class Fit1D:
+
+class FitBase:
+
+    name = 'Base'
+
     def __init__(self):
         pass
 
-    def compute_chi2(self, x, y, y_pred, n):
-        x = 10**x
-        y_values = 10**y
-        y_fit = 10**y_pred
 
-        ss_res = np.sum((y_values - y_fit) ** 2)
+    def compute_chi2(self, x, y_values, y_fit, n):
+        # x = 10**x
+        # y_values = 10**y
+        # y_fit = 10**y_pred
+
+        # The standard deviation is the square root of the average of the squared
+        # deviations from the mean, i.e., ``std = sqrt(mean(x))``, where
+        # ``x = abs(a - a.mean())**2``.
+        ss_res = np.sum(((y_values - y_fit)/np.std(y_values)) ** 2)
         reduced_chi_squared = ss_res / (len(y_values) - n)
-        return np.log10( reduced_chi_squared )
+        return reduced_chi_squared
 
-    def compute_r2(self,x,y,y_pred,n):
-        x=10**x
-        y_values=10**y
-        y_fit =10**y_pred
+    def compute_r2(self,x,y_values,y_fit,n):
+        # x=10**x
+        # y_values=10**y
+        # y_fit =10**y_pred
 
         ss_res = np.sum((y_values - y_fit) ** 2)
         ss_tot = np.sum((y_values - np.mean(y_values)) ** 2)
@@ -126,7 +109,153 @@ class Fit1D:
         adjusted_r_squared = 1 - (1 - r_squared) * (len(y_values) - 1) / (len(y_values) - n - 1)
         return adjusted_r_squared
 
-    def fit(self, x_values:np.ndarray, y_values:np.ndarray):
+    def print_table(self,infos):
+        info = pd.DataFrame.from_dict(infos).T
+        info.to_csv(os.getcwd()+f'/piecewise_line_{self.name}.csv',index=True)
+        info["y0"] = ["${}$".format(PBA.utils.latex_float(y0)) for y0 in info["y0"]]
+        # info["chi2"] = ["${}$".format(PBA.utils.latex_float(chi2)) for chi2 in info["chi2"]]
+        # del info["chi2"]
+        if 'x2' in info.keys():
+            info = info[['label', 'x0', 'x1', 'x2', 'y0', 'k1', 'k2', 'k3', 'r2', "chi2"]]
+        else:
+            info = info[['label', 'x0', 'x1', 'y0', 'k1', 'k2', 'k3', 'r2', "chi2"]]
+        print(info.to_latex(float_format="%.2f",index=False))
+
+class Fit1D_3seg(FitBase):
+    name = "3segFit"
+    def __init__(self):
+        super().__init__()
+        pass
+
+    @staticmethod
+    def piecewise_linear(x, x0, x1, y0, k1, k2, k3):
+        condlist = [x < x0,
+                    (x >= x0) & (x < x1),
+                    x >= x1]
+        funclist = [lambda x: k1 * x + y0 - k1 * x0,
+                    lambda x: k2 * x + y0 - k2 * x0, # k2 * x + (y0 - k1 * x0) + (k1 - k2) * x0, #
+                    # lambda x: k3 * x + y0 - k1*x0 + k1*x0 - k2*x0 + k2*x1 - k3*x1 #k3 * x + (y0 - k1 * x0) + (k1 - k2) * x0 + (k2 - k3) * x1
+                    lambda x: k3 * x + y0 - k2*x0 + k2*x1 - k3*x1 #k3 * x + (y0 - k1 * x0) + (k1 - k2) * x0 + (k2 - k3) * x1
+                    ]
+        return np.piecewise(x, condlist, funclist)
+    @staticmethod
+    def piecewise_power(x, x0, x1, y0, k1, k2, k3):
+        condlist = [x < x0,
+                    (x >= x0) & (x < x1),
+                    x >= x1]
+        funclist = [lambda x: y0*(x/x0)**k1,# k1 * x + y0 - k1 * x0,
+                    lambda x: y0*(x/x0)**k2,#k2 * x + y0 - k2 * x0, # k2 * x + (y0 - k1 * x0) + (k1 - k2) * x0, #
+                    # lambda x: k3 * x + y0 - k1*x0 + k1*x0 - k2*x0 + k2*x1 - k3*x1 #k3 * x + (y0 - k1 * x0) + (k1 - k2) * x0 + (k2 - k3) * x1
+                    lambda x: y0*(x/x1)**k3 * (x1/x0)**k2 #k3 * x + y0 - k2*x0 + k2*x1 - k3*x1 #k3 * x + (y0 - k1 * x0) + (k1 - k2) * x0 + (k2 - k3) * x1
+                    ]
+        return np.piecewise(x, condlist, funclist)
+
+    def fit(self, x_values:np.ndarray, y_values:np.ndarray, undo_x, undo_y):
+        # Find the index of the maximum y-value
+        max_index = np.argmax(y_values)
+        # Corresponding x-value for the maximum point
+        x_max = x_values[max_index]
+        # Finding the closest index to x=0
+        zero_index = np.argmin(np.abs(x_values))
+        # The x-value closest to zero
+        x_zero = x_values[zero_index]
+        # Initial guesses for the parameters
+        initial_guesses = [x_max, max(x_values)*0.75, max(y_values), -7, -7, -20]
+
+        # Fit the model to the data
+        # popt, _ = curve_fit(piecewise_linear, x_values, y_values, p0=initial_guesses,absolute_sigma=True)
+        def residuals(x, *args):
+            # res = np.zeros_like(x)
+            # mask1 = x<x[np.argmax(y_values)]
+            # res[mask1] = (piecewise_linear(x[mask1], *args) - y_values[mask1])
+            # mask2 = x>=x[np.argmax(y_values)]
+            # res[mask2] = (piecewise_linear(x[mask2], *args) - y_values[mask2])
+            res = (self.piecewise_linear(x, *args) - y_values)
+
+            res = (self.piecewise_linear(x, *args) - y_values) ** 2 * y_values ** 3
+            mask = np.where((x>args[1])&(x<args[2]))
+            res[mask] *= 1.2
+
+            # res[mask] = (10**piecewise_linear(x, *args) - 10**y_values)[mask]
+            # res[np.where(x<args[0])]**4
+            # res[np.where((x>args[1])&(x<args[2]))]*=2
+            # res[np.where((x>args[2]))]*=2
+            # res[np.argmax(y_values)-4:np.argmax(y_values)+4] *= 10
+            return res
+        popt, _ = curve_fit(residuals, x_values, np.zeros_like(y_values), p0=initial_guesses,absolute_sigma=False)
+        # print(popt)
+        # Extract the optimized parameters
+        x0_opt, x1_opt, y0_opt, k1_opt, k2_opt, k3_opt = popt
+
+        # Generate x-values for plotting the fitted function
+        x_fit = x_values#np.linspace(np.min(x_values), np.max(x_values), 1000)
+        y_fit = self.piecewise_linear(x_fit, *popt)
+        #
+        # ss_res = np.sum((y_values - y_fit) ** 2)
+        # reduced_chi_squared = ss_res / (len(y_values) - len(popt))
+        reduced_chi_squared = self.compute_chi2(undo_x(x_values),undo_y(y_values),y_fit,len(popt))
+
+        # ss_res = np.sum((y_values - y_fit) ** 2)
+        # ss_tot = np.sum((y_values - np.mean(y_values)) ** 2)
+        # r_squared = 1 - (ss_res / ss_tot)
+        # adjusted_r_squared = 1 - (1 - r_squared) * (len(y_values) - 1) / (len(y_values) - len(popt) - 1)
+        adjusted_r_squared = self.compute_r2(undo_x(x_values),undo_y(y_values),y_fit,len(popt))
+
+        print(f"Chi2={reduced_chi_squared} R2={adjusted_r_squared}")
+
+        # Plot the original data and the fitted curve
+        # plt.figure(figsize=(10, 6))
+        # plt.scatter(x_values, y_values, color='blue', label='Data Points')
+        # plt.plot(x_fit, y_fit, 'r-', label='Fitted Piece-wise Linear Function')
+        # plt.title('Fit of Piece-wise Linear Function to Data')
+        # plt.xlabel('x')
+        # plt.ylabel('y')
+        # plt.axvline(x=x0_opt, color='green', linestyle='--', label='Breakpoint at x0')
+        # plt.axvline(x=x1_opt, color='purple', linestyle='--', label='Breakpoint at x_zero')
+        # plt.legend()
+        # plt.grid(True)
+        # plt.show()
+
+        coeffs = [undo_x(x0_opt),undo_x(x1_opt),undo_y(y0_opt),k1_opt,k2_opt,k3_opt]
+        return x_fit, y_fit, coeffs, dict(chi2=reduced_chi_squared, r2=adjusted_r_squared,
+                                          x0=coeffs[0],x1=coeffs[1],y0=coeffs[2],
+                                          k1=coeffs[3],k2=coeffs[4],k3=coeffs[5])
+
+class Fit1D_4seg(FitBase):
+    name = "4segFit"
+    def __init__(self):
+        super().__init__()
+        pass
+
+    @staticmethod
+    def piecewise_linear(x, x0, x1, x2, y0, k1, k2, k3):
+        condlist = [x < x0,
+                    (x >= x0) & (x < x1),
+                    (x >= x1) & (x < x2),
+                    x >= x2]
+        funclist = [lambda x: k1 * x + y0 - k1 * x0,
+                    lambda x: y0,
+                    lambda x: k2 * x + y0 - k2 * x1,
+                    # k2 * x + (y0 - k1 * x0) + (k1 - k2) * x0, #
+                    # lambda x: k3 * x + y0 - k1*x0 + k1*x0 - k2*x0 + k2*x1 - k3*x1 #k3 * x + (y0 - k1 * x0) + (k1 - k2) * x0 + (k2 - k3) * x1
+                    lambda x: k3 * x + y0 - k2*x1 + k2*x2 - k3*x2 #k3 * x + (y0 - k1 * x0) + (k1 - k2) * x0 + (k2 - k3) * x1
+                    ]
+        return np.piecewise(x, condlist, funclist)
+    @staticmethod
+    def piecewise_power(x, x0, x1, x2, y0, k1, k2, k3):
+        condlist = [x < x0,
+                    (x >= x0) & (x < x1),
+                    (x >= x1) & (x < x2),
+                    x >= x2]
+        funclist = [lambda x: y0*(x/x0)**k1, # k1 * x + y0 - k1 * x0,
+                    lambda x: y0,
+                    lambda x: y0*(x/x1)**k2, #k2 * x + y0 - k2 * x0, # k2 * x + (y0 - k1 * x0) + (k1 - k2) * x0, #
+                    # lambda x: k3 * x + y0 - k1*x0 + k1*x0 - k2*x0 + k2*x1 - k3*x1 #k3 * x + (y0 - k1 * x0) + (k1 - k2) * x0 + (k2 - k3) * x1
+                    lambda x: y0*(x/x2)**k3 * (x2/x1)**k2 #k3 * x + y0 - k2*x0 + k2*x1 - k3*x1 #k3 * x + (y0 - k1 * x0) + (k1 - k2) * x0 + (k2 - k3) * x1
+                    ]
+        return np.piecewise(x, condlist, funclist)
+
+    def fit(self, x_values:np.ndarray, y_values:np.ndarray, undo_x, undo_y):
         # Find the index of the maximum y-value
         max_index = np.argmax(y_values)
         # Corresponding x-value for the maximum point
@@ -146,13 +275,17 @@ class Fit1D:
             # res[mask1] = (piecewise_linear(x[mask1], *args) - y_values[mask1])
             # mask2 = x>=x[np.argmax(y_values)]
             # res[mask2] = (piecewise_linear(x[mask2], *args) - y_values[mask2])
-            res = (piecewise_linear(x, *args) - y_values)
-            # mask = np.where((x>args[1])&(x<args[2]))
+            res = (Fit1D_4seg.piecewise_linear(x, *args) - y_values)
+
+            res = (Fit1D_4seg.piecewise_linear(x, *args) - y_values) ** 2 * y_values ** 3
+            mask = np.where((x>args[1])&(x<args[2]))
+            res[mask] *= 1.2
+
             # res[mask] = (10**piecewise_linear(x, *args) - 10**y_values)[mask]
             # res[np.where(x<args[0])]**4
             # res[np.where((x>args[1])&(x<args[2]))]*=2
             # res[np.where((x>args[2]))]*=2
-            # res[np.argmax(y_values)-2:np.argmax(y_values)+2] *= 10
+            # res[np.argmax(y_values)-4:np.argmax(y_values)+4] *= 10
             return res
         popt, _ = curve_fit(residuals, x_values, np.zeros_like(y_values), p0=initial_guesses,absolute_sigma=False)
         # print(popt)
@@ -161,17 +294,17 @@ class Fit1D:
 
         # Generate x-values for plotting the fitted function
         x_fit = x_values#np.linspace(np.min(x_values), np.max(x_values), 1000)
-        y_fit = piecewise_linear(x_fit, *popt)
+        y_fit = Fit1D_4seg.piecewise_linear(x_fit, *popt)
         #
         # ss_res = np.sum((y_values - y_fit) ** 2)
         # reduced_chi_squared = ss_res / (len(y_values) - len(popt))
-        reduced_chi_squared = self.compute_chi2(x_values,y_values,y_fit,len(popt))
+        reduced_chi_squared = self.compute_chi2(undo_x(x_values),undo_y(y_values),y_fit,len(popt))
 
         # ss_res = np.sum((y_values - y_fit) ** 2)
         # ss_tot = np.sum((y_values - np.mean(y_values)) ** 2)
         # r_squared = 1 - (ss_res / ss_tot)
         # adjusted_r_squared = 1 - (1 - r_squared) * (len(y_values) - 1) / (len(y_values) - len(popt) - 1)
-        adjusted_r_squared = self.compute_r2(x_values,y_values,y_fit,len(popt))
+        adjusted_r_squared = self.compute_r2(undo_x(x_values),undo_y(y_values),y_fit,len(popt))
 
         print(f"Chi2={reduced_chi_squared} R2={adjusted_r_squared}")
 
@@ -188,16 +321,35 @@ class Fit1D:
         # plt.grid(True)
         # plt.show()
 
-        return x_fit, y_fit, dict(chi2=reduced_chi_squared, r2=adjusted_r_squared,
-                                  x0=10**x0_opt,x1=10**x1_opt,x2=10**x2_opt,y0=10**y0_opt,k1=k1_opt,k2=k2_opt,k3=k3_opt
-                                  # pars=popt
-                                  )
+        coeffs = [undo_x(x0_opt),undo_x(x1_opt),undo_x(x2_opt),undo_y(y0_opt),k1_opt,k2_opt,k3_opt]
+        return x_fit, y_fit, coeffs, dict(chi2=reduced_chi_squared, r2=adjusted_r_squared,
+                                          x0=coeffs[0],x1=coeffs[1],x2=coeffs[2],y0=coeffs[3],
+                                          k1=coeffs[4],k2=coeffs[5],k3=coeffs[6])
 
-def fit_data(x, y,name:str):
-    np.savetxt(os.getcwd()+'/'+name+"log_mom_log_ek.txt",X=np.column_stack((x,y)),fmt="%.3f")
 
-    o_fit = Fit1D()
-    return o_fit.fit(x, y)
+def fit_data(x, y, undo_x, undo_y, name:str, fitting_obj):
+    # np.savetxt(os.getcwd()+'/'+name+"log_mom_log_ek.txt",X=np.column_stack((x,y)),fmt="%.3f")
+
+    # o_fit = Fit1D()
+    x_fit, y_fit, coeffs, fit_dict = fitting_obj.fit(x, y, undo_x, undo_y)
+
+    # using fitting function
+    # mom = np.linspace(*mom_lim, n_shells[sim])
+    vinf_ = np.linspace(0.005,1, len(y)+1)
+    mom = PBA.MomFromBeta(vinf_)[:-1]
+    ek = fitting_obj.piecewise_power(mom, *coeffs)
+    # mass = ek / (PBA.cgs.solar_m * PBA.cgs.c**2 * PBA.BetaFromMom(mom)**2)#piecewise_power(mom, *coeffs) / PBA.cgs.solar_m
+    # plt.close()
+    # plt.loglog(x_fit,y_fit,marker='.',ls='None')
+    # plt.loglog(np.log10(mom), np.log10(ek),marker='x',ls='None')
+    # plt.show()
+
+    np.savetxt(os.getcwd()+'/'+name+f"_log_mom_log_ek_sph_and_fit_{fitting_obj.name}.txt",
+               X=np.column_stack((x,y, np.log10(mom), np.log10(ek))),
+               fmt="%.3f")
+
+    # return (np.log10(mom), np.log10(ek), fit_dict)
+    return (x_fit, y_fit, fit_dict)
 
 
 # def plot_all_sim_ejecta_mass_evol(crit=None,yscale="linear",ylim=(0,0.04),title="Volume integrated ejecta mass",
@@ -239,9 +391,19 @@ def fit_data(x, y,name:str):
 #     plt.show()
 
 
-def plot_all_sim_ejecta_mass(ylim=(0,0.04),xlim=(1e-3,4), figname="figname", sim:str or None=None):
+def plot_all_sim_ejecta_mass(o_fit:FitBase, xlim=(1e-3, 4),ylim0=(1e43, 1e51),ylim1=(1e43, 1e51),ylim2=(-.5,.5),
+                             figname="figname", sim: str or None=None):
+
     do_cumulative = True
+    log_type = 10
+    log_type_y = 10
+
     get_cumulative = lambda val : np.cumsum(val[::-1])[::-1] if do_cumulative else val
+    do_log = lambda val : (val if not log_type else (np.log2(val) if log_type==2 else np.log10(val)))
+    un_log = lambda val : (val if not log_type else (2**(val) if log_type==2 else 10**(val)))
+
+    do_log_y = lambda val : (val if not log_type_y else (np.log2(val) if log_type_y==2 else np.log10(val)))
+    un_log_y = lambda val : (val if not log_type_y else (2**(val) if log_type_y==2 else 10**(val)))
 
     fig, axes = plt.subplots(ncols=1,nrows=3,figsize=(4.6,2*3.2),
                              layout='constrained',sharex='col',#sharex='col',sharey='row',
@@ -258,7 +420,7 @@ def plot_all_sim_ejecta_mass(ylim=(0,0.04),xlim=(1e-3,4), figname="figname", sim
         xlim=(x1, x2), ylim=(y1, y2), xticklabels=[], yticklabels=[])
 
     # sub region of the original image
-    x1, x2, y1, y2 = 8e-2, 5e-1, 2e48, 2e49
+    x1, x2, y1, y2 = 8e-2, 5e-1, 2e48, 4e49
     axins.set_xlim(x1, x2)
     axins.set_ylim(y1, y2)
     axins.set_xscale('log')
@@ -279,6 +441,9 @@ def plot_all_sim_ejecta_mass(ylim=(0,0.04),xlim=(1e-3,4), figname="figname", sim
 
     # for idx, sim_dic in enumerate(df.iterrows()):
     # for (sim_dic,fit_dic) in zip(df.iterrows(), df_fit.iterrows()):
+    # o_fit = Fit1D_4seg()
+    # o_fit = Fit1D_3seg()
+
     for (name, sim_dic) in df.iterrows():
         text_dict = df_text.loc[name]
         # sim_dic = sim_dic[1]
@@ -300,7 +465,7 @@ def plot_all_sim_ejecta_mass(ylim=(0,0.04),xlim=(1e-3,4), figname="figname", sim
         # ek = np.cumsum(ek[::-1])[::-1]#/np.sum(ek)
 
 
-        l_mom, l_ek = np.log10(mom), np.log10(ek)
+        l_mom, l_ek = do_log(mom), do_log_y(ek)
         mask = np.isfinite(l_ek)
         l_mom = l_mom[mask]
         l_ek = l_ek[mask]
@@ -310,19 +475,21 @@ def plot_all_sim_ejecta_mass(ylim=(0,0.04),xlim=(1e-3,4), figname="figname", sim
         # l_mom = np.convolve(l_mom, np.ones(N)/N, mode='valid')
 
 
-        axes[0].plot(10**l_mom, get_cumulative(10**l_ek), color=sim_dic["color"], ls=sim_dic["ls"], label=sim_dic["label"],lw=1.2)#, lw=0.7, drawstyle='steps')
-        axes[1].plot(10**l_mom, 10**l_ek, color=sim_dic["color"], ls=sim_dic["ls"], label=sim_dic["label"],lw=1.2)#, lw=0.7, drawstyle='steps')
+        axes[0].plot(un_log(l_mom), get_cumulative(un_log_y(l_ek)), color=sim_dic["color"], ls=sim_dic["ls"], label=sim_dic["label"],lw=1.2)#, lw=0.7, drawstyle='steps')
+        axes[1].plot(un_log(l_mom), un_log_y(l_ek), color=sim_dic["color"], ls=sim_dic["ls"], label=sim_dic["label"],lw=1.2)#, lw=0.7, drawstyle='steps')
 
-        l_mom_pred, l_ek_pred, info = fit_data(l_mom, l_ek,name=sim_dic["name"])
+
+        l_mom_pred, l_ek_pred, info = fit_data(l_mom, l_ek, un_log, un_log_y,
+                                               fitting_obj=o_fit, name=sim_dic["name"])
 
         info["label"] = sim_dic["label"]
         infos[name] = info
-        axes[0].plot(10**l_mom_pred, get_cumulative(10**l_ek_pred), color=sim_dic["color"], ls=sim_dic["ls"],lw=.6)#, lw=0.7, drawstyle='steps')
-        axes[1].plot(10**l_mom_pred, 10**l_ek_pred, color=sim_dic["color"], ls=sim_dic["ls"],lw=.6)#, lw=0.7, drawstyle='steps')
-        axes[2].plot(10**l_mom_pred, (l_ek-l_ek_pred), color=sim_dic["color"], ls=sim_dic["ls"], lw=0.7)
+        axes[0].plot(un_log(l_mom_pred), get_cumulative(un_log_y(l_ek_pred)), color=sim_dic["color"], ls=sim_dic["ls"],lw=.6)#, lw=0.7, drawstyle='steps')
+        axes[1].plot(un_log(l_mom_pred), un_log_y(l_ek_pred), color=sim_dic["color"], ls=sim_dic["ls"],lw=.6)#, lw=0.7, drawstyle='steps')
+        axes[2].plot(un_log(l_mom_pred), (l_ek-l_ek_pred), color=sim_dic["color"], ls=sim_dic["ls"], lw=0.7)
 
-        axins.plot(10**l_mom, 10**l_ek, color=sim_dic["color"], ls=sim_dic["ls"], label=sim_dic["label"],lw=1.2)
-        axins.plot(10**l_mom_pred, 10**l_ek_pred, color=sim_dic["color"], ls=sim_dic["ls"],lw=.6)#, lw=0.7, drawstyle='steps')
+        axins.plot(un_log(l_mom), un_log_y(l_ek), color=sim_dic["color"], ls=sim_dic["ls"], label=sim_dic["label"],lw=1.2)
+        axins.plot(un_log(l_mom_pred), un_log_y(l_ek_pred), color=sim_dic["color"], ls=sim_dic["ls"],lw=.6)#, lw=0.7, drawstyle='steps')
 
         '''
         fit_dic = df_fit.loc[name]
@@ -346,13 +513,7 @@ def plot_all_sim_ejecta_mass(ylim=(0,0.04),xlim=(1e-3,4), figname="figname", sim
     axes[0].plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-', label='Simulation',lw=1.2)#, lw=0.7, drawstyle='steps')
     axes[0].plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-',label='Fit',lw=.6)#, lw=0.7, drawstyle='steps')
 
-
-    info = pd.DataFrame.from_dict(infos).T
-    info.to_csv(os.getcwd()+'/piecewise_line_fits.csv',index=True)
-    info["y0"] = ["${}$".format(PBA.utils.latex_float(y0)) for y0 in info["y0"]]
-    del info["chi2"]
-    info = info[['label', 'x0', 'x1', 'y0', 'k1', 'k2', 'k3', 'r2']]
-    print(info.to_latex(float_format="%.2f",index=False))
+    o_fit.print_table(infos=infos)
 
     for ax in axes:
         ax.tick_params(labelsize=12)
@@ -367,9 +528,9 @@ def plot_all_sim_ejecta_mass(ylim=(0,0.04),xlim=(1e-3,4), figname="figname", sim
     axes[0].set_yscale('log')
     axes[1].set_yscale('log')
     # axes[2].set_yscale('log')
-    axes[0].set_ylim(*ylim)
-    axes[1].set_ylim(*ylim)
-    axes[2].set_ylim(-0.5,0.5)
+    axes[0].set_ylim(*ylim0)
+    axes[1].set_ylim(*ylim1)
+    axes[2].set_ylim(*ylim2)
     axes[-1].set_xlim(*xlim)
 
     # ax.set_yscale(yscale)
@@ -392,11 +553,12 @@ def plot_all_sim_ejecta_mass(ylim=(0,0.04),xlim=(1e-3,4), figname="figname", sim
     axes[1].set_ylabel(r"$E_{\rm k}$ [erg]",fontsize=12)
     # ax.set_title(title,fontsize=12)
     # axes[-1].set_ylabel(r"$\Delta E_{\rm k}$ [erg]",fontsize=12)
-    axes[-1].set_ylabel(r"$\log_{10}(E_{\rm k;\,sph})-\log_{10}(E_{\rm k;\,fit})$ [erg]",fontsize=12)
+    axes[-1].set_ylabel(r"$\log_{10}(E_{\rm k;\,sph})-\log_{10}(E_{\rm k;\,fit})$",fontsize=12)
 
     plt.tight_layout()
-    plt.savefig(os.getcwd()+f'/figs/{figname}.png',dpi=256)
-    plt.savefig(os.getcwd()+f'/figs/{figname}.pdf')
+    figname = os.getcwd()+f'/figs/{figname}_{o_fit.name}'
+    plt.savefig(figname+'.png',dpi=256)
+    plt.savefig(figname+'.pdf')
     plt.show()
 
 
@@ -787,8 +949,10 @@ if __name__ == '__main__':
     # plot_all_sim_ejecta_mass_evol(crit=None,yscale="linear",ylim=(0., 0.01),figname="ejecta_mass_evol",
     #                          title="Volume integrated ejecta mass")
 
-    plot_all_sim_ejecta_mass(figname="cumulative_ejecta_mass", ylim=(1e43,1e51),xlim=(1e-2,4))
-
+    plot_all_sim_ejecta_mass(o_fit=Fit1D_4seg(),figname="ej_mom_ek_nr_",
+                             ylim0=(1e43, 1e51),ylim1=(1e43, 1e51),ylim2=(-0.5,0.5), xlim=(1e-2, 4))
+    # plot_all_sim_ejecta_mass(o_fit=Fit1D_3seg(),figname="ej_mom_ek_nr_",
+    #                          ylim0=(1e43, 1e51),ylim1=(1e43, 1e51),ylim2=(-0.5,0.5), xlim=(1e-2, 4))
 
 
     # plot_sim_ekecta_mass(sim_dic=df.loc["SFHo_13_14_res150"])

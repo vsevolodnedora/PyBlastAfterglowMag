@@ -695,10 +695,9 @@ public:
               m_i_end_r(i_end_r), commonTables(commonTables), m_params(params) {
 
         p_log = std::make_unique<logger>(std::cout, std::cerr, loglevel, "EATS");
-
         ishell = ish;
         ilayer= il;
-        m_i_end_r = i_end_r;
+//        m_i_end_r = i_end_r;
     }
 
     void (* fluxFuncPW)(
@@ -859,9 +858,9 @@ public: /// flux density evaluation functions
     /// evaluate intensity/flux density distribution using piece-wise summation
     double evalSkyMapPW(VecVector & out, double t_obs, double freq_obs, size_t offset){
         /// check if given observer time is at least within burster time
-        if (m_i_end_r > 0 && (t_obs < m_tburst[0] || t_obs> m_tburst[m_i_end_r-1])){
+        if ((m_i_end_r > 0) && (m_r[0] > 0) && (t_obs < m_tburst[0] || t_obs> m_tburst[m_i_end_r-1])){
             (*p_log)(LOG_ERR,AT) << " t_obs="<<t_obs<<" is not in tburst["<<m_tburst[0]
-                                 <<", "<<m_tburst[m_i_end_r-1]<<" Extend tburst grid or shorten tobs grid. \n";
+                                 <<", "<<m_tburst[m_i_end_r-1]<<"] Extend tburst grid or shorten tobs grid. \n";
             exit(1);
         }
 
@@ -872,7 +871,7 @@ public: /// flux density evaluation functions
         double fluxdens =  flux_pj + flux_cj;
 
         /// apply EBL absopption
-        if(do_ebl){
+        if(do_ebl && (fluxdens>0.)){
             double tau = commonTables.ebl.interpolate(nu_obs,z);
             double attenuation = std::exp(-tau);
             fluxdens = fluxdens * attenuation;
@@ -1184,15 +1183,31 @@ private:
             }
             tot_flux += flux_dens;
         }
-
-        if (nskipped_h == cil || nskipped_p == cil || nskipped_r == cil || (nskipped_p+nskipped_r+nskipped_h) == cil){
+        if (cil>3 && (nskipped_h == cil || nskipped_p == cil || nskipped_r == cil || (nskipped_p+nskipped_r+nskipped_h) == cil)){
             (*p_log)(LOG_WARN,AT)
-                    << " N(obs_time > p_pars->ttobs[p_pars->m_i_end_r - 1]) = "<<nskipped_h<<"/"<<cil
-                    << " N(ia[i] >= p_pars->m_i_end_r - 1) = "<<nskipped_p<<"/"<<cil
-                    << " N((r[i] <= 0.0)||(isnan(r[i]))) = "<<nskipped_r<<"/"<<cil
-                    << " \n";
-//            (*p_log)(LOG_WARN,AT)<<" try extending tburst() grid\n";
+                << " Skipped "<<nskipped_p+nskipped_r+nskipped_h<<"/"<<cil<<" cells in computing flux_dens = "<<flux_dens
+                << " for tobs="<<obs_time<<" freq="<<obs_freq
+                << " Reason: "
+                << ( (nskipped_h == cil) ? " obs_time > ttobs[-1] for all cells" : "")
+                << ( (nskipped_p == cil) ? " ia[i] > m_i_end_r - 1" : "")
+                << ( (nskipped_r == cil) ? " r[i] <= 0.0 or isnan(r[i]) for all cells" : "")
+                << ( (nskipped_p+nskipped_r+nskipped_h == cil) ? " | combination of things..." : "")
+                << " \n";
+//            std::cout << " R= " << m_r<< "\n";
+//            std::cout << "tburst=" << m_tburst << "\n";
+//            std::cout << "tt="<< m_tt << "\n";
+//            std::cout << "ttobs="<< ttobs << "\n";
+//            int ddc = 1;
         }
+//
+//        if (nskipped_h == cil || nskipped_p == cil || nskipped_r == cil || (nskipped_p+nskipped_r+nskipped_h) == cil){
+//            (*p_log)(LOG_WARN,AT)
+//                    << " N(obs_time > p_pars->ttobs[p_pars->m_i_end_r - 1]) = "<<nskipped_h<<"/"<<cil
+//                    << " N(ia[i] >= p_pars->m_i_end_r - 1) = "<<nskipped_p<<"/"<<cil
+//                    << " N((r[i] <= 0.0)||(isnan(r[i]))) = "<<nskipped_r<<"/"<<cil
+//                    << " \n";
+////            (*p_log)(LOG_WARN,AT)<<" try extending tburst() grid\n";
+//        }
 
         return (tot_flux * CGS::cgs2mJy);
     }

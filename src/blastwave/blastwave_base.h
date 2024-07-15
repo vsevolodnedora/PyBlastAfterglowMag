@@ -83,6 +83,7 @@ public:
                 mDtmp[ivn].resize(p_pars->n_substeps, 0.0);
 
         /// ----------------------
+        p_pars->i_end_r = m_tb_arr.size();
         p_pars->loglevel = loglevel;
         p_pars->nr = m_tb_arr.size();
         p_pars->ilayer = ilayer;

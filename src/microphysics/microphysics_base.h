@@ -71,7 +71,7 @@ public:
     double n_prime=-1; // used in B and gamma_min
     double n_protons=-1; // conditionally used on synchrotron emissivity
     double nn=-1; // Ne or nprime depending on the setting 'm_method_ne'
-    double eprime=-1.,Gamma=-1,GammaSh=-1, betaSh=-1.,t_e=-1.;
+    double eprime=-1.,Gamma=-1,GammaSh=-1, betaSh=-1.,t_e=-1.,t_b=-1;
     double accel_frac=1.;
     double Theta=-1, z_cool=-1, x=-1;
     size_t max_substeps=0; // limit to the number of substeps to evolve electrons
@@ -571,17 +571,18 @@ public:
     }
 
     /// store current shock properties
-    void updateSockProperties(double e_prime, double Gamma_, double Gamma_shock, double t_e_, double tcomov_,
-                              double n_prime_, double n_protons_){
+    void updateSockProperties(double e_prime, double Gamma_, double Gamma_shock, double t_e_, double t_b_,
+                              double tcomov_, double n_prime_, double n_protons_){
         /// Store current parameters
 
-        GammaSh = Gamma_shock; // for bisect solver
-        eprime = e_prime; // for bisect solver
-        Gamma = Gamma_; // for bisect solver
-        betaSh = EQS::BetaFromGamma(Gamma_shock); // for bisect solver
-        t_e = t_e_; // for bisect solver
-        tcomov = tcomov_; // for bisect solver
-        n_prime = n_prime_; //  for bisect solver
+        GammaSh = Gamma_shock;
+        eprime = e_prime;
+        Gamma = Gamma_;
+        betaSh = EQS::BetaFromGamma(Gamma_shock);
+        t_e = t_e_;
+        t_b = t_b_;
+        tcomov = tcomov_;
+        n_prime = n_prime_;
         n_protons = n_protons_;
 //        r = r_;
 //        dr = dr_;
@@ -875,8 +876,17 @@ protected:
                 break;
         }
 
+
+
         // Deep Newtonian Phase
-        if ((gamma_min < 1.) || (status < 0)) {
+        double accel_frac_ayache = (std::pow(gamma_max, 2 - p) - std::pow(gamma_min - 1., 2. - p))
+                            / (std::pow(gamma_max, 2. - p) - 1.)
+                            * (std::pow(gamma_max, 1. - p) - 1.) / (std::pow(gamma_max, 1. - p)
+                                                                    - std::pow(gamma_min - 1., 1. - p));
+        double accel_frac_sironi = (p - 2.0) / (p - 1.0) * eps_e * eprime / (n_prime * CGS::me * CGS::c * CGS::c);
+
+
+        if ((gamma_min < 2.) || (status < 0)) {
             switch (m_method_nonreldist) {
                 case inone:
                     accel_frac = 1;
@@ -885,18 +895,15 @@ protected:
                     accel_frac = gamma_min;
                     break;
                 case iuseAyache:
-                    accel_frac = (std::pow(gamma_max, 2 - p) - std::pow(gamma_min - 1., 2. - p))
-                                 / (std::pow(gamma_max, 2. - p) - 1.)
-                                 * (std::pow(gamma_max, 1. - p) - 1.) / (std::pow(gamma_max, 1. - p)
-                                                                         - std::pow(gamma_min - 1., 1. - p));
+                    accel_frac = accel_frac_ayache;
                     break;
                 case iuseSironi: // Sironi et al 2013
 //                    accel_frac = (p - 2.0) / (p - 1.0) * eps_e * CGS::mp / CGS::me * (GammaSh - 1.0) / 1.;
-                    accel_frac = (p - 2.0) / (p - 1.0) * eps_e * eprime / (n_prime * CGS::me * CGS::c * CGS::c);
+                    accel_frac = accel_frac_sironi;
                     break;
             }
-            gamma_min = 1.;
             accel_frac = accel_frac > 1. ? 1 : accel_frac;
+            gamma_min = gamma_min < 1. ? 1 : gamma_min;
         }
 
         /// check

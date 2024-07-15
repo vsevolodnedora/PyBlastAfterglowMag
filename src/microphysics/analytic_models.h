@@ -1178,6 +1178,10 @@ public:
             abs=abs_pl+abs_th;//m_data[i_abs] = abs_th + abs_pl;
 
         }
+        if (gamma_min == 1.)
+            int g = 1;
+        if (accel_frac < 1.)
+            int z = 1;
     }
 };
 
