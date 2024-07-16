@@ -36,7 +36,7 @@ SIMS.set_index("name")
 df = SIMS[SIMS["given_time"] == "new"]
 
 # -------------------------------------------------------------------------------
-EJ_TEXT_PATH = str(__file__).split("analysis/kn/")[0] + "analysis/kn/ejecta/"
+EJ_TEXT_PATH = str(__file__).split("analysis/kn/")[0] + "analysis/kn/ejecta/output/"
 df_text = pd.read_csv(EJ_TEXT_PATH+"ejecta_fasttail_vals_at_massmax.csv",index_col=0)
 
 # -------------------------------------------------------------------------------
@@ -299,7 +299,7 @@ def compare_nr_and_fit(run:bool,run_fit:bool,sim_:str or None,xlim:tuple or None
 
     plt.show()
 def plot_nr_and_fits(run:bool,run_fit:bool,sim_:str or None,xlim:tuple or None,ylim0:tuple or None,ylim1:tuple or None,
-                       figname:str, P:dict,suffix:str):
+                       figname:str, P:dict,suffix:str,show_legends:bool):
 
     # do_cumulative = True
     # log_type = 2
@@ -468,7 +468,7 @@ def plot_nr_and_fits(run:bool,run_fit:bool,sim_:str or None,xlim:tuple or None,y
             pba_fit = PBA.wrappers.run_kn(working_dir=task_fit["working_dir"],struct=task_fit["struct"],P=task_fit["P"],run=False)
             axes[0].plot(t(pba_fit), lc(pba_fit), color=sim_dict["color"], ls=sim_dict['ls'], lw=lw)
 
-            ax_fit.plot(t(pba_asym), (loglc(pba_sph) - loglc(pba_fit)),  color=sim_dict["color"],ls=sim_dict['ls'], lw=1)
+            ax_fit.plot(t(pba_asym), (loglc(pba_sph) - loglc(pba_fit)),  color=sim_dict["color"], ls=sim_dict['ls'], lw=1)
 
 
 
@@ -528,15 +528,16 @@ def plot_nr_and_fits(run:bool,run_fit:bool,sim_:str or None,xlim:tuple or None,y
     ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-', label='Simulation',lw=1.2)#, lw=0.7, drawstyle='steps')
     ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-',label='3SegFit',lw=0.4)#, lw=0.7, drawstyle='steps')
     ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-',label='4SegFit',lw=0.3)#, lw=0.7, drawstyle='steps')
-    han, lab = ax.get_legend_handles_labels()
-    ax.add_artist(ax.legend(han[:-1 * n], lab[:-1 * n],
-                            **dict(fancybox=False,loc= 'lower center',columnspacing=0.4,
-                                   #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
-                                   shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)))
-    ax.add_artist(ax.legend(han[len(han) - n:], lab[len(lab) - n:],
-                            **dict(fancybox=False,loc= 'upper left',columnspacing=0.4,
-                                   #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
-                                   shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)))
+    if show_legends:
+        han, lab = ax.get_legend_handles_labels()
+        ax.add_artist(ax.legend(han[:-1 * n], lab[:-1 * n],
+                                **dict(fancybox=False,loc= 'lower center',columnspacing=0.4,
+                                       #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                                       shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)))
+        ax.add_artist(ax.legend(han[len(han) - n:], lab[len(lab) - n:],
+                                **dict(fancybox=False,loc= 'upper left',columnspacing=0.4,
+                                       #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                                       shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)))
 
     if xlim: ax.set_xlim(*xlim)
     if ylim0: axes[0].set_ylim(*ylim0)
@@ -719,10 +720,10 @@ def main(sim_dict:pd.Series, coeffs_dict:pd.Series, ej_data_dict:pd.Series):
     plt.show()
 
 def load_tables_print_table():
-    # df_fit = pd.read_csv(os.getcwd()+'/'+'nr_3segFit_lcs_joh06.csv',index_col=0)
-    # df_fit = pd.read_csv(os.getcwd()+'/'+'nr_4segFit_lcs_joh06.csv',index_col=0)
-    # df_fit = pd.read_csv(os.getcwd()+'/'+'nr_3segFit_lcs_marg21.csv',index_col=0)
-    df_fit = pd.read_csv(os.getcwd()+'/'+'nr_4segFit_lcs_marg21.csv',index_col=0)
+    # df_fit = pd.read_csv(os.getcwd()+f'/output/'+'nr_3segFit_lcs_joh06.csv',index_col=0)
+    # df_fit = pd.read_csv(os.getcwd()+f'/output/'+'nr_4segFit_lcs_joh06.csv',index_col=0)
+    # df_fit = pd.read_csv(os.getcwd()+f'/output/'+'nr_3segFit_lcs_marg21.csv',index_col=0)
+    df_fit = pd.read_csv(os.getcwd()+f'/output/'+'nr_4segFit_lcs_marg21.csv',index_col=0)
     print(df_fit)
     # df_fit.rename(columns=dict(sse="3seg_joh06"),inplace=True)
     # df_fit=df_fit.filter(["3seg_joh06"])
@@ -730,6 +731,12 @@ def load_tables_print_table():
     # df_fit_sse = df_fit[["sse"]]
     # print(df_fit_sse)
     # print(df_fit)
+
+# def analyze_2d_ejecta_data(sim_:str):
+#     for sim, sim_dict in df.iterrows():
+#         if sim_ and not sim == sim_:
+#             continue
+
 
 if __name__ == '__main__':
     # main(df.loc["SFHo_135_135_res150_new"],
@@ -772,7 +779,9 @@ if __name__ == '__main__':
 
     # load_tables_print_table()
 
-    plot_nr_and_fits(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,1e4),ylim0=(7e-1,1e3),ylim1=(-0.2,0.2),
-                     figname='radio_lcs_nr_fit',suffix="joh06")
     # plot_nr_and_fits(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,1e4),ylim0=(7e-1,1e3),ylim1=(-0.2,0.2),
-    #                  figname='radio_lcs_nr_fit',suffix="marg21")
+    #                  figname='radio_lcs_nr_fit',suffix="joh06",show_legends=True)
+    # plot_nr_and_fits(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,1e4),ylim0=(7e-1,1e3),ylim1=(-0.2,0.2),
+    #                  figname='radio_lcs_nr_fit',suffix="marg21",show_legends=False)
+
+    # analyze_2d_ejecta_data()

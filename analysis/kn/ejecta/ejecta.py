@@ -16,6 +16,9 @@ from matplotlib.colors import BoundaryNorm
 from matplotlib.ticker import MaxNLocator
 import json
 
+from scipy.stats import linregress
+from scipy.interpolate import interp1d
+
 from scipy.optimize import curve_fit
 from scipy.optimize import minimize
 from scipy.optimize import differential_evolution
@@ -54,7 +57,7 @@ df = SIMS[SIMS["given_time"] == "new"]
 get_ej_data = lambda name : DATA_PATH+name+'/'+"ej_collated.h5"
 
 # -------------------------------------------------------------------------------
-EJ_TEXT_PATH = str(__file__).split("analysis/kn/")[0] + "analysis/kn/ejecta/"
+EJ_TEXT_PATH = str(__file__).split("analysis/kn/")[0] + "analysis/kn/ejecta/output/"
 df_text = pd.read_csv(EJ_TEXT_PATH+"ejecta_fasttail_vals_at_massmax.csv",index_col=0)
 
 def find_nearest_index(array, value):
@@ -65,13 +68,15 @@ def find_nearest_index(array, value):
 def get_2d_ek(ej:PBA.id_kenta.EjectaData, text:float)->tuple[np.ndarray,np.ndarray,np.ndarray, np.ndarray]:
     thetas = ej.get_theta()
     vinf = ej.get_vinf()
+    mass = ej.get(v_n="mass",text=text)
+
     vinf = vinf[:-1]
     vinf_c = 0.5 * (vinf[1:] + vinf[:-1])
     mom = PBA.utils.MomFromBeta(vinf_c)
     ctheta = 0.5 * (thetas[1:] + thetas[:-1])
-    mass = ej.get(v_n="mass",text=text)
+    # ctheta = 0.5 * (thetas[1:] + thetas[:-1])
     mass = 0.5 * (mass[:,1:] + mass[:,:-1]) [:,:-1]
-    mass = 0.5 * (mass[1:,:] + mass[:-1,:])
+    # mass = 0.5 * (mass[1:,:] + mass[:-1,:])
     ek = mass * PBA.cgs.solar_m * (vinf_c[np.newaxis,:] * PBA.cgs.c)**2
 
     # mask = ctheta < np.pi/2.
@@ -111,7 +116,7 @@ class FitBase:
 
     def print_table(self,infos):
         info = pd.DataFrame.from_dict(infos).T
-        info.to_csv(os.getcwd()+f'/piecewise_line_{self.name}.csv',index=True)
+        info.to_csv(os.getcwd()+f'/output/piecewise_line_{self.name}.csv',index=True)
         info["y0"] = ["${}$".format(PBA.utils.latex_float(y0)) for y0 in info["y0"]]
         # info["chi2"] = ["${}$".format(PBA.utils.latex_float(chi2)) for chi2 in info["chi2"]]
         # del info["chi2"]
@@ -327,8 +332,8 @@ class Fit1D_4seg(FitBase):
                                           k1=coeffs[4],k2=coeffs[5],k3=coeffs[6])
 
 
-def fit_data(x, y, undo_x, undo_y, name:str, fitting_obj):
-    # np.savetxt(os.getcwd()+'/'+name+"log_mom_log_ek.txt",X=np.column_stack((x,y)),fmt="%.3f")
+def fit_data(x, y, undo_x, undo_y, name:str, fitting_obj, save_res:bool=True):
+    # np.savetxt(os.getcwd()+f'/output/+name+"log_mom_log_ek.txt",X=np.column_stack((x,y)),fmt="%.3f")
 
     # o_fit = Fit1D()
     x_fit, y_fit, coeffs, fit_dict = fitting_obj.fit(x, y, undo_x, undo_y)
@@ -344,9 +349,10 @@ def fit_data(x, y, undo_x, undo_y, name:str, fitting_obj):
     # plt.loglog(np.log10(mom), np.log10(ek),marker='x',ls='None')
     # plt.show()
 
-    np.savetxt(os.getcwd()+'/'+name+f"_log_mom_log_ek_sph_and_fit_{fitting_obj.name}.txt",
-               X=np.column_stack((x,y, np.log10(mom), np.log10(ek))),
-               fmt="%.3f")
+    if save_res:
+        np.savetxt(os.getcwd()+f'/output/'+name+f"_log_mom_log_ek_sph_and_fit_{fitting_obj.name}.txt",
+                   X=np.column_stack((x,y, np.log10(mom), np.log10(ek))),
+                   fmt="%.3f")
 
     # return (np.log10(mom), np.log10(ek), fit_dict)
     return (x_fit, y_fit, fit_dict)
@@ -589,38 +595,686 @@ def plot_ej_mom_theta_dist_for_text():
         ax.set_xlabel(r"Polar Angle [deg]",fontsize=12)
     plt.show()
 
-def plot_sim_ekecta_mass(sim_dic:dict, text=20):
-    ej = PBA.id_kenta.EjStruct(get_ej_data(sim_dic["name"]),verbose=True)
-    data = ej.get_2D_id(text=text, method_r0="from_beta",t0=1e3)
-    ctheta = data["ctheta"][0,:]
-    mom = data["mom"][:,0]
-    ek = ej.get_2D_id(text=text, method_r0="from_beta",t0=1e3)["mass"] / PBA.utils.cgs.solar_m
-    ek *= PBA.cgs.solar_m * PBA.utils.BetFromMom(mom)[:,np.newaxis]**2 * PBA.cgs.c**2
+def plot_sim_ekecta_mass_OLD(sim_:str or None):
 
-    thetas = ej.get_theta()
-    vinf = ej.get_vinf()
-    vinf = vinf[:-1]
-    vinf_c = 0.5 * (vinf[1:] + vinf[:-1])
-    mom = PBA.MomFromBeta(vinf_c)
-    ctheta = 0.5 * (thetas[1:] + thetas[:-1])
-    ek = ej.get(v_n="mass",text=text) #* PBA.utils.cgs.solar_m
-    ek = 0.5 * (ek[:,1:] + ek[:,1:]) [:,:-1]
-    ek = 0.5 * (ek[1:,:] + ek[1:,:])
-    ek *= PBA.cgs.solar_m * vinf_c**2 * PBA.cgs.c**2
-    ek = ek.T
+    # fig, axes = plt.subplots(nrows=2,ncols=len(df) if not sim_ else 1,sharex='col',sharey='row',
+    #                          layout='constrained',figsize=(12,4.5))
+
+    do_cumulative = True
+    log_type = 10
+    log_type_y = 10
+
+    get_cumulative = lambda val : np.cumsum(val[::-1])[::-1] if do_cumulative else val
+    do_log = lambda val : (val if not log_type else (np.log2(val) if log_type==2 else np.log10(val)))
+    un_log = lambda val : (val if not log_type else (2**(val) if log_type==2 else 10**(val)))
+
+    do_log_y = lambda val : (val if not log_type_y else (np.log2(val) if log_type_y==2 else np.log10(val)))
+    un_log_y = lambda val : (val if not log_type_y else (2**(val) if log_type_y==2 else 10**(val)))
+    o_fit = Fit1D_3seg()
+    keys = ["x0","x1","y0","k1","k2","k3"]
+
+    segs = [(-.1,91)]
+    csegs = [0.5*(seg[0]+seg[1]) for seg in segs]
+    # colors = ["blue","lime","green","orange","red"]
+    result_1seg = dict()
+    for (name, sim_dict) in df.iterrows():
+        text_dict = df_text.loc[name]
+        ej = PBA.id_kenta.EjectaData(get_ej_data(sim_dict['name']),verbose=False)
+        mom, ctheta, ek, mass = get_2d_ek(ej=ej,
+                                          # text=get_text_max_mass(ej=ej,crit='fast')
+                                          text=float(sim_dict['tmerg'])+float(text_dict['text']))
+
+        result_ = dict()
+
+        for segment in segs:
+            if sim_ and name != sim_:
+                continue
+
+            c_seg = int( (segment[1]+segment[0])*0.5 )
+
+            low = segment[0] * np.pi / 180.
+            up  = segment[1] * np.pi / 180.
+            ek_ = np.sum(ek[:,(ctheta > low) & (ctheta <= up)],axis=1)
+
+            l_mom, l_ek = do_log(mom), do_log_y(ek_)
+            mask = np.isfinite(l_ek)
+            l_mom = l_mom[mask]
+            l_ek = l_ek[mask]
+
+            x_fit, y_fit, fit_dict = fit_data(x=l_mom, y=l_ek, undo_x=un_log, undo_y=un_log_y, name=name,
+                                              fitting_obj=o_fit,save_res=False)
+
+            result_[c_seg] = fit_dict
+        df_i = pd.DataFrame.from_dict(result_).T
+        result_1seg[name] = df_i
+
+    segs = [(-.1,30.),(30,60.),(60.,91.)]
+    csegs = [0.5*(seg[0]+seg[1]) for seg in segs]
+    # colors = ["blue","lime","green","orange","red"]
+    result_3seg = dict()
+    for (name, sim_dict) in df.iterrows():
+        text_dict = df_text.loc[name]
+        ej = PBA.id_kenta.EjectaData(get_ej_data(sim_dict['name']),verbose=False)
+        mom, ctheta, ek, mass = get_2d_ek(ej=ej,
+                                          # text=get_text_max_mass(ej=ej,crit='fast')
+                                          text=float(sim_dict['tmerg'])+float(text_dict['text']))
+
+        result_ = dict()
+
+        for segment in segs:
+            if sim_ and name != sim_:
+                continue
+
+            c_seg = int( (segment[1]+segment[0])*0.5 )
+
+            low = segment[0] * np.pi / 180.
+            up  = segment[1] * np.pi / 180.
+            ek_ = np.sum(ek[:,(ctheta > low) & (ctheta <= up)],axis=1)
+
+            l_mom, l_ek = do_log(mom), do_log_y(ek_)
+            mask = np.isfinite(l_ek)
+            l_mom = l_mom[mask]
+            l_ek = l_ek[mask]
+
+            x_fit, y_fit, fit_dict = fit_data(x=l_mom, y=l_ek, undo_x=un_log, undo_y=un_log_y, name=name,
+                                              fitting_obj=o_fit,save_res=False)
+
+            result_[c_seg] = fit_dict
+        df_i = pd.DataFrame.from_dict(result_).T
+        result_3seg[name] = df_i
+
+    segs = [(-.1,18.),(18,36.),(36.,54.),(54.,72,),(72.,91.)]
+    csegs = [0.5*(seg[0]+seg[1]) for seg in segs]
+    # colors = ["blue","lime","green","orange","red"]
+    result_5seg = dict()
+    for (name, sim_dict) in df.iterrows():
+        text_dict = df_text.loc[name]
+        ej = PBA.id_kenta.EjectaData(get_ej_data(sim_dict['name']),verbose=False)
+        mom, ctheta, ek, mass = get_2d_ek(ej=ej,
+                                          # text=get_text_max_mass(ej=ej,crit='fast')
+                                          text=float(sim_dict['tmerg'])+float(text_dict['text']))
+
+        result_ = dict()
+
+        for segment in segs:
+            if sim_ and name != sim_:
+                continue
+
+            c_seg = int( (segment[1]+segment[0])*0.5 )
+
+            low = segment[0] * np.pi / 180.
+            up  = segment[1] * np.pi / 180.
+            ek_ = np.sum(ek[:,(ctheta > low) & (ctheta <= up)],axis=1)
+
+            l_mom, l_ek = do_log(mom), do_log_y(ek_)
+            mask = np.isfinite(l_ek)
+            l_mom = l_mom[mask]
+            l_ek = l_ek[mask]
+
+            x_fit, y_fit, fit_dict = fit_data(x=l_mom, y=l_ek, undo_x=un_log, undo_y=un_log_y, name=name,
+                                              fitting_obj=o_fit,save_res=False)
+
+            result_[c_seg] = fit_dict
+        df_i = pd.DataFrame.from_dict(result_).T
+        result_5seg[name] = df_i
+
+
+    segs = [(-.1,10.),(10,20.),(20.,30.),(30.,40,),(40.,50.),(50.,60.),(60.,70.),(70.,80.),(80.,91.)]
+    csegs = [0.5*(seg[0]+seg[1]) for seg in segs]
+    # colors = ["blue","lime","green","orange","red"]
+    result_9seg = dict()
+    for (name, sim_dict) in df.iterrows():
+        text_dict = df_text.loc[name]
+        ej = PBA.id_kenta.EjectaData(get_ej_data(sim_dict['name']),verbose=False)
+        mom, ctheta, ek, mass = get_2d_ek(ej=ej,
+                                          # text=get_text_max_mass(ej=ej,crit='fast')
+                                          text=float(sim_dict['tmerg'])+float(text_dict['text']))
+
+        result_ = dict()
+
+        for segment in segs:
+            if sim_ and name != sim_:
+                continue
+
+            c_seg = int( (segment[1]+segment[0])*0.5 )
+
+            low = segment[0] * np.pi / 180.
+            up  = segment[1] * np.pi / 180.
+            ek_ = np.sum(ek[:,(ctheta > low) & (ctheta <= up)],axis=1)
+
+            l_mom, l_ek = do_log(mom), do_log_y(ek_)
+            mask = np.isfinite(l_ek)
+            l_mom = l_mom[mask]
+            l_ek = l_ek[mask]
+
+            x_fit, y_fit, fit_dict = fit_data(x=l_mom, y=l_ek, undo_x=un_log, undo_y=un_log_y, name=name,
+                                              fitting_obj=o_fit,save_res=False)
+
+            result_[c_seg] = fit_dict
+        df_i = pd.DataFrame.from_dict(result_).T
+        result_9seg[name] = df_i
+
+    fig,axes = plt.subplots(ncols=6,nrows=3,figsize=(12,9),layout='constrained',sharex='all')
+    for i, key in enumerate(keys):
+        for (name, sim_dict) in df.iterrows():
+            df_i = result_1seg[name]
+            axes[0][i].axhline(y=df_i.iloc[0][key],color=sim_dict['color'],linestyle=sim_dict['ls'],linewidth=0.6)
+            axes[1][i].axhline(y=df_i.iloc[0][key],color=sim_dict['color'],linestyle=sim_dict['ls'],linewidth=0.6)
+            axes[2][i].axhline(y=df_i.iloc[0][key],color=sim_dict['color'],linestyle=sim_dict['ls'],linewidth=0.6)
+            df_i = result_3seg[name]
+            for (cth, fit_dict_cth) in df_i.iterrows():
+                axes[0][i].plot(cth, fit_dict_cth[key],marker=sim_dict['marker'],color=sim_dict['color'],fillstyle='none')
+            df_i = result_5seg[name]
+            for (cth, fit_dict_cth) in df_i.iterrows():
+                axes[1][i].plot(cth, fit_dict_cth[key],marker=sim_dict['marker'],color=sim_dict['color'],fillstyle='none')
+            df_i = result_9seg[name]
+            for (cth, fit_dict_cth) in df_i.iterrows():
+                axes[2][i].plot(cth, fit_dict_cth[key],marker=sim_dict['marker'],color=sim_dict['color'],fillstyle='none')
+
+    for ax in axes:
+        ax[2].set_yscale("log")
+    # for ax in axes:
+    #     for ax in ax[3]:
+    #         # ax.set_xscale("log")
+    #         ax.set_yscale("log")
+    for ax in axes:
+        for ax in ax:
+            ax.set_xlim(0,90)
+    plt.show()
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    fit_data_segs = dict()
+    for cseg in csegs:
+        for (name, sim_dic) in df.iterrows():
+            fit_data_segs[f"{int(cseg)} {name}"] = dict()
+
+
+    i = 0
+    for (name, sim_dic) in df.iterrows():
+        text_dict = df_text.loc[name]
+        # sim_dic = sim_dic[1]
+        if sim_ and name != sim_:
+            continue
+
+        sim_dict = df.loc[name]
+        text_dict = df_text.loc[name]
+
+        ej = PBA.id_kenta.EjectaData(get_ej_data(sim_dict['name']),verbose=True)
+        mom, ctheta, ek, mass = get_2d_ek(ej=ej,
+                                     # text=get_text_max_mass(ej=ej,crit='fast')
+                                     text=float(sim_dict['tmerg'])+float(text_dict['text'])
+                                     )
+        # ek = np.sum(mass,axis=1)
+        # ek = np.sum(ek,axis=1)
+
+        low = 30. * np.pi / 180.
+        mid = 60. * np.pi / 180.
+
+        ek_tot = np.sum(ek, axis=1)
+        ek_equatorial = np.sum(ek[:,(ctheta >= mid)],axis=1) #np.sum(ek[:,(ctheta >= mid)], axis=1)
+        ek_mid = np.sum(ek[:,(ctheta > low) & (ctheta <= mid)], axis=1)
+        ek_polar = np.sum(ek[:,(ctheta <= low)], axis=1)
+
+
+        ax = axes[0][i]
+        ax.plot(mom,ek_equatorial, color='red')
+        ax.plot(mom,ek_mid, color='green')
+        ax.plot(mom,ek_polar, color='blue')
+
+        ax = axes[1][i]
+        # data = np.insert(np.log10(mom), 0, -1)
+        # for segment, color in zip([(0.,15.),(15,30.),(30.,45.),(45.,60,),(60.,75.),(75.,90.)],
+        #                           ["blue","cyan","lime","green","orange","red"]):
+
+
+        for segment, color in zip([(0.,18.),(18,36.),(36.,54.),(54.,72,),(72.,90.)],
+                                  ["blue","lime","green","orange","red"]):
+            cseg = int( (segment[1]+segment[0])*0.5 )
+            low = segment[0] * np.pi / 180.
+            up  = segment[1] * np.pi / 180.
+            ek_ = np.sum(ek[:,(ctheta > low) & (ctheta <= up)],axis=1)
+
+            l_mom, l_ek = do_log(mom), do_log_y(ek_)
+            mask = np.isfinite(l_ek)
+            l_mom = l_mom[mask]
+            l_ek = l_ek[mask]
+
+            x_fit, y_fit, fit_dict = fit_data(x=l_mom, y=l_ek, undo_x=un_log, undo_y=un_log_y, name=name,
+                                              fitting_obj=o_fit,save_res=False)
+
+            ax.plot(mom,ek_,color=color)
+            ax.plot(un_log(x_fit),un_log_y(y_fit),color=color,ls=':')
+
+            fit_data_segs[f"{int(cseg)} {name}"] = fit_dict
+
+        #     data = np.column_stack((data, np.insert(np.log10(ek_),0, 0.5*(up+low) )))
+        #
+        # np.savetxt(os.getcwd()+f'/output/+name+"_2D_6seg_log_ek_log_mom.txt",X=data,fmt="%.3f")
+
+        # low = 30. * np.pi / 180.
+        # mid = 60. * np.pi / 180.
+        #
+        # ek_tot = np.sum(ek, axis=1)
+        # ek_equatorial = np.sum(ek[:,(ctheta >= mid)],axis=1) #np.sum(ek[:,(ctheta >= mid)], axis=1)
+        # ek_mid = np.sum(ek[:,(ctheta > low) & (ctheta <= mid)], axis=1)
+        # ek_polar = np.sum(ek[:,(ctheta <= low)], axis=1)
+        i+=1
+    for ax in axes:
+        for ax in ax:
+            ax.set_xscale("log")
+            ax.set_yscale("log")
+    plt.show()
 
     print(f"ctheta:{ctheta.shape} mom:{mom.shape} ek:{ek.shape}")
 
-    low = 30. * np.pi / 180.
-    mid = 60. * np.pi / 180.
 
-    ek_tot = np.sum(ek, axis=1)
-    ek_equatorial = np.sum(ek[:,(ctheta >= mid)], axis=1)
-    ek_mid = np.sum(ek[:,(ctheta > low) & (ctheta <= mid)], axis=1)
-    ek_polar = np.sum(ek[:,(ctheta <= low)], axis=1)
+
+
+
+    ''' -------------------------------------------------------------------------- '''
+
+    default_pysr_params = dict(
+        procs=4,
+        populations=8,
+        population_size=50,
+        ncycles_per_iteration=500,
+        early_stop_condition=(
+            "stop_if(loss, complexity) = loss < 1e-6 && complexity < 10"
+            # Stop early if we find a good and simple equation
+        ),
+        model_selection="best",
+        weight_randomize=0.1, # ^ Randomize the tree much more frequently
+    )
+    model = PySRRegressor(
+        niterations=100,
+        binary_operators=["+", "*", "-", "/"],
+        unary_operators=["cos", "exp", "sin", "square", "cube", "cos2(x)=cos(x)^2", "sin2(x)=sin(x)^2"],
+        extra_sympy_mappings={"cos2": lambda x: sympy.cos(x)**2,
+                              "sin2": lambda x: sympy.sin(x)**2},
+        **default_pysr_params,
+    )
+
+    log_ek = np.log10(ek_tot)
+    mom_ = mom[np.isfinite(log_ek)]
+    log_ek = log_ek[np.isfinite(log_ek)]
+    log_ek = log_ek[mom_>0.1]
+    mom_ = mom_[mom_>0.1]
+    model.fit(mom_.reshape(-1, 1),log_ek.reshape(-1, 1))#(X, y)
+    print("Best:", model.sympy())
+    print(model)
+    # for i in range(4):
+    #     print(f"Eq{i}: ", model.sympy(i))
+    ypredict = model.predict(mom_.reshape(-1, 1))
+    print("Default selection MSE:", np.power(ypredict - log_ek, 2).mean())
+    ypredict = 10**ypredict.flatten()
+
+    # exit(1)
+
+    fig, axes = plt.subplots(nrows=2,ncols=1,sharex='all',layout='constrained')
+
+    ax = axes[0]
+    do_cumulative = True
+    get_cumulative = lambda val : np.cumsum(val[::-1])[::-1] if do_cumulative else val
+    ax.plot(mom,get_cumulative(ek_tot),color='black',label=r'Total')
+    ax.plot(mom_,get_cumulative(ypredict),color='gray')
+    ax.plot(mom,get_cumulative(ek_equatorial),label=r'$\theta > 60$')
+    ax.plot(mom,get_cumulative(ek_mid),label=r'$30 < \theta < 60$')
+    ax.plot(mom,get_cumulative(ek_polar),label=r'$\theta < 30$')
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.set_xlim(1e-2,4)
+    # ax.set_ylim(1e21,1e31)
+    ax.legend(fancybox=False,loc= 'lower left',columnspacing=0.4,
+              #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+              shadow=False, ncol= 1, fontsize= 12,
+              framealpha=0., borderaxespad= 0., frameon=False)
+    ax.set_ylabel(r"$E_k$")
+
+    ax = axes[1]
+    ax.pcolormesh(mom, ctheta*180/np.pi, ek.T, cmap=plt.get_cmap('jet'),
+                  norm=LogNorm(vmin=ek.max()*1e-7, vmax=ek.max()))
+    ax.set_xscale('log')
+    ax.set_xlabel(r"$\Gamma\beta$")
+    ax.set_ylabel(r"Polar angle [deg]")
+
+    plt.show()
+def plot_sim_ekecta_mass(sim_:str or None, plot_fit_coeffs:bool):
+
+    # fig, axes = plt.subplots(nrows=2,ncols=len(df) if not sim_ else 1,sharex='col',sharey='row',
+    #                          layout='constrained',figsize=(12,4.5))
+
+    do_cumulative = True
+    log_type = 10
+    log_type_y = 10
+
+    get_cumulative = lambda val : np.cumsum(val[::-1])[::-1] if do_cumulative else val
+    do_log = lambda val : (val if not log_type else (np.log2(val) if log_type==2 else np.log10(val)))
+    un_log = lambda val : (val if not log_type else (2**(val) if log_type==2 else 10**(val)))
+
+    do_log_y = lambda val : (val if not log_type_y else (np.log2(val) if log_type_y==2 else np.log10(val)))
+    un_log_y = lambda val : (val if not log_type_y else (2**(val) if log_type_y==2 else 10**(val)))
+    o_fit = Fit1D_3seg()
+    keys = ["x0","x1","y0","k1","k2","k3"]
+    labels = [r"$\mathcal{M}_0$" , r"$\mathcal{M}_1$" , r"$\mathcal{E}_0$" ,
+              r"$k_1$" , r"$k_2$" , r"$k_3$"]
+
+    segs = [(-.1,91)]
+    csegs = [0.5*(seg[0]+seg[1]) for seg in segs]
+    colors = ["blue","lime","green","orange","red"]
+    result_1seg = dict()
+    for (name, sim_dict) in df.iterrows():
+        text_dict = df_text.loc[name]
+        ej = PBA.id_kenta.EjectaData(get_ej_data(sim_dict['name']),verbose=False)
+        mom, ctheta, ek, mass = get_2d_ek(ej=ej,
+                                          # text=get_text_max_mass(ej=ej,crit='fast')
+                                          text=float(sim_dict['tmerg'])+float(text_dict['text']))
+
+        result_ = dict()
+
+        for segment in segs:
+            if sim_ and name != sim_:
+                continue
+
+            c_seg = int( (segment[1]+segment[0])*0.5 )
+
+            low = segment[0] * np.pi / 180.
+            up  = segment[1] * np.pi / 180.
+            ek_ = np.sum(ek[:,(ctheta > low) & (ctheta <= up)],axis=1)
+
+            l_mom, l_ek = do_log(mom), do_log_y(ek_)
+            mask = np.isfinite(l_ek)
+            l_mom = l_mom[mask]
+            l_ek = l_ek[mask]
+
+            x_fit, y_fit, fit_dict = fit_data(x=l_mom, y=l_ek, undo_x=un_log, undo_y=un_log_y, name=name,
+                                              fitting_obj=o_fit,save_res=False)
+
+            result_[c_seg] = fit_dict
+        df_i = pd.DataFrame.from_dict(result_).T
+        result_1seg[name] = df_i
+
+    # segs = [(-.1,10.),(10,20.),(20.,30.),(30.,40,),(40.,50.),(50.,60.),(60.,70.),(70.,80.),(80.,91.)]
+    segs = np.arange(start=0,stop=90+10,step=10)
+    segs = [(low,up) for (low,up) in zip(segs[:-1],segs[1:])]
+    csegs = [0.5*(seg[0]+seg[1]) for seg in segs]
+    # colors = ["blue","lime","green","orange","red"]
+    result_9seg = dict()
+    result_9seg_xy = dict()
+    for (name, sim_dict) in df.iterrows():
+        text_dict = df_text.loc[name]
+        ej = PBA.id_kenta.EjectaData(get_ej_data(sim_dict['name']),verbose=False)
+        mom, ctheta, ek, mass = get_2d_ek(ej=ej,
+                                          # text=get_text_max_mass(ej=ej,crit='fast')
+                                          text=float(sim_dict['tmerg'])+float(text_dict['text']))
+        # ctheta = 0.5 * (ctheta[1:]+ctheta[:-1])
+        # cthetas = ctheta*180 / np.pi
+        # print(cthetas)
+        result_ = dict()
+
+        for segment in segs:
+            if sim_ and name != sim_:
+                continue
+
+            c_seg = int( (segment[1]+segment[0])*0.5 )
+
+            low = segment[0] * np.pi / 180.
+            up  = segment[1] * np.pi / 180.
+            ek_ = np.sum(ek[:,(ctheta > low) & (ctheta <= up)],axis=1)
+
+            l_mom, l_ek = do_log(mom), do_log_y(ek_)
+            mask = np.isfinite(l_ek)
+            l_mom = l_mom[mask]
+            l_ek = l_ek[mask]
+
+            x_fit, y_fit, fit_dict = fit_data(x=l_mom, y=l_ek, undo_x=un_log, undo_y=un_log_y, name=name,
+                                              fitting_obj=o_fit,save_res=False)
+            result_[c_seg] = fit_dict
+            result_9seg_xy[f"{name} {c_seg}"] = np.column_stack((l_mom, l_ek, x_fit, y_fit))
+
+        df_i = pd.DataFrame.from_dict(result_).T
+        result_9seg[name] = df_i
+
+
+    if (plot_fit_coeffs):
+        fig,axes = plt.subplots(ncols=len(keys),nrows=1,figsize=(12,3),layout='constrained',sharex='all')
+        for i, key in enumerate(keys):
+            for (name, sim_dict) in df.iterrows():
+                df_i = result_1seg[name]
+                axes[i].axhline(y=df_i.iloc[0][key],color=sim_dict['color'],linestyle=sim_dict['ls'],linewidth=0.6)
+
+                df_i = result_9seg[name]
+                for (cth, fit_dict_cth) in df_i.iterrows():
+                    axes[i].plot(cth, fit_dict_cth[key],marker=sim_dict['marker'],color=sim_dict['color'],fillstyle='none')
+
+        # FIT FOR ENERGY
+        fit_y0s = dict()
+        for (name, sim_dict) in df.iterrows():
+            df_i = result_9seg[name]
+            angles = np.array( df_i.index, dtype=np.float64 )
+            y0_s = do_log_y( np.array( df_i["y0"] ) )
+            # np.savetxt(os.getcwd()+f'/output/'+"data.txt",X=np.column_stack((angles,y0_s)),fmt="%.3f")
+
+            # Performing linear regression
+            slope, intercept, r_value, p_value, std_err = linregress(angles, y0_s)
+            fit_y0s[name] = dict(slope=slope, intercept=intercept)
+
+            # Displaying the results
+            print(f"Slope: {slope:.4f}")
+            print(f"Intercept: {intercept:.4f}")
+            print(f"Coefficient of Determination (R²): {r_value**2:.4f}")
+            print(f"P-value: {p_value:.4f}")
+            print(f"Standard Error of the Regression: {std_err:.4f}")
+            y0_fit = slope * angles + intercept
+
+            axes[2].plot(angles, un_log_y( y0_fit ),ls=sim_dict['ls'],color=sim_dict['color'],fillstyle='none')
+        # fit_y0s = pd.DataFrame.from_dict(fit_y0s).T
+
+        for i, key in enumerate(keys):
+            axes[i].set_title(labels[i],fontsize=12)
+
+        # for ax in axes:
+        axes[2].set_yscale("log")
+        # for ax in axes:
+        #     for ax in ax[3]:
+        #         # ax.set_xscale("log")
+        #         ax.set_yscale("log")
+        for ax in axes:
+            # for ax in ax:
+            ax.set_xlim(.1,90.1)
+            ax.tick_params(labelsize=12,which='both',direction='in')
+            ax.minorticks_on()
+            ax.set_xlabel("Polar angle [deg]",fontsize=12)
+        plt.show()
+
+
+    ''' -------------------------- '''
+    fig,axes = plt.subplots(ncols=len(df),nrows=2,figsize=(12,5),layout='constrained',sharex='col',sharey='row')
+
+    for i, (name, sim_dict) in enumerate(df.iterrows()):
+        df_i = result_9seg[name]
+        y0_fit_dict = fit_y0s[name] # y0 vs angle
+        text_dict = df_text.loc[name]
+        for (segment, color) in zip(segs, colors):
+            if sim_ and name != sim_:
+                continue
+            c_seg = int( (segment[1]+segment[0])*0.5 )
+            tbl = result_9seg_xy[f"{name} {c_seg}"]
+            l_mom, l_ek, l_mom_fit, l_ek_fit = tbl[:,0],tbl[:,1],tbl[:,2],tbl[:,3]
+            axes[0,i].plot(un_log(l_mom),un_log_y(l_ek),color=color,ls='-',lw=0.7)
+            axes[0,i].plot(un_log(l_mom_fit),un_log_y(l_ek_fit),color=color,ls='--',lw=0.7)
+
+            axes[1,i].plot(un_log(l_mom),l_ek-l_ek_fit,color=color,ls='-',lw=0.7)
+        # pass
+        df_fit_total = result_1seg[name]
+        angles = np.array( df_i.index, dtype=np.float64 )
+        slope, intercept = y0_fit_dict["slope"], y0_fit_dict["intercept"]
+        coeffs = df_fit_total[keys]
+        vinf_ = np.linspace(0.005,1, len(l_ek)+1)
+        mom = PBA.MomFromBeta(vinf_)[:-1]
+        coeffs = np.array(coeffs).flatten().tolist()
+        ek = o_fit.piecewise_power(mom, *coeffs)
+
+        axes[0,i].plot(mom,ek,color='gray',ls='-',lw=0.7)
+
+        # y0_tot = float( df_fit_total["y0"] )
+        for (segment, color, exp_y0) in zip(segs, colors, df_i["y0"]):
+            c_seg = int( (segment[1]+segment[0])*0.5 )
+            y0 = slope * c_seg + intercept
+            y0 = 10**intercept * 10**(slope * c_seg)
+            print(f"{name} - {segment} Expe = {exp_y0:.2e} Got {y0:.2e}")
+
+            coeffs[keys.index("y0")] = exp_y0
+            coeffs = np.array(coeffs).flatten().tolist()
+            ek = o_fit.piecewise_power(mom, *coeffs)
+
+            axes[0,i].plot(mom,ek,color=color,ls=':',lw=0.7)
+            axes[1,i].plot(un_log(l_mom),l_ek-interp1d(mom,do_log(ek))(un_log(l_mom)),color=color,ls=':',lw=0.7)
+
+    for ax in axes:
+        for ax in ax:
+        # ax.set_xlim(.1,90.1)
+            ax.tick_params(labelsize=12,which='both',direction='in')
+            ax.minorticks_on()
+    for ax in axes[0]:
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+    # for ax in axes:
+        # ax[0].set_ylim(1e42,1e49)
+        # ax[1].set_ylim(-2,2)
+    # for ax
+    # ax.set_xlabel("Polar angle [deg]",fontsize=12)
+    plt.show()
+
+
+    exit(0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    fit_data_segs = dict()
+    for cseg in csegs:
+        for (name, sim_dic) in df.iterrows():
+            fit_data_segs[f"{int(cseg)} {name}"] = dict()
+
+
+    i = 0
+    for (name, sim_dic) in df.iterrows():
+        text_dict = df_text.loc[name]
+        # sim_dic = sim_dic[1]
+        if sim_ and name != sim_:
+            continue
+
+        sim_dict = df.loc[name]
+        text_dict = df_text.loc[name]
+
+        ej = PBA.id_kenta.EjectaData(get_ej_data(sim_dict['name']),verbose=True)
+        mom, ctheta, ek, mass = get_2d_ek(ej=ej,
+                                          # text=get_text_max_mass(ej=ej,crit='fast')
+                                          text=float(sim_dict['tmerg'])+float(text_dict['text'])
+                                          )
+        # ek = np.sum(mass,axis=1)
+        # ek = np.sum(ek,axis=1)
+
+        low = 30. * np.pi / 180.
+        mid = 60. * np.pi / 180.
+
+        ek_tot = np.sum(ek, axis=1)
+        ek_equatorial = np.sum(ek[:,(ctheta >= mid)],axis=1) #np.sum(ek[:,(ctheta >= mid)], axis=1)
+        ek_mid = np.sum(ek[:,(ctheta > low) & (ctheta <= mid)], axis=1)
+        ek_polar = np.sum(ek[:,(ctheta <= low)], axis=1)
+
+
+        ax = axes[0][i]
+        ax.plot(mom,ek_equatorial, color='red')
+        ax.plot(mom,ek_mid, color='green')
+        ax.plot(mom,ek_polar, color='blue')
+
+        ax = axes[1][i]
+        # data = np.insert(np.log10(mom), 0, -1)
+        # for segment, color in zip([(0.,15.),(15,30.),(30.,45.),(45.,60,),(60.,75.),(75.,90.)],
+        #                           ["blue","cyan","lime","green","orange","red"]):
+
+
+        for segment, color in zip([(0.,18.),(18,36.),(36.,54.),(54.,72,),(72.,90.)],
+                                  ["blue","lime","green","orange","red"]):
+            cseg = int( (segment[1]+segment[0])*0.5 )
+            low = segment[0] * np.pi / 180.
+            up  = segment[1] * np.pi / 180.
+            ek_ = np.sum(ek[:,(ctheta > low) & (ctheta <= up)],axis=1)
+
+            l_mom, l_ek = do_log(mom), do_log_y(ek_)
+            mask = np.isfinite(l_ek)
+            l_mom = l_mom[mask]
+            l_ek = l_ek[mask]
+
+            x_fit, y_fit, fit_dict = fit_data(x=l_mom, y=l_ek, undo_x=un_log, undo_y=un_log_y, name=name,
+                                              fitting_obj=o_fit,save_res=False)
+
+            ax.plot(mom,ek_,color=color)
+            ax.plot(un_log(x_fit),un_log_y(y_fit),color=color,ls=':')
+
+            fit_data_segs[f"{int(cseg)} {name}"] = fit_dict
+
+        #     data = np.column_stack((data, np.insert(np.log10(ek_),0, 0.5*(up+low) )))
+        #
+        # np.savetxt(os.getcwd()+'/'+name+"_2D_6seg_log_ek_log_mom.txt",X=data,fmt="%.3f")
+
+        # low = 30. * np.pi / 180.
+        # mid = 60. * np.pi / 180.
+        #
+        # ek_tot = np.sum(ek, axis=1)
+        # ek_equatorial = np.sum(ek[:,(ctheta >= mid)],axis=1) #np.sum(ek[:,(ctheta >= mid)], axis=1)
+        # ek_mid = np.sum(ek[:,(ctheta > low) & (ctheta <= mid)], axis=1)
+        # ek_polar = np.sum(ek[:,(ctheta <= low)], axis=1)
+        i+=1
+    for ax in axes:
+        for ax in ax:
+            ax.set_xscale("log")
+            ax.set_yscale("log")
+    plt.show()
+
+    print(f"ctheta:{ctheta.shape} mom:{mom.shape} ek:{ek.shape}")
+
+
+
+
+
+    ''' -------------------------------------------------------------------------- '''
 
     default_pysr_params = dict(
         procs=4,
@@ -949,17 +1603,18 @@ if __name__ == '__main__':
     # plot_all_sim_ejecta_mass_evol(crit=None,yscale="linear",ylim=(0., 0.01),figname="ejecta_mass_evol",
     #                          title="Volume integrated ejecta mass")
 
-    plot_all_sim_ejecta_mass(o_fit=Fit1D_4seg(),figname="ej_mom_ek_nr_",
-                             ylim0=(1e43, 1e51),ylim1=(1e43, 1e51),ylim2=(-0.5,0.5), xlim=(1e-2, 4))
+    # plot_all_sim_ejecta_mass(o_fit=Fit1D_4seg(),figname="ej_mom_ek_nr_",
+    #                          ylim0=(1e43, 1e51),ylim1=(1e43, 1e51),ylim2=(-0.5,0.5), xlim=(1e-2, 4))
     # plot_all_sim_ejecta_mass(o_fit=Fit1D_3seg(),figname="ej_mom_ek_nr_",
     #                          ylim0=(1e43, 1e51),ylim1=(1e43, 1e51),ylim2=(-0.5,0.5), xlim=(1e-2, 4))
 
 
-    # plot_sim_ekecta_mass(sim_dic=df.loc["SFHo_13_14_res150"])
+    plot_sim_ekecta_mass(sim_=None,plot_fit_coeffs=True)
     # plot_sim_ekecta_mass(sim_dic=df.loc["DD2_135_135_res150"])
 
     # plot_rho_max(df=df)
     # plot_sim_ekecta_mass_old(sim_name="SFHo_13_14_res150")
+
 
     ''' Ej. prop. as a function of extraction time '''
     # plot_all_sim_ejecta_massave_vel(yscale='linear', figsize=(4.6,3.2), xlim=(-2,35),

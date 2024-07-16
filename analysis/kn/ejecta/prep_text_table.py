@@ -217,5 +217,5 @@ if __name__ == '__main__':
 
     print("FAST TAIL PROPERTIES AT EXTRACTION TIME WHEN MASS IS MAX ")
     df_res = print_table(crit="fast", maximize='mom')
-    df_res.to_csv(os.getcwd()+'/'+"ejecta_fasttail_vals_at_massmax.csv",index=True)
+    df_res.to_csv(os.getcwd()+f'/output/'+"ejecta_fasttail_vals_at_massmax.csv",index=True)
 
