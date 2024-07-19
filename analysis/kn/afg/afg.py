@@ -301,6 +301,268 @@ def compare_nr_and_fit(run:bool,run_fit:bool,
 
     plt.show()
 
+def compare_nr_and_fit_rows(run:bool,run_fit:bool,
+                           sim_:str or None,xlim:tuple or None,ylim0:tuple or None,ylim1:tuple or None,
+                           figname:str, P:dict,fit_funcs:tuple,suffix:str):
+
+    # do_cumulative = True
+    # log_type = 2
+    # log_type_y = 2
+
+    # get_cumulative = lambda val : np.cumsum(val[::-1])[::-1] if do_cumulative else val
+    # do_log = lambda val : (val if not log_type else (np.log2(val) if log_type==2 else np.log10(val)))
+    # un_log = lambda val : (val if not log_type else (2**(val) if log_type==2 else 10**(val)))
+    #
+    # do_log_y = lambda val : (val if not log_type_y else (np.log2(val) if log_type_y==2 else np.log10(val)))
+    # un_log_y = lambda val : (val if not log_type_y else (2**(val) if log_type_y==2 else 10**(val)))
+    colors=['green','red']
+
+    df_fits = dict()
+    for color,fit_func in zip(colors,fit_funcs):
+        df_fits[fit_func] = pd.read_csv(EJ_TEXT_PATH+f"piecewise_line_{fit_func}.csv",index_col=0)
+
+
+    '''
+    tasks = []
+    n_shells = {}
+    fig, axes = plt.subplots(ncols=1,nrows=2,sharex='all')
+    for sim, sim_dict in df.iterrows():
+        if sim_ and not sim == sim_:
+            continue
+        fit_dict = df_fit.loc[sim]
+        text_dict = df_text.loc[sim]
+        data = PBA.id_kenta.EjStruct(fpath=get_ej_data(sim_dict['name']),verbose=True)
+        vinf = data.get_vinf()
+        masses = data.get(v_n="mass",text=float(sim_dict["tmerg"])+float(text_dict["text"]))
+        sums = np.zeros(len(masses[0,:]))
+        sums_ek = np.zeros(len(masses[0,:]))
+        for ivinf in range(len(masses[0,:])):
+            masses[:,ivinf] = np.sum(masses[:,ivinf])/len(masses[:,ivinf])
+            sums[ivinf] = np.sum(masses[:,ivinf])
+            sums_ek[ivinf] = np.sum(masses[:,ivinf]) * (vinf[ivinf]**2*PBA.cgs.c**2*PBA.utils.cgs.solar_m)
+        # ek = sums * PBA.cgs.c**2 * vinf *
+        # vinf = 0.5 * (vinf[1:]+vinf[:-1])
+        vinf_ = np.linspace(0.01,1, 102)
+        mom=PBA.MomFromBeta(vinf_)[:-1]
+        # plt.plot(range(len(vinf)),vinf,marker='.')
+        # plt.plot(range(len(vinf_)),vinf_,marker='x')
+        # plt.show()
+        n_shells[sim] = len(vinf)
+        # mom = np.linspace(*mom_lim, len(vinf))
+        coeffs = fit_dict[["x0", "x1", "x2", "y0", "k1", "k2", "k3"]]
+        # for i in [0,1,2]: coeffs[i] = un_log(coeffs[i])
+
+
+        ek = piecewise_power(mom, *coeffs)
+        mass = ek / (PBA.BetaFromMom(mom)*PBA.utils.cgs.c)**2 / PBA.utils.cgs.solar_m
+
+        # mass = piecewise_power(mom, *coeffs) / PBA.cgs.solar_m
+
+        axes[0].plot(PBA.utils.MomFromBeta(vinf[vinf<1.]),sums[vinf<1.],color=sim_dict['color'],ls=sim_dict['ls'],label=sim_dict['label'],lw=2)
+        axes[0].plot(mom,mass,color=sim_dict['color'],ls=sim_dict['ls'],lw=1.)
+
+        # eks =
+
+        axes[1].plot(PBA.utils.MomFromBeta(vinf[vinf<1.]),sums_ek[vinf<1.],color=sim_dict['color'],ls=sim_dict['ls'],label=sim_dict['label'],lw=2)
+        axes[1].plot(mom,ek,color=sim_dict['color'],ls=sim_dict['ls'],lw=1.)
+
+    # for ax in axes:
+    #     ax.set_xscale('log')
+        # ax.set_yscale('log')
+    plt.legend()
+    plt.show()
+    '''
+    tasks = []
+    for sim, sim_dict in df.iterrows():
+        if sim_ and not sim == sim_:
+            continue
+
+        # fit_dict = df_fit.loc[sim]
+        text_dict = df_text.loc[sim]
+
+        # using NR data
+        for force_spherical, mode in zip([False,True],["asym","sph"]):
+            tasks.append(
+                dict(working_dir=os.getcwd()+'/working_dirs/'+f'{sim}_{mode}_{suffix}/',
+                     struct=dict(struct="numeric",
+                                 n_layers_pw=30,
+                                 corr_fpath_kenta=get_ej_data(sim_dict['name']),
+                                 text=float(sim_dict["tmerg"])+float(text_dict["text"]),
+                                 t0=1e3,
+                                 force_spherical=force_spherical
+                                 ),
+                     P=P,
+                     run=run,
+                     label=f"{sim} {mode}"
+                     )
+            )
+
+        # # using fitting function
+        # coeffs = fit_dict[["x0", "x1", "x2", "y0", "k1", "k2", "k3"]]
+        # # mom = np.linspace(*mom_lim, n_shells[sim])
+        # vinf_ = np.linspace(0.01,1, n_shells[sim])
+        # mom=PBA.MomFromBeta(vinf_)[:-1]
+        # ek = piecewise_power(mom, *coeffs)
+        # mass = ek / (PBA.cgs.solar_m * PBA.cgs.c**2 * PBA.BetaFromMom(mom)**2)#piecewise_power(mom, *coeffs) / PBA.cgs.solar_m
+
+        for color,fit_func in zip(colors,fit_funcs):
+            _, _, l_mom, l_ek = np.loadtxt(EJ_TEXT_PATH+sim_dict['name']+f"_log_mom_log_ek_sph_and_fit_{fit_func}.txt",unpack=True)
+            mom,ek=10**l_mom,10**l_ek
+            mass = ek / (PBA.cgs.solar_m * PBA.cgs.c**2 * PBA.BetaFromMom(mom)**2)#piecewise_power(mom, *coeffs) / PBA.cgs.solar_m
+            tasks.append(
+                dict(
+                    working_dir=os.getcwd()+'/working_dirs/'+f'{sim}_{fit_func}_{suffix}/',
+                    struct=dict(struct="numeric",
+                                dist='pw',
+                                n_layers_pw=30,
+                                hist_1d_data=dict(mom=mom, ek=ek, mass=mass),
+                                t0=1e3,
+                                ),
+                    P=P,
+                    run=run_fit,
+                    label=f"{sim} {fit_func}"
+                )
+            )
+
+    # run all simulations asynch
+    if run or run_fit:
+        # equal load run
+        nmax = 14
+        if len(tasks) > nmax:
+            nn = int(len(tasks) / nmax) + 1
+            ncpu = len(tasks) // nn
+        else:
+            ncpu = len(tasks)
+        with Pool(ncpu) as pool:
+            result = pool.map(runs, tasks)
+
+    # plot the result
+    fig, axes = plt.subplots(ncols=len(df),nrows=2,figsize=(12.,4),layout='constrained',sharex='col',sharey='row',#,sharey='row',
+                             gridspec_kw={'height_ratios': [2,1]})
+
+    # pba_dict = dict()
+    # for sim, sim_dict in df.iterrows():
+    #     pba_dict[sim] = [task for task in tasks if task['label'].__contains__(sim)]
+
+    fit_perform = dict()
+    for color,fit_func in zip(colors,fit_funcs): fit_perform[fit_func] = dict()
+
+    for i_s, (sim, sim_dict) in enumerate(df.iterrows()):
+        if sim_ and sim != sim_:
+            continue
+
+        task_asym = [task for task in tasks if task["label"]==f"{sim} {'asym'}"][0]
+        pba_asym = PBA.wrappers.run_kn(working_dir=task_asym["working_dir"],struct=task_asym["struct"],P=task_asym["P"],run=False)
+
+        task_sph = [task for task in tasks if task["label"].__contains__(f"{sim} {'sph'}")][0]
+        pba_sph = PBA.wrappers.run_kn(working_dir=task_sph["working_dir"],struct=task_sph["struct"],P=task_sph["P"],run=False)
+
+
+        # axes[0][i_s].plot(pba_asym.KN.get_lc_times() / PBA.utils.cgs.day,   pba_asym.KN.get_lc(freq=3.e9) * 1e3 ,
+        #              color=sim_dict["color"],ls=sim_dict['ls'], lw=1.2, label=sim_dict['label'])
+        axes[0][i_s].plot(pba_sph.KN.get_lc_times() / PBA.utils.cgs.day,    pba_sph.KN.get_lc(freq=3.e9) * 1e3 ,
+                     color='black',ls='-', lw=1.)
+
+        for color,fit_func in zip(colors,fit_funcs):
+
+            task_fit = [task for task in tasks if task["label"].__contains__(f"{sim} {fit_func}")][0]
+            pba_fit = PBA.wrappers.run_kn(working_dir=task_fit["working_dir"],struct=task_fit["struct"],P=task_fit["P"],run=False)
+
+            axes[0][i_s].plot(pba_fit.KN.get_lc_times() / PBA.utils.cgs.day,    pba_fit.KN.get_lc(freq=3.e9) * 1e3 ,
+                         color=color, ls='-', lw=1.)
+        # print(pba_asym.KN.get_lc(freq=3.e9) * 1e3 )
+        # axes[0][i_s].fill_between(pba_asym.KN.get_lc_times() / PBA.utils.cgs.day,
+        #                      pba_asym.KN.get_lc(freq=3.e9) * 1e3 ,
+        #                      pba_sph.KN.get_lc(freq=3.e9) * 1e3,
+        #                      color=sim_dict["color"],ls=sim_dict['ls'], alpha=0.5)
+
+            axes[1][i_s].plot(pba_sph.KN.get_lc_times() / PBA.utils.cgs.day,
+                         (np.log10(pba_sph.KN.get_lc(freq=3.e9)) - np.log10(pba_fit.KN.get_lc(freq=3.e9))),
+                         color=color,ls='-', lw=1.)
+
+            fit_perform[fit_func][sim] = dict(
+            # Calculate R-squared
+            r_squared = r2_score(np.log10(pba_sph.KN.get_lc(freq=3.e9)),
+                                 np.log10(pba_fit.KN.get_lc(freq=3.e9))),
+            # Calculate MSE and RMSE
+            mse = mean_squared_error(np.log10(pba_sph.KN.get_lc(freq=3.e9)),
+                                     np.log10(pba_fit.KN.get_lc(freq=3.e9))),
+            rmse = np.sqrt(mean_squared_error(np.log10(pba_sph.KN.get_lc(freq=3.e9)),
+                                              np.log10(pba_fit.KN.get_lc(freq=3.e9)))),
+            # Calculate MAE
+            mae = mean_absolute_error(np.log10(pba_sph.KN.get_lc(freq=3.e9)),
+                                      np.log10(pba_fit.KN.get_lc(freq=3.e9))),
+            # sum of squared residuals
+            sse = np.sum((np.log10(pba_sph.KN.get_lc(freq=3.e9))-np.log10(pba_fit.KN.get_lc(freq=3.e9)))**2)
+        )
+
+    for color,fit_func in zip(colors,fit_funcs):
+        df_fit_perform = pd.DataFrame.from_dict(fit_perform[fit_func]).T
+        df_fit_perform.to_csv(os.getcwd()+'/output'+f'/nr_{fit_func}_lcs_{suffix}.csv',index=True)
+        print(df_fit_perform)
+
+
+    for ax in axes[0]:
+        ax.set_yscale("log")
+    for ax, (sim,sim_dict) in zip(axes[0],df.iterrows()):
+        ax.set_title(sim_dict['label'],fontsize=12)
+    for ax in axes:
+        for ax in ax:
+            ax.set_xscale("log")
+            # ax.set_yscale("log")
+            ax.minorticks_on()
+            ax.tick_params(labelsize=12,axis='both', which='both',direction='in',tick1On=True, tick2On=True)
+            ax.minorticks_on()
+
+    ax = axes[0][0]
+    ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-', label='Simulation',lw=1)#, lw=0.7, drawstyle='steps')
+    for color,fit_func in zip(colors,fit_funcs):
+        ax.plot([1e-4,1e-2], [1e39,1e41], color=color, ls='-',label=fit_func,lw=1)#, lw=0.7, drawstyle='steps')
+
+    ax.legend(**dict(fancybox=False,loc= 'lower center',columnspacing=0.4,
+                     #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                     shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False))
+
+    # n = 2
+    # ax = axes[0]
+    # ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-', label='Simulation',lw=1.2)#, lw=0.7, drawstyle='steps')
+    # ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-',label='Fit',lw=0.6)#, lw=0.7, drawstyle='steps')
+    # han, lab = ax.get_legend_handles_labels()
+    # ax.add_artist(ax.legend(han[:-1 * n], lab[:-1 * n],
+    #                         **dict(fancybox=False,loc= 'lower center',columnspacing=0.4,
+    #                                #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+    #                                shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)))
+    # ax.add_artist(ax.legend(han[len(han) - n:], lab[len(lab) - n:],
+    #                         **dict(fancybox=False,loc= 'upper left',columnspacing=0.4,
+    #                                #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+    #                                shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)))
+
+    if xlim:
+        for ax in axes[-1]:
+            ax.set_xlim(*xlim)
+    if ylim0:
+        for ax in axes[0]:
+            ax.set_ylim(*ylim0)
+    if ylim1:
+        for ax in axes[1]:
+            ax.set_ylim(*ylim1)
+
+    axes[0][0].set_ylabel(r"$F_{\nu}$ [$\mu$Jy]",fontsize=12)
+    # axes[-1][0].set_ylabel(r"$\log_{10}(F_{\nu\,;\rm sph}) - \log_{10}(F_{\nu\,;\rm fit})$",fontsize=12)
+    axes[-1][0].set_ylabel(r"$\Delta\log_{10}(F_{\nu})$",fontsize=12)
+    for ax in axes[-1]:
+        ax.axhline(y=0,color='gray',linestyle='-')
+        ax.grid(color='gray',linestyle='-',lw=.6)
+    for ax in axes[-1]:
+        ax.set_xlabel(r"$t_{\rm obs}$ [day]",fontsize=12)
+
+    figname = os.getcwd()+f'/figs/{figname}_{suffix}_{"all_fits"}'
+    plt.savefig(figname+'.png',dpi=256)
+    plt.savefig(figname+'.pdf')
+    plt.show()
+
+    plt.show()
+
 def compare_nr_and_fit_angles(run:bool,run_fit:bool,
                               sim_:str or None,xlim:tuple or None,ylim0:tuple or None,ylim1:tuple or None,
                               figname:str, P:dict,fit_func:str,suffix:str,
@@ -354,7 +616,7 @@ def compare_nr_and_fit_angles(run:bool,run_fit:bool,
             tasks.append(
                 dict(working_dir=os.getcwd()+'/working_dirs/'+f'{sim}_{"asym"}_{str(int(angle))}_{suffix}/',
                      struct=dict(struct="numeric",
-                                 n_layers_pw=9,
+                                 n_layers_pw=None,
                                  corr_fpath_kenta=get_ej_data(sim_dict['name']),
                                  text=float(sim_dict["tmerg"])+float(text_dict["text"]),
                                  t0=1e3,
@@ -366,22 +628,22 @@ def compare_nr_and_fit_angles(run:bool,run_fit:bool,
                      )
             )
             # --- NR spherical
-            P_ = copy.deepcopy(P)
-            P_["main"]["theta_obs"] = angle * np.pi / 180
-            tasks.append(
-                dict(working_dir=os.getcwd()+'/working_dirs/'+f'{sim}_{"sph"}_{str(int(angle))}_{suffix}/',
-                     struct=dict(struct="numeric",
-                                 n_layers_pw=9,
-                                 corr_fpath_kenta=get_ej_data(sim_dict['name']),
-                                 text=float(sim_dict["tmerg"])+float(text_dict["text"]),
-                                 t0=1e3,
-                                 force_spherical=True
-                                 ),
-                     P=P_,
-                     run=run,
-                     label=f"{sim} {'sph'} {int(angle)}"
-                     )
-            )
+            # P_ = copy.deepcopy(P)
+            # P_["main"]["theta_obs"] = angle * np.pi / 180
+            # tasks.append(
+            #     dict(working_dir=os.getcwd()+'/working_dirs/'+f'{sim}_{"sph"}_{str(int(angle))}_{suffix}/',
+            #          struct=dict(struct="numeric",
+            #                      n_layers_pw=9,
+            #                      corr_fpath_kenta=get_ej_data(sim_dict['name']),
+            #                      text=float(sim_dict["tmerg"])+float(text_dict["text"]),
+            #                      t0=1e3,
+            #                      force_spherical=True
+            #                      ),
+            #          P=P_,
+            #          run=run,
+            #          label=f"{sim} {'sph'} {int(angle)}"
+            #          )
+            # )
             # ---- fitting function data
             # with h5py.File(EJ_TEXT_PATH+f'{sim}_log_mom_log_ek_asym_and_fit_{fit_func}.h5','r') as f:
             #     mom = np.array(f["mom"])
@@ -435,8 +697,8 @@ def compare_nr_and_fit_angles(run:bool,run_fit:bool,
         for i_a, (ls, angle) in enumerate(zip(lss, angles)):
 
 
-            task_sph = [task for task in tasks if task["label"].__contains__(f"{sim} {'sph'} {int(angle)}")][0]
-            pba_sph = PBA.wrappers.run_kn(working_dir=task_sph["working_dir"],struct=task_sph["struct"],P=task_sph["P"],run=False)
+            # task_sph = [task for task in tasks if task["label"].__contains__(f"{sim} {'sph'} {int(angle)}")][0]
+            # pba_sph = PBA.wrappers.run_kn(working_dir=task_sph["working_dir"],struct=task_sph["struct"],P=task_sph["P"],run=False)
             # for t in tasks:
             #     print(t['label'])
             task_fit = [task for task in tasks if task["label"].__contains__(f"{sim} {'fit'} {int(angle)}")][0]
@@ -447,8 +709,8 @@ def compare_nr_and_fit_angles(run:bool,run_fit:bool,
 
             axes[i_a][i_s].plot(pba_asym.KN.get_lc_times() / PBA.utils.cgs.day,   pba_asym.KN.get_lc(freq=3.e9) * 1e3 ,
                          color='black',ls='-', lw=1., label=sim_dict['label'])
-            axes[i_a][i_s].plot(pba_sph.KN.get_lc_times() / PBA.utils.cgs.day,    pba_sph.KN.get_lc(freq=3.e9) * 1e3 ,
-                         color='gray',ls='-', lw=1.)
+            # axes[i_a][i_s].plot(pba_sph.KN.get_lc_times() / PBA.utils.cgs.day,    pba_sph.KN.get_lc(freq=3.e9) * 1e3 ,
+            #              color='gray',ls='-', lw=1.)
             axes[i_a][i_s].plot(pba_fit.KN.get_lc_times() / PBA.utils.cgs.day,    pba_fit.KN.get_lc(freq=3.e9) * 1e3 ,
                          color='red', ls='-', lw=1.)
             # print(pba_asym.KN.get_lc(freq=3.e9) * 1e3 )
@@ -559,6 +821,289 @@ def compare_nr_and_fit_angles(run:bool,run_fit:bool,
     #     ax.set_xlabel(r"$t_{\rm obs}$ [day]",fontsize=12)
 
     figname = os.getcwd()+f'/figs/{figname}_{suffix}_{fit_func}'
+    plt.savefig(figname+'.png',dpi=256)
+    plt.savefig(figname+'.pdf')
+    plt.show()
+
+    plt.show()
+def compare_nr_and_fit_angles_fits(run:bool,run_fit:bool,
+                              sim_:str or None,xlim:tuple or None,ylim0:tuple or None,ylim1:tuple or None,
+                              figname:str, P:dict,fit_funcs:tuple,suffix:str,
+                              angles:tuple):
+    colors = ('green','red')
+    lss=['-','--',':']
+    # do_cumulative = True
+    log_type = 10
+    log_type_y = 10
+
+    # get_cumulative = lambda val : np.cumsum(val[::-1])[::-1] if do_cumulative else val
+    do_log = lambda val : (val if not log_type else (np.log2(val) if log_type==2 else np.log10(val)))
+    un_log = lambda val : (val if not log_type else (2**(val) if log_type==2 else 10**(val)))
+
+    do_log_y = lambda val : (val if not log_type_y else (np.log2(val) if log_type_y==2 else np.log10(val)))
+    un_log_y = lambda val : (val if not log_type_y else (2**(val) if log_type_y==2 else 10**(val)))
+
+    df_fits = dict()
+    for (fit_func,color) in zip(fit_funcs,colors):
+        df_fits[fit_func] = pd.read_csv(EJ_TEXT_PATH+f"piecewise_line_{fit_func}.csv",index_col=0)
+
+    tasks = []
+    for sim, sim_dict in df.iterrows():
+        if sim_ and not sim == sim_:
+            continue
+
+        # fit_dict = df_fit.loc[sim]
+        text_dict = df_text.loc[sim]
+
+        for ls, angle in zip(lss, angles):
+            # ---- fitting function data
+            for (fit_func,color) in zip(fit_funcs,colors):
+                with h5py.File(EJ_TEXT_PATH+f'{sim}_log_mom_log_ek_asym_and_fit_{fit_func}.h5','r') as f:
+                    mom = np.array(f["mom"])
+                    ctheta = np.array(f["ctheta"])
+                    ek = np.array(f["ek_ufit"])
+                    mass = ek / (PBA.cgs.solar_m * PBA.cgs.c**2 * PBA.BetaFromMom(mom)**2)
+                tasks.append(
+                    dict(
+                        working_dir=os.getcwd()+'/working_dirs/'+f'{sim}_{fit_func}_{str(int(angle))}_{suffix}/',
+                        struct=dict(struct="numeric",
+                                    dist='pw',
+                                    # n_layers_pw=9,
+                                    corr_2d_data=dict(mom=mom, ek=ek, mass=mass, theta=ctheta),
+                                    t0=1e3,
+                                    ),
+                        P=P,
+                        run=run_fit,
+                        label=f"{sim} {fit_func} {int(angle)}"
+                    )
+                )
+            # --- NR asym data
+            P_ = copy.deepcopy(P)
+            P_["main"]["theta_obs"] = angle * np.pi / 180
+            tasks.append(
+                dict(working_dir=os.getcwd()+'/working_dirs/'+f'{sim}_{"asym"}_{str(int(angle))}_{suffix}/',
+                     struct=dict(struct="numeric",
+                                 n_layers_pw=None,
+                                 corr_fpath_kenta=get_ej_data(sim_dict['name']),
+                                 text=float(sim_dict["tmerg"])+float(text_dict["text"]),
+                                 t0=1e3,
+                                 force_spherical=False
+                                 ),
+                     P=P_,
+                     run=run,
+                     label=f"{sim} {'nr'} {int(angle)}"
+                     )
+            )
+            # --- NR spherical
+            # P_ = copy.deepcopy(P)
+            # P_["main"]["theta_obs"] = angle * np.pi / 180
+            # tasks.append(
+            #     dict(working_dir=os.getcwd()+'/working_dirs/'+f'{sim}_{"sph"}_{str(int(angle))}_{suffix}/',
+            #          struct=dict(struct="numeric",
+            #                      n_layers_pw=9,
+            #                      corr_fpath_kenta=get_ej_data(sim_dict['name']),
+            #                      text=float(sim_dict["tmerg"])+float(text_dict["text"]),
+            #                      t0=1e3,
+            #                      force_spherical=True
+            #                      ),
+            #          P=P_,
+            #          run=run,
+            #          label=f"{sim} {'sph'} {int(angle)}"
+            #          )
+            # )
+            # ---- fitting function data
+            # with h5py.File(EJ_TEXT_PATH+f'{sim}_log_mom_log_ek_asym_and_fit_{fit_func}.h5','r') as f:
+            #     mom = np.array(f["mom"])
+            #     ctheta = np.array(f["ctheta"])
+            #     ek = np.array(f["ek_ufit"])
+            #     mass = ek / (PBA.cgs.solar_m * PBA.cgs.c**2 * PBA.BetaFromMom(mom)**2)
+            # tasks.append(
+            #     dict(
+            #         working_dir=os.getcwd()+'/working_dirs/'+f'{sim}_{fit_func}_{str(int(angle))}_{suffix}/',
+            #         struct=dict(struct="numeric",
+            #                     dist='pw',
+            #                     n_layers_pw=30,
+            #                     corr_2d_data=dict(mom=mom, ek=ek, mass=mass, theta=ctheta),
+            #                     t0=1e3,
+            #                     ),
+            #         P=P,
+            #         run=run_fit,
+            #         label=f"{sim} {'fit'} {int(angle)}"
+            #     )
+            # )
+
+    # run all simulations asynch
+    if run or run_fit:
+        # equal load run
+        nmax = 14
+        if len(tasks) > nmax:
+            nn = int(len(tasks) / nmax) + 1
+            ncpu = len(tasks) // nn
+        else:
+            ncpu = len(tasks)
+        with Pool(ncpu) as pool:
+            result = pool.map(runs, tasks)
+
+    # exit(0)
+
+    # plot the result
+    fig, axes = plt.subplots(ncols=len(df),nrows=len(angles)+1,figsize=(14.,8.),layout='constrained',
+                             sharex='col',sharey='row',#sharey='row',
+                             gridspec_kw={'height_ratios': list([1]*len(df)).append(0.5)}
+                             ) # [row,col]
+
+    # pba_dict = dict()
+    # for sim, sim_dict in df.iterrows():
+    #     pba_dict[sim] = [task for task in tasks if task['label'].__contains__(sim)]
+
+    fit_perform = {}
+    for i_s, (sim, sim_dict) in enumerate(df.iterrows()):
+        if sim_ and sim != sim_:
+            continue
+
+        for i_a, (ls, angle) in enumerate(zip(lss, angles)):
+
+
+            # task_sph = [task for task in tasks if task["label"].__contains__(f"{sim} {'sph'} {int(angle)}")][0]
+            # pba_sph = PBA.wrappers.run_kn(working_dir=task_sph["working_dir"],struct=task_sph["struct"],P=task_sph["P"],run=False)
+            # for t in tasks:
+            #     print(t['label'])
+
+            task_asym = [task for task in tasks if task["label"].__contains__(f"{sim} {'nr'} {int(angle)}")][0]
+            pba_asym = PBA.wrappers.run_kn(working_dir=task_asym["working_dir"],struct=task_asym["struct"],P=task_asym["P"],run=False)
+
+            axes[i_a][i_s].plot(pba_asym.KN.get_lc_times() / PBA.utils.cgs.day,   pba_asym.KN.get_lc(freq=3.e9) * 1e3 ,
+                                color='black',ls='-', lw=1.)
+            # axes[i_a][i_s].plot(pba_sph.KN.get_lc_times() / PBA.utils.cgs.day,    pba_sph.KN.get_lc(freq=3.e9) * 1e3 ,
+            #              color='gray',ls='-', lw=1.)
+
+            for (fit_func,color) in zip(fit_funcs,colors):
+                task_fit = [task for task in tasks if task["label"].__contains__(f"{sim} {fit_func} {int(angle)}")][0]
+                pba_fit = PBA.wrappers.run_kn(working_dir=task_fit["working_dir"],struct=task_fit["struct"],P=task_fit["P"],run=False)
+
+
+                axes[i_a][i_s].plot(pba_fit.KN.get_lc_times() / PBA.utils.cgs.day,    pba_fit.KN.get_lc(freq=3.e9) * 1e3 ,
+                                    color=color, ls='-', lw=1.)
+
+            # print(pba_asym.KN.get_lc(freq=3.e9) * 1e3 )
+            # axes[0][i_a].fill_between(pba_asym.KN.get_lc_times() / PBA.utils.cgs.day,
+            #                      pba_asym.KN.get_lc(freq=3.e9) * 1e3 ,
+            #                      pba_sph.KN.get_lc(freq=3.e9) * 1e3,
+            #                      color=sim_dict["color"],ls=sim_dict['ls'], alpha=0.5)
+
+                axes[-1][i_s].plot(pba_asym.KN.get_lc_times() / PBA.utils.cgs.day,
+                                   (np.log10(pba_asym.KN.get_lc(freq=3.e9)) - np.log10(pba_fit.KN.get_lc(freq=3.e9))),
+                                   color=color,ls=ls, lw=1.)
+            # axes[1][i_a].fill_between(pba_asym.KN.get_lc_times() / PBA.utils.cgs.day,
+            #                      pba_asym.KN.get_lc(freq=3.e9) * 1e3 ,
+            #                      pba_sph.KN.get_lc(freq=3.e9) * 1e3,
+            #                      color=sim_dict["color"],ls=sim_dict['ls'], alpha=0.5)
+
+            # fit_perform[f"{sim} {int(angle)}"] = dict(
+            #     # Calculate R-squared
+            #     r_squared = r2_score(np.log10(pba_asym.KN.get_lc(freq=3.e9)),
+            #                          np.log10(pba_fit.KN.get_lc(freq=3.e9))),
+            #     # Calculate MSE and RMSE
+            #     mse = mean_squared_error(np.log10(pba_asym.KN.get_lc(freq=3.e9)),
+            #                              np.log10(pba_fit.KN.get_lc(freq=3.e9))),
+            #     rmse = np.sqrt(mean_squared_error(np.log10(pba_asym.KN.get_lc(freq=3.e9)),
+            #                                       np.log10(pba_fit.KN.get_lc(freq=3.e9)))),
+            #     # Calculate MAE
+            #     mae = mean_absolute_error(np.log10(pba_asym.KN.get_lc(freq=3.e9)),
+            #                               np.log10(pba_fit.KN.get_lc(freq=3.e9))),
+            #     # sum of squared residuals
+            #     sse = np.sum((np.log10(pba_asym.KN.get_lc(freq=3.e9))-np.log10(pba_fit.KN.get_lc(freq=3.e9)))**2)
+            # )
+
+    # df_fit_perform = pd.DataFrame.from_dict(fit_perform).T
+    # df_fit_perform.to_csv(os.getcwd()+'/output'+f'/nr_{fit_func}_lcs_{suffix}.csv',index=True)
+    # print(df_fit_perform)
+
+    for i_s, (sim, sim_dict) in enumerate(df.iterrows()):
+        for i_a, angle in enumerate(angles):
+            ax = axes[i_a][i_s]
+            ax.set_yscale("log")
+            ax.set_xscale("log")
+            ax.minorticks_on()
+            ax.tick_params(labelsize=12,axis='both', which='both',direction='in',tick1On=True, tick2On=True)
+            ax.set_xlim(*xlim)
+            ax.set_ylim(*ylim0)
+    for i_a, angle in enumerate(angles):
+        axes[i_a][0].set_ylabel(r"$F_{\nu}$ [$\mu$Jy]",fontsize=12)
+        axes[i_a][0].text(0.8, 0.5, r"$\theta_{\rm obs}=$" f"{angle}" + " deg.", fontsize=12,
+                          bbox=dict(boxstyle='round', fc='blanchedalmond', ec='orange', alpha=1.),
+                          transform=axes[i_a][0].transAxes, horizontalalignment='right')
+    for i_s, (sim, sim_dict) in enumerate(df.iterrows()):
+        axes[0][i_s].set_title(sim_dict['label'],fontsize=12)
+        axes[-1][i_s].set_xlabel(r"$t_{\rm obs}$ [day]",fontsize=12)
+        axes[-1][i_s].set_ylim(*ylim1)
+        axes[-1][i_s].tick_params(labelsize=12,axis='both', which='both',direction='in',tick1On=True, tick2On=True)
+        axes[-1][i_s].set_xlim(*xlim)
+        axes[-1][i_s].grid(color='gray',linestyle=':')
+        for i_a, (ls, angle) in enumerate(zip(lss, angles)):
+            axes[-1][i_s].plot([1e-4,1e-2], [1e39,1e41], color='black', ls=ls,
+                               label=r"$\theta_{\rm obs}=$"+f"{int(angle)} deg.",lw=1.)#, lw=0.7, drawstyle='steps')
+    axes[-1][0].legend(**dict(fancybox=False,loc= 'upper center',columnspacing=0.4,
+                              #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                              shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)
+                       )
+    axes[-1][0].set_ylabel(r"$\Delta\log_{10}(F_{\nu})$",fontsize= 12)
+
+    axes[0][0].plot([1e-4,1e-2], [1e39,1e41], color='black', ls='-',label="Simulation",lw=1.)
+    for (fit_func,color) in zip(fit_funcs,colors):
+        axes[0][0].plot([1e-4,1e-2], [1e39,1e41], color=color, ls='-',label=fit_func,lw=1.)
+    axes[0][0].legend(**dict(fancybox=False,loc= 'lower right',columnspacing=0.4,
+                              #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                              shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)
+                       )
+
+    # for ax in axes[:-1]:
+    #     for ax in ax:
+    #         ax.set_yscale("log")
+    # for ax in axes:
+    #     for ax in ax:
+    #         ax.set_xscale("log")
+    #         # ax.set_yscale("log")
+    #         ax.minorticks_on()
+    #         ax.tick_params(labelsize=12,axis='both', which='both',direction='in',tick1On=True, tick2On=True)
+    #         ax.minorticks_on()
+
+    n = 3
+    # ax = axes[0,0]
+    # ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-', label='2D',lw=2.)#, lw=0.7, drawstyle='steps')
+    # ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-', label='1D',lw=1.2)#, lw=0.7, drawstyle='steps')
+    # ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-', label='Fit',lw=0.6)#, lw=0.7, drawstyle='steps')
+    # han, lab = ax.get_legend_handles_labels()
+    # ax.add_artist(ax.legend(han[:-1 * n], lab[:-1 * n],
+    #                         **dict(fancybox=False,loc= 'lower center',columnspacing=0.4,
+    #                                #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+    #                                shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)))
+    # ax.add_artist(ax.legend(han[len(han) - n:], lab[len(lab) - n:],
+    #                         **dict(fancybox=False,loc= 'upper left',columnspacing=0.4,
+    #                                #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+    #                                shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)))
+
+    # if xlim:
+    #     for ax in axes:
+    #         for ax in ax:
+    #             ax.set_xlim(*xlim)
+    # if ylim0:
+    #     for ax in axes[0]:
+    #         ax.set_ylim(*ylim0)
+    # if ylim1:
+    #     for ax in axes[1]:
+    #         ax.set_ylim(*ylim1)
+    # axes[0][0].set_ylabel(r"$F_{\nu}$ [$\mu$Jy]",fontsize=12)
+    # axes[-1][0].set_ylabel(r"$\log_{10}(F_{\nu\,;\rm sph}) - \log_{10}(F_{\nu\,;\rm fit})$",fontsize=12)
+    # for ax in axes[-1]:
+    #
+    #     ax.axhline(y=0,color='gray',linestyle='-')
+    #     ax.grid(color='gray',linestyle=':')
+    #
+    # for ax in axes[-1]:
+    #     ax.set_xlabel(r"$t_{\rm obs}$ [day]",fontsize=12)
+
+    figname = os.getcwd()+f'/figs/{figname}_{suffix}_{"all_fits"}'
     plt.savefig(figname+'.png',dpi=256)
     plt.savefig(figname+'.pdf')
     plt.show()
@@ -1026,10 +1571,15 @@ if __name__ == '__main__':
     #                    fit_func = "3segFit",figname='radio_lcs_nr_fit',suffix="joh06")
     # compare_nr_and_fit(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,1e4),ylim0=(7e-1,1e3),ylim1=(-0.2,0.2),
     #                    fit_func = "4segFit",figname='radio_lcs_nr_fit',suffix="joh06")
+    # compare_nr_and_fit_rows(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,8e3),ylim0=(3e0,1e3),ylim1=(-0.2,0.2),
+    #                         fit_funcs = ("3segFit","4segFit"),figname='radio_lcs_nr_fit_rows',suffix="joh06")
+
     # compare_nr_and_fit_angles(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,7e3),ylim0=(7e-1,2e3),ylim1=(-0.5,0.5),
     #                           fit_func = "3segFit",figname='radio_lcs_asym_nr_fit',suffix="joh06",angles=(5,45,85))
-    compare_nr_and_fit_angles(P=P,run=True,run_fit=True,sim_=None,xlim=(1e0,7e3),ylim0=(7e-1,2e3),ylim1=(-0.5,0.5),
-                              fit_func = "4segFit",figname='radio_lcs_asym_nr_fit',suffix="joh06",angles=(5,45,85))
+    # compare_nr_and_fit_angles(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,7e3),ylim0=(7e-1,2e3),ylim1=(-0.5,0.5),
+    #                           fit_func = "4segFit",figname='radio_lcs_asym_nr_fit',suffix="joh06",angles=(5,45,85))
+    # compare_nr_and_fit_angles_fits(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,7e3),ylim0=(7e-1,2e3),ylim1=(-0.5,0.5),
+    #                           fit_funcs = ("3segFit","4segFit"),figname='radio_lcs_asym_nr_fit',suffix="joh06",angles=(5,45,85))
 
     P = dict(main=dict(n_ism=0.1,d_l=100e6 * PBA.utils.cgs.pc, z=0.001, tb0 = 1e4, tb1 = 1e14,
                        theta_obs=np.pi/4.,integrator="DOP853",
@@ -1047,6 +1597,10 @@ if __name__ == '__main__':
     #                    fit_func = "3segFit",figname='radio_lcs_nr_fit',suffix="marg21")
     # compare_nr_and_fit(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,1e4),ylim0=(7e-1,1e3),ylim1=(-0.3,0.3),
     #                    fit_func = "4segFit",figname='radio_lcs_nr_fit',suffix="marg21")
+    # compare_nr_and_fit_rows(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,8e3),ylim0=(3e0,1e3),ylim1=(-0.3,0.3),
+    #                         fit_funcs = ("3segFit","4segFit"),figname='radio_lcs_nr_fit_rows',suffix="marg21")
+    compare_nr_and_fit_angles_fits(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,7e3),ylim0=(7e-1,2e3),ylim1=(-0.5,0.5),
+                                   fit_funcs = ("3segFit","4segFit"),figname='radio_lcs_asym_nr_fit',suffix="marg21",angles=(5,45,85))
 
     # load_tables_print_table()
 

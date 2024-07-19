@@ -434,7 +434,7 @@ def fit_data(x, y, undo_x, undo_y, name:str, fitting_obj, save_res:bool=True):
 
 
 def plot_all_sim_ejecta_mass(o_fit, xlim=(1e-3, 4),ylim0=(1e43, 1e51),ylim1=(1e43, 1e51),ylim2=(-.5,.5),
-                             figname="figname", sim: str or None=None, plot_fit_coeffs:bool=True):
+                             figname="figname",figname_coeffs="figname", sim: str or None=None, plot_fit_coeffs:bool=True):
 
     do_cumulative = True
     log_type = 10
@@ -599,9 +599,9 @@ def plot_all_sim_ejecta_mass(o_fit, xlim=(1e-3, 4),ylim0=(1e43, 1e51),ylim1=(1e4
     axes[-1].set_ylabel(r"$\log_{10}(E_{\rm k;\,sph})-\log_{10}(E_{\rm k;\,fit})$",fontsize=12)
 
     plt.tight_layout()
-    figname = os.getcwd()+f'/figs/{figname}_{o_fit.name}'
-    plt.savefig(figname+'.png',dpi=256)
-    plt.savefig(figname+'.pdf')
+    figname_ = os.getcwd()+f'/figs/{figname}_{o_fit.name}'
+    plt.savefig(figname_+'.png',dpi=256)
+    plt.savefig(figname_+'.pdf')
     plt.show()
 
 
@@ -613,10 +613,13 @@ def plot_all_sim_ejecta_mass(o_fit, xlim=(1e-3, 4),ylim0=(1e43, 1e51),ylim1=(1e4
                 # axes[i].axhline(y=df_i.iloc[0][key],color=sim_dict['color'],linestyle=sim_dict['ls'],linewidth=0.6)
 
                 # df_i = result_9seg[name]
-                if key == 'y0': val = np.log10(infos.loc[name][key])
-                else: val = infos.loc[name][key]
-                axes[i].plot([sim_dict["label"]], val,
-                             marker=sim_dict['marker'],color=sim_dict['color'],fillstyle='none')
+                if key == 'y0':
+                    val = np.log10(infos.loc[name][key])
+                    # lbl = r"$\log_{10}($"+sim_dict["label"]+"$)$"
+                else:
+                    val = infos.loc[name][key]
+                    # lbl = sim_dict["label"]
+                axes[i].plot([sim_dict["label"]], val, marker=sim_dict['marker'],color=sim_dict['color'],fillstyle='none')
 
         # # plot fit to y0 coefficient (get average coefficients for each angular segment (assume that average is good))
         # for (name, sim_dict) in df.iterrows():
@@ -633,6 +636,9 @@ def plot_all_sim_ejecta_mass(o_fit, xlim=(1e-3, 4),ylim0=(1e43, 1e51),ylim1=(1e4
 
         # for ax in axes:
         # axes[o_fit.keys.index('y0')].set_yscale("log")
+        # axes[o_fit.keys.index('y0')].set_ylabel("log")
+        axes[o_fit.keys.index('y0')].set_title(r"$\log_{10}($"+o_fit.labels[o_fit.keys.index('y0')]+"$)$",fontsize=12)
+
         for ax in axes:
             # for ax in ax:
             # ax.set_xlim(.1,90.1)
@@ -643,7 +649,253 @@ def plot_all_sim_ejecta_mass(o_fit, xlim=(1e-3, 4),ylim0=(1e43, 1e51),ylim1=(1e4
             # ax.set_xlabel("Polar angle [deg]",fontsize=12)
             for tick in ax.get_xticklabels():
                 tick.set_rotation(75)
+
+        figname_ = os.getcwd()+f'/figs/{figname_coeffs}_{o_fit.name}'
+        plt.savefig(figname_+'.png',dpi=256)
+        plt.savefig(figname_+'.pdf')
+
         plt.show()
+
+def plot_all_sim_ejecta_mass_row(xlim=(1e-3, 4),ylim0=(1e43, 1e51),ylim1=(1e43, 1e51),ylim2=(-.5,.5),
+                                 figname="figname",figname_coeffs="figname", sim: str or None=None, plot_fit_coeffs:bool=True):
+    o_fits = [Fit1D_3seg(),Fit1D_4seg()]
+    do_cumulative = True
+    log_type = 10
+    log_type_y = 10
+
+    get_cumulative = lambda val : np.cumsum(val[::-1])[::-1] if do_cumulative else val
+    do_log = lambda val : (val if not log_type else (np.log2(val) if log_type==2 else np.log10(val)))
+    un_log = lambda val : (val if not log_type else (2**(val) if log_type==2 else 10**(val)))
+
+    do_log_y = lambda val : (val if not log_type_y else (np.log2(val) if log_type_y==2 else np.log10(val)))
+    un_log_y = lambda val : (val if not log_type_y else (2**(val) if log_type_y==2 else 10**(val)))
+
+    fig, axes = plt.subplots(ncols=len(df),nrows=3,figsize=(12.,5.),
+                             layout='constrained',sharex='col',sharey='row',#sharey='row',
+                             gridspec_kw={'height_ratios': [2,2,1]})
+
+    # df_fit = pd.read_csv(os.getcwd()+'/'+'piecewise_line_fits.csv',index_col=0)
+
+    infos_fits = dict()
+    for o_fit, color in zip(o_fits,['green','red']):
+        infos_fits[o_fit.name] = dict()
+    idx = 0
+
+    # x1, x2, y1, y2 = -1.5, -0.9, -2.5, -1.9  # subregion of the original image
+    # axins = axes[1].inset_axes(
+    #     [0.05, 0.1, 0.5, 0.5],
+    #     xlim=(x1, x2), ylim=(y1, y2), xticklabels=[], yticklabels=[])
+
+    # sub region of the original image
+    # x1, x2, y1, y2 = 8e-2, 5e-1, 2e48, 4e49
+    # axins.set_xlim(x1, x2)
+    # axins.set_ylim(y1, y2)
+    # axins.set_xscale('log')
+    # axins.set_yscale('log')
+    # axins.grid(ls=':')
+    # axins.set_xticklabels([])
+    # axins.set_yticklabels([])
+    # axins.set_xlabel('')
+    # axins.xaxis.set_visible(False)
+    # axins.set_xticks([])
+    # axins.minorticks_on()
+    # axins.tick_params(axis='both', which='both', labelleft=False,
+    #                   labelright=True, tick1On=True, tick2On=True,
+    #                   labelsize=12,
+    #                   direction='in',
+    #                   bottom=True, top=True, left=True, right=True)
+    # axes[1].indicate_inset_zoom(axins, edgecolor="black")
+
+    # for idx, sim_dic in enumerate(df.iterrows()):
+    # for (sim_dic,fit_dic) in zip(df.iterrows(), df_fit.iterrows()):
+    # o_fit = Fit1D_4seg()
+    # o_fit = Fit1D_3seg()
+
+    for i_s, (name, sim_dic) in enumerate(df.iterrows()):
+        text_dict = df_text.loc[name]
+        # sim_dic = sim_dic[1]
+        if sim and name != sim:
+            continue
+
+        # name = sim_dic[0]
+        ej = PBA.id_kenta.EjectaData(get_ej_data(sim_dic['name']),verbose=True)
+        mom, _, ek, mass = get_2d_ek(ej=ej,
+                                     # text=get_text_max_mass(ej=ej,crit='fast')
+                                     text=float(sim_dic['tmerg'])+float(text_dict['text']))
+        # ek = np.sum(mass,axis=1)
+        ek = np.sum(ek,axis=1)
+        # ek = np.sum(mass,axis=1)*PBA.cgs.solar_m#*(PBA.cgs.c**2*PBA.BetaFromMom(mom)**2)
+
+        # ej_mass = ej.get(v_n="mass",text=get_text_max_mass(ej=ej,crit='fast'))
+        # ek = np.cumsum(np.sum(ek,axis=0)[::-1] * PBA.cgs.solar_m * vinf_c**2 * PBA.cgs.c**2)[::-1]/np.sum(ek * PBA.cgs.solar_m * vinf_c**2 * PBA.cgs.c**2)
+        # ek = np.cumsum(ek[::-1])[::-1]#/np.sum(ek)
+
+
+        l_mom, l_ek = do_log(mom), do_log_y(ek)
+        mask = np.isfinite(l_ek)
+        l_mom = l_mom[mask]
+        l_ek = l_ek[mask]
+
+        # N = 5
+        # l_ek = np.convolve(l_ek, np.ones(N)/N, mode='valid')
+        # l_mom = np.convolve(l_mom, np.ones(N)/N, mode='valid')
+
+
+        axes[0][i_s].plot(un_log(l_mom), get_cumulative(un_log_y(l_ek)), color='black', ls='-',lw=1)#, lw=0.7, drawstyle='steps')
+        axes[1][i_s].plot(un_log(l_mom), un_log_y(l_ek), color='black', ls='-',lw=1)#, lw=0.7, drawstyle='steps')
+
+        for o_fit, color in zip(o_fits,['green','red']):
+            l_mom_pred, l_ek_pred, info = fit_data(l_mom, l_ek, un_log, un_log_y,
+                                                   fitting_obj=o_fit, name=sim_dic["name"])
+
+            info["label"] = sim_dic["label"]
+            infos_fits[o_fit.name][name] = info
+            axes[0][i_s].plot(un_log(l_mom_pred), get_cumulative(un_log_y(l_ek_pred)), color=color, ls='-',lw=1)#, lw=0.7, drawstyle='steps')
+            axes[1][i_s].plot(un_log(l_mom_pred), un_log_y(l_ek_pred), color=color, ls='-',lw=1)#, lw=0.7, drawstyle='steps')
+            axes[2][i_s].plot(un_log(l_mom_pred), (l_ek-l_ek_pred), color=color, ls='-', lw=1)
+
+        # axins.plot(un_log(l_mom), un_log_y(l_ek), color=sim_dic["color"], ls=sim_dic["ls"], label=sim_dic["label"],lw=1.2)
+        # axins.plot(un_log(l_mom_pred), un_log_y(l_ek_pred), color=sim_dic["color"], ls=sim_dic["ls"],lw=.6)#, lw=0.7, drawstyle='steps')
+
+        '''
+        fit_dic = df_fit.loc[name]
+        y_pred = piecewise_power(10**l_mom,x0=fit_dic['x0'],x1=fit_dic['x1'],y0=fit_dic['y0'],
+                                 k1=fit_dic['k1'],k2=fit_dic['k2'],k3=fit_dic['k3'])
+        # y_pred = 10**piecewise_linear(l_mom,x0=fit_dic['x0'],x1=fit_dic['x1'],y0=fit_dic['y0'],
+        #                          k1=fit_dic['k1'],k2=fit_dic['k2'],k3=fit_dic['k3'])
+        axes[0].plot(10**l_mom, get_cumulative(y_pred), color='gray', ls=sim_dic["ls"],lw=1.2)#, lw=0.7, drawstyle='steps')
+        axes[1].plot(10**l_mom, y_pred, color='gray', ls=sim_dic["ls"],lw=1.2)#, lw=0.7, drawstyle='steps')
+        '''
+
+        # axes[0].plot(mom, get_cumulative(ek), color=sim_dic["color"], ls=sim_dic["ls"], label=sim_dic["label"],lw=1.2)#, lw=0.7, drawstyle='steps')
+
+        # mom_pred, ek_pred, info = fit_data(mom, ek,name=sim_dic["name"])
+        # infos[sim_dic["name"]] = info
+        # axes[0].plot(mom_pred, get_cumulative(ek_pred), color=sim_dic["color"], ls=sim_dic["ls"],lw=.6)#, lw=0.7, drawstyle='steps')
+        # axes[1].plot(mom_pred, (ek-ek_pred) / ek, color=sim_dic["color"], ls=sim_dic["ls"], lw=0.7)
+
+        # break
+
+
+    axes[0][0].plot([1e-4,1e-2], [1e39,1e41], color='black', ls='-', label='NR',lw=1)#, lw=0.7, drawstyle='steps')
+    for o_fit, color in zip(o_fits,['green','red']):
+        axes[0][0].plot([1e-4,1e-2], [1e39,1e41], color=color, ls='-',label=o_fit.name,lw=1)#, lw=0.7, drawstyle='steps')
+
+    for o_fit, color in zip(o_fits,['green','red']):
+        print('-'*20+o_fit.name+'-'*20)
+        infos = pd.DataFrame.from_dict(infos_fits[o_fit.name]).T
+        o_fit.print_table(infos=infos)
+        print('-'*21+'-'*25)
+
+    for ax in axes:
+        for ax in ax:
+            ax.tick_params(labelsize=12)
+            # ax.set_ylim(*ylim)
+
+            ax.tick_params(labelsize=12,axis='both', which='both',direction='in',tick1On=True, tick2On=True)
+            ax.minorticks_on()
+            # ax.grid(ls=':',lw=0.8)
+            ax.set_xscale('log')
+
+    #for idx in range(len(df)):
+    for ax in axes[0]: ax.set_yscale('log')
+    for ax in axes[1]: ax.set_yscale('log')
+    # axes[2].set_yscale('log')
+    for ax in axes[0]: ax.set_ylim(*ylim0)
+    for ax in axes[1]: ax.set_ylim(*ylim1)
+    for ax in axes[2]: ax.set_ylim(*ylim2)
+    for ax in axes[-1]:
+        ax.set_xlim(*xlim)
+        ax.grid(ls='-',lw=0.6)
+    for ax, (name, sim_dic) in zip(axes[0],df.iterrows()):
+        ax.set_title(sim_dic['label'],fontsize=12)
+
+    # ax.set_yscale(yscale)
+    # ax.set_xscale(xscale)
+
+
+    n = 2
+    ax = axes[0][0]
+    ax.legend(**dict(fancybox=False,loc= 'lower left',columnspacing=0.4,
+                     #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                     shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False))
+    # han, lab = ax.get_legend_handles_labels()
+    # ax.add_artist(ax.legend(han[:-1 * n], lab[:-1 * n],
+    #                         **dict(fancybox=False,loc= 'lower left',columnspacing=0.4,
+    #                                #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+    #                                shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)))
+    # ax.add_artist(ax.legend(han[len(han) - n:], lab[len(lab) - n:],
+    #                         **dict(fancybox=False,loc= 'upper right',columnspacing=0.4,
+    #                                #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+    #                                shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)))
+    # ax.set_yscale("log")
+    for ax in axes[-1]:
+        ax.set_xlabel(r"$\Gamma\beta$",fontsize=12)
+    axes[0][0].set_ylabel(r"$E_{\rm k} (> \Gamma \beta)$ [erg]",fontsize=12)
+    axes[1][0].set_ylabel(r"$E_{\rm k}$ [erg]",fontsize=12)
+    # ax.set_title(title,fontsize=12)
+    # axes[-1].set_ylabel(r"$\Delta E_{\rm k}$ [erg]",fontsize=12)
+    # axes[-1][0].set_ylabel(r"$\log_{10}(E_{\rm k;\,sph})-\log_{10}(E_{\rm k;\,fit})$",fontsize=12)
+    axes[-1][0].set_ylabel(r"$\Delta\log_{10}(E_{\rm k})$",fontsize=12)
+
+    plt.tight_layout()
+    figname_ = os.getcwd()+f'/figs/{figname}_{"all_fits"}'
+    plt.savefig(figname_+'.png',dpi=256)
+    plt.savefig(figname_+'.pdf')
+    plt.show()
+
+
+    if (True & plot_fit_coeffs):
+        for o_fit, color in zip(o_fits,['green','red']):
+            fig,axes = plt.subplots(ncols=len(o_fit.keys),nrows=1,figsize=(12,3),layout='constrained',sharex='all')
+            for i, key in enumerate(o_fit.keys):
+                for j, (name, sim_dict) in enumerate(df.iterrows()):
+                    # df_i/ = result_1seg[name]
+                    # axes[i].axhline(y=df_i.iloc[0][key],color=sim_dict['color'],linestyle=sim_dict['ls'],linewidth=0.6)
+
+                    # df_i = result_9seg[name]
+                    if key == 'y0':
+                        val = np.log10(infos_fits[o_fit.name][name][key])
+                        # lbl = r"$\log_{10}($"+sim_dict["label"]+"$)$"
+                    else:
+                        val = infos_fits[o_fit.name][name][key]
+                        # lbl = sim_dict["label"]
+                    axes[i].plot([sim_dict["label"]], val, marker=sim_dict['marker'],color=sim_dict['color'],fillstyle='none')
+
+            # # plot fit to y0 coefficient (get average coefficients for each angular segment (assume that average is good))
+            # for (name, sim_dict) in df.iterrows():
+            #
+            #     angles = np.array( result_9seg[name].index, dtype=np.float64 )
+            #     slope = np.float64( result_1seg[name]["slope"] )
+            #     intercept = np.float64( result_1seg[name]["intercept"] )
+            #     y0_fit = slope * np.sin( angles*np.pi/180 ) + intercept
+            #
+            #     axes[o_fit.keys.index('y0')].plot(angles, un_log_y( y0_fit ),ls=sim_dict['ls'],color=sim_dict['color'],fillstyle='none')
+
+            for i, key in enumerate(o_fit.keys):
+                axes[i].set_title(o_fit.labels[i],fontsize=12)
+
+            # for ax in axes:
+            # axes[o_fit.keys.index('y0')].set_yscale("log")
+            # axes[o_fit.keys.index('y0')].set_ylabel("log")
+            axes[o_fit.keys.index('y0')].set_title(r"$\log_{10}($"+o_fit.labels[o_fit.keys.index('y0')]+"$)$",fontsize=12)
+
+            for ax in axes:
+                # for ax in ax:
+                # ax.set_xlim(.1,90.1)
+                ax.tick_params(labelsize=12,which='both',direction='in',tick1On=True, tick2On=True)
+                ax.tick_params(axis='x', which='minor', bottom=False)
+                # ax.minorticks_on()
+                ax.grid(lw=0.6)
+                # ax.set_xlabel("Polar angle [deg]",fontsize=12)
+                for tick in ax.get_xticklabels():
+                    tick.set_rotation(75)
+
+            figname_ = os.getcwd()+f'/figs/{figname_coeffs}_{o_fit.name}'
+            plt.savefig(figname_+'.png',dpi=256)
+            plt.savefig(figname_+'.pdf')
+
+            plt.show()
 
 def plot_ej_mom_theta_dist_for_text():
     fig, axes = plt.subplots(ncols=len(df),nrows=1,figsize=(3*4.6,3.2),layout='constrained',sharey='all')
@@ -1873,11 +2125,12 @@ if __name__ == '__main__':
     # plot_all_sim_ejecta_mass_evol(crit=None,yscale="linear",ylim=(0., 0.01),figname="ejecta_mass_evol",
     #                          title="Volume integrated ejecta mass")
 
-    plot_all_sim_ejecta_mass(o_fit=Fit1D_4seg(),figname="ej_mom_ek_nr_",
-                             ylim0=(1e43, 1e51),ylim1=(1e43, 1e51),ylim2=(-0.5,0.5), xlim=(1e-2, 4))
-    plot_all_sim_ejecta_mass(o_fit=Fit1D_3seg(),figname="ej_mom_ek_nr_",
-                             ylim0=(1e43, 1e51),ylim1=(1e43, 1e51),ylim2=(-0.5,0.5), xlim=(1e-2, 4))
-
+    # plot_all_sim_ejecta_mass(o_fit=Fit1D_4seg(),figname="ej_mom_ek_nr_",figname_coeffs="ej_mom_ek_coeffs_nr_",
+    #                          ylim0=(1e43, 1e51),ylim1=(1e43, 1e51),ylim2=(-0.5,0.5), xlim=(1e-2, 4))
+    # plot_all_sim_ejecta_mass(o_fit=Fit1D_3seg(),figname="ej_mom_ek_nr_",figname_coeffs="ej_mom_ek_coeffs_nr_",
+    #                          ylim0=(1e43, 1e51),ylim1=(1e43, 1e51),ylim2=(-0.5,0.5), xlim=(1e-2, 4))
+    plot_all_sim_ejecta_mass_row(figname="ej_mom_ek_nr_",figname_coeffs="ej_mom_ek_coeffs_nr_",
+                                 ylim0=(2e43, 1e51),ylim1=(2e43, 4e49),ylim2=(-0.5,0.5), xlim=(2e-2, 4))
 
     # plot_sim_ekecta_mass(o_fit = Fit1D_3seg(),sim_=None,
     #                      plot_fit_coeffs=True,plot_box_plots=True,plot_fit_ek=True,save_fit_result=True)
