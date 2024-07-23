@@ -39,6 +39,9 @@ except ImportError:
         import PyBlastAfterglowMag as PBA
     except:
         raise ImportError("Cannot import PyBlastAfterglowMag")
+# print(f"{PBA.MomFromBeta(0.3)}")
+# print(f"{PBA.MomFromBeta(0.45)}")
+print(f"{PBA.MomFromGamma(2)}")
 
 DATA_PATH = str(__file__).split("analysis/kn/")[0] + "analysis/kn/kenta_data/"
 
@@ -52,6 +55,9 @@ SIMS.set_index("name")
 df = SIMS[SIMS["given_time"] == "new"]
 
 get_ej_data = lambda name : DATA_PATH+name+'/'+"ej_collated.h5"
+
+# print(f"{PBA.BetaFromMom(1.)}")
+
 
 def get_text_max_mass(ej:PBA.id_kenta.EjectaData, crit:str='fast')->float:
     return float( ej.getText()[np.argmax(ej.total_mass_vs_text(crit=crit))] )
@@ -89,7 +95,7 @@ def get_vave_theta_rms(sim_dic:dict, crit:str) -> pd.DataFrame:
         vals["vave"].append( np.sum(ej_mass[:,mask]*ej_vinf[mask])/np.sum(ej_mass[:,mask]) )
 
         mass_ = np.sum(ej_mass[:,mask],axis=0)
-        mom = ej_vinf[mask]*PBA.utils.get_Gamma(ej_vinf[mask])
+        mom = ej_vinf[mask]*PBA.utils.GammaFromBeta(ej_vinf[mask])
         idx_ = np.argmax(mom[mass_ > 0.]) if len(mom[mass_ > 0.]) > 0 else 0
         vals["mom_max"].append(mom[idx_])
 
@@ -103,7 +109,10 @@ def get_vave_theta_rms(sim_dic:dict, crit:str) -> pd.DataFrame:
             vals[f"{v_n}_ave"].append( np.sum(ej_mass[:,mask]*ave[:,mask])/np.sum(ej_mass[:,mask]) )
 
         thetas = ej.get_theta()
-        vals["theta_rms"].append( (180. / np.pi) * np.sqrt(np.sum(np.sum(ej_mass[:,mask], axis=1) * thetas ** 2) / np.sum(ej_mass[:,mask])) )
+        thetas = 0.5 * (thetas[1:]+thetas[:-1])
+        vals["theta_rms"].append(
+            (180. / np.pi) * np.sqrt(np.sum(np.sum(ej_mass[:,mask], axis=1) * thetas ** 2) / np.sum(ej_mass[:,mask]))
+        )
     # vals = {key:np.array(vals) for (key,val) in vals.items()}
     # print(vals["mom_max"])
 
@@ -130,15 +139,17 @@ def plot_all_sim_ejecta_massave_vel(crit=None, yscale="linear", figsize=(5,10), 
         ax[0].plot(time[time>0], df_ave["mass"][time>0], color=sim_dic["color"], label=sim_dic["label"], ls=sim_dic["ls"], lw=.8)
 
         # ---
-
-        if do_vave: ax[1].plot(time[time>0], PBA.MomFromBeta(df_ave["vave"][time>0]), color=sim_dic["color"], ls=sim_dic["ls"], lw=.8)
         if do_mom_max:
             N = 3
             moving_average = np.convolve(df_ave["mom_max"][time>0], np.ones(N)/N, mode='valid')
             moving_average_t = np.convolve(time[time>0], np.ones(N)/N, mode='valid')
-            ax[2].plot(moving_average_t, moving_average, color=sim_dic["color"], ls=sim_dic["ls"], lw=.8)
-        if do_theta: ax[3].plot(time[time>0], df_ave["theta_rms"][time>0], color=sim_dic["color"], ls=sim_dic["ls"],lw=.8)
-        if do_ye: ax[4].plot(time[time>0], df_ave["ye_ave"][time>0], color=sim_dic["color"], ls=sim_dic["ls"], lw=.8)
+            ax[1].plot(moving_average_t, moving_average, color=sim_dic["color"], ls=sim_dic["ls"], lw=.8)
+        if do_vave: ax[2].plot(time[time>0], PBA.MomFromBeta(df_ave["vave"][time>0]), color=sim_dic["color"], ls=sim_dic["ls"], lw=.8)
+
+        if do_theta:
+            ax[3].plot(time[time>0], df_ave["theta_rms"][time>0], color=sim_dic["color"], ls=sim_dic["ls"],lw=.8)
+        if do_ye:
+            ax[4].plot(time[time>0], df_ave["ye_ave"][time>0], color=sim_dic["color"], ls=sim_dic["ls"], lw=.8)
         # ax[4].plot(df_ave["time"], df_ave["entr_ave"], color=sim_dic["color"], ls=sim_dic["ls"],lw=.8)
         # ax[5].plot(df_ave["time"], df_ave["eps_ave"], color=sim_dic["color"], ls=sim_dic["ls"], lw=.8)
 
@@ -157,14 +168,15 @@ def plot_all_sim_ejecta_massave_vel(crit=None, yscale="linear", figsize=(5,10), 
     #ax[5].set_yscale("log")
     # ax[-1].set_xlabel("Extraction time [ms]",fontsize=14)
     ax[-1].set_xlabel(r"$t_{\rm ext} - t_{\rm merg}$ [ms]", fontsize=12)
-    ax[0].set_ylabel(
+
+    ax[1].set_ylabel(
         r"$M_{\rm ft}$ [M$_{\odot}$]" if crit=="fast" else r"$M_{\rm ej}$ [M$_{\odot}$]",
         fontsize=12)
-    if do_vave: ax[1].set_ylabel(
-        r"$\langle \Gamma_{\rm ft}\beta_{\rm ft} \rangle$ [c]" if crit=="fast" else r"$\langle \Gamma\beta \rangle$ [c]",
-        fontsize=12)
-    if do_mom_max: ax[2].set_ylabel(
+    if do_mom_max: ax[1].set_ylabel(
         r"$(\Gamma_{\rm ft}\beta_{\rm ft})_{\rm max}$" if crit=="fast" else r"$(\Gamma\beta)_{\rm max}$",
+        fontsize=12)
+    if do_vave: ax[2].set_ylabel(
+        r"$\langle \Gamma_{\rm ft}\beta_{\rm ft} \rangle$ [c]" if crit=="fast" else r"$\langle \Gamma\beta \rangle$ [c]",
         fontsize=12)
     if do_theta: ax[3].set_ylabel(
         r"$\langle \theta_{\rm RMS; ft} \rangle$ [deg]" if crit=="fast" else r"$\langle \theta_{\rm RMS} \rangle$ [deg]",
@@ -215,7 +227,15 @@ def print_table(crit:str="fast",maximize:str="mass") -> pd.DataFrame:
 
 if __name__ == '__main__':
 
-    print("FAST TAIL PROPERTIES AT EXTRACTION TIME WHEN MASS IS MAX ")
-    df_res = print_table(crit="fast", maximize='mom')
-    df_res.to_csv(os.getcwd()+f'/output/'+"ejecta_fasttail_vals_at_massmax.csv",index=True)
+    # print("FAST TAIL PROPERTIES AT EXTRACTION TIME WHEN MASS IS MAX ")
+    # df_res = print_table(crit="fast", maximize='mom')
+    # df_res.to_csv(os.getcwd()+f'/output/'+"ejecta_fasttail_vals_at_massmax.csv",index=True)
 
+
+    ''' Ej. prop. as a function of extraction time '''
+    # plot_all_sim_ejecta_massave_vel(yscale='linear', figsize=(4.6,3.2), xlim=(-2,35),
+    #                                 do_vave=False, do_theta=False, do_ye=False,
+    #                                 figname="mej_evol.png")
+    plot_all_sim_ejecta_massave_vel(crit='fast',yscale='log', figsize=(4.6,1.5*3.2), xlim=(-2,35), ylim=(1e-8,1e-4),
+                                    do_vave=False, do_mom_max=True, do_theta=False, do_ye=False,
+                                    figname="mej_evol_fast_tail.png")
