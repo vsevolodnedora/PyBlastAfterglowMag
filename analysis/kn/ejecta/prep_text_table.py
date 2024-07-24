@@ -169,7 +169,7 @@ def plot_all_sim_ejecta_massave_vel(crit=None, yscale="linear", figsize=(5,10), 
     # ax[-1].set_xlabel("Extraction time [ms]",fontsize=14)
     ax[-1].set_xlabel(r"$t_{\rm ext} - t_{\rm merg}$ [ms]", fontsize=12)
 
-    ax[1].set_ylabel(
+    ax[0].set_ylabel(
         r"$M_{\rm ft}$ [M$_{\odot}$]" if crit=="fast" else r"$M_{\rm ej}$ [M$_{\odot}$]",
         fontsize=12)
     if do_mom_max: ax[1].set_ylabel(
@@ -236,6 +236,6 @@ if __name__ == '__main__':
     # plot_all_sim_ejecta_massave_vel(yscale='linear', figsize=(4.6,3.2), xlim=(-2,35),
     #                                 do_vave=False, do_theta=False, do_ye=False,
     #                                 figname="mej_evol.png")
-    plot_all_sim_ejecta_massave_vel(crit='fast',yscale='log', figsize=(4.6,1.5*3.2), xlim=(-2,35), ylim=(1e-8,1e-4),
+    plot_all_sim_ejecta_massave_vel(crit='fast',yscale='log', figsize=(4.6,1.5*3.2), xlim=(-2,35), ylim=(2e-8,1e-4),
                                     do_vave=False, do_mom_max=True, do_theta=False, do_ye=False,
                                     figname="mej_evol_fast_tail.png")

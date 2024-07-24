@@ -419,11 +419,11 @@ class Fit1D_4seg(FitBase):
             # res[mask1] = (piecewise_linear(x[mask1], *args) - y_values[mask1])
             # mask2 = x>=x[np.argmax(y_values)]
             # res[mask2] = (piecewise_linear(x[mask2], *args) - y_values[mask2])
-            res = (Fit1D_4seg.piecewise_linear(x, *args) - y_values)
+            res = (Fit1D_4seg.piecewise_linear(x, *args) - y_values) ** 2
 
             res = (Fit1D_4seg.piecewise_linear(x, *args) - y_values) ** 2 * y_values ** 3
             mask = np.where((x>args[1])&(x<args[2]))
-            res[mask] *= 1.2
+            res[mask] *= 1.1
 
             # res[mask] = (10**piecewise_linear(x, *args) - 10**y_values)[mask]
             # res[np.where(x<args[0])]**4
@@ -962,7 +962,9 @@ def plot_all_sim_ejecta_mass_row(xlim=(1e-3, 4),ylim0=(1e43, 1e51),ylim1=(1e43, 
 
 
     if (True & plot_fit_coeffs):
-        for o_fit, color in zip(o_fits,['green','red']):
+        for o_fit, color in zip(o_fits,fit_colors):
+
+
             fig,axes = plt.subplots(ncols=len(o_fit.keys),nrows=1,figsize=(12,3),layout='constrained',sharex='all')
             for i, key in enumerate(o_fit.keys):
                 for j, (name, sim_dict) in enumerate(df.iterrows()):
@@ -978,6 +980,73 @@ def plot_all_sim_ejecta_mass_row(xlim=(1e-3, 4),ylim0=(1e43, 1e51),ylim1=(1e43, 
                         # lbl = sim_dict["label"]
                     axes[i].plot([sim_dict["label"]], val, marker=sim_dict['marker'],color=sim_dict['color'],fillstyle='none')
 
+            # keys to fit
+            print("-"*10+o_fit.name+10*'-')
+            keys_to_fit_linear = ['x0','x1','k1', 'k2','k3']
+            keys_to_fit_loglinear = ['y0']
+            keys_to_fit_parabolic = ['k2','k3']
+            for i, key in enumerate(o_fit.keys):
+                if key in keys_to_fit_linear:
+                    q_ = []
+                    y_ = []
+                    lbls = []
+                    for j, (name, sim_dict) in enumerate(df.iterrows()):
+                        if name.__contains__("SFHo_"):
+                            q_.append(float(sim_dict["q"]))
+                            y_.append(float(infos_fits[o_fit.name][name][key]))
+                            lbls.append(sim_dict['label'])
+                    slope, intercept, r_value, p_value, std_err = linregress(np.array(q_), np.array(y_))
+
+                    q_range = np.array(q_)#np.mgrid[np.min(q_):np.max(q_):10]
+                    y_fit = slope * q_range + intercept
+
+                    print(f"\tLinear for {key}: "
+                          f"{o_fit.labels[o_fit.keys.index(key)][:-1]} = "
+                          f"{slope:.2f} \, q + {intercept:.2f}$")
+
+                    axes[i].plot(lbls, y_fit, color='gray',ls='-',lw=1.0)
+                if key in keys_to_fit_loglinear:
+                    q_ = []
+                    y_ = []
+                    lbls = []
+                    for j, (name, sim_dict) in enumerate(df.iterrows()):
+                        if name.__contains__("SFHo_"):
+                            q_.append(float(sim_dict["q"]))
+                            y_.append(float(infos_fits[o_fit.name][name][key]))
+                            lbls.append(sim_dict['label'])
+                    slope, intercept, r_value, p_value, std_err = linregress(np.array(q_), np.array(y_))
+
+                    q_range = np.array(q_)#np.mgrid[np.min(q_):np.max(q_):10]
+                    y_fit = slope * q_range + intercept
+
+                    print(f"\tLoglinear for {key}: "
+                          f"{o_fit.labels[o_fit.keys.index(key)][:-1]} = "
+                          f"{PBA.latex_float(slope)} \, q + {PBA.latex_float(intercept)}$")
+
+                    axes[i].plot(lbls, np.log10(y_fit) , color='gray',ls='-',lw=1.0)
+                if key in keys_to_fit_parabolic:
+                    points = []
+                    lbls = []
+                    for j, (name, sim_dict) in enumerate(df.iterrows()):
+                        if name.__contains__("SFHo_"):
+                            points.append((float(sim_dict["q"]),
+                                           float(infos_fits[o_fit.name][name][key])))
+                            lbls.append(sim_dict['label'])
+                    # print(points)
+                    # Create matrices for the linear system
+                    A = np.array([[x**2, x, 1] for (x, y) in points])
+                    b = np.array([y for x, y in points])
+
+                    # Solve the linear system
+                    coefficients = np.linalg.solve(A, b)
+
+                    a, b, c = coefficients
+                    print(f"\tParabolic for {key}: "
+                          f"{o_fit.labels[o_fit.keys.index(key)][:-1]} = "
+                          f"{a:.2f} \, q^2 + {b:.2f} \, q + {c:.2f}$")
+                    func = lambda q : a*q**2 + b*q + c
+                    y_fit = [func(q) for (q,y) in points]
+                    axes[i].plot(lbls, y_fit , color='gray',ls='--',lw=1.0)
             # # plot fit to y0 coefficient (get average coefficients for each angular segment (assume that average is good))
             # for (name, sim_dict) in df.iterrows():
             #
@@ -1438,7 +1507,7 @@ def plot_sim_ekecta_mass(o_fit,sim_:str or None, plot_fit_coeffs:bool, plot_fit_
     ''' ----------- DEFINE ANGULAR SEGMENTS TO ANALYZE -------------  '''
 
     # segs = [(-.1,10.),(10,20.),(20.,30.),(30.,40,),(40.,50.),(50.,60.),(60.,70.),(70.,80.),(80.,91.)]
-    segs = np.arange(start=0,stop=90+10,step=10)
+    segs = np.arange(start=0,stop=90+18,step=18)
     segs = [(low,up) for (low,up) in zip(segs[:-1],segs[1:])]
     csegs = [0.5*(seg[0]+seg[1]) for seg in segs]
 
@@ -1452,10 +1521,11 @@ def plot_sim_ekecta_mass(o_fit,sim_:str or None, plot_fit_coeffs:bool, plot_fit_
     result_9seg_xy = dict()
 
 
-    colors = ["blue","lime","green","orange","red"]
-    cmap = plt.get_cmap('tab10')
-    norm = Normalize(vmin=0,vmax=10)
-    colors = [cmap(norm(i)) for i in range(len(csegs))]
+    # colors = ["blue",'cyan',"lime","green","orange","red"]
+    colors = ["blue","green","magenta","orange","red"]
+    # cmap = plt.get_cmap('tab10')
+    # norm = Normalize(vmin=0,vmax=6)
+    # colors = [cmap(norm(i)) for i in range(len(csegs))]
 
     ''' ----------- COLLECT DATA FOR EACH SIMULATION FOR EACH SEGMENT -------------  '''
 
@@ -1655,6 +1725,102 @@ def plot_sim_ekecta_mass(o_fit,sim_:str or None, plot_fit_coeffs:bool, plot_fit_
         plt.show()
 
     if (True & plot_fit_ek):
+        fig,axes = plt.subplots(ncols=len(df),nrows=1,figsize=(12,4),sharex='col',sharey='row') # layout='constrained',
+
+        for i, (name, sim_dict) in enumerate(df.iterrows()):
+            if sim_ and name != sim_:
+                continue
+            for (segment, color) in zip(segs, colors):
+                c_seg = int( (segment[1]+segment[0])*0.5 )
+                tbl = result_9seg_xy[f"{name} {c_seg}"]
+                l_mom, l_ek = tbl["nr"][:,0], tbl["nr"][:,1]
+                l_mom_fit, l_ek_fit = tbl["fit"][:,0], tbl["fit"][:,1]
+                label = r"$\theta_{\rm c}="+f"{int(c_seg)}$ deg." if i == 0 else None
+                axes[i].plot(un_log(l_mom),un_log_y(l_ek),color=color,ls='-',lw=1,label=label)
+                axes[i].plot(un_log(l_mom_fit),un_log_y(l_ek_fit),color=color,ls='--',lw=1)
+
+                l_ek_fit = interp1d(l_mom_fit,l_ek_fit,kind='linear')(l_mom)
+                # difference = l_ek-l_ek_fit
+                # axes[1,i].plot(un_log(l_mom),difference,color=color,ls='-',lw=0.7)
+            # pass
+            # df_fit_total = result_1seg[name]
+            # angles = np.array( result_9seg[name].index, dtype=np.float64 )
+            # slope, intercept = y0_fit_dict["slope"], y0_fit_dict["intercept"]
+            # slope = np.float64( result_1seg[name]["slope"] )
+            # intercept = np.float64( result_1seg[name]["intercept"] )
+            # coeffs_tot = [np.average(np.array(result_9seg[name][key])) for key in keys]
+
+            # vinf_ = np.linspace(0.005,1, len(l_ek)+1)
+            # mom_fit = PBA.MomFromBeta(vinf_)[:-1]
+            # coeffs_tot = np.array(coeffs_tot).flatten().tolist()
+            # ek_fit_tot = o_fit.piecewise_power(mom_fit, *coeffs_tot)
+
+            # axes[0,i].plot(mom_fit,ek_fit_tot,color='gray',ls='-',lw=0.7)
+
+
+
+            # y0_tot = float( df_fit_total["y0"] )
+            # differences = []
+            for j, (segment, color) in enumerate( zip(segs, colors) ):
+                c_seg = int( (segment[1]+segment[0])*0.5 )
+                tbl = result_9seg_xy[f"{name} {c_seg}"]
+                l_mom, l_ek = tbl["nr"][:,0], tbl["nr"][:,1]
+                # l_mom_fit, l_ek_fit = tbl["fit"][:,0], tbl["fit"][:,1]
+                l_mom_ufit, l_ek_ufit = tbl["fit_u"][:,0], tbl["fit_u"][:,1]
+
+
+                # y0_fit = slope * np.sin(c_seg*np.pi/180) + intercept
+                # y0_fit = 10**y0_fit
+                #
+                # coeffs_tot[keys.index("y0")] = y0_fit
+                # ek_fit = o_fit.piecewise_power(mom_fit, *np.array(coeffs_tot).flatten().tolist())
+
+                axes[i].plot(un_log(l_mom_ufit), un_log_y(l_ek_ufit), color=color,ls=':',lw=1.)
+
+                # tbl = result_9seg_xy[f"{name} {c_seg}"]
+                # l_mom, l_ek = tbl["nr"][:,0], tbl["nr"][:,1]
+                # l_mom_fit, l_ek_fit = tbl["fit"][:,0], tbl["fit"][:,1]
+                # l_ek_fit = interp1d(l_mom_ufit,l_ek_ufit,kind='linear')(l_mom)
+                # difference = l_ek-l_ek_fit
+                # axes[1,i].plot(un_log(l_mom), difference,color=color,ls=':',lw=0.7)
+                # differences.append(difference)
+                # mean = np.mean(difference)
+            # axes[1,i].axhline(y=mean,color=color,linestyle='-')
+            # bplot = axes[1,i].boxplot(differences, patch_artist=True, positions=np.logspace(-2,0,len(segs)))
+            # for patch, color in zip(bplot['boxes'], colors):
+            #     patch.set_facecolor(color)
+
+        for ax in axes:
+            ax.tick_params(labelsize=12,which='both',direction='in',tick1On=True, tick2On=True)
+            ax.minorticks_on()
+        for ax in axes:
+            ax.set_xscale("log")
+            ax.set_yscale("log")
+        for ax in axes:
+            ax.set_ylim(2e44,2e49)
+        for ax in axes:
+            ax.set_xlim(2e-2,4)
+        axes[0].set_ylabel(r"$E_{\rm k}$ [erg]",fontsize=12)
+        # axes[1,0].set_ylabel(r"$\Delta \log_{10}(E_{\rm k})$",fontsize=12)
+        for ax, (sim,sim_dict) in zip(axes,df.iterrows()):
+            ax.set_title(sim_dict['label'],fontsize=12)
+
+        for ax in axes:
+            ax.set_xlabel(r"$\Gamma\beta$",fontsize=12)
+        # plt.colorbar()
+        fig.legend(fancybox=False, loc='center', columnspacing=0.8,
+                           bbox_to_anchor=(0.5,0.96),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                           shadow=False, ncol=len(segs), fontsize=12, labelcolor='black',
+                           framealpha=0.0, borderaxespad=0.)
+        plt.sub()
+        # for ax in axes:
+        # ax[0].set_ylim(1e42,1e49)
+        # ax[1].set_ylim(-2,2)
+        # for ax
+        # ax.set_xlabel("Polar angle [deg]",fontsize=12)
+        plt.show()
+
+    if (True & plot_fit_ek):
         fig,axes = plt.subplots(ncols=len(df),nrows=2,figsize=(12,5),layout='constrained',sharex='col',sharey='row')
 
         for i, (name, sim_dict) in enumerate(df.iterrows()):
@@ -1729,7 +1895,7 @@ def plot_sim_ekecta_mass(o_fit,sim_:str or None, plot_fit_coeffs:bool, plot_fit_
             ax.set_yscale("log")
         axes[0][0].set_xlim(1e-2,3)
         for ax in axes[0]:
-            ax.set_ylim(1e45,1e49)
+            ax.set_ylim(2e45,2e49)
         for ax in axes[1]:
             ax.set_ylim(-.9,.9)
             ax.grid(lw=0.5)
@@ -1747,6 +1913,7 @@ def plot_sim_ekecta_mass(o_fit,sim_:str or None, plot_fit_coeffs:bool, plot_fit_
             # ax[1].set_ylim(-2,2)
         # for ax
         # ax.set_xlabel("Polar angle [deg]",fontsize=12)
+
         plt.show()
 
     if (True & plot_box_plots):
@@ -2394,11 +2561,11 @@ if __name__ == '__main__':
     #                          ylim0=(1e43, 1e51),ylim1=(1e43, 1e51),ylim2=(-0.5,0.5), xlim=(1e-2, 4))
     # plot_all_sim_ejecta_mass(o_fit=Fit1D_3seg(),figname="ej_mom_ek_nr_",figname_coeffs="ej_mom_ek_coeffs_nr_",
     #                          ylim0=(1e43, 1e51),ylim1=(1e43, 1e51),ylim2=(-0.5,0.5), xlim=(1e-2, 4))
-    plot_all_sim_ejecta_mass_row(figname="ej_mom_ek_nr_",figname_coeffs="ej_mom_ek_coeffs_nr_",
-                                 ylim0=(2e43, 1e51),ylim1=(2e43, 4e49),ylim2=(-0.75,0.75), xlim=(2e-2, 4))
+    # plot_all_sim_ejecta_mass_row(figname="ej_mom_ek_nr_",figname_coeffs="ej_mom_ek_coeffs_nr_",
+    #                              ylim0=(2e43, 1e51),ylim1=(2e43, 4e49),ylim2=(-0.75,0.75), xlim=(2e-2, 4))
 
-    # plot_sim_ekecta_mass(o_fit = Fit1D_3seg(),sim_=None,
-    #                      plot_fit_coeffs=True,plot_box_plots=True,plot_fit_ek=True,save_fit_result=True)
+    plot_sim_ekecta_mass(o_fit = Fit1D_3seg(),sim_=None,
+                         plot_fit_coeffs=True,plot_box_plots=True,plot_fit_ek=True,save_fit_result=True)
     # plot_sim_ekecta_mass(o_fit = Fit1D_4seg(),sim_=None,
     #                      plot_fit_coeffs=True,plot_box_plots=True,plot_fit_ek=True,save_fit_result=True)
 
