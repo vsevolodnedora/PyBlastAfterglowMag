@@ -532,8 +532,9 @@ def plot_all_sim_ejecta_mass_evol(crit=None,yscale="linear",ylim=(0,0.04),title=
     plt.show()
 
 
-def plot_all_sim_ejecta_mass(o_fit, xlim=(1e-3, 4),ylim0=(1e43, 1e51),ylim1=(1e43, 1e51),ylim2=(-.5,.5),
-                             figname="figname",figname_coeffs="figname", sim: str or None=None, plot_fit_coeffs:bool=True):
+def plot_all_sim_ejecta_mass(
+        o_fit, xlim=(1e-3, 4),ylim0=(1e43, 1e51),ylim1=(1e43, 1e51),ylim2=(-.5,.5),
+        figname="figname",figname_coeffs="figname", sim: str or None=None, plot_fit_coeffs:bool=True):
 
     do_cumulative = True
     log_type = 10
@@ -755,8 +756,9 @@ def plot_all_sim_ejecta_mass(o_fit, xlim=(1e-3, 4),ylim0=(1e43, 1e51),ylim1=(1e4
 
         plt.show()
 
-def plot_all_sim_ejecta_mass_row(xlim=(1e-3, 4),ylim0=(1e43, 1e51),ylim1=(1e43, 1e51),ylim2=(-.5,.5),
-                                 figname="figname",figname_coeffs="figname", sim: str or None=None, plot_fit_coeffs:bool=True):
+def plot_all_sim_ejecta_mass_row(
+        xlim=(1e-3, 4),ylim0=(1e43, 1e51),ylim1=(1e43, 1e51),ylim2=(-.5,.5),
+       figname="figname",figname_coeffs="figname", sim: str or None=None, plot_fit_coeffs:bool=True):
     o_fits = [Fit1D_2seg(),Fit1D_3seg(),Fit1D_4seg()]
     fit_colors=['blue','green','red']
     fit_lcs = [':','-.','--']
@@ -1485,8 +1487,9 @@ def plot_sim_ekecta_mass_OLD(sim_:str or None):
     ax.set_ylabel(r"Polar angle [deg]")
 
     plt.show()
-def plot_sim_ekecta_mass(o_fit,sim_:str or None, plot_fit_coeffs:bool, plot_fit_ek:bool,plot_box_plots:bool,
-                         save_fit_result:bool):
+def plot_sim_ekecta_mass(
+        o_fit,sim_:str or None, plot_fit_coeffs:bool, plot_fit_ek:bool,plot_box_plots:bool,
+        save_fit_result:bool,figname:str):
 
     # fig, axes = plt.subplots(nrows=2,ncols=len(df) if not sim_ else 1,sharex='col',sharey='row',
     #                          layout='constrained',figsize=(12,4.5))
@@ -1691,15 +1694,23 @@ def plot_sim_ekecta_mass(o_fit,sim_:str or None, plot_fit_coeffs:bool, plot_fit_
 
     # plot coefficients for each simulation and each angular segment
     if (True & plot_fit_coeffs):
-        fig,axes = plt.subplots(ncols=len(o_fit.keys),nrows=1,figsize=(12,3),layout='constrained',sharex='all')
+
+        lims = {"x1":[0.5,4.5],"k3":[0,-80]}
+
+        fig,axes = plt.subplots(ncols=len(o_fit.keys),nrows=1,figsize=(12,4.0),
+                                # layout='constrained',
+                                sharex='all')
         for i, key in enumerate(o_fit.keys):
             for (name, sim_dict) in df.iterrows():
                 df_i = result_1seg[name]
-                axes[i].axhline(y=df_i.iloc[0][key],color=sim_dict['color'],linestyle=sim_dict['ls'],linewidth=0.6)
+                if (key != 'y0'):
+                    axes[i].axhline(y=df_i.iloc[0][key],color=sim_dict['color'],linestyle=sim_dict['ls'],linewidth=0.6)
 
                 df_i = result_9seg[name]
-                for (cth, fit_dict_cth) in df_i.iterrows():
-                    axes[i].plot(cth, fit_dict_cth[key],marker=sim_dict['marker'],color=sim_dict['color'],fillstyle='none')
+                for j, (cth, fit_dict_cth) in enumerate(df_i.iterrows()):
+                    label =sim_dict['label'] if (i == 0 and j == 0) else None
+                    axes[i].plot(cth, fit_dict_cth[key],marker=sim_dict['marker'],color=sim_dict['color'],fillstyle='none',
+                                 label=label,ls=sim_dict['ls'])
 
         # plot fit to y0 coefficient (get average coefficients for each angular segment (assume that average is good))
         for (name, sim_dict) in df.iterrows():
@@ -1709,10 +1720,14 @@ def plot_sim_ekecta_mass(o_fit,sim_:str or None, plot_fit_coeffs:bool, plot_fit_
             intercept = np.float64( result_1seg[name]["intercept"] )
             y0_fit = slope * np.sin( angles*np.pi/180 ) + intercept
 
-            axes[o_fit.keys.index('y0')].plot(angles, un_log_y( y0_fit ),ls=sim_dict['ls'],color=sim_dict['color'],fillstyle='none')
+            axes[o_fit.keys.index('y0')].plot(
+                angles, un_log_y( y0_fit ),ls=sim_dict['ls'],color=sim_dict['color'],fillstyle='none'
+            )
 
         for i, key in enumerate(o_fit.keys):
             axes[i].set_title(o_fit.labels[i],fontsize=12)
+            if key in lims.keys():
+                axes[i].set_ylim(*lims[key])
 
         # for ax in axes:
         axes[o_fit.keys.index('y0')].set_yscale("log")
@@ -1722,6 +1737,16 @@ def plot_sim_ekecta_mass(o_fit,sim_:str or None, plot_fit_coeffs:bool, plot_fit_
             ax.tick_params(labelsize=12,which='both',direction='in',tick1On=True, tick2On=True)
             ax.minorticks_on()
             ax.set_xlabel("Polar angle [deg]",fontsize=12)
+        # plt.tight_layout()
+        pass
+        fig.legend(fancybox=False, loc='center', columnspacing=0.8,
+                   bbox_to_anchor=(0.5,0.97),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                   shadow=False, ncol=len(df), fontsize=12, labelcolor='black',
+                   framealpha=0.0, borderaxespad=0.)
+        plt.subplots_adjust(left=0.03,right=0.99,wspace=0.3)
+        figname_ = os.getcwd()+f'/figs/{figname}_{o_fit.name}_coeffs'
+        plt.savefig(figname_+'.png',dpi=256)
+        plt.savefig(figname_+'.pdf')
         plt.show()
 
     if (True & plot_fit_ek):
@@ -1809,15 +1834,40 @@ def plot_sim_ekecta_mass(o_fit,sim_:str or None, plot_fit_coeffs:bool, plot_fit_
             ax.set_xlabel(r"$\Gamma\beta$",fontsize=12)
         # plt.colorbar()
         fig.legend(fancybox=False, loc='center', columnspacing=0.8,
-                           bbox_to_anchor=(0.5,0.96),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
-                           shadow=False, ncol=len(segs), fontsize=12, labelcolor='black',
-                           framealpha=0.0, borderaxespad=0.)
-        plt.sub()
+                   bbox_to_anchor=(0.5,0.97),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                   shadow=False, ncol=len(segs), fontsize=12, labelcolor='black',
+                   framealpha=0.0, borderaxespad=0.)
+
+        n = 3
+        ax = axes[0]
+        ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-', label='NR',lw=1.)#, lw=0.7, drawstyle='steps')
+        ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='--',label=o_fit.name,lw=1)#, lw=0.7, drawstyle='steps')
+        ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', ls=':',label=o_fit.name+r"$^*$",lw=1)#, lw=0.7, drawstyle='steps')
+        han, lab = ax.get_legend_handles_labels()
+        ax.add_artist(ax.legend(han[len(han) - n:], lab[len(lab) - n:],
+                                **dict(fancybox=False,loc= 'lower center',columnspacing=0.4,
+                                       #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                                       shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)))
+        #
+        # ax.add_artist(ax.legend(han[:-1 * n], lab[:-1 * n],
+        #                         **dict(fancybox=False,loc= 'lower center',columnspacing=0.4,
+        #                                #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+        #                                shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)))
+        # ax.add_artist(ax.legend(han[len(han) - n:], lab[len(lab) - n:],
+        #                         **dict(fancybox=False,loc= 'upper left',columnspacing=0.4,
+        #                                #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+        #                                shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)))
+
+        # plt.sub()
         # for ax in axes:
         # ax[0].set_ylim(1e42,1e49)
         # ax[1].set_ylim(-2,2)
         # for ax
         # ax.set_xlabel("Polar angle [deg]",fontsize=12)
+        plt.subplots_adjust(left=0.05,right=0.99,wspace=0.05)
+        figname_ = os.getcwd()+f'/figs/{figname}_{o_fit.name}_ek_tall'
+        plt.savefig(figname_+'.png',dpi=256)
+        plt.savefig(figname_+'.pdf')
         plt.show()
 
     if (True & plot_fit_ek):
@@ -1914,6 +1964,9 @@ def plot_sim_ekecta_mass(o_fit,sim_:str or None, plot_fit_coeffs:bool, plot_fit_
         # for ax
         # ax.set_xlabel("Polar angle [deg]",fontsize=12)
 
+        figname_ = os.getcwd()+f'/figs/{figname}_{o_fit.name}_ek_with_residuals'
+        plt.savefig(figname_+'.png',dpi=256)
+        plt.savefig(figname_+'.pdf')
         plt.show()
 
     if (True & plot_box_plots):
@@ -1951,7 +2004,7 @@ def plot_sim_ekecta_mass(o_fit,sim_:str or None, plot_fit_coeffs:bool, plot_fit_
             ax.set_ylim(-1.,1.)
             for tick in ax.get_xticklabels():
                 tick.set_rotation(45)
-
+            ax.set_xlabel(r"$\theta_{\rm c}$ [deg]",fontsize=12)
             # ax.set_xlim(-1,91)
         axes[0].set_ylabel(r"$\Delta\log_{10}(E_{\rm k})$",fontsize=12)
 
@@ -1972,6 +2025,9 @@ def plot_sim_ekecta_mass(o_fit,sim_:str or None, plot_fit_coeffs:bool, plot_fit_
         # ax[1].set_ylim(-2,2)
         # for ax
         # ax.set_xlabel("Polar angle [deg]",fontsize=12)
+        figname_ = os.getcwd()+f'/figs/{figname}_{o_fit.name}_residuals_barplot'
+        plt.savefig(figname_+'.png',dpi=256)
+        plt.savefig(figname_+'.pdf')
         plt.show()
 
 
@@ -2542,7 +2598,292 @@ def plot_rho_mdot_rext(ylim=(1e-7, 1e-2), ylim2=(1, 6), xlim=(-2, 2.), crit="fas
     plt.savefig(os.getcwd()+'/figs/'+'mdot_rhomax.pdf')
     plt.show()
 
+def plot_init_profile(mom : np.ndarray, ctheta : np.ndarray, data2d : np.ndarray,
+                      xmin:float=0, xmax:float=90, ymin:float=1e-2, ymax:float=6, vmin:float=1e-12, vmax:float=1e-6,
+                      norm_mode:str="log", cmap:plt.cm = plt.get_cmap('RdYlBu_r'),
+                      xscale:str="linear", yscale:str="linear", cbar_label:str=r"$M_{\rm ej}$",
+                      subplot_mode:str="sum",
+                      hist_ylabel:str=r"$M_{\rm ej}$ [M$_{\odot}$]",
+                      hist_ylabel2:str=r"$M_{\rm ej}(\Gamma\beta>1) [M$_{\odot}$]",
+                      title:str=None, figpath:str=None, fontsize:int=12):
+    """
 
+    :param mom: np.ndarray; 1D;
+        mom = Gamma * beta, where bete is dimensionless terminal velocity, Gamma is lorentz factor [dimensionless]
+    :param ctheta: np.ndarray; 1D;
+        polar angle (0-pole, pi/2-equator) [radians]
+    :param data2d: np.ndarray 2D [shape=(len(mom),len(ctheta)]
+        Mass or kinetic energy to plot; Kinetic energy is defined as $\E_k = mass * (\beta * c)^2$ where
+        $mass$ is the mass in grams, $\beta$ is dimensionless velocity and $c$ is the speed of light
+    """
+
+    # from radians to dgrees
+    ctheta *= 180 / np.pi
+
+    fig = plt.figure(figsize=(5, 5))
+
+    ax0 = fig.add_axes([0.16, 0.12, 0.81 - 0.15, 0.59 - 0.12])
+    ax1 = fig.add_axes([0.16, 0.61, 0.81 - 0.15, 0.91 - 0.61])
+    cax = fig.add_axes([0.83, 0.12, 0.86 - 0.83, 0.59 - 0.12])
+
+    # set how to deal with 1D histogram (top subplot) Summ all quantities for all angles or compute mass-averaged
+    if subplot_mode == 'sum':
+        res = np.sum(data2d, axis=0)
+        ax1.plot(ctheta, res, color='blue', ls='-', drawstyle='steps')
+        ax2 = ax1.twinx()
+        ax2.plot(ctheta, np.sum(data2d[mom>1.], axis=0), color='red', ls='-', drawstyle='steps')
+        ax2.set_yscale('log')
+        ax2.set_ylabel(hist_ylabel2, fontsize=fontsize, color='red')
+
+    elif subplot_mode == 'seg_sum':
+        segs = np.arange(start=0,stop=90+18,step=18)
+        seg_colors = ["blue","green","magenta","orange","red"]
+        segs = [(low,up) for (low,up) in zip(segs[:-1],segs[1:])]
+
+        for (seg_color, segment) in zip(seg_colors, segs):
+            c_seg = int( (segment[1] + segment[0])*0.5 )
+            low = segment[0]
+            up  = segment[1]
+            ek_ = np.sum(data2d[:,(ctheta > low) & (ctheta <= up)],axis=0)
+            ax1.plot(ctheta, ek_, color=seg_color, ls='-', drawstyle='steps',
+                     label=r"$\theta_{\rm c}=$"+f"{int(c_seg)} deg.")
+        ax1.legend(fancybox=False,loc= 'lower right',columnspacing=0.4,
+                      #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                      shadow=False, ncol= 2, fontsize= 12,
+                      framealpha=0., borderaxespad= 0., frameon=False)
+    else:
+        vinf = mom / np.sqrt(1.0+mom*mom)
+        data2d[~np.isfinite(data2d)] = 0.
+        vinf[~np.isfinite(vinf)] = 0.
+        res = np.sum(data2d * vinf[:, np.newaxis], axis=0) / np.sum(data2d, axis=0)
+
+        # plot the 1D histogram
+        ax1.plot(ctheta, res, color='black', ls='-', drawstyle='steps')
+
+
+    # adjust subplot settings
+    if (not title is None): ax1.set_title(title,fontsize=fontsize)
+    if norm_mode=="log": ax1.set_yscale("log")
+    else: ax1.set_yscale("linear")
+    ax1.set_ylabel(hist_ylabel, fontsize=fontsize,color='blue')
+    ax1.get_yaxis().set_label_coords(-0.15, 0.5)
+    ax1.set_xlim(xmin, xmax)
+    ax1.xaxis.set_ticklabels([])
+    for ax in [ax1,ax2]:
+        if ax:
+            ax.tick_params(axis='both', which='both', labelsize=12, direction='in')
+            ax.minorticks_on()
+
+
+    # prepare for plotting 2D histogram
+    if vmin is None: vmin = data2d[(data2d > 0) & (np.isfinite(data2d))].min()
+    if vmax is None: vmax = data2d[(data2d > 0) & (np.isfinite(data2d))].max()
+    if (norm_mode=="log"): norm = LogNorm(vmin, vmax)
+    elif (norm_mode=="linear"): norm = Normalize(vmin, vmax)
+    elif (norm_mode=="levels"):
+        levels = MaxNLocator(nbins=15).tick_values(vmin, vmax)
+        norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
+    else:
+        raise KeyError(" norm_mode is not recognized ")
+
+    # plot colormesh
+    im = ax0.pcolor(ctheta, mom, data2d, cmap=cmap, norm=norm, shading='auto')
+    # ax0.axhline(y=1, linestyle='--', color='gray')
+
+    # adjust the bottom subplot
+    ax0.set_ylim(ymin, ymax)
+    ax0.set_xlim(xmin, xmax)
+    ax0.set_xscale(xscale)
+    ax0.set_yscale(yscale)
+    ax0.set_ylabel(r"$\Gamma\beta$", fontsize=fontsize)
+    ax0.set_xlabel(r"Polar angle", fontsize=fontsize)
+    ax0.get_yaxis().set_label_coords(-0.15, 0.5)
+    # ax0.text(0.75, 0.88, title, color='white', transform=ax0.transAxes, fontsize=fontsize)
+    ax0.minorticks_on()
+    ax0.tick_params(axis='both', which='both', labelleft=True,
+                    labelright=False, tick1On=True, tick2On=True,
+                    labelsize=12,
+                    direction='in',
+                    bottom=True, top=True, left=True, right=True)
+
+    cbar = plt.colorbar(im, cax=cax, norm=norm)
+    # cbar.set_label(r"$M_{\rm ej}$ [M$_{\odot}$]", fontsize=fontsize)
+    cbar.set_label(cbar_label, fontsize=fontsize)
+    cbar.ax.tick_params(axis='both', which='both',
+                        labelsize=12, direction='in')
+    cbar.ax.minorticks_on()
+
+    # save figures
+    if not figpath is None: plt.savefig(figpath+".png", dpi=256)
+    if not figpath is None: plt.savefig(figpath+".pdf")
+    plt.show()
+    plt.close()
+def plot_init_profile_new(mom : np.ndarray, ctheta : np.ndarray, data2d : np.ndarray,
+                      xmin:float=0, xmax:float=90, ymin:float=1e-2, ymax:float=6, vmin:float=1e-12, vmax:float=1e-6,
+                      norm_mode:str="log", cmap:plt.cm = plt.get_cmap('RdYlBu_r'),
+                      xscale:str="linear", yscale:str="linear", cbar_label:str=r"$M_{\rm ej}$",
+                      subplot_mode:str="sum", hist_ylabel:str=r"$M_{\rm ej}$ [M$_{\odot}$]",
+                      title:str=None, figpath:str=None, fontsize:int=12):
+    """
+
+    :param mom: np.ndarray; 1D;
+        mom = Gamma * beta, where bete is dimensionless terminal velocity, Gamma is lorentz factor [dimensionless]
+    :param ctheta: np.ndarray; 1D;
+        polar angle (0-pole, pi/2-equator) [radians]
+    :param data2d: np.ndarray 2D [shape=(len(mom),len(ctheta)]
+        Mass or kinetic energy to plot; Kinetic energy is defined as $\E_k = mass * (\beta * c)^2$ where
+        $mass$ is the mass in grams, $\beta$ is dimensionless velocity and $c$ is the speed of light
+    """
+
+    # from radians to dgrees
+    ctheta *= 180 / np.pi
+
+    fig,axes = plt.subplots(figsize=(5, 5),ncols=1,nrows=2,layout='constrained',sharex='col',
+                            gridspec_kw={'height_ratios': [1.5,2]})
+
+    # ax0 = fig.add_axes([0.16, 0.12, 0.81 - 0.15, 0.59 - 0.12])
+    # ax1 = fig.add_axes([0.16, 0.61, 0.81 - 0.15, 0.91 - 0.61])
+    # cax = fig.add_axes([0.83, 0.12, 0.86 - 0.83, 0.59 - 0.12])
+
+    # set how to deal with 1D histogram (top subplot) Summ all quantities for all angles or compute mass-averaged
+    ax1 = axes[0]
+
+    if subplot_mode == 'sum':
+        # res = np.sum(data2d, axis=0)
+        ax1.plot(ctheta, np.sum(data2d, axis=0), color='black', ls='-', drawstyle='steps')
+        ax2 = ax1.twinx()
+        ax2.plot(ctheta, np.sum(data2d[mom>1.], axis=0), color='gray', ls='-', drawstyle='steps')
+        ax2.set_yscale('log')
+
+    elif subplot_mode == 'seg_sum':
+        segs = np.arange(start=0,stop=90+18,step=18)
+        seg_colors = ["blue","green","magenta","orange","red"]
+        segs = [(low,up) for (low,up) in zip(segs[:-1],segs[1:])]
+
+        for (seg_color, segment) in zip(seg_colors, segs):
+            c_seg = int( (segment[1] + segment[0])*0.5 )
+            low = segment[0]
+            up  = segment[1]
+            ek_ = np.sum(data2d[:,(ctheta > low) & (ctheta <= up)],axis=0)
+            ax1.plot(ctheta, ek_, color=seg_color, ls='-', drawstyle='steps',
+                     label=r"$\theta_{\rm c}=$"+f"{int(c_seg)} deg.")
+        ax1.legend(fancybox=False,loc= 'lower right',columnspacing=0.4,
+                   #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                   shadow=False, ncol= 2, fontsize= 12,
+                   framealpha=0., borderaxespad= 0., frameon=False)
+    else:
+        vinf = mom / np.sqrt(1.0+mom*mom)
+        data2d[~np.isfinite(data2d)] = 0.
+        vinf[~np.isfinite(vinf)] = 0.
+        res = np.sum(data2d * vinf[:, np.newaxis], axis=0) / np.sum(data2d, axis=0)
+
+        # plot the 1D histogram
+        ax1.plot(ctheta, res, color='black', ls='-', drawstyle='steps')
+
+
+    # adjust subplot settings
+    if (not title is None): ax1.set_title(title,fontsize=fontsize)
+    if norm_mode=="log": ax1.set_yscale("log")
+    else: ax1.set_yscale("linear")
+    ax1.set_ylabel(hist_ylabel, fontsize=fontsize)
+    ax1.get_yaxis().set_label_coords(-0.15, 0.5)
+    ax1.set_xlim(xmin, xmax)
+    ax1.xaxis.set_ticklabels([])
+    ax1.tick_params(axis='both', which='both', labelleft=True,
+                    labelright=False, tick1On=True, tick2On=True,
+                    labelsize=12, direction='in',
+                    bottom=True, top=True, left=True, right=True)
+    ax1.minorticks_on()
+
+    # prepare for plotting 2D histogram
+    if vmin is None: vmin = data2d[(data2d > 0) & (np.isfinite(data2d))].min()
+    if vmax is None: vmax = data2d[(data2d > 0) & (np.isfinite(data2d))].max()
+    if (norm_mode=="log"): norm = LogNorm(vmin, vmax)
+    elif (norm_mode=="linear"): norm = Normalize(vmin, vmax)
+    elif (norm_mode=="levels"):
+        levels = MaxNLocator(nbins=15).tick_values(vmin, vmax)
+        norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
+    else:
+        raise KeyError(" norm_mode is not recognized ")
+
+    ax0 = axes[1]
+    # plot colormesh
+    im = ax0.pcolor(ctheta, mom, data2d, cmap=cmap, norm=norm, shading='auto')
+    # ax0.axhline(y=1, linestyle='--', color='gray')
+
+    # adjust the bottom subplot
+    ax0.set_ylim(ymin, ymax)
+    ax0.set_xlim(xmin, xmax)
+    ax0.set_xscale(xscale)
+    ax0.set_yscale(yscale)
+    ax0.set_ylabel(r"$\Gamma\beta$", fontsize=fontsize)
+    ax0.set_xlabel(r"Polar angle", fontsize=fontsize)
+    ax0.get_yaxis().set_label_coords(-0.15, 0.5)
+    # ax0.text(0.75, 0.88, title, color='white', transform=ax0.transAxes, fontsize=fontsize)
+    ax0.minorticks_on()
+    ax0.tick_params(axis='both', which='both', labelleft=True,
+                    labelright=False, tick1On=True, tick2On=True,
+                    labelsize=12,
+                    direction='in',
+                    bottom=True, top=True, left=True, right=True)
+
+    cbar = plt.colorbar(im, ax=ax0, norm=norm)
+    # cbar.set_label(r"$M_{\rm ej}$ [M$_{\odot}$]", fontsize=fontsize)
+    cbar.set_label(cbar_label, fontsize=fontsize)
+    cbar.ax.tick_params(axis='both', which='both',
+                        labelsize=12, direction='in')
+    cbar.ax.minorticks_on()
+
+    # save figures
+    if not figpath is None: plt.savefig(figpath+".png", dpi=256)
+    if not figpath is None: plt.savefig(figpath+".pdf")
+    plt.show()
+    plt.close()
+def plot_ejecta_angular_distribution(name:str):
+
+    # sim_dic = SIMULATIONS["DD2_135_135_res150"]
+    sim_dic = df.loc[name]
+    text_dict = df_text.loc[name]
+    text = float(sim_dic['tmerg'])+float(text_dict['text'])
+    ej = PBA.id_kenta.EjectaData(get_ej_data(sim_dic["name"]),verbose=True)
+    # ej_mass = ej.get(v_n="mass",text=text)
+    # # ej_mass = ej.get(v_n="ye",text=text)
+    # theta = ej.get_theta()
+    # mom = PBA.MomFromBeta(ej.get_vinf())
+
+    mom, ctheta, ek, masses = get_2d_ek(ej=ej,text=text,new_vinf_len=80)
+
+    plot_init_profile(mom=mom, ctheta=ctheta, data2d=ek, yscale='log', title=sim_dic["label"],
+                      vmin=1e41, vmax=1e48, norm_mode='log', subplot_mode='sum',
+                      hist_ylabel=r"$E_{\rm k}$ [erg]",
+                      hist_ylabel2=r"$E_{\rm k}(\Gamma\beta>1)$ [erg]",
+                      cbar_label=r"$E_{\rm k}$ [erg]",
+                      # vmin=0.,vmax=0.6,norm_mode='linear', subplot_mode='ave',
+                      #   hist_ylabel=r"$\langle Y_{e;\,\rm ej} \rangle$", cbar_label=r"$Y_{e;\,\rm ej}$",
+                      figpath=os.getcwd()+"/figs/"+f"{name}_angular_profile")
+    # with h5py.File(os.getcwd()+"/"+"SFHo_13_14_res150_text20_pm.h5",'w') as f:
+    #     f.create_dataset(name="Gamma_beta",data=mom)
+    #     f.create_dataset(name="polar_angle",data=theta)
+    #     f.create_dataset(name="mass",data=ej_mass) # [imom,itheta]
+    # print(mom.shape,theta.shape,ej_mass.shape)
+
+    # sim_dic = SIMULATIONS["SFHo_13_14_res150"]
+    # text = 13 + sim_dic["tmerg"]
+    # ej = PBA.id_kenta.EjectaData(sim_dic["datadir"]+"ej_collated.h5",verbose=True)
+    # ej_mass = ej.get(v_n="mass",text=text)
+    # theta = ej.get_theta()
+    # mom = ej.get_vinf() * PBA.utils.get_Gamma(ej.get_vinf())
+    # plot_init_profile(mom=mom,ctheta=theta,mass=ej_mass.T, yscale='log',title=sim_dic["label"],
+    #                   figpath=figs+sim_dic["name"]+"_initial")
+    #
+    # sim_dic = SIMULATIONS["DD2_135_135_res150_floor"]
+    # text = 13 + sim_dic["tmerg"]
+    # ej = PBA.id_kenta.EjectaData(sim_dic["datadir"]+"ej_collated.h5",verbose=True)
+    # ej_mass = ej.get(v_n="mass",text=text)
+    # theta = ej.get_theta()
+    # mom = ej.get_vinf() * PBA.utils.get_Gamma(ej.get_vinf())
+    # plot_init_profile(mom=mom,ctheta=theta,mass=ej_mass.T, yscale='log',title=sim_dic["label"],
+    #                   figpath=figs+sim_dic["name"]+"_initial")
 
 
 if __name__ == '__main__':
@@ -2551,6 +2892,7 @@ if __name__ == '__main__':
     # task_process()
     # plot_sim_ekecta_mass_text_dependency(name="SFHo_135_135_res150_new")
     # plot_sim_ekecta_mass_text_dependency_all()
+    # plot_sim_ekecta_mass_old(sim_name="SFHo_13_14_res150")
 
     ''' ejecta properties at a given extraction time '''
     # plot_ej_mom_theta_dist_for_text()
@@ -2564,18 +2906,19 @@ if __name__ == '__main__':
     # plot_all_sim_ejecta_mass_row(figname="ej_mom_ek_nr_",figname_coeffs="ej_mom_ek_coeffs_nr_",
     #                              ylim0=(2e43, 1e51),ylim1=(2e43, 4e49),ylim2=(-0.75,0.75), xlim=(2e-2, 4))
 
-    plot_sim_ekecta_mass(o_fit = Fit1D_3seg(),sim_=None,
+    plot_sim_ekecta_mass(figname="angular_dist",o_fit = Fit1D_3seg(),sim_=None,
                          plot_fit_coeffs=True,plot_box_plots=True,plot_fit_ek=True,save_fit_result=True)
     # plot_sim_ekecta_mass(o_fit = Fit1D_4seg(),sim_=None,
     #                      plot_fit_coeffs=True,plot_box_plots=True,plot_fit_ek=True,save_fit_result=True)
 
-
+    # plot_ejecta_angular_distribution(name="SFHo_13_14_res150")
     # plot_sim_ekecta_mass(sim_dic=df.loc["DD2_135_135_res150"])
 
     # plot_rho_max(df=df)
-    # plot_sim_ekecta_mass_old(sim_name="SFHo_13_14_res150")
 
-
+    # for (sim_name, _) in df.iterrows():
+    #     plot_ejecta_angular_distribution(name=sim_name)
+    # plot_ejecta_angular_distribution_all()
 
 
     ''' Mass flux & rho_max as a function of time '''
