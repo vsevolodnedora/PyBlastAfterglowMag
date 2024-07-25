@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 from matplotlib.colors import LogNorm, Normalize
 from matplotlib.colors import BoundaryNorm
+from matplotlib.patches import Patch
 from matplotlib.ticker import MaxNLocator
 import json
 
@@ -1978,25 +1979,76 @@ def plot_sim_ekecta_mass(
                 continue
 
             # y0_tot = float( df_fit_total["y0"] )
-            differences = []
+            differences_i = []
+            differences_u = []
             for j, (segment, color) in enumerate( zip(segs, colors) ):
                 c_seg = int( (segment[1]+segment[0])*0.5 )
                 tbl = result_9seg_xy[f"{name} {c_seg}"]
                 l_mom, l_ek = tbl["nr"][:,0], tbl["nr"][:,1]
                 # l_mom_fit, l_ek_fit = tbl["fit"][:,0], tbl["fit"][:,1]
-                l_mom_ufit, l_ek_ufit = tbl["fit_u"][:,0], tbl["fit_u"][:,1]
+                # l_mom_ufit, l_ek_ufit = tbl["fit_u"][:,0], tbl["fit_u"][:,1]
 
-                l_ek_fit = interp1d(l_mom_ufit,l_ek_ufit,kind='linear')(l_mom)
+                l_ek_fit = interp1d(tbl["fit_u"][:,0], tbl["fit_u"][:,1], kind='linear')(l_mom)
                 difference = l_ek-l_ek_fit
                 # axes[1,i].plot(un_log(l_mom), difference,color=color,ls=':',lw=0.7)
-                differences.append(difference)
+                differences_u.append(difference)
                 # mean = np.mean(difference)
+
+                l_ek_fit = interp1d(tbl["fit"][:,0], tbl["fit"][:,1], kind='linear')(l_mom)
+                difference = l_ek-l_ek_fit
+                # axes[1,i].plot(un_log(l_mom), difference,color=color,ls=':',lw=0.7)
+                differences_i.append(difference)
+                # mean = np.mean(difference)
+
+            def set_box(bplot, color, alpha, lw, markersize=0):
+                box_color = color
+                whisker_color =color
+                cap_color =color
+                median_color = color
+                flier_color = color
+
+                for patch in bplot['boxes']:
+                    patch.set_facecolor(box_color)
+                    patch.set_alpha(alpha)
+
+                for whisker in bplot['whiskers']:
+                    whisker.set_color(whisker_color)
+                    whisker.set_linewidth(lw)  # You can set the line width if you want
+
+                for cap in bplot['caps']:
+                    cap.set_color(cap_color)
+                    cap.set_linewidth(lw)  # You can set the line width if you want
+
+                for median in bplot['medians']:
+                    median.set_color(median_color)
+                    median.set_linewidth(lw)  # You can set the line width if you want
+
+                for flier in bplot['fliers']:
+                    flier.set_markeredgecolor(flier_color)
+                    flier.set_marker('o')  # You can change the marker style if you want
+                    flier.set_markersize(markersize)  # You can change the size of the markers
+
             # axes[1,i].axhline(y=mean,color=color,linestyle='-')
-            bplot = axes[i].boxplot(differences, patch_artist=True,
-                                      positions=np.array(csegs,dtype=int),widths=5)
-            for patch, color in zip(bplot['boxes'], colors):
-                patch.set_facecolor(color)
-                patch.set_alpha(0.5)
+            bplot = axes[i].boxplot(differences_u, patch_artist=True, positions=np.array(csegs,dtype=int),widths=4)
+            set_box(bplot,color='blue',alpha=0.4,lw=1,markersize=0)
+
+            bplot = axes[i].boxplot(differences_i, patch_artist=True, positions=np.array(csegs,dtype=int),widths=8)
+            set_box(bplot,color='red',alpha=0.4,lw=2,markersize=0)
+
+        legend_elements = [
+            Patch(facecolor='red', alpha=0.4, label=o_fit.name),
+            Patch(facecolor='blue', alpha=0.4, label=o_fit.name+"$^{*}$"),
+            # Patch(color='blue', label='Whiskers (Range)'),
+            # Patch(color='blue', label='Median'),
+            # Patch(color='blue', label='Caps (Max/Min)'),
+            # Patch(color='blue', label='Outliers', marker='o', markersize=5)  # Only if you have fliers
+        ]
+
+        # Adding the legend to the splot
+        axes[0].legend(handles=legend_elements,
+                       fancybox=False,loc= 'lower left',columnspacing=0.4,
+                       #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                       shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)
 
         for ax in axes:
             ax.tick_params(labelsize=12,which='both',direction='in',tick1On=True, tick2On=True)
