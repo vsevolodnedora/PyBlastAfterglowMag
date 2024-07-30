@@ -163,7 +163,8 @@ public: // ---------------- ANALYTIC -------------------------- //
         else if (m_sychMethod == METHODS_SYNCH::iMARG21) {
             // defined in Margalit+21 arXiv:2111.00012
             syn_an.computeAnalyticSynchMARG21(em, abs, nuprime, mu_e * nn,
-                                              eps_e / eps_t, Theta, z_cool, accel_frac, do_ssa);
+                                              eps_e / eps_t, Theta, z_cool, accel_frac, do_ssa,
+                                              do_th_marg21);
         }
         else{
             (*p_log)(LOG_ERR,AT)<<" analytic synchrotron method is not supported \n";

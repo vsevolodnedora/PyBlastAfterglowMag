@@ -1511,8 +1511,13 @@ def plot_sim_ekecta_mass(
     ''' ----------- DEFINE ANGULAR SEGMENTS TO ANALYZE -------------  '''
 
     # segs = [(-.1,10.),(10,20.),(20.,30.),(30.,40,),(40.,50.),(50.,60.),(60.,70.),(70.,80.),(80.,91.)]
-    segs = np.arange(start=0,stop=90+18,step=18)
-    segs = [(low,up) for (low,up) in zip(segs[:-1],segs[1:])]
+    # segs = np.arange(start=0,stop=90+18,step=18)
+    # segs = [(low,up) for (low,up) in zip(segs[:-1],segs[1:])]
+    segs = [(0, 36.87),
+            (36.87, 53.13),
+            (53.13, 66.42),
+            (66.42, 78.46),
+            (78.46, 90.00)]
     csegs = [0.5*(seg[0]+seg[1]) for seg in segs]
 
     n_v = 80
@@ -1550,7 +1555,7 @@ def plot_sim_ekecta_mass(
         result_ = dict()
         for segment in segs:
 
-            c_seg = int( (segment[1] + segment[0])*0.5 )
+            c_seg = float( (segment[1] + segment[0])*0.5 )
 
             low = segment[0] * np.pi / 180.
             up  = segment[1] * np.pi / 180.
@@ -1567,8 +1572,8 @@ def plot_sim_ekecta_mass(
             ek_fit = o_fit.piecewise_power(mom_fit, *[np.float64(fit_dict[key]) for key in o_fit.keys])
 
 
-            result_[c_seg] = fit_dict
-            result_9seg_xy[f"{name} {c_seg}"] = dict(
+            result_[f"{c_seg:.3f}"] = fit_dict
+            result_9seg_xy[f"{name} {c_seg:.3f}"] = dict(
                 nr=np.column_stack((l_mom, l_ek)),
                 fit_nr=np.column_stack((x_fit, y_fit)),
                 fit=np.column_stack((do_log(mom_fit), do_log_y(ek_fit))),
@@ -1583,7 +1588,7 @@ def plot_sim_ekecta_mass(
         result_ = dict()
         for segment in [(-.1, 91)]:
 
-            c_seg = int( (segment[1]+segment[0])*0.5 )
+            c_seg = float( (segment[1]+segment[0])*0.5 )
 
             low = segment[0] * np.pi / 180.
             up  = segment[1] * np.pi / 180.
@@ -1600,11 +1605,12 @@ def plot_sim_ekecta_mass(
             # -------- fit y0 from N SEGMENT fit ------
             angles = np.array( result_9seg[name].index, dtype=np.float64 )
             y0_s = do_log_y( np.array( result_9seg[name]["y0"] ) )
-            slope, intercept, r_value, p_value, std_err = linregress(np.sin(angles*np.pi/180), y0_s)
+            # slope, intercept, r_value, p_value, std_err = linregress(np.sin(angles*np.pi/180), y0_s)
+            slope, intercept, r_value, p_value, std_err = linregress(angles*np.pi/180, y0_s)
             fit_dict["slope"] = slope
             fit_dict["intercept"] = intercept
 
-            result_[c_seg] = fit_dict
+            result_[f"{c_seg:.3f}"] = fit_dict
 
         df_i = pd.DataFrame.from_dict(result_).T
         result_1seg[name] = df_i
@@ -1614,13 +1620,14 @@ def plot_sim_ekecta_mass(
         intercept = np.float64( result_1seg[name]["intercept"] )
         coeffs_tot = [np.average(np.array(result_9seg[name][key])) for key in o_fit.keys]
         for segment in segs:
-            c_seg = int( (segment[1] + segment[0])*0.5 )
-            y0_fit = slope * np.sin(c_seg*np.pi/180) + intercept
+            c_seg = float( (segment[1] + segment[0])*0.5 )
+            # y0_fit = slope * np.sin(c_seg*np.pi/180) + intercept
+            y0_fit = slope * c_seg*np.pi/180 + intercept
             y0_fit = un_log_y(y0_fit)
             coeffs_tot[o_fit.keys.index("y0")] = y0_fit
             ek_fit = o_fit.piecewise_power(mom_fit, *np.array(coeffs_tot).flatten().tolist())
 
-            result_9seg_xy[f"{name} {c_seg}"]["fit_u"] = np.column_stack((
+            result_9seg_xy[f"{name} {c_seg:.3f}"]["fit_u"] = np.column_stack((
                 do_log(mom_fit), do_log_y(ek_fit) # fit using general func and general grids
             ))
 
@@ -1640,20 +1647,20 @@ def plot_sim_ekecta_mass(
             angles = []
 
             for i_seg, segment in enumerate(segs):
-                c_seg = int( (segment[1]+segment[0])*0.5 )
+                c_seg = float( (segment[1]+segment[0])*0.5 )
                 angles.append(c_seg*np.pi/180) # radians
-                tbl_ = result_9seg_xy[f"{name} {c_seg}"]["nr"]
+                tbl_ = result_9seg_xy[f"{name} {c_seg:.3f}"]["nr"]
                 table.append(un_log_y(tbl_[:,1]))
 
             # save result whn eah segment was fitted separately
             for i_seg, segment in enumerate(segs):
-                c_seg = int( (segment[1]+segment[0])*0.5 )
+                c_seg = float( (segment[1]+segment[0])*0.5 )
 
                 # coeffs = [np.float64(result_9seg[name][key][c_seg]) for key in keys]
                 # ek = o_fit.piecewise_power(mom, *np.array(coeffs).tolist())
                 # table_fit.append(ek)
 
-                tbl_ = result_9seg_xy[f"{name} {c_seg}"]["fit"]
+                tbl_ = result_9seg_xy[f"{name} {c_seg:.3f}"]["fit"]
                 table_fit.append(un_log_y(tbl_[:,1]))
 
                 # ax.plot(un_log(tbl_[:,0]),un_log_y(tbl_[:,1]),color=colors[i_seg],ls='--')
@@ -1663,14 +1670,14 @@ def plot_sim_ekecta_mass(
             # intercept = np.float64( result_1seg[name]["intercept"] )
             # coeffs_tot = [np.average(np.array(result_9seg[name][key])) for key in keys]
             for i_seg, segment in enumerate(segs):
-                c_seg = int( (segment[1]+segment[0])*0.5 )
+                c_seg = float( (segment[1]+segment[0])*0.5 )
                 # y0_fit = slope * np.sin(c_seg*np.pi/180) + intercept
                 # y0_fit = 10**y0_fit
                 # coeffs_tot[keys.index("y0")] = y0_fit
                 # ek_fit = o_fit.piecewise_power(mom, *np.array(coeffs_tot).flatten().tolist())
                 # table_ufit.append(ek_fit)
 
-                tbl_ = result_9seg_xy[f"{name} {c_seg}"]["fit_u"]
+                tbl_ = result_9seg_xy[f"{name} {c_seg:.3f}"]["fit_u"]
                 table_ufit.append(un_log_y(tbl_[:,1]))
 
                 # ax.plot(un_log(tbl_[:,0]),un_log_y(tbl_[:,1]),color=colors[i_seg],ls=':')
@@ -1693,10 +1700,19 @@ def plot_sim_ekecta_mass(
                 f.create_dataset(name="ek_fit",data=table_fit) # kinetic energy per momentum bin and per angular bin [erg]
                 f.create_dataset(name="ek_ufit",data=table_ufit) # kinetic energy per momentum bin and per angular bin [erg] (universal fit)
 
+    if (save_fit_result):
+        for sim_name, series in result_1seg.items():
+            # df_fit_1 = pd.DataFrame(series)
+            series['label'] = df.loc[sim_name]['label']
+            series = series[['label','slope','intercept']]
+            print(series.to_latex(index=False,float_format="%.2f"))
+
+
+
     # plot coefficients for each simulation and each angular segment
     if (True & plot_fit_coeffs):
 
-        lims = {"x1":[0.5,4.5],"k3":[0,-80]}
+        lims = {"x1":[0.5,6.5],"k3":[0,-80]}
 
         fig,axes = plt.subplots(ncols=len(o_fit.keys),nrows=1,figsize=(12,4.0),
                                 # layout='constrained',
@@ -1710,7 +1726,7 @@ def plot_sim_ekecta_mass(
                 df_i = result_9seg[name]
                 for j, (cth, fit_dict_cth) in enumerate(df_i.iterrows()):
                     label =sim_dict['label'] if (i == 0 and j == 0) else None
-                    axes[i].plot(cth, fit_dict_cth[key],marker=sim_dict['marker'],color=sim_dict['color'],fillstyle='none',
+                    axes[i].plot(float(cth), fit_dict_cth[key],marker=sim_dict['marker'],color=sim_dict['color'],fillstyle='none',
                                  label=label,ls=sim_dict['ls'])
 
         # plot fit to y0 coefficient (get average coefficients for each angular segment (assume that average is good))
@@ -1719,7 +1735,8 @@ def plot_sim_ekecta_mass(
             angles = np.array( result_9seg[name].index, dtype=np.float64 )
             slope = np.float64( result_1seg[name]["slope"] )
             intercept = np.float64( result_1seg[name]["intercept"] )
-            y0_fit = slope * np.sin( angles*np.pi/180 ) + intercept
+            # y0_fit = slope * np.sin( angles*np.pi/180 ) + intercept
+            y0_fit = slope * angles*np.pi/180 + intercept
 
             axes[o_fit.keys.index('y0')].plot(
                 angles, un_log_y( y0_fit ),ls=sim_dict['ls'],color=sim_dict['color'],fillstyle='none'
@@ -1757,11 +1774,11 @@ def plot_sim_ekecta_mass(
             if sim_ and name != sim_:
                 continue
             for (segment, color) in zip(segs, colors):
-                c_seg = int( (segment[1]+segment[0])*0.5 )
-                tbl = result_9seg_xy[f"{name} {c_seg}"]
+                c_seg = float( (segment[1]+segment[0])*0.5 )
+                tbl = result_9seg_xy[f"{name} {c_seg:.3f}"]
                 l_mom, l_ek = tbl["nr"][:,0], tbl["nr"][:,1]
                 l_mom_fit, l_ek_fit = tbl["fit"][:,0], tbl["fit"][:,1]
-                label = r"$\theta_{\rm c}="+f"{int(c_seg)}$ deg." if i == 0 else None
+                label = r"$\theta_{\rm c}="+f"{c_seg:.1f}$ deg." if i == 0 else None
                 axes[i].plot(un_log(l_mom),un_log_y(l_ek),color=color,ls='-',lw=1,label=label)
                 axes[i].plot(un_log(l_mom_fit),un_log_y(l_ek_fit),color=color,ls='--',lw=1)
 
@@ -1788,8 +1805,8 @@ def plot_sim_ekecta_mass(
             # y0_tot = float( df_fit_total["y0"] )
             # differences = []
             for j, (segment, color) in enumerate( zip(segs, colors) ):
-                c_seg = int( (segment[1]+segment[0])*0.5 )
-                tbl = result_9seg_xy[f"{name} {c_seg}"]
+                c_seg = float( (segment[1]+segment[0])*0.5 )
+                tbl = result_9seg_xy[f"{name} {c_seg:.3f}"]
                 l_mom, l_ek = tbl["nr"][:,0], tbl["nr"][:,1]
                 # l_mom_fit, l_ek_fit = tbl["fit"][:,0], tbl["fit"][:,1]
                 l_mom_ufit, l_ek_ufit = tbl["fit_u"][:,0], tbl["fit_u"][:,1]
@@ -1878,8 +1895,8 @@ def plot_sim_ekecta_mass(
             if sim_ and name != sim_:
                 continue
             for (segment, color) in zip(segs, colors):
-                c_seg = int( (segment[1]+segment[0])*0.5 )
-                tbl = result_9seg_xy[f"{name} {c_seg}"]
+                c_seg = float( (segment[1]+segment[0])*0.5 )
+                tbl = result_9seg_xy[f"{name} {c_seg:.3f}"]
                 l_mom, l_ek = tbl["nr"][:,0], tbl["nr"][:,1]
                 l_mom_fit, l_ek_fit = tbl["fit"][:,0], tbl["fit"][:,1]
                 axes[0,i].plot(un_log(l_mom),un_log_y(l_ek),color=color,ls='-',lw=0.7)
@@ -1908,8 +1925,8 @@ def plot_sim_ekecta_mass(
             # y0_tot = float( df_fit_total["y0"] )
             # differences = []
             for j, (segment, color) in enumerate( zip(segs, colors) ):
-                c_seg = int( (segment[1]+segment[0])*0.5 )
-                tbl = result_9seg_xy[f"{name} {c_seg}"]
+                c_seg = float( (segment[1]+segment[0])*0.5 )
+                tbl = result_9seg_xy[f"{name} {c_seg:.3f}"]
                 l_mom, l_ek = tbl["nr"][:,0], tbl["nr"][:,1]
                 # l_mom_fit, l_ek_fit = tbl["fit"][:,0], tbl["fit"][:,1]
                 l_mom_ufit, l_ek_ufit = tbl["fit_u"][:,0], tbl["fit_u"][:,1]
@@ -1982,8 +1999,8 @@ def plot_sim_ekecta_mass(
             differences_i = []
             differences_u = []
             for j, (segment, color) in enumerate( zip(segs, colors) ):
-                c_seg = int( (segment[1]+segment[0])*0.5 )
-                tbl = result_9seg_xy[f"{name} {c_seg}"]
+                c_seg = float( (segment[1]+segment[0])*0.5 )
+                tbl = result_9seg_xy[f"{name} {c_seg:.3f}"]
                 l_mom, l_ek = tbl["nr"][:,0], tbl["nr"][:,1]
                 # l_mom_fit, l_ek_fit = tbl["fit"][:,0], tbl["fit"][:,1]
                 # l_mom_ufit, l_ek_ufit = tbl["fit_u"][:,0], tbl["fit_u"][:,1]

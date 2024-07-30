@@ -1137,7 +1137,8 @@ public:
     }
     /// Analytical Synchrotron Sectrum; BPL;
     void computeAnalyticSynchMARG21(double & em, double & abs, double nuprime, double ne_,
-                                    double delta, double Theta, double z_cool, double accel_frac, bool do_ssa){
+                                    double delta, double Theta, double z_cool, double accel_frac, bool do_ssa,
+                                    bool do_th){
 //        double gamma_min=p_pars->gamma_min, gamma_c=p_pars->gamma_c, B=p_pars->B, n_prime=p_pars->n_prime;
 //        double Theta=p_pars->Theta, z_cool = p_pars->z_cool, acc_frac = p_pars->accel_frac;
 //        double p = p_pars->p;
@@ -1154,7 +1155,7 @@ public:
             exit(1);
         }
         /// calculate total_rad emissivity & optical depth:
-        em_th = Margalit21::jnu_th(x, ne_, B, Theta, z_cool);
+        em_th = do_th ? Margalit21::jnu_th(x, ne_, B, Theta, z_cool) : 0.;
         em_pl = Margalit21::jnu_pl(x, ne_ * accel_frac, B, Theta, gamma_min, delta, p, z_cool); //TODO added 'accel_frac'
         if ((!std::isfinite(em_th))||(em_th < 0.)) em_th = 0.;
         if ((!std::isfinite(em_pl))||(em_pl < 0.)) em_pl = 0.;
@@ -1170,7 +1171,7 @@ public:
         em=em_pl+em_th;//m_data[i_em] = em_pl + em_th;
 
         if (do_ssa) {
-            abs_th = Margalit21::alphanu_th(x, ne_, B, Theta, z_cool);
+            abs_th = do_th ? Margalit21::alphanu_th(x, ne_, B, Theta, z_cool) : 0.;
             abs_pl = Margalit21::alphanu_pl(x, ne_ * accel_frac, B, Theta, gamma_min, delta, p, z_cool);
             if (!std::isfinite(abs_th)) abs_th = 0.;
             if (!std::isfinite(abs_pl)) abs_pl = 0.;
@@ -1178,10 +1179,6 @@ public:
             abs=abs_pl+abs_th;//m_data[i_abs] = abs_th + abs_pl;
 
         }
-        if (gamma_min == 1.)
-            int g = 1;
-        if (accel_frac < 1.)
-            int z = 1;
     }
 };
 

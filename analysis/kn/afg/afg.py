@@ -4,11 +4,12 @@ import pandas as pd
 import numpy as np
 from scipy.integrate import ode
 import matplotlib.pyplot as plt
-from scipy import interpolate
+from matplotlib.cm import ScalarMappable
+
 from multiprocessing import Pool
 
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-
+from scipy.interpolate import interp1d
 from pathlib import Path
 from matplotlib.colors import Normalize, LogNorm
 from matplotlib import cm
@@ -39,6 +40,23 @@ df = SIMS[SIMS["given_time"] == "new"]
 # -------------------------------------------------------------------------------
 EJ_TEXT_PATH = str(__file__).split("analysis/kn/")[0] + "analysis/kn/ejecta/output/"
 df_text = pd.read_csv(EJ_TEXT_PATH+"ejecta_fasttail_vals_at_massmax.csv",index_col=0)
+
+# --------------------------------------------------------------------------------
+DATA_PATH_RAD = str(__file__).split("analysis/kn/")[0] + "analysis/kn/radice_data/"
+get_ej_data_rad = lambda name : DATA_PATH_RAD+name+'/'+"corr_vel_inf_theta.h5"
+df_rad = pd.read_csv(DATA_PATH_RAD+"david_data.csv",index_col=0)
+df_rad = df_rad[df_rad["mass_ft"] > 0]
+df_rad.sort_values(by='mass_ft',inplace=True,ascending=False)
+df_rad["label"] = [f"{str(eos)} q={float(q):.2f}" if (float(q)!=1.) else f"{str(eos)} q={int(q)}"
+                   for (eos,q) in zip(df_rad["EOS"],df_rad["q"])]
+def d2d(default:dict,new:dict):
+    default_ = copy.deepcopy(default)
+    for key, new_dict_ in new.items():
+        if not key in default_.keys():
+            default_[key] = {}
+        for key_, val_ in new_dict_.items():
+            default_[key][key_] = val_
+    return default_
 
 # -------------------------------------------------------------------------------
 # def piecewise_power(x, x0, x1, y0, k1, k2, k3):
@@ -73,6 +91,407 @@ def runs(task:dict):
         run=task['run']
     )
     pba.clear()
+
+def plot_one_lc_with_components(run:bool,sim_:str or None,suffix:str,
+                                xlim:tuple or None,ylim:tuple or None,figname:str, P:dict):
+
+    P = copy.deepcopy(P)
+    P['kn']["save_dynamics"] = 'yes'
+
+    tasks = []
+    for sim, sim_dict in df.iterrows():
+        if sim_ and not sim == sim_:
+            continue
+        text_dict = df_text.loc[sim]
+        tasks.append(
+            dict(working_dir=os.getcwd()+'/working_dirs/'+f'{sim}_{"sph"}_{suffix}_all/',
+                 struct=dict(struct="numeric",
+                             n_layers_pw=30,
+                             corr_fpath_kenta=get_ej_data(sim_dict['name']),
+                             text=float(sim_dict["tmerg"])+float(text_dict["text"]),
+                             t0=1e3,
+                             force_spherical=True
+                             ),
+                 P=P,
+                 run=run,
+                 label=f"{sim} {'sph'} all"
+                 )
+        )
+        tasks.append(
+            dict(working_dir=os.getcwd()+'/working_dirs/'+f'{sim}_{"sph"}_{suffix}_pl/',
+                 struct=dict(struct="numeric",
+                             n_layers_pw=30,
+                             corr_fpath_kenta=get_ej_data(sim_dict['name']),
+                             text=float(sim_dict["tmerg"])+float(text_dict["text"]),
+                             t0=1e3,
+                             force_spherical=True
+                             ),
+                 P=d2d(default=P,new=dict(kn=dict(incl_th_in_marg21_fs='no'))),
+                 run=run,
+                 label=f"{sim} {'sph'} pl"
+                 )
+        )
+
+    if run:
+        # equal load run
+        nmax = 14
+        if len(tasks) > nmax:
+            nn = int(len(tasks) / nmax) + 1
+            ncpu = len(tasks) // nn
+        else:
+            ncpu = len(tasks)
+        with Pool(ncpu) as pool:
+            result = pool.map(runs, tasks)
+
+
+    fig, ax = plt.subplots(ncols=1,nrows=1,figsize=(4.6,3.2),layout='constrained',sharex='col',#sharex='col',sharey='row',
+                             # gridspec_kw={'height_ratios': [2,1]}
+                             )
+
+    for sim, sim_dict in df.iterrows():
+        if sim_ and sim != sim_:
+            continue
+
+        task_sph = [task for task in tasks if task["label"].__contains__(f"{sim} {'sph'} all")][0]
+        pba_sph = PBA.wrappers.run_kn(working_dir=task_sph["working_dir"],struct=task_sph["struct"],P=task_sph["P"],run=False)
+
+        task_sph_pl = [task for task in tasks if task["label"].__contains__(f"{sim} {'sph'} pl")][0]
+        pba_sph_pl = PBA.wrappers.run_kn(working_dir=task_sph_pl["working_dir"],struct=task_sph_pl["struct"],P=task_sph_pl["P"],run=False)
+
+        ax.plot(pba_sph.KN.get_lc_times() / PBA.utils.cgs.day,
+                pba_sph.KN.get_lc(freq=3.e9) * 1e3 ,
+                color='black',ls=':', lw=1.2, label=r"$F_{\nu;\,\rm tot}$")
+        ax.plot(pba_sph_pl.KN.get_lc_times() / PBA.utils.cgs.day,
+                pba_sph_pl.KN.get_lc(freq=3.e9) * 1e3 ,
+                color='black', ls='-', lw=1.2, label=r"$F_{\nu;\,\rm pl}$")
+        ax.plot(pba_sph.KN.get_lc_times() / PBA.utils.cgs.day,
+                (pba_sph.KN.get_lc(freq=3.e9)-pba_sph_pl.KN.get_lc(freq=3.e9))* 1e3 ,
+                color='black',ls='--', lw=1.2, label=r"$F_{\nu;\,\rm th}$")
+
+        nshells =  int( pba_sph.KN.get_lc_obj().attrs["nshells"] )
+        nlayers =  int( pba_sph.KN.get_lc_obj().attrs["nlayers"] )
+        cmap = plt.get_cmap("jet") # 'RdYlBu_r'
+        # mom0 = np.array(pba_sph.KN.get_dyn_arr(v_n='mom',ishell=0,ilayer=0))[0]
+
+        moms = np.array([
+            np.array(pba_sph.KN.get_dyn_arr(v_n='mom',ishell=ishell,ilayer=0))[0]
+                            for ishell in np.arange(0,nshells)]
+        )
+        print(moms)
+        norm = LogNorm(moms[moms>0].min(),moms[moms>0].max())
+        # norm = LogNorm(0.1,moms[moms>0].max())
+        norm = LogNorm(1e44,1e48)
+        # norm = Normalize(44,48)
+        # norm = Normalize(moms[moms>0].min(),moms[moms>0].max())
+
+        # for ishell in np.arange(0,nshells,step=1)[nshells-10:]:
+        # moms_to_plot = [0.01, 0.05, 0.1, 0.5, 1., 1.5, 2., 2.,5]
+        for ishell in np.arange(0,nshells,step=1)[::2]:
+            mom0 = np.array([np.array(pba_sph.KN.get_dyn_arr(v_n='mom',ishell=ishell,ilayer=ilayer))[0]
+                             for ilayer in np.arange(0,nlayers)]).max()
+            # ek = float(pba_sph.KN.get_dyn_obj()[f"shell={ishell} layer={ilayer}"].attrs[])
+            # print(pba_sph.KN.get_id_obj().keys())
+            # eks = pba_sph.KN.get_dyn_obj()[f"shell={ishell} layer={0}"].attrs.keys()
+            eks = [pba_sph.KN.get_dyn_obj()[f"shell={ishell} layer={il}"].attrs["E0"]
+                   * \
+                   pba_sph.KN.get_dyn_obj()[f"shell={ishell} layer={il}"].attrs["cil"]
+                   for il in range(nlayers)]
+            ek = np.array(eks).max()
+            # exit(1)/
+
+            tt = pba_sph.KN.get_lc_times() / PBA.utils.cgs.day
+            f_pl = pba_sph_pl.KN.get_lc(freq=3.e9,ishell=ishell) * 1e3
+            f_th = (pba_sph.KN.get_lc(freq=3.e9,ishell=ishell)-pba_sph_pl.KN.get_lc(freq=3.e9,ishell=ishell))* 1e3
+            mask = (tt > tt[np.argmax(f_pl)])
+
+            tt_ = np.logspace(np.log10(tt[1]),np.log10(tt[-2]),1000)
+            ff_pl = interp1d(tt, f_pl)(tt_)
+            idx = np.argmax(ff_pl)
+
+            ax.plot(tt_[idx], ff_pl[idx], color=cmap(norm(ek)), marker='s')
+            ax.plot(tt[mask],
+                    f_pl[mask] ,
+                    color=cmap(norm(ek)), ls='-', lw=1,alpha=1.)
+
+            mask = (f_th > f_pl) & (tt < tt[np.argmax(f_th)])
+            ax.plot(tt[mask],
+                    f_th[mask],
+                    color=cmap(norm(ek)),ls='--', lw=1.,alpha=0.9)
+
+            tt_ = np.logspace(np.log10(tt[1]),np.log10(tt[-2]),1000)
+            ff_th = interp1d(tt, f_th)(tt_)
+            idx = np.argmax(ff_th)
+            ax.plot(tt_[idx], ff_th[idx], color=cmap(norm(ek)),marker='o')
+
+    # ax.legend(fancybox=False,loc= 'upper right',columnspacing=0.4,
+    #            #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+    #            shadow=False, ncol= 3, fontsize= 12,
+    #            framealpha=0., borderaxespad= 0., frameon=False)
+
+    n = 2
+    ax = ax
+    ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', marker='o', label=r"$F_{\rm p;\, th}$", ls='none')#, lw=0.7, drawstyle='steps')
+    ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', marker='s',label=r"$F_{\rm p;\, pl}$", ls='none')#, lw=0.7, drawstyle='steps')
+    han, lab = ax.get_legend_handles_labels()
+    ax.add_artist(ax.legend(han[:-1 * n], lab[:-1 * n],
+                            **dict(fancybox=False,loc= 'upper left',columnspacing=0.4,
+                                   #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                                   shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)))
+    ax.add_artist(ax.legend(han[len(han) - n:], lab[len(lab) - n:],
+                            **dict(fancybox=False,loc= 'upper right',columnspacing=0.4,
+                                   #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                                   shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)))
+
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.minorticks_on()
+    ax.tick_params(labelsize=12,axis='both', which='both',direction='in',tick1On=True, tick2On=True)
+    ax.minorticks_on()
+
+    if xlim: ax.set_xlim(*xlim)
+    if ylim: ax.set_ylim(*ylim)
+    ax.set_ylabel(r"$F_{\nu}$ [$\mu$Jy]",fontsize=12)
+    # ax.set_ylabel(r"$\log_{10}(F_{\nu\,;\rm sph}) - \log_{10}(F_{\nu\,;\rm fit})$",fontsize=12)
+    ax.axhline(y=0,color='gray',linestyle='-')
+    ax.grid(color='gray',linestyle=':')
+    ax.set_xlabel(r"$t_{\rm obs}$ [day]",fontsize=12)
+    cmappable = ScalarMappable(norm=norm,cmap=cmap)
+    cbar = fig.colorbar(cmappable, ax=ax, shrink=0.95,label=r"$E_{\rm k}$ [erg]",pad=0.05)
+    cbar.ax.tick_params(labelsize=12)
+    cbar.ax.minorticks_on()
+    cbar.set_label(r"$E_{\rm k}$ [erg]",size=12)
+
+    figname = os.getcwd()+f'/figs/{figname}_{suffix}_shells'
+    plt.savefig(figname+'.png',dpi=256)
+    plt.savefig(figname+'.pdf')
+    plt.show()
+
+def plot_lcs_for_our_and_david(run:bool,run_rad:bool,sim_:str or None,sim_rad_:str or None,suffix:str,
+                               xlim:tuple or None,ylim:tuple or None,figname:str, P:dict):
+    angles=(5, 45, 85)
+
+    # P['kn']["save_dynamics"] = 'yes'
+
+    tasks = []
+
+
+    for angle in angles:
+        P_ = copy.deepcopy(P)
+        P_["main"]["theta_obs"] = angle * np.pi / 180.
+
+        for sim, sim_dict in df_rad.iterrows():
+            if sim_rad_ and not sim == sim_rad_:
+                continue
+            tasks.append(
+                dict(working_dir=os.getcwd()+'/working_dirs/'+f'{sim}_{"nr"}_{suffix}_{int(angle)}/',
+                     struct=dict(struct="numeric",
+                                 n_layers_pw=30,
+                                 corr_fpath_david=get_ej_data_rad(sim),
+                                 t0=1e3,
+                                 force_spherical=False),
+                     P=P_,
+                     run=run_rad,
+                     label=f"{sim} {'nr'} {int(angle)}")
+            )
+
+        for sim, sim_dict in df.iterrows():
+            if sim_ and not sim == sim_:
+                continue
+            text_dict = df_text.loc[sim]
+            tasks.append(
+                dict(working_dir=os.getcwd()+'/working_dirs/'+f'{sim}_{"nr"}_{suffix}_{int(angle)}/',
+                     struct=dict(struct="numeric",
+                                 n_layers_pw=30,
+                                 corr_fpath_kenta=get_ej_data(sim_dict['name']),
+                                 text=float(sim_dict["tmerg"])+float(text_dict["text"]),
+                                 t0=1e3,
+                                 force_spherical=False),
+                     P=P_,
+                     run=run,
+                     label=f"{sim} {'nr'} {int(angle)}")
+            )
+
+            # tasks.append(
+            #     dict(working_dir=os.getcwd()+'/working_dirs/'+f'{sim}_{"sph"}_{suffix}_pl/',
+            #          struct=dict(struct="numeric",
+            #                      n_layers_pw=30,
+            #                      corr_fpath_kenta=get_ej_data(sim_dict['name']),
+            #                      text=float(sim_dict["tmerg"])+float(text_dict["text"]),
+            #                      t0=1e3,
+            #                      force_spherical=False
+            #                      ),
+            #          P=d2d(default=P,new=dict(kn=dict(incl_th_in_marg21_fs='no'))),
+            #          run=run,
+            #          label=f"{sim} {'nr'} pl"
+            #          )
+            # )
+
+
+    # for t in tasks:
+    #     runs(t)
+
+    if run or run_rad:
+        # equal load run
+        nmax = 14 # 14
+        if len(tasks) > nmax:
+            nn = int(len(tasks) / nmax) + 1
+            ncpu = len(tasks) // nn
+        else:
+            ncpu = len(tasks)
+
+        with Pool(ncpu) as pool:
+            result = pool.map(runs, tasks)
+
+
+    fig, axes = plt.subplots(ncols=len(df),nrows=1,figsize=(12.,3),layout='constrained',
+                             sharex='col',sharey='row',#sharex='col',sharey='row',
+                           # gridspec_kw={'height_ratios': [2,1]}
+                           )
+
+    for angle in angles:
+        for ax, (sim, sim_dict_our) in zip(axes, df.iterrows()):
+            if sim_ and sim != sim_:
+                continue
+
+            task_sph = [task for task in tasks if task["label"].__contains__(f"{sim} {'nr'} {int(angle)}")][0]
+            pba_sph = PBA.wrappers.run_kn(working_dir=task_sph["working_dir"],struct=task_sph["struct"],P=task_sph["P"],run=False)
+
+            # task_sph_pl = [task for task in tasks if task["label"].__contains__(f"{sim} {'sph'}")][0]
+            # pba_sph_pl = PBA.wrappers.run_kn(working_dir=task_sph_pl["working_dir"],struct=task_sph_pl["struct"],P=task_sph_pl["P"],run=False)
+
+            ax.plot(pba_sph.KN.get_lc_times() / PBA.utils.cgs.day,
+                    pba_sph.KN.get_lc(freq=3.e9) * 1e3 ,
+                    color='black',ls='-', lw=1.2, label=r"$F_{\nu;\,\rm tot}$")
+            # ax.plot(pba_sph_pl.KN.get_lc_times() / PBA.utils.cgs.day,
+            #         pba_sph_pl.KN.get_lc(freq=3.e9) * 1e3 ,
+            #         color='black', ls='-', lw=1.2, label=r"$F_{\nu;\,\rm pl}$")
+            # ax.plot(pba_sph.KN.get_lc_times() / PBA.utils.cgs.day,
+            #         (pba_sph.KN.get_lc(freq=3.e9)-pba_sph_pl.KN.get_lc(freq=3.e9))* 1e3 ,
+            #         color='black',ls='--', lw=1.2, label=r"$F_{\nu;\,\rm th}$")
+
+            # nshells =  int( pba_sph.KN.get_lc_obj().attrs["nshells"] )
+            # nlayers =  int( pba_sph.KN.get_lc_obj().attrs["nlayers"] )
+            # cmap = plt.get_cmap("jet") # 'RdYlBu_r'
+            # mom0 = np.array(pba_sph.KN.get_dyn_arr(v_n='mom',ishell=0,ilayer=0))[0]
+
+            # moms = np.array([
+            #     np.array(pba_sph.KN.get_dyn_arr(v_n='mom',ishell=ishell,ilayer=0))[0]
+            #     for ishell in np.arange(0,nshells)]
+            # )
+            # print(moms)
+            # norm = LogNorm(moms[moms>0].min(),moms[moms>0].max())
+            # # norm = LogNorm(0.1,moms[moms>0].max())
+            # norm = LogNorm(1e44,1e48)
+            # # norm = Normalize(44,48)
+            # # norm = Normalize(moms[moms>0].min(),moms[moms>0].max())
+            #
+            # # for ishell in np.arange(0,nshells,step=1)[nshells-10:]:
+            # # moms_to_plot = [0.01, 0.05, 0.1, 0.5, 1., 1.5, 2., 2.,5]
+            # for ishell in np.arange(0,nshells,step=1)[::2]:
+            #     mom0 = np.array([np.array(pba_sph.KN.get_dyn_arr(v_n='mom',ishell=ishell,ilayer=ilayer))[0]
+            #                      for ilayer in np.arange(0,nlayers)]).max()
+            #     # ek = float(pba_sph.KN.get_dyn_obj()[f"shell={ishell} layer={ilayer}"].attrs[])
+            #     # print(pba_sph.KN.get_id_obj().keys())
+            #     # eks = pba_sph.KN.get_dyn_obj()[f"shell={ishell} layer={0}"].attrs.keys()
+            #     eks = [pba_sph.KN.get_dyn_obj()[f"shell={ishell} layer={il}"].attrs["E0"]
+            #            * \
+            #            pba_sph.KN.get_dyn_obj()[f"shell={ishell} layer={il}"].attrs["cil"]
+            #            for il in range(nlayers)]
+            #     ek = np.array(eks).max()
+            #     # exit(1)/
+            #
+            #     tt = pba_sph.KN.get_lc_times() / PBA.utils.cgs.day
+            #     f_pl = pba_sph_pl.KN.get_lc(freq=3.e9,ishell=ishell) * 1e3
+            #     f_th = (pba_sph.KN.get_lc(freq=3.e9,ishell=ishell)-pba_sph_pl.KN.get_lc(freq=3.e9,ishell=ishell))* 1e3
+            #     mask = (tt > tt[np.argmax(f_pl)])
+            #
+            #     tt_ = np.logspace(np.log10(tt[1]),np.log10(tt[-2]),1000)
+            #     ff_pl = interp1d(tt, f_pl)(tt_)
+            #     idx = np.argmax(ff_pl)
+            #
+            #     ax.plot(tt_[idx], ff_pl[idx], color=cmap(norm(ek)), marker='s')
+            #     ax.plot(tt[mask],
+            #             f_pl[mask] ,
+            #             color=cmap(norm(ek)), ls='-', lw=1,alpha=1.)
+            #
+            #     mask = (f_th > f_pl) & (tt < tt[np.argmax(f_th)])
+            #     ax.plot(tt[mask],
+            #             f_th[mask],
+            #             color=cmap(norm(ek)),ls='--', lw=1.,alpha=0.9)
+            #
+            #     tt_ = np.logspace(np.log10(tt[1]),np.log10(tt[-2]),1000)
+            #     ff_th = interp1d(tt, f_th)(tt_)
+            #     idx = np.argmax(ff_th)
+            #     ax.plot(tt_[idx], ff_th[idx], color=cmap(norm(ek)),marker='o')
+
+
+
+            for ax, (sim_rad, sim_dict_rad) in zip(axes,df_rad.iterrows()):
+
+                if sim_dict_rad['label'] != sim_dict_our['label']:
+                    continue
+                # if lbl ==
+                if sim_rad_ and sim != sim_rad_:
+                    continue
+
+                task_sph = [task for task in tasks if task["label"].__contains__(f"{sim} {'nr'} {int(angle)}")][0]
+                pba_sph = PBA.wrappers.run_kn(working_dir=task_sph["working_dir"],struct=task_sph["struct"],P=task_sph["P"],run=False)
+
+                # task_sph_pl = [task for task in tasks if task["label"].__contains__(f"{sim} {'sph'}")][0]
+                # pba_sph_pl = PBA.wrappers.run_kn(working_dir=task_sph_pl["working_dir"],struct=task_sph_pl["struct"],P=task_sph_pl["P"],run=False)
+
+                ax.plot(pba_sph.KN.get_lc_times() / PBA.utils.cgs.day,
+                        pba_sph.KN.get_lc(freq=3.e9) * 1e3 ,
+                        color='gray',ls='-', lw=1.2, label=r"$F_{\nu;\,\rm tot}$")
+    # ax.legend(fancybox=False,loc= 'upper right',columnspacing=0.4,
+    #            #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+    #            shadow=False, ncol= 3, fontsize= 12,
+    #            framealpha=0., borderaxespad= 0., frameon=False)
+
+    for ax, (sim, sim_dict) in zip(axes, df.iterrows()):
+        # n = 2
+        # ax = ax
+        # for angle in angles:
+        #     ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', marker='o', label=r"$F_{\rm p;\, th}$", ls='none')#, lw=0.7, drawstyle='steps')
+        # # ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', marker='s',label=r"$F_{\rm p;\, pl}$", ls='none')#, lw=0.7, drawstyle='steps')
+        # han, lab = ax.get_legend_handles_labels()
+        # ax.add_artist(ax.legend(han[:-1 * n], lab[:-1 * n],
+        #                         **dict(fancybox=False,loc= 'upper left',columnspacing=0.4,
+        #                                #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+        #                                shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)))
+        # ax.add_artist(ax.legend(han[len(han) - n:], lab[len(lab) - n:],
+        #                         **dict(fancybox=False,loc= 'upper right',columnspacing=0.4,
+        #                                #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+        #                                shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)))
+
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.minorticks_on()
+        ax.tick_params(labelsize=12,axis='both', which='both',direction='in',tick1On=True, tick2On=True)
+        ax.minorticks_on()
+
+        if xlim: ax.set_xlim(*xlim)
+        if ylim: ax.set_ylim(*ylim)
+
+        # ax.set_ylabel(r"$\log_{10}(F_{\nu\,;\rm sph}) - \log_{10}(F_{\nu\,;\rm fit})$",fontsize=12)
+        ax.axhline(y=0,color='gray',linestyle='-')
+        ax.grid(color='gray',linestyle=':')
+        ax.set_xlabel(r"$t_{\rm obs}$ [day]",fontsize=12)
+
+        # ax.set_title(r"$\theta_{\rm obs}="+f"{angle}\,$"+"deg.")
+        ax.set_title(sim_dict['label'])
+
+    # cmappable = ScalarMappable(norm=norm,cmap=cmap)
+    # cbar = fig.colorbar(cmappable, ax=ax, shrink=0.95,label=r"$E_{\rm k}$ [erg]",pad=0.05)
+    # cbar.ax.tick_params(labelsize=12)
+    # cbar.ax.minorticks_on()
+    # cbar.set_label(r"$E_{\rm k}$ [erg]",size=12)
+    axes[0].set_ylabel(r"$F_{\nu}$ [$\mu$Jy]",fontsize=12)
+
+    figname = os.getcwd()+f'/figs/{figname}_{suffix}_shells'
+    plt.savefig(figname+'.png',dpi=256)
+    plt.savefig(figname+'.pdf')
+    plt.show()
 
 def compare_nr_and_fit(run:bool,run_fit:bool,
                        sim_:str or None,xlim:tuple or None,ylim0:tuple or None,ylim1:tuple or None,
@@ -147,7 +566,7 @@ def compare_nr_and_fit(run:bool,run_fit:bool,
         if sim_ and not sim == sim_:
             continue
 
-        fit_dict = df_fit.loc[sim]
+        # fit_dict = df_fit.loc[sim]
         text_dict = df_text.loc[sim]
 
         # using NR data
@@ -208,6 +627,7 @@ def compare_nr_and_fit(run:bool,run_fit:bool,
     # plot the result
     fig, axes = plt.subplots(ncols=1,nrows=2,figsize=(4.6,1.5*3.2),layout='constrained',sharex='col',#sharex='col',sharey='row',
                              gridspec_kw={'height_ratios': [2,1]})
+
 
     # pba_dict = dict()
     # for sim, sim_dict in df.iterrows():
@@ -515,7 +935,7 @@ def compare_nr_and_fit_rows(run:bool,run_fit:bool,
             ax.minorticks_on()
 
     ax = axes[0][0]
-    ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-', label='Simulation',lw=1)#, lw=0.7, drawstyle='steps')
+    ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-', label='NR',lw=1)#, lw=0.7, drawstyle='steps')
     for color,fit_func in zip(colors,fit_funcs):
         ax.plot([1e-4,1e-2], [1e39,1e41], color=color, ls='-',label=fit_func,lw=1)#, lw=0.7, drawstyle='steps')
 
@@ -1049,7 +1469,7 @@ def compare_nr_and_fit_angles_fits(run:bool,run_fit:bool,
                        )
     axes[-1][0].set_ylabel(r"$\Delta\log_{10}(F_{\nu})$",fontsize= 12)
 
-    axes[0][0].plot([1e-4,1e-2], [1e39,1e41], color='black', ls='-',label="Simulation",lw=1.)
+    axes[0][0].plot([1e-4,1e-2], [1e39,1e41], color='black', ls='-',label="NR",lw=1.)
     for (fit_func,color) in zip(fit_funcs,colors):
         axes[0][0].plot([1e-4,1e-2], [1e39,1e41], color=color, ls='-',label=fit_func,lw=1.)
     axes[0][0].legend(**dict(fancybox=False,loc= 'lower right',columnspacing=0.4,
@@ -1337,7 +1757,7 @@ def plot_nr_and_fits(run:bool,run_fit:bool,sim_:str or None,xlim:tuple or None,y
 
     n = 3
     ax = axes[0]
-    ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-', label='Simulation',lw=1.2)#, lw=0.7, drawstyle='steps')
+    ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-', label='NR',lw=1.2)#, lw=0.7, drawstyle='steps')
     ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-',label='3SegFit',lw=0.4)#, lw=0.7, drawstyle='steps')
     ax.plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-',label='4SegFit',lw=0.3)#, lw=0.7, drawstyle='steps')
     if show_legends:
@@ -1549,9 +1969,13 @@ def load_tables_print_table():
 #         if sim_ and not sim == sim_:
 #             continue
 
+def check_radice_data():
+    print(df_rad[["label"]])
+
 
 
 if __name__ == '__main__':
+    # check_radice_data(); exit(1)
     # main(df.loc["SFHo_135_135_res150_new"],
     #      df_fit.loc["SFHo_135_135_res150_new"],
     #      df_text.loc["SFHo_135_135_res150_new"])
@@ -1565,8 +1989,7 @@ if __name__ == '__main__':
                      use_1d_id="no",do_skymap="no", do_lc="yes",
                      ebl_tbl_fpath="none",method_spread="None",method_nonrel_dist_fs="use_Sironi",
                      method_ne_fs="usenprime",method_comp_mode="observFlux",
-                     method_gamma_min_fs='useU_e',method_gamma_c_fs="useTe"
-                     ))
+                     method_gamma_min_fs='useU_e',method_gamma_c_fs="useTe"))
     # compare_nr_and_fit(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,1e4),ylim0=(7e-1,1e3),ylim1=(-0.2,0.2),
     #                    fit_func = "3segFit",figname='radio_lcs_nr_fit',suffix="joh06")
     # compare_nr_and_fit(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,1e4),ylim0=(7e-1,1e3),ylim1=(-0.2,0.2),
@@ -1590,17 +2013,23 @@ if __name__ == '__main__':
                      use_1d_id="no",do_skymap="no", do_lc="yes",
                      ebl_tbl_fpath="none",method_spread="None",method_nonrel_dist_fs="use_Sironi",#use_Sironi",
                      method_ne_fs="usenprime",method_comp_mode="observFlux",
-                     method_gamma_min_fs='useTheta',method_B_fs='useMAG21'
-                     ,method_gamma_c_fs="useTe"
+                     method_gamma_min_fs='useTheta',method_B_fs='useMAG21',method_gamma_c_fs="useTe"
                      ))
-    # compare_nr_and_fit(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,1e4),ylim0=(7e-1,1e3),ylim1=(-0.3,0.3),
+    # plot_one_lc_with_components(P=P,run=False,xlim=(1e0,5e3),ylim=(7e-2,2e3),sim_="SFHo_13_14_res150",suffix="marg21",
+    #                             figname='radio_lcs_nr')
+    plot_lcs_for_our_and_david(P=P,run=False,run_rad=True,xlim=(1e0,5e3),ylim=(7e-2,2e3),
+                               sim_=None,#"SFHo_13_14_res150",
+                               sim_rad_=None,#"BLh_M13641364_M0_LK_SR",
+                               suffix="marg21",
+                               figname='radio_lcs_nr_david')
+    # compare_nr_and_fit(P=P,run=False,run_fit=False,sim_="SFHo_13_14_res150",xlim=(1e0,1e4),ylim0=(7e-1,1e3),ylim1=(-0.3,0.3),
     #                    fit_func = "3segFit",figname='radio_lcs_nr_fit',suffix="marg21")
     # compare_nr_and_fit(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,1e4),ylim0=(7e-1,1e3),ylim1=(-0.3,0.3),
     #                    fit_func = "4segFit",figname='radio_lcs_nr_fit',suffix="marg21")
-    # compare_nr_and_fit_rows(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,8e3),ylim0=(3e0,1e3),ylim1=(-0.3,0.3),
+    # compare_nr_and_fit_rows(P=P,run=False,run_fit=True,sim_=None,xlim=(1e0,8e3),ylim0=(3e0,1e3),ylim1=(-0.3,0.3),
     #                         fit_funcs = ("3segFit","4segFit"),figname='radio_lcs_nr_fit_rows',suffix="marg21")
-    compare_nr_and_fit_angles_fits(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,7e3),ylim0=(7e-1,2e3),ylim1=(-0.5,0.5),
-                                   fit_funcs = ("3segFit","4segFit"),figname='radio_lcs_asym_nr_fit',suffix="marg21",angles=(5,45,85))
+    # compare_nr_and_fit_angles_fits(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,7e3),ylim0=(7e-1,2e3),ylim1=(-0.5,0.5),
+    #                                fit_funcs = ("3segFit","4segFit"),figname='radio_lcs_asym_nr_fit',suffix="marg21",angles=(5,45,85))
 
     # load_tables_print_table()
 

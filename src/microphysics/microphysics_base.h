@@ -347,6 +347,7 @@ public:
             }
         }
         m_sychMethod = val_synch;
+        do_th_marg21 = (bool) getBoolOpt("incl_th_in_marg21"+fs_or_rs,opts,AT,p_log, true, false);
 
         opt = "method_ssc" + fs_or_rs;
         METHOD_SSC val_ssc;
@@ -716,6 +717,7 @@ protected:
     int m_loglevel = -1;
     std::unique_ptr<logger> p_log = nullptr;
     bool is_rs = false;
+    bool do_th_marg21 = true;
     double tcomov0=-1.;
     double tcomov=-1;
     /// --------------------------------------

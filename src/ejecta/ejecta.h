@@ -197,7 +197,8 @@ private:
                     {"theta_a",bw->getPars()->theta_a},
                     {"theta_c",bw->getPars()->theta_c},
                     {"theta_c_l",bw->getPars()->theta_c_l},
-                    {"theta_c_h",bw->getPars()->theta_c_h}
+                    {"theta_c_h",bw->getPars()->theta_c_h},
+                    {"cil",EjectaID2::CellsInLayer(il)}
                 };
                 Output::addStrDbMap(bw_atts, grp);
                 grp.close();
