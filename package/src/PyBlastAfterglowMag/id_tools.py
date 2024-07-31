@@ -82,7 +82,9 @@ def reinterpolate_hist(thetas_pol_edges, mass_2d_hist, new_theta_len=None, dist=
     # plt.axhline(y=np.pi/2.)
     # plt.show()
     if (len(thetas_pol_edges) - 1 != len(mass_2d_hist[:, 0])):
-        raise ValueError("something is wrong")
+        raise ValueError(f"expected len(thetas_pol_edges) - 1 = len(mass_2d_hist[:, 0]) "
+              f"Got {len(thetas_pol_edges) - 1} != {len(mass_2d_hist[:, 0])}")
+        # raise ValueError("something is wrong")
 
     if (len(new_thetas_edges) != len(thetas_pol_edges)):
         print("Change theta_grid {}->{}".format(len(thetas_pol_edges), len(new_thetas_edges)))
@@ -101,9 +103,9 @@ def reinterpolate_hist2(vinf_edges, thetas_pol_edges, mass_2d_hist,
                         new_theta_len=None,new_vinf_len=None, dist="pw",
                         mass_conserving=False) -> tuple[np.ndarray,np.ndarray,np.ndarray]:
 
-    print("Rebinning historgram")
+
     if (new_theta_len is None):
-        new_theta_len = len(thetas_pol_edges)
+        new_theta_len = len(thetas_pol_edges)-1
     # else:
     #     new_theta_len += 1
     # if ()
@@ -119,11 +121,13 @@ def reinterpolate_hist2(vinf_edges, thetas_pol_edges, mass_2d_hist,
     # plt.plot(range(len(new_thetas_edges)), new_thetas_edges, ls='none', marker='.', color="red")
     # plt.axhline(y=np.pi/2.)
     # plt.show()
-    if (len(thetas_pol_edges) != len(mass_2d_hist[:, 0])):
+    if (len(thetas_pol_edges)-1 != len(mass_2d_hist[:, 0])):
         raise ValueError("something is wrong")
 
     if (len(new_thetas_edges) != len(thetas_pol_edges)):
         print("Change theta_grid {}->{}".format(len(thetas_pol_edges), len(new_thetas_edges)))
+        if (mass_conserving):print("Rebinning historgram for theta (mass-conserving)")
+        else:print("Re-interpolating historgram for theta (NOT mass-conserving)")
 
     # rebin for angle
     new_mass = np.zeros((len(new_thetas_edges) - 1, len(mass_2d_hist[0, :])))
@@ -144,14 +148,21 @@ def reinterpolate_hist2(vinf_edges, thetas_pol_edges, mass_2d_hist,
     thetas_pol_edges = new_thetas_edges
     mass = new_mass
 
+    # ------------------------------------------------------------
+
     if (new_vinf_len is None):
         _vinf_edges = 0.5 * (vinf_edges[1:] + vinf_edges[:-1])
-        new_vinf_edges = np.linspace(_vinf_edges[0], _vinf_edges[-1], endpoint=True, num=len(vinf_edges)+1)
+        new_vinf_edges = np.linspace(_vinf_edges[0], _vinf_edges[-1], endpoint=True, num=len(vinf_edges))
         new_new_mass = np.zeros((len(thetas_pol_edges)-1, len(new_vinf_edges) - 1))
     else:
         _vinf_edges = 0.5 * (vinf_edges[1:] + vinf_edges[:-1])
         new_vinf_edges = np.linspace(_vinf_edges[0], _vinf_edges[-1], endpoint=True, num=new_vinf_len)
         new_new_mass = np.zeros((len(thetas_pol_edges)-1, len(new_vinf_edges) - 1))
+
+    if (len(new_vinf_edges) != len(vinf_edges)):
+        print("Change vinf_grid {}->{}".format(len(vinf_edges), len(new_vinf_edges)))
+    if (mass_conserving):print("Rebinning historgram for vinf (mass-conserving)")
+    else:print("Re-interpolating historgram for vinf (NOT mass-conserving)")
 
     for itheta in range(len(new_thetas_edges)-1):
         if (mass_conserving):

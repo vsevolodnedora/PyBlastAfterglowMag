@@ -1,12 +1,12 @@
-import os,shutil,copy,subprocess
+import os,shutil,copy,subprocess,h5py, numpy as np
 
 from .interface import PyBlastAfterglow
 from .parfile_tools import read_parfile,create_parfile
 from .skymap_process import ProcessRawSkymap
 
-from .id_analytic import JetStruct
+from .id_analytic import JetStruct, EjectaStruct
 from .id_david import prepare_kn_ej_id_2d
-from .id_kenta import EjectaData
+from .id_kenta import EjStruct
 
 def run_grb(working_dir: str, P: dict, run: bool = True, process_skymaps: bool = True,
             loglevel:str="info", path_to_cpp:str or None=None) -> PyBlastAfterglow:
@@ -120,13 +120,68 @@ def run_kn(working_dir: str, struct: dict, P: dict, run: bool = True, process_sk
     if ("corr_fpath_david" in struct.keys()):
         prepare_kn_ej_id_2d(
             nlayers=None if not "n_layers_pw" in struct.keys() else struct["n_layers_pw"],
-            corr_fpath=struct["corr_fpath_david"],outfpath=working_dir+"id_pw.h5", dist="pw"
+            corr_fpath=struct["corr_fpath_david"],
+            outfpath=working_dir+"id_pw.h5",
+            dist="pw"
         )
+    elif ("corr_fpath_kenta" in struct.keys()):
+        id = EjStruct(fpath=struct["corr_fpath_kenta"], verbose=True)
+        id_dict = id.get_2D_id(
+            text=struct["text"],
+            method_r0="from_beta",
+            t0=struct["t0"],
+            new_theta_len=None if not "n_layers_pw" in struct.keys() else struct["n_layers_pw"],
+            new_vinf_len=None,
+            force_spherical=struct["force_spherical"]
+        )
+        # mom = id_dict["mom"]
+        # ctheta = id_dict["ctheta"]
+        # ek = id_dict["ek"]
+        # mass = id_dict["mass"]
+        # id.plot_init_profile(mom=id_dict["mom"][:,0], ctheta=id_dict["ctheta"][0,:], mass=id_dict["ek"])
+        #
+        with h5py.File(working_dir+"id_pw.h5", "w") as dfile:
+            for key, data in id_dict.items():
+                dfile.create_dataset(name=key, data=data)
+
+    elif ("hist_1d_data" in struct.keys()):
+        data = struct["hist_1d_data"]
+        id = EjectaStruct(data=dict(mom=data['mom'],ek=data['ek'],mass=data['mass'], theta_max=np.pi/2.), verbose=True)
+        id_dict = id.get_2D_spherical_id(
+            dist=struct["dist"],
+            new_theta_len=struct["n_layers_pw"],
+            t0=struct["t0"]
+        )
+        with h5py.File(working_dir+"id_pw.h5", "w") as dfile:
+            for key, data in id_dict.items():
+                dfile.create_dataset(name=key, data=data)
+
+    elif ("corr_2d_data" in struct.keys()):
+        data = struct["corr_2d_data"]
+        id = EjectaStruct(data=dict(mom=data['mom'],ek=data['ek'],mass=data['mass'], theta=data['theta']), verbose=True)
+        id_dict = id.get_2D_id(
+            dist=struct["dist"],
+            t0=struct["t0"]
+        )
+        with h5py.File(working_dir+"id_pw.h5", "w") as dfile:
+            for key, data in id_dict.items():
+                dfile.create_dataset(name=key, data=data)
+
+
+
+    elif ("hist_fpath_kenta" in struct.keys()):
+        raise NotImplemented("method for hist from kenta data is not implemented")
     else:
         raise KeyError()
 
     # create new parfile
     P = copy.deepcopy(P)
+    # get eats type for the grb (it defines initial data and the model itself)
+    if not "eats_type" in P["kn"].keys():
+        type = "pw"
+    else:
+        type = P["kn"]["eats_type"]
+        del P["kn"]["eats_type"]
     P["kn"]["fname_ejecta_id"] = "id_a.h5" if type == "a" else "id_pw.h5"
     P["kn"]["method_eats"] = "piece-wise" if type == "pw" else "adaptive"
     if (struct["struct"]=="tophat"): P["kn"]["nsublayers"] = 35 # for skymap resolution

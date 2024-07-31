@@ -8,7 +8,7 @@ from shutil import copyfile
 from multiprocessing import Pool
 import itertools
 
-from .utils import cgs, get_beta, find_nearest_index
+from .utils import cgs, find_nearest_index
 
 
 
@@ -505,6 +505,7 @@ class Defaults:
             method_gamma_max_fs = "useB",       # [numeric] how to compute gamma_max
             method_B_fs = "useU_b" ,            # [numeric] how to compute magnetic field
             method_synchrotron_fs = "CSYN",     # [numeric] method for the synchrotron radiation
+            incl_th_in_marg21_fs = "yes",       # [numeric] if Syn.method is MARG21; allows to toggle j_th and a_th
             use_ssa_fs = "no",                  # [numeric] include SSA
             method_ssc_fs = "none",             # [numeric] method for SSC
             method_pp_fs = "none",              # [numeric] method for pair-production
@@ -526,6 +527,7 @@ class Defaults:
             method_gamma_max_rs = "useB",       # [numeric] how to compute gamma_max
             method_B_rs = "useU_b",             # [numeric] how to compute magnetic field
             method_synchrotron_rs = "CSYN",     # [numeric] method for the synchrotron radiation
+            incl_th_in_marg21_rs = "yes",       # [numeric] if Syn.method is MARG21; allows to toggle j_th and a_th
             use_ssa_rs = "no",                  # [numeric] include SSA
             method_ssc_rs = "none",             # [numeric] method for SSC
             method_pp_rs = "none",              # [numeric] method for pair-production

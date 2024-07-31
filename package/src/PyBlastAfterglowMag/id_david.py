@@ -27,7 +27,7 @@ import argparse
 
 
 from .id_tools import (reinterpolate_hist, compute_ek_corr)
-from .utils import (cgs, get_Gamma, get_beta, MomFromGam, GamFromMom, BetFromMom)
+from .utils import (cgs, MomFromBeta,GammaFromMom,BetaFromMom,BetaFromGamma,MomFromGamma,GammaFromBeta)
 
 
 def load_vinf_hist(hist_fpath):
@@ -62,12 +62,21 @@ def load_corr_file2(corr_fpath,
         mass = np.array(dfile["mass"], dtype=np.double).T
 
     # check data
-    if (len(theta_edges) - 1 != len(mass[:, 0])) or (len(vinf_edges) - 1 != len(mass[0, :])):
-        raise IOError("Error in datafile. Expected mass[n_theta-1, n_vinf-1]"
-                      "Got: mass[{}, {}] with ntheta-1={} and n_vinf-1={}"
+    if (len(theta_edges) - 1 == len(mass[:, 0])) and (len(vinf_edges) - 1 == len(mass[0, :])):
+        pass
+    elif (len(theta_edges) == len(mass[:, 0])) and (len(vinf_edges) == len(mass[0, :])):
+        print("WARNING in datafile. Expected mass[n_theta-1, n_vinf-1]"
+              " Got: mass[{}, {}] with ntheta-1={} and n_vinf-1={}"
+              " Averaging Mass to use grid as edges "
                       .format(len(mass[:, 0]), len(mass[0, :]), len(theta_edges) - 1, len(vinf_edges) - 1))
 
-    # compute centers of histogram
+        mass = 0.5 * (mass[:,1:] + mass[:,:-1])
+        mass = 0.5 * (mass[1:,:] + mass[:-1,:])
+    else:
+        raise IOError("Error in datafile. Expected mass[n_theta-1, n_vinf-1]"
+                      " Got: mass[{}, {}] with ntheta-1={} and n_vinf-1={}"
+                      .format(len(mass[:, 0]), len(mass[0, :]), len(theta_edges) - 1, len(vinf_edges) - 1))
+
     theta_centers = 0.5 * (theta_edges[1:] + theta_edges[:-1])
     velocity_centers = 0.5 * (vinf_edges[1:] + vinf_edges[:-1])
 
@@ -113,6 +122,9 @@ def load_corr_file2(corr_fpath,
 
     assert thetas_pol_centers[0] < thetas_pol_edges[-1]
     assert thetas_pol_centers[-1] <= np.pi / 2.
+
+    # assert len(thetas_pol_edges)-1 == len(mass[:, 0])
+    # assert len(vinf_centers) == len(mass[0, :])
 
     return (thetas_pol_edges, thetas_pol_centers, vinf_centers, mass)
 
@@ -197,15 +209,38 @@ def prepare_kn_ej_id_2d(nlayers, corr_fpath, outfpath,
         theta_corr3[imom,:] = ctheta_corr2
     mom_corr3 = np.zeros_like(ek_corr2)
     for ith in range(len(ctheta_corr2)):
-        mom_corr3[:,ith]=np.array( vinf_corr2*get_Gamma(vinf_corr2))
+        mom_corr3[:,ith]=np.array( vinf_corr2*GammaFromBeta(vinf_corr2))
 
     r = np.zeros_like(mass_corr2)
     t = t0
     for ith in range(len(ctheta_corr3[0,:])):
         for ir in range(len(mom_corr3[:,0])):
-            r[ir,ith] =  BetFromMom(mom_corr3[ir,ith])*cgs.c * t
+            r[ir,ith] =  BetaFromMom(mom_corr3[ir,ith])*cgs.c * t
 
-    print(len(ctheta_corr2), ctheta_corr2)
+    # print(len(ctheta_corr2), ctheta_corr2)
+
+    def plot_final_profile(ctheta, mom, data2d, cmap='jet',vmin=None,vmax=None):
+        from matplotlib.colors import LogNorm
+        if vmin is None: vmin = data2d[(data2d > 0) & (np.isfinite(data2d))].min()
+        if vmax is None: vmax = data2d[(data2d > 0) & (np.isfinite(data2d))].max()
+        norm = LogNorm(vmin, vmax)
+        fig,ax = plt.subplots(ncols=1,nrows=1, figsize=(4.6,3.2))
+        ctheta *= (180. / np.pi)
+        im = ax.pcolor(mom, ctheta, data2d, cmap=cmap, norm=norm, shading='auto')
+        # ax0.axhline(y=1, linestyle='--', color='gray')
+
+        # adjust the bottom subplot
+        ax.set_ylim(0, 90)
+        ax.set_xlim(1e-2, 4)
+        ax.set_xscale('log')
+        ax.set_yscale('linear')
+        ax.set_xlabel(r"$\Gamma\beta$", fontsize=12)
+        ax.set_ylabel(r"Polar angle", fontsize=12)
+        plt.show()
+
+    # plot_final_profile(ctheta=ctheta_corr3,mom=mom_corr3,data2d=ek_corr2)
+    # plot_final_profile(ctheta=ctheta_corr3,mom=mom_corr3,data2d=mass_corr2*cgs.solar_m)
+
     dfile = h5py.File(outfpath, "w")
     dfile.attrs.create("theta_wind", data=np.pi/2, dtype=np.float64)
     dfile.attrs.create("theta_core", data=np.pi/2, dtype=np.float64)
@@ -219,32 +254,32 @@ def prepare_kn_ej_id_2d(nlayers, corr_fpath, outfpath,
     dfile.create_dataset("s",data=np.zeros_like(ek_corr2))
     dfile.close()
     print("file saved: {}".format(outfpath))
-# def prepare_kn_ej_id_1d(nlayers, hist_fpath, outfpath):
-#     betas, masses = load_vinf_hist(hist_fpath=hist_fpath)
-#     # thetas = np.full_like(betas, np.pi / 2.)
-#
-#     # vinf_hist, mass_hist = o_data.load_vinf_hist()
-#     assert len(betas) == len(masses)
-#     vinf_hist, mass_hist = clean_data_hist(betas, masses)
-#     ek_hist = compute_ek_hist(vinf_hist, mass_hist)
-#     # ek_hist = np.cumsum(ek_hist)
-#     # vinf_hist = np.sqrt(ek_hist/mass_hist/cgs.solar_m)/cgs.c
-#     # theta_hist = np.zeros_like(ek_hist)
-#     theta_hist = np.full_like(vinf_hist, np.pi / 2.)
-#     gam_hist = get_Gamma(vinf_hist)
-#     if (len(gam_hist[~np.isfinite(gam_hist)]) > 0):
-#         raise ValueError("nan in gammas for beta={}".format(vinf_hist))
-#
-#     # self.o_pba.setEjectaStructNumericUniformInTheta(theta_hist, ek_hist, gam_hist,
-#     #                                                 mass_hist * cgs.solar_m, nlayers, fac,
-#     #                                                 self.pars_kn["eats_method"])
-#
-#     dfile = h5py.File(outfpath, "w")
-#     dfile.create_dataset("theta", data=theta_hist)
-#     dfile.create_dataset("mom", data=gam_hist*vinf_hist)
-#     dfile.create_dataset("ek", data=ek_hist)
-#     dfile.close()
-#     print("file saved: {}".format(outfpath))
+def prepare_kn_ej_id_1d(nlayers, hist_fpath, outfpath):
+    betas, masses = load_vinf_hist(hist_fpath=hist_fpath)
+    # thetas = np.full_like(betas, np.pi / 2.)
+
+    # vinf_hist, mass_hist = o_data.load_vinf_hist()
+    assert len(betas) == len(masses)
+    vinf_hist, mass_hist = clean_data_hist(betas, masses)
+    ek_hist = compute_ek_hist(vinf_hist, mass_hist)
+    # ek_hist = np.cumsum(ek_hist)
+    # vinf_hist = np.sqrt(ek_hist/mass_hist/cgs.solar_m)/cgs.c
+    # theta_hist = np.zeros_like(ek_hist)
+    theta_hist = np.full_like(vinf_hist, np.pi / 2.)
+    gam_hist = GammaFromBeta(vinf_hist)
+    if (len(gam_hist[~np.isfinite(gam_hist)]) > 0):
+        raise ValueError("nan in gammas for beta={}".format(vinf_hist))
+
+    # self.o_pba.setEjectaStructNumericUniformInTheta(theta_hist, ek_hist, gam_hist,
+    #                                                 mass_hist * cgs.solar_m, nlayers, fac,
+    #                                                 self.pars_kn["eats_method"])
+
+    dfile = h5py.File(outfpath, "w")
+    dfile.create_dataset("theta", data=theta_hist)
+    dfile.create_dataset("mom", data=gam_hist*vinf_hist)
+    dfile.create_dataset("ek", data=ek_hist)
+    dfile.close()
+    print("file saved: {}".format(outfpath))
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':

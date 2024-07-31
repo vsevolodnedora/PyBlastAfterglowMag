@@ -6,7 +6,7 @@ import copy
 import shutil
 import subprocess
 
-from .utils import cgs, get_beta, find_nearest_index
+from .utils import cgs, find_nearest_index
 from .parfile_tools import read_parfile
 from .OLD_skymap_tools import compute_position_of_the_flux_centroid
 from .skymap_process import ProcessRawSkymap

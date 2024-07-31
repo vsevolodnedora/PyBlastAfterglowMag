@@ -28,7 +28,8 @@ from matplotlib.colors import BoundaryNorm
 from matplotlib.ticker import MaxNLocator
 
 from .id_tools import (reinterpolate_hist, reinterpolate_hist2, compute_ek_corr)
-from .utils import (cgs, get_Gamma, get_Beta, find_nearest_index, MomFromGam, GamFromMom, BetFromMom)
+from .utils import (cgs, find_nearest_index,
+                    GammaFromMom,GammaFromBeta,BetaFromMom,BetaFromGamma,MomFromBeta,MomFromGamma)
 
 class ProcessRawFiles:
     """
@@ -244,6 +245,29 @@ class EjectaData:
                 self.theta = np.array(self.dfile["theta"])
             else:
                 raise KeyError(f"mode={mode} is not supported")
+        if (self.theta.max() > 3. * np.pi / 4.):
+            if self.verb:
+                print(f"WARNING: theta grid extends to {self.theta.max()} for  {self.fpath} ")
+                print("Performing averaging between two hemispheres")
+            self.idx = len(self.theta)//2
+        else:
+            self.idx = -1
+        if self.idx > 0 :
+            self.theta = self.theta[:self.idx+1]
+
+        #     if self.verb:
+        #         print(f"WARNING: theta grid extends to {self.theta.max()} for  {self.fpath} ")
+        #         print("Performing averaging between two hemispheres")
+        #     fig, ax = plt.subplots(ncols=1,nrows=1,figsize=(4.6,3.2),layout='constrained',sharey='all')
+        #     cmap = plt.get_cmap('viridis')
+        #     mass = self.dfile['mass']
+        #     norm = LogNorm(vmin=mass.max()*1e-7, vmax=ek.max())
+        #     im = ax.pcolormesh(ctheta*180./np.pi,mom, ek, cmap=cmap, norm=norm)
+        #     # ax0.set_yscale('log')
+        #     # fig.colorbar(im, ax=ax)
+        #     ax.set_yscale('log')
+
+            # raise ValueError("theta grid is too extensive")
 
     def get_theta(self):
         return self.theta
@@ -265,7 +289,28 @@ class EjectaData:
         if not v_n in ddfile.keys():
             raise KeyError(f"key={v_n} is not in the dfile.keys():\n {ddfile.keys()}")
         ddfile = self.dfile["time={:.4f}".format(text)]
-        return np.array(ddfile[v_n])
+        arr = np.array(ddfile[v_n])[:self.idx,:]
+        if self.idx > 0 :
+            return arr[:self.idx,:]
+        else:
+            return arr
+        # check if the data is on one hemisphere or not
+        # if (self.idx > -1):
+        #     if self.verb:
+        #         print(f"WARNING: theta grid extends to {self.theta.max()} for  {self.fpath} ")
+        #         print("Performing averaging between two hemispheres")
+        #     assert len(arr) == len(self.theta)
+        #     assert len(arr[0]) == len(self.vinf)
+        #
+        #     fig, ax = plt.subplots(ncols=1,nrows=1,figsize=(4.6,3.2),layout='constrained',sharey='all')
+        #     cmap = plt.get_cmap('viridis')
+        #     norm = LogNorm(vmin=arr.max()*1e-7, vmax=arr.max())
+        #     im = ax.pcolormesh(self.theta,self.vinf, arr.T, cmap=cmap, norm=norm)
+        #     # ax0.set_yscale('log')
+        #     # fig.colorbar(im, ax=ax)
+        #     # ax.set_yscale('log')
+        #     plt.show()
+        # return arr
 
     def total_mass(self) -> np.ndarray:
         mass = np.array([np.sum(self.get(v_n="mass",text=text)) for text in self.texts])
@@ -275,12 +320,12 @@ class EjectaData:
         if (crit is None):
             return np.ones_like(self.vinf).astype(bool)
         elif (crit == "fast"):
-            mask = self.vinf * get_Gamma(self.vinf) > 1
+            mask = MomFromBeta(self.vinf) > 1# self.vinf * GammaFromBeta(self.vinf) > 1
         elif (crit == "mid"):
-            mask = (self.vinf * get_Gamma(self.vinf) <= 1) & \
-                   (self.vinf * get_Gamma(self.vinf) > 0.1)
+            mask = (MomFromBeta(self.vinf)<=1 & MomFromBeta(self.vinf)>0.1) # (self.vinf * GammaFromBeta(self.vinf) <= 1) & \
+                      #(self.vinf * GammaFromBeta(self.vinf) > 0.1)
         elif (crit == "slow"):
-            mask = (self.vinf * get_Gamma(self.vinf) <= 0.1)
+            mask = MomFromBeta(self.vinf)<=0.1#(self.vinf * GammaFromBeta(self.vinf) <= 0.1)
         else:
             raise KeyError()
         return mask
@@ -424,26 +469,48 @@ class EjStruct(EjectaData):
             t = t0
             for ith in range(len(theta)):
                 for ir in range(len(vinf)):
-                    r[ir,ith] = BetFromMom(vinf[ir]) * cgs.c * t # TODO THis is theta independent!
+                    r[ir,ith] = vinf[ir] * cgs.c * t # TODO THis is theta independent!
         else:
             raise KeyError(f"method={method} is not recognized")
         return r
 
     def get_2D_id(self, text : float, method_r0 : str, t0 = None,
-                  new_theta_len = None, new_vinf_len = None) -> dict:
+                  force_spherical:bool=False,
+                  new_theta_len:None or int = None, new_vinf_len:None or int = None) -> dict:
         res = {}
-        v_inf, thetas, masses = reinterpolate_hist2(self.vinf, self.theta, self.get(v_n="mass", text=text)[:, :],
+        masses = self.get(v_n="mass", text=text)[:, :] # [itheta ivinf]
+
+
+
+        # fill with average values for each angle if angular structure is not needed
+        if (force_spherical):
+            sums = np.zeros(len(masses[0,:]))
+            for ivinf in range(len(masses[0,:])):
+                masses[:,ivinf] = np.sum(masses[:,ivinf])/len(masses[:,ivinf])
+                sums[ivinf] = np.sum(masses[:,ivinf])
+
+            # print(repr(self.vinf))
+            # print(repr(sums))
+
+        v_inf, thetas, masses = reinterpolate_hist2(self.vinf, self.theta, masses,
                                                     new_theta_len=new_theta_len,
                                                     new_vinf_len=new_vinf_len,
                                                     mass_conserving=True)
-        masses = masses.T # [i_vinf, i_theta]
+        masses = masses.T # -> [i_vinf, i_theta]
 
         thetas = 0.5 * (thetas[1:] + thetas[:-1])
         v_inf  = 0.5 * (v_inf[1:] + v_inf[:-1])
         mask = ((v_inf > 0) & (v_inf < 1) & (np.sum(masses, axis=1) > 0))
         for v_n in self.v_ns:
             if (v_n != "mass"):
-                _, _, data = reinterpolate_hist2(self.vinf, self.theta, self.get(v_n=v_n, text=text)[:, :],
+                data = self.get(v_n=v_n, text=text)[:, :]
+
+                # fill with average values for each angle if angular structure is not needed
+                if (force_spherical):
+                    for ivinf in range(len(data[0,:])):
+                        data[:,ivinf] = np.sum(data[:,ivinf])/len(data[:,ivinf])
+
+                _, _, data = reinterpolate_hist2(self.vinf, self.theta, data,
                                                             new_theta_len=new_theta_len,
                                                             new_vinf_len=new_vinf_len,
                                                             mass_conserving=True)
@@ -453,19 +520,44 @@ class EjStruct(EjectaData):
         res["r"] = self.get_r0(vinf=v_inf[mask], theta=thetas, mass=masses[mask,:], rho=res["rho"],
                                t0=t0, method=method_r0)
         res["ek"] = np.column_stack([masses[mask, i] * cgs.solar_m * v_inf[mask]**2 * cgs.c * cgs.c for i in range(len(thetas))])
-        mom = v_inf[mask] * get_Gamma(v_inf[mask])
+        mom = MomFromBeta(v_inf[mask])
         thetas,mom = np.meshgrid(thetas,mom)
         if not (mom.shape == res["ek"].shape):
             raise ValueError("{} != {}".format(mom.shape,res["ek"].shape))
+
+        def plot_final_profile(ctheta, mom, data2d, cmap='jet',vmin=None,vmax=None):
+            from matplotlib.colors import LogNorm
+            if vmin is None: vmin = data2d[(data2d > 0) & (np.isfinite(data2d))].min()
+            if vmax is None: vmax = data2d[(data2d > 0) & (np.isfinite(data2d))].max()
+            norm = LogNorm(vmin, vmax)
+            fig,ax = plt.subplots(ncols=1,nrows=1, figsize=(4.6,3.2))
+            ctheta *= (180. / np.pi)
+            im = ax.pcolor(mom, ctheta, data2d, cmap=cmap, norm=norm, shading='auto')
+            # ax0.axhline(y=1, linestyle='--', color='gray')
+
+            # adjust the bottom subplot
+            ax.set_ylim(0, 90)
+            ax.set_xlim(1e-2, 4)
+            ax.set_xscale('log')
+            ax.set_yscale('linear')
+            ax.set_xlabel(r"$\Gamma\beta$", fontsize=12)
+            ax.set_ylabel(r"Polar angle", fontsize=12)
+            plt.show()
+
+        # plot_final_profile(ctheta=thetas,mom=mom,data2d=res["ek"])
+        # plot_final_profile(ctheta=thetas,mom=mom,data2d=res["mass"])
+
         res["mom"] = mom
         res["theta"] = thetas
         res["ctheta"] = thetas
 
+
+
         # for v_n in res.keys():
         #     res[v_n] = np.copy(res[v_n].T)
-        print(res["mom"][:,0])
-        print(res["mom"][0,:])
-        print(res["ctheta"][0,:])
+        # print(res["mom"][:,0])
+        # print(res["mom"][0,:])
+        # print(res["ctheta"][0,:])
         return res
 
     @staticmethod
@@ -965,10 +1057,10 @@ def OLD_get_ej_data_for_text(files : list[str],
 
             # compute additional averaged quantities
             tot_mass = np.sum(mass)
-            mass_fast = mass[:, v_inf * get_Gamma(v_inf) > 1]
-            fast_ej_mass = np.sum(mass[:, v_inf * get_Gamma(v_inf) > 1])
+            mass_fast = mass[:, v_inf * GammaFromBeta(v_inf) > 1]
+            fast_ej_mass = np.sum(mass[:, v_inf * GammaFromBeta(v_inf) > 1])
             v_ave = np.sum(np.sum(mass, axis=0) * v_inf) / np.sum(mass)
-            v_ave_fast = np.sum(np.sum(mass_fast, axis=0) * v_inf[v_inf * get_Gamma(v_inf) > 1]) / np.sum(mass_fast)
+            v_ave_fast = np.sum(np.sum(mass_fast, axis=0) * v_inf[v_inf * GammaFromBeta(v_inf) > 1]) / np.sum(mass_fast)
             theta_rms = (180. / np.pi) * np.sqrt(np.sum(np.sum(mass, axis=1) * thetas ** 2) / np.sum(mass))
             theta_rms_fast = (180. / np.pi) * np.sqrt(np.sum(np.sum(mass_fast, axis=1) * thetas ** 2) / np.sum(mass_fast))
 
@@ -1269,7 +1361,7 @@ def OLD_prepare_kn_ej_id_2d(files : list[str],
             t = t0
             for ith in range(len(theta_corr2)):
                 for ir in range(len(vinf_corr2)):
-                    r[ir,ith] = BetFromMom(vinf_corr2[ir]) * cgs.c * t # TODO THis is theta independent!
+                    r[ir,ith] = vinf_corr2[ir] * cgs.c * t # TODO THis is theta independent!
         else:
             raise KeyError(f"r0type={r0type} is not recognized")
 
@@ -1301,7 +1393,7 @@ def OLD_prepare_kn_ej_id_2d(files : list[str],
             theta_corr3[imom,:] = theta_corr2
         mom_corr3 = np.zeros_like(ek_corr2)
         for ith in range(len(theta_corr2)):
-            mom_corr3[:,ith]=np.array( vinf_corr2*get_Gamma(vinf_corr2))
+            mom_corr3[:,ith]=np.array( vinf_corr2*GammaFromBeta(vinf_corr2))
 
         # if (r0type == "fromrho"):
         #     r = np.zeros_like(mass_corr)

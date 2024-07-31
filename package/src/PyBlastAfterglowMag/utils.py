@@ -47,21 +47,39 @@ class cgs:
     sTd = 24. * 60. * 60.           # seconds to days conversion factor
     rad2mas = 206264806.247
 
-get_beta = lambda Gamma: np.sqrt(1. - np.power(Gamma, -2))
-get_Gamma = lambda beta: np.float64(np.sqrt(1. / (1. - np.float64(beta) ** 2.)))
+# get_beta = lambda Gamma: np.sqrt(1. - np.power(Gamma, -2))
+# get_Gamma = lambda beta: np.float64(np.sqrt(1. / (1. - np.float64(beta) ** 2.)))
 
-def get_Beta(Gamma):
-    return (1. / Gamma) * np.sqrt((Gamma - 1.) * (Gamma + 1.))
+# def get_Beta(Gamma):
+#     return (1. / Gamma) * np.sqrt((Gamma - 1.) * (Gamma + 1.))
+#
+# def MomFromGam(gam):
+#     return np.sqrt(gam*gam - 1.)
+#
+# def GamFromMom(mom):
+#     return np.sqrt(1.0+mom*mom)
+#
+# def BetFromMom(mom):
+#     return mom / GamFromMom(mom)
 
-def MomFromGam(gam):
-    return np.sqrt(gam*gam - 1.)
 
-def GamFromMom(mom):
-    return np.sqrt(1.0+mom*mom)
+def BetaFromGamma(gam:float or np.ndarray)->float or np.ndarray:
+    return np.sqrt((gam-1.)*(gam+1.)) / gam
 
-def BetFromMom(mom):
-    return mom / GamFromMom(mom)
+def GammaFromBeta(bet:float or np.ndarray)->float or np.ndarray:
+    return 1./np.sqrt((1.-bet)*(1.+bet))
 
+def MomFromGamma(gam:float or np.ndarray)->float or np.ndarray:
+    return gam*BetaFromGamma(gam)
+
+def MomFromBeta(bet:float or np.ndarray)->float or np.ndarray:
+    return GammaFromBeta(bet)*bet
+
+def BetaFromMom(mom:float or np.ndarray)->float or np.ndarray:
+    return mom/np.sqrt(mom*mom+1.)
+
+def GammaFromMom(mom:float or np.ndarray)->float or np.ndarray:
+    return np.sqrt(mom*mom+1.)
 
 
 

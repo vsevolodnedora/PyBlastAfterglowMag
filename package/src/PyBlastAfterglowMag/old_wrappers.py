@@ -21,7 +21,7 @@ import matplotlib.gridspec as gridspec
 
 
 from .interface import PyBlastAfterglow, Skymap, Ejecta
-from .utils import cgs, get_beta, get_Beta, get_Gamma
+from .utils import cgs, GammaFromMom,GammaFromBeta,BetaFromMom,BetaFromGamma,MomFromBeta,MomFromGamma
 from .id_analytic import JetStruct
 from .parfile_tools import read_parfile, modify_parfile, modify_parfile_par_opt
 from .skymap_process import ProcessRawSkymap
@@ -192,8 +192,7 @@ class RefData():
         if (key in self.keys):
             return np.array(np.array(self.refdata[f"layer={il}"][key]))
         elif (key=="mom"):
-            return np.array(np.array(self.refdata[f"layer={il}"]["Gamma"])) * \
-                get_beta(np.array(np.array(self.refdata[f"layer={il}"]["Gamma"])))
+            return MomFromGamma(np.array(self.refdata[f"layer={il}"]["Gamma"]))
         else:
             raise KeyError(f"key={key} is not recognized")
     def close(self) -> None:

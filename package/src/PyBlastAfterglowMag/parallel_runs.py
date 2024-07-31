@@ -8,7 +8,7 @@ from shutil import copyfile
 import shutil
 from multiprocessing import Pool
 
-from .utils import cgs, get_beta, find_nearest_index
+from .utils import cgs, find_nearest_index
 
 from .interface import PyBlastAfterglow
 from .skymap_process import ProcessRawSkymap

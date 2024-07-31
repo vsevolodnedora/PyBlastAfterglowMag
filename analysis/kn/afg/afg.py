@@ -11,7 +11,7 @@ from multiprocessing import Pool
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from scipy.interpolate import interp1d
 from pathlib import Path
-from matplotlib.colors import Normalize, LogNorm
+from matplotlib.colors import Normalize, LogNorm, TwoSlopeNorm,SymLogNorm
 from matplotlib import cm
 
 # try:
@@ -92,7 +92,7 @@ def runs(task:dict):
     )
     pba.clear()
 
-def plot_one_lc_with_components(run:bool,sim_:str or None,suffix:str,
+def plot_one_lc_with_components(run:bool,sim_:str or None,suffix:str,encode:str,
                                 xlim:tuple or None,ylim:tuple or None,figname:str, P:dict):
 
     P = copy.deepcopy(P)
@@ -178,9 +178,11 @@ def plot_one_lc_with_components(run:bool,sim_:str or None,suffix:str,
                             for ishell in np.arange(0,nshells)]
         )
         print(moms)
-        norm = LogNorm(moms[moms>0].min(),moms[moms>0].max())
-        # norm = LogNorm(0.1,moms[moms>0].max())
-        norm = LogNorm(1e44,1e48)
+        # norm = LogNorm(moms[moms>0].min(),moms[moms>0].max())
+        if encode == 'ek': norm = LogNorm(1e44,1e48)
+        # norm = SymLogNorm(linthresh=0.5, vmin=1e-1, vmax=3, base=10)
+        elif encode == 'mom': norm = Normalize(0.05,2)
+        else: raise KeyError()
         # norm = Normalize(44,48)
         # norm = Normalize(moms[moms>0].min(),moms[moms>0].max())
 
@@ -208,20 +210,24 @@ def plot_one_lc_with_components(run:bool,sim_:str or None,suffix:str,
             ff_pl = interp1d(tt, f_pl)(tt_)
             idx = np.argmax(ff_pl)
 
-            ax.plot(tt_[idx], ff_pl[idx], color=cmap(norm(ek)), marker='s')
+            if encode == 'ek':color = cmap(norm(ek))
+            elif encode == 'mom':color = cmap(norm(mom0))
+            else: raise KeyError()
+
+            ax.plot(tt_[idx], ff_pl[idx], color=color, marker='s')
             ax.plot(tt[mask],
                     f_pl[mask] ,
-                    color=cmap(norm(ek)), ls='-', lw=1,alpha=1.)
+                    color=color, ls='-', lw=1,alpha=1.)
 
             mask = (f_th > f_pl) & (tt < tt[np.argmax(f_th)])
             ax.plot(tt[mask],
                     f_th[mask],
-                    color=cmap(norm(ek)),ls='--', lw=1.,alpha=0.9)
+                    color=color,ls='--', lw=1.,alpha=0.9)
 
             tt_ = np.logspace(np.log10(tt[1]),np.log10(tt[-2]),1000)
             ff_th = interp1d(tt, f_th)(tt_)
             idx = np.argmax(ff_th)
-            ax.plot(tt_[idx], ff_th[idx], color=cmap(norm(ek)),marker='o')
+            ax.plot(tt_[idx], ff_th[idx], color=color,marker='o')
 
     # ax.legend(fancybox=False,loc= 'upper right',columnspacing=0.4,
     #            #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
@@ -256,31 +262,41 @@ def plot_one_lc_with_components(run:bool,sim_:str or None,suffix:str,
     ax.grid(color='gray',linestyle=':')
     ax.set_xlabel(r"$t_{\rm obs}$ [day]",fontsize=12)
     cmappable = ScalarMappable(norm=norm,cmap=cmap)
-    cbar = fig.colorbar(cmappable, ax=ax, shrink=0.95,label=r"$E_{\rm k}$ [erg]",pad=0.05)
+    if encode == 'ek':label,name_=r"$E_{\rm k}$ [erg]","ek"
+    elif encode == 'mom':label,name_=r"$\Gamma\beta$","mom"
+    else:raise KeyError()
+    cbar = fig.colorbar(cmappable, ax=ax, shrink=0.95,label=label,pad=0.05)
     cbar.ax.tick_params(labelsize=12)
     cbar.ax.minorticks_on()
-    cbar.set_label(r"$E_{\rm k}$ [erg]",size=12)
+    cbar.set_label(label,size=12)
 
-    figname = os.getcwd()+f'/figs/{figname}_{suffix}_shells'
+    figname = os.getcwd()+f'/figs/{figname}_{suffix}_shells_{name_}'
     plt.savefig(figname+'.png',dpi=256)
     plt.savefig(figname+'.pdf')
     plt.show()
 
 def plot_lcs_for_our_and_david(run:bool,run_rad:bool,sim_:str or None,sim_rad_:str or None,suffix:str,
-                               xlim:tuple or None,ylim:tuple or None,figname:str, P:dict):
+                               xlim:tuple or None,ylim:tuple or None,figname:str, P:dict, freq:float):
     angles=(5, 45, 85)
+    colors=('blue','green','red')
 
     # P['kn']["save_dynamics"] = 'yes'
 
     tasks = []
+    correspondance = {
+        "SFHo_135_135_res150_new" : "SFHo_M135135_M0",#"SFHo_M13641364_M0_SR",#"SFHo_M13641364_M0_LK_SR_2019pizza",
+        "DD2_135_135_res150" : "DD2_M135135_M0",#"DD2_M13641364_M0_SR_R04",
+        "BHBLp_135_135_res150": "BHBlp_M135135_M0"
+    }
 
 
-    for angle in angles:
+    for angle,color in zip(angles,colors):
         P_ = copy.deepcopy(P)
         P_["main"]["theta_obs"] = angle * np.pi / 180.
 
-        for sim, sim_dict in df_rad.iterrows():
-            if sim_rad_ and not sim == sim_rad_:
+        # for sim, sim_dict in df_rad.iterrows():
+        for sim in correspondance.values():
+            if sim_rad_ and (not sim == sim_rad_):
                 continue
             tasks.append(
                 dict(working_dir=os.getcwd()+'/working_dirs/'+f'{sim}_{"nr"}_{suffix}_{int(angle)}/',
@@ -327,6 +343,8 @@ def plot_lcs_for_our_and_david(run:bool,run_rad:bool,sim_:str or None,sim_rad_:s
             # )
 
 
+
+
     # for t in tasks:
     #     runs(t)
 
@@ -343,12 +361,12 @@ def plot_lcs_for_our_and_david(run:bool,run_rad:bool,sim_:str or None,sim_rad_:s
             result = pool.map(runs, tasks)
 
 
-    fig, axes = plt.subplots(ncols=len(df),nrows=1,figsize=(12.,3),layout='constrained',
+    fig, axes = plt.subplots(ncols=len(df),nrows=1,figsize=(11.,2.6),layout='constrained',
                              sharex='col',sharey='row',#sharex='col',sharey='row',
                            # gridspec_kw={'height_ratios': [2,1]}
                            )
 
-    for angle in angles:
+    for angle,color in zip(angles,colors):
         for ax, (sim, sim_dict_our) in zip(axes, df.iterrows()):
             if sim_ and sim != sim_:
                 continue
@@ -360,8 +378,8 @@ def plot_lcs_for_our_and_david(run:bool,run_rad:bool,sim_:str or None,sim_rad_:s
             # pba_sph_pl = PBA.wrappers.run_kn(working_dir=task_sph_pl["working_dir"],struct=task_sph_pl["struct"],P=task_sph_pl["P"],run=False)
 
             ax.plot(pba_sph.KN.get_lc_times() / PBA.utils.cgs.day,
-                    pba_sph.KN.get_lc(freq=3.e9) * 1e3 ,
-                    color='black',ls='-', lw=1.2, label=r"$F_{\nu;\,\rm tot}$")
+                    pba_sph.KN.get_lc(freq=freq) * 1e3 ,
+                    color=color,ls='-', lw=1.2)#, label=r"$F_{\nu;\,\rm tot}$")
             # ax.plot(pba_sph_pl.KN.get_lc_times() / PBA.utils.cgs.day,
             #         pba_sph_pl.KN.get_lc(freq=3.e9) * 1e3 ,
             #         color='black', ls='-', lw=1.2, label=r"$F_{\nu;\,\rm pl}$")
@@ -425,28 +443,42 @@ def plot_lcs_for_our_and_david(run:bool,run_rad:bool,sim_:str or None,sim_rad_:s
             #     ax.plot(tt_[idx], ff_th[idx], color=cmap(norm(ek)),marker='o')
 
 
+            if sim in correspondance.keys():
+                sim_rad = correspondance[sim]
+                # sim_dict_rad = df_rad.loc[sim_rad]
+                # print(sim, sim_rad, df_rad.index, [task["label"] for task in tasks if task["label"].__contains__(f"{sim_rad}")])
+            # for sim_rad, sim_dict_rad in df_rad.iterrows():
+            #     print(f"\t {sim_dict_rad['label']} {sim_dict_our['label']}")
+            #     if not ((sim_dict_rad['EOS'] == sim_dict_our['EOS']) and (f"{sim_dict_rad['q']:.2f}" == f"{sim_dict_our['q']:.2f}")):
+            #         continue
+            #     # if lbl ==
+            #     if sim_rad_ and sim != sim_rad_:
+            #         continue
 
-            for ax, (sim_rad, sim_dict_rad) in zip(axes,df_rad.iterrows()):
-
-                if sim_dict_rad['label'] != sim_dict_our['label']:
-                    continue
-                # if lbl ==
-                if sim_rad_ and sim != sim_rad_:
-                    continue
-
-                task_sph = [task for task in tasks if task["label"].__contains__(f"{sim} {'nr'} {int(angle)}")][0]
-                pba_sph = PBA.wrappers.run_kn(working_dir=task_sph["working_dir"],struct=task_sph["struct"],P=task_sph["P"],run=False)
+                task_sph_d = [task for task in tasks if task["label"].__contains__(f"{sim_rad} {'nr'} {int(angle)}")][0]
+                pba_sph_d = PBA.wrappers.run_kn(working_dir=task_sph_d["working_dir"],struct=task_sph_d["struct"],P=task_sph_d["P"],run=False)
 
                 # task_sph_pl = [task for task in tasks if task["label"].__contains__(f"{sim} {'sph'}")][0]
                 # pba_sph_pl = PBA.wrappers.run_kn(working_dir=task_sph_pl["working_dir"],struct=task_sph_pl["struct"],P=task_sph_pl["P"],run=False)
 
-                ax.plot(pba_sph.KN.get_lc_times() / PBA.utils.cgs.day,
-                        pba_sph.KN.get_lc(freq=3.e9) * 1e3 ,
-                        color='gray',ls='-', lw=1.2, label=r"$F_{\nu;\,\rm tot}$")
+                ax.plot(pba_sph_d.KN.get_lc_times() / PBA.utils.cgs.day,
+                        pba_sph_d.KN.get_lc(freq=freq) * 1e3 ,
+                        color=color,ls='-.', lw=0.9)#, label=r"$F_{\nu;\,\rm tot}$")
     # ax.legend(fancybox=False,loc= 'upper right',columnspacing=0.4,
     #            #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
     #            shadow=False, ncol= 3, fontsize= 12,
     #            framealpha=0., borderaxespad= 0., frameon=False)
+
+    for angle,color in zip(angles,colors):
+        axes[1].plot([1e-4,1e-2], [1e39,1e41], color=color,ls='-', label=r"$\theta_{\rm obs}="+f"{angle}\,$"+"deg.")#, lw=0.7, drawstyle='steps')
+    axes[1].legend(**dict(fancybox=True,loc= 'lower center',columnspacing=0.4,
+                          #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                          shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False))
+    axes[0].plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-',label=r"This work")#, lw=0.7, drawstyle='steps')
+    axes[0].plot([1e-4,1e-2], [1e39,1e41], color='gray', ls='-.',label=r"Radice+18")#, lw=0.7, drawstyle='steps')
+    axes[0].legend(**dict(fancybox=True,loc= 'lower center',columnspacing=0.4,
+                          #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                          shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False))
 
     for ax, (sim, sim_dict) in zip(axes, df.iterrows()):
         # n = 2
@@ -475,11 +507,11 @@ def plot_lcs_for_our_and_david(run:bool,run_rad:bool,sim_:str or None,sim_rad_:s
 
         # ax.set_ylabel(r"$\log_{10}(F_{\nu\,;\rm sph}) - \log_{10}(F_{\nu\,;\rm fit})$",fontsize=12)
         ax.axhline(y=0,color='gray',linestyle='-')
-        ax.grid(color='gray',linestyle=':')
+        # ax.grid(color='gray',linestyle=':')
         ax.set_xlabel(r"$t_{\rm obs}$ [day]",fontsize=12)
 
         # ax.set_title(r"$\theta_{\rm obs}="+f"{angle}\,$"+"deg.")
-        ax.set_title(sim_dict['label'])
+        ax.set_title(sim_dict['label'],fontsize=12)
 
     # cmappable = ScalarMappable(norm=norm,cmap=cmap)
     # cbar = fig.colorbar(cmappable, ax=ax, shrink=0.95,label=r"$E_{\rm k}$ [erg]",pad=0.05)
@@ -488,7 +520,7 @@ def plot_lcs_for_our_and_david(run:bool,run_rad:bool,sim_:str or None,sim_rad_:s
     # cbar.set_label(r"$E_{\rm k}$ [erg]",size=12)
     axes[0].set_ylabel(r"$F_{\nu}$ [$\mu$Jy]",fontsize=12)
 
-    figname = os.getcwd()+f'/figs/{figname}_{suffix}_shells'
+    figname = os.getcwd()+f'/figs/{figname}_{suffix}'
     plt.savefig(figname+'.png',dpi=256)
     plt.savefig(figname+'.pdf')
     plt.show()
@@ -1980,9 +2012,9 @@ if __name__ == '__main__':
     #      df_fit.loc["SFHo_135_135_res150_new"],
     #      df_text.loc["SFHo_135_135_res150_new"])
 
-    P = dict(main=dict(n_ism=1e-1,d_l=100e6 * PBA.utils.cgs.pc, z=0.001, tb0 = 1e4, tb1 = 1e12,
+    P = dict(main=dict(n_ism=1e-1,d_l=100e6 * PBA.utils.cgs.pc, z=0.001, tb0 = 1e2, tb1 = 1e14,
                        theta_obs=np.pi/4.,integrator="DOP853",
-                       lc_freqs = "array 3e9 1e18",
+                       lc_freqs = "array 1e9 3e9",
                        lc_times = "array logspace 1e5 1e9 100"),
              kn=dict(p_fs=2.5,eps_e_fs=1.e-1,eps_b_fs=1.e-1,eps_t_fs=1.,
                      method_synchrotron_fs="Joh06",method_ele_fs="analytic",
@@ -2004,9 +2036,9 @@ if __name__ == '__main__':
     # compare_nr_and_fit_angles_fits(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,7e3),ylim0=(7e-1,2e3),ylim1=(-0.5,0.5),
     #                           fit_funcs = ("3segFit","4segFit"),figname='radio_lcs_asym_nr_fit',suffix="joh06",angles=(5,45,85))
 
-    P = dict(main=dict(n_ism=0.1,d_l=100e6 * PBA.utils.cgs.pc, z=0.001, tb0 = 1e4, tb1 = 1e14,
+    P = dict(main=dict(n_ism=1e-3,d_l=100e6 * PBA.utils.cgs.pc, z=0.001, tb0 = 1e2, tb1 = 1e14,
                        theta_obs=np.pi/4.,integrator="DOP853",
-                       lc_freqs = "array 3e9 1e18",
+                       lc_freqs = "array 1e9 3e9",
                        lc_times = "array logspace 1e5 1e11 100"),
              kn=dict(p_fs=2.5,eps_e_fs=1.e-1,eps_b_fs=1.e-1,eps_t_fs=1.,
                      method_synchrotron_fs="Marg21",method_ele_fs="analytic",
@@ -2016,12 +2048,17 @@ if __name__ == '__main__':
                      method_gamma_min_fs='useTheta',method_B_fs='useMAG21',method_gamma_c_fs="useTe"
                      ))
     # plot_one_lc_with_components(P=P,run=False,xlim=(1e0,5e3),ylim=(7e-2,2e3),sim_="SFHo_13_14_res150",suffix="marg21",
-    #                             figname='radio_lcs_nr')
-    plot_lcs_for_our_and_david(P=P,run=False,run_rad=True,xlim=(1e0,5e3),ylim=(7e-2,2e3),
+    #                             figname='radio_lcs_nr',encode='ek')s
+    # plot_one_lc_with_components(P=P,run=True,xlim=(1e0,5e3),
+    #                             ylim=(7e-2,2e3),
+    #                             sim_="SFHo_13_14_res150",suffix="marg21",
+    #                             figname='radio_lcs_nr',encode='mom')
+    plot_lcs_for_our_and_david(P=P,run=True,run_rad=True,xlim=(1e0,5e3),ylim=(7e-3,1e3),#(7e-1,2e3),
                                sim_=None,#"SFHo_13_14_res150",
-                               sim_rad_=None,#"BLh_M13641364_M0_LK_SR",
+                               sim_rad_=None,#"DD2_M13641364_M0_LK_SR_R04",#"BLh_M13641364_M0_LK_SR",
                                suffix="marg21",
-                               figname='radio_lcs_nr_david')
+                               figname='radio_lcs_nr_david_nism0001',
+                               freq=3e9)
     # compare_nr_and_fit(P=P,run=False,run_fit=False,sim_="SFHo_13_14_res150",xlim=(1e0,1e4),ylim0=(7e-1,1e3),ylim1=(-0.3,0.3),
     #                    fit_func = "3segFit",figname='radio_lcs_nr_fit',suffix="marg21")
     # compare_nr_and_fit(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,1e4),ylim0=(7e-1,1e3),ylim1=(-0.3,0.3),

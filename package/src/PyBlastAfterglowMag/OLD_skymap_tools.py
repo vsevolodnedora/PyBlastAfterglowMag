@@ -4,7 +4,7 @@ import h5py
 from scipy import ndimage, interpolate
 import copy
 
-from .utils import cgs, get_beta, find_nearest_index
+from .utils import cgs, find_nearest_index
 
 def compute_position_of_the_flux_centroid(all_x_arrs, all_y_arrs, all_z_arrs, d_l):
     rad2mas = 2.062648062470964e+08
