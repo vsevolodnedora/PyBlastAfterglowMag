@@ -270,9 +270,9 @@ def plot_one_lc_with_components(run:bool,sim_:str or None,suffix:str,encode:str,
     cbar.ax.minorticks_on()
     cbar.set_label(label,size=12)
 
-    figname = os.getcwd()+f'/figs/{figname}_{suffix}_shells_{name_}'
-    plt.savefig(figname+'.png',dpi=256)
-    plt.savefig(figname+'.pdf')
+    figname_ = os.getcwd()+f'/figs/{figname}_{sim_ if sim_ else ""}_{suffix}_shells_{encode}'
+    plt.savefig(figname_+'.png',dpi=256)
+    plt.savefig(figname_+'.pdf')
     plt.show()
 
 def plot_lcs_for_our_and_david(run:bool,run_rad:bool,sim_:str or None,sim_rad_:str or None,suffix:str,
@@ -2036,7 +2036,7 @@ if __name__ == '__main__':
     # compare_nr_and_fit_angles_fits(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,7e3),ylim0=(7e-1,2e3),ylim1=(-0.5,0.5),
     #                           fit_funcs = ("3segFit","4segFit"),figname='radio_lcs_asym_nr_fit',suffix="joh06",angles=(5,45,85))
 
-    P = dict(main=dict(n_ism=1e-3,d_l=100e6 * PBA.utils.cgs.pc, z=0.001, tb0 = 1e2, tb1 = 1e14,
+    P = dict(main=dict(n_ism=1e-1,d_l=100e6 * PBA.utils.cgs.pc, z=0.001, tb0 = 1e2, tb1 = 1e14,
                        theta_obs=np.pi/4.,integrator="DOP853",
                        lc_freqs = "array 1e9 3e9",
                        lc_times = "array logspace 1e5 1e11 100"),
@@ -2047,18 +2047,24 @@ if __name__ == '__main__':
                      method_ne_fs="usenprime",method_comp_mode="observFlux",
                      method_gamma_min_fs='useTheta',method_B_fs='useMAG21',method_gamma_c_fs="useTe"
                      ))
-    # plot_one_lc_with_components(P=P,run=False,xlim=(1e0,5e3),ylim=(7e-2,2e3),sim_="SFHo_13_14_res150",suffix="marg21",
-    #                             figname='radio_lcs_nr',encode='ek')s
+    for sim, _ in df.iterrows():
+        rerun=True
+        for encode in ('ek','mom'):
+            plot_one_lc_with_components(P=P,run=rerun,xlim=(1e0,5e3),ylim=(7e-2,2e3),
+                                        sim_=sim,
+                                        suffix="marg21",
+                                        figname='radio_lcs_nr',encode=encode)
+            rerun=False
     # plot_one_lc_with_components(P=P,run=True,xlim=(1e0,5e3),
     #                             ylim=(7e-2,2e3),
     #                             sim_="SFHo_13_14_res150",suffix="marg21",
     #                             figname='radio_lcs_nr',encode='mom')
-    plot_lcs_for_our_and_david(P=P,run=True,run_rad=True,xlim=(1e0,5e3),ylim=(7e-3,1e3),#(7e-1,2e3),
-                               sim_=None,#"SFHo_13_14_res150",
-                               sim_rad_=None,#"DD2_M13641364_M0_LK_SR_R04",#"BLh_M13641364_M0_LK_SR",
-                               suffix="marg21",
-                               figname='radio_lcs_nr_david_nism0001',
-                               freq=3e9)
+    # plot_lcs_for_our_and_david(P=P,run=True,run_rad=True,xlim=(1e0,5e3),ylim=(7e-3,1e3),#(7e-1,2e3),
+    #                            sim_=None,#"SFHo_13_14_res150",
+    #                            sim_rad_=None,#"DD2_M13641364_M0_LK_SR_R04",#"BLh_M13641364_M0_LK_SR",
+    #                            suffix="marg21",
+    #                            figname='radio_lcs_nr_david_nism0001',
+    #                            freq=3e9)
     # compare_nr_and_fit(P=P,run=False,run_fit=False,sim_="SFHo_13_14_res150",xlim=(1e0,1e4),ylim0=(7e-1,1e3),ylim1=(-0.3,0.3),
     #                    fit_func = "3segFit",figname='radio_lcs_nr_fit',suffix="marg21")
     # compare_nr_and_fit(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,1e4),ylim0=(7e-1,1e3),ylim1=(-0.3,0.3),
