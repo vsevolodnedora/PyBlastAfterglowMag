@@ -49,6 +49,7 @@ df_rad = df_rad[df_rad["mass_ft"] > 0]
 df_rad.sort_values(by='mass_ft',inplace=True,ascending=False)
 df_rad["label"] = [f"{str(eos)} q={float(q):.2f}" if (float(q)!=1.) else f"{str(eos)} q={int(q)}"
                    for (eos,q) in zip(df_rad["EOS"],df_rad["q"])]
+
 def d2d(default:dict,new:dict):
     default_ = copy.deepcopy(default)
     for key, new_dict_ in new.items():
@@ -1384,6 +1385,9 @@ def compare_nr_and_fit_angles_fits(run:bool,run_fit:bool,
             #     )
             # )
 
+    # for t in tasks:
+    #     runs(t)
+
     # run all simulations asynch
     if run or run_fit:
         # equal load run
@@ -1482,7 +1486,7 @@ def compare_nr_and_fit_angles_fits(run:bool,run_fit:bool,
             ax.set_ylim(*ylim0)
     for i_a, angle in enumerate(angles):
         axes[i_a][0].set_ylabel(r"$F_{\nu}$ [$\mu$Jy]",fontsize=12)
-        axes[i_a][0].text(0.8, 0.5, r"$\theta_{\rm obs}=$" f"{angle}" + " deg.", fontsize=12,
+        axes[i_a][0].text(0.75, 0.5, r"$\theta_{\rm obs}=$" f"{angle}" + " deg.", fontsize=12,
                           bbox=dict(boxstyle='round', fc='blanchedalmond', ec='orange', alpha=1.),
                           transform=axes[i_a][0].transAxes, horizontalalignment='right')
     for i_s, (sim, sim_dict) in enumerate(df.iterrows()):
@@ -2047,14 +2051,14 @@ if __name__ == '__main__':
                      method_ne_fs="usenprime",method_comp_mode="observFlux",
                      method_gamma_min_fs='useTheta',method_B_fs='useMAG21',method_gamma_c_fs="useTe"
                      ))
-    for sim, _ in df.iterrows():
-        rerun=True
-        for encode in ('ek','mom'):
-            plot_one_lc_with_components(P=P,run=rerun,xlim=(1e0,5e3),ylim=(7e-2,2e3),
-                                        sim_=sim,
-                                        suffix="marg21",
-                                        figname='radio_lcs_nr',encode=encode)
-            rerun=False
+    # for sim, _ in df.iterrows():
+    #     rerun=True
+    #     for encode in ('ek','mom'):
+    #         plot_one_lc_with_components(P=P,run=rerun,xlim=(1e0,5e3),ylim=(7e-2,2e3),
+    #                                     sim_=sim,
+    #                                     suffix="marg21",
+    #                                     figname='radio_lcs_nr',encode=encode)
+    #         rerun=False
     # plot_one_lc_with_components(P=P,run=True,xlim=(1e0,5e3),
     #                             ylim=(7e-2,2e3),
     #                             sim_="SFHo_13_14_res150",suffix="marg21",
@@ -2071,8 +2075,8 @@ if __name__ == '__main__':
     #                    fit_func = "4segFit",figname='radio_lcs_nr_fit',suffix="marg21")
     # compare_nr_and_fit_rows(P=P,run=False,run_fit=True,sim_=None,xlim=(1e0,8e3),ylim0=(3e0,1e3),ylim1=(-0.3,0.3),
     #                         fit_funcs = ("3segFit","4segFit"),figname='radio_lcs_nr_fit_rows',suffix="marg21")
-    # compare_nr_and_fit_angles_fits(P=P,run=False,run_fit=False,sim_=None,xlim=(1e0,7e3),ylim0=(7e-1,2e3),ylim1=(-0.5,0.5),
-    #                                fit_funcs = ("3segFit","4segFit"),figname='radio_lcs_asym_nr_fit',suffix="marg21",angles=(5,45,85))
+    compare_nr_and_fit_angles_fits(P=P,run=False,run_fit=True,sim_=None,xlim=(1e0,7e3),ylim0=(7e-1,2e3),ylim1=(-0.5,0.5),
+                                   fit_funcs = ("3segFit",),figname='radio_lcs_asym_nr_fit',suffix="marg21",angles=(5,45,85))
 
     # load_tables_print_table()
 
