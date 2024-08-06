@@ -48,6 +48,9 @@ df = SIMS[SIMS["given_time"] == "new"]
 
 EJ_TEXT_PATH = str(__file__).split("analysis/kn/")[0] + "analysis/kn/ejecta/output/"
 df_text = pd.read_csv(EJ_TEXT_PATH+"ejecta_fasttail_vals_at_massmax.csv",index_col=0)
+df_ej = pd.read_csv(EJ_TEXT_PATH+"ejecta_vals_at_tend.csv",index_col=0)
+
+# -------------------------------------------------------------------------------
 
 # -------------------------------------------------------------------------------
 
@@ -69,7 +72,14 @@ features={
     "freq":r"$\nu_{\rm obs}$",
     "time":r"$t_{\rm obs}$",
     "p":r"$p$",
-    "text":r"$t_{\rm ext}$"
+    "text":r"$t_{\rm ext}$",
+    "ek":r"$E_{\rm ek}$",
+    "y0":r"$\mathcal{E}_0$",
+    "x0":r"$\mathcal{M}_0$",
+    "x1":r"$\mathcal{M}_1$",
+    "k1":"$k_1$",
+    "k2":"$k_2$",
+    "k3":"$k_3$"
 }
 
 def convert_csv_to_paraquet(remove_csv:bool=True):
@@ -87,13 +97,11 @@ def convert_csv_to_paraquet(remove_csv:bool=True):
             print("Deleting {}".format(os.getcwd()+'/runs/'+sim_dict['name']+'/collated.csv'))
             os.remove(os.getcwd()+'/runs/'+sim_dict['name']+'/collated.csv')
 
+
+
 def create_peak_data(features=("eps_e","eps_b","eps_t","n_ism","theta_obs","freq","p"),
-                     text:float or None=None):
-    texts = {"BHBLpTim326_135_135_45km_150mstg_B0_HLLC":30,
-             "DD2Tim326_135_135_0028_12.5mstg_B15.5_HLLD_CT_GS":22,
-             "SFHoTim276_12_15_0025_150mstg_B15_HLLD_CT_GS_onFugaku":28,
-             "SFHoTim276_13_14_0025_150mstg_B0_HLLC":26,
-             "SFHoTim276_135_135_45km_150mstg_B0_FUKA":32}
+                     text_:float or None=None):
+
 
     for sim, sim_dict in df.iterrows():
         df_ = pd.read_parquet(os.getcwd()+'/runs/'+sim_dict['name']+'/collated.parquet')
@@ -112,8 +120,18 @@ def create_peak_data(features=("eps_e","eps_b","eps_t","n_ism","theta_obs","freq
         df_peak.to_parquet(os.getcwd()+'/runs/'+sim_dict['name']+'/collated_peaks.parquet')
         print(f"{sim} {df_.shape} -> {df_peak.shape} Done.")
 
-
-
+def create_one_peak_data_dataframe(features=("eps_e","eps_b","eps_t","n_ism","theta_obs","freq","p")):
+    vals = {feature:[] for feature in features}
+    for sim, sim_dict in df.iterrows():
+        df_ = pd.read_parquet(os.getcwd()+'/runs/'+sim_dict['name']+'/collated_peaks.parquet')
+        for feature in features:
+            vals_i = df_[feature].unique().tolist()
+            if not vals[feature]: vals[feature] = vals_i
+            else:
+                for val in vals[feature]:
+                    if not val in vals_i:
+                        raise ValueError(f"Feautre={feature} expected vals={vals[feature]} gor val={val}")
+    print("All clean")
 def print_df(keys = ("eps_e","eps_b","eps_t","freq","p","theta_obs","n_ism"),drop_text:bool=True):
     df_runs = pd.read_parquet(get_runs_data(sim_dict['name']))
     if drop_text: df_runs.drop('text',axis=1,inplace=True)
@@ -123,7 +141,9 @@ def print_df(keys = ("eps_e","eps_b","eps_t","freq","p","theta_obs","n_ism"),dro
     print(len(df_runs))
     return df_runs
 
-def analyze_perm_importance(mode="study_flux_xgboost",title="Permutation Importances (test set) for XGBoost model"):
+def analyze_perm_importance(mode:str or None="study_flux_xgboost",
+                            title="Permutation Importances (test set) for XGBoost model",
+                            combined=True):
 
 
     df_imp = pd.DataFrame(columns = df.index)
@@ -131,7 +151,10 @@ def analyze_perm_importance(mode="study_flux_xgboost",title="Permutation Importa
     fig,ax = plt.subplots(ncols=1,nrows=1,figsize=(4.6,3.2))
     for sim, sim_dict in df.iterrows():
         text = texts[sim_dict['name']]
-        fpath = os.getcwd()+'/'+'runs/'+sim_dict['name']+'/'+f'{mode}_text{text}/' + "perm_importances.csv"
+        if not combined:
+            fpath = os.getcwd()+'/'+'runs/'+sim_dict['name']+'/'+f'{mode}_text{text}/' + "perm_importances.csv"
+        else:
+            fpath = os.getcwd()+'/'+'runs/'+f'combined_{mode}/' + "perm_importances.csv"
         importances = pd.read_csv(fpath)
         importances = importances.transpose()
         # for key, val_dict in importances.iterrows():
@@ -163,10 +186,56 @@ def analyze_perm_importance(mode="study_flux_xgboost",title="Permutation Importa
                       shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)
                )
     # ax.figure.tight_layout()
-    fpath = os.getcwd()+'/figs/'+"perm_importances_"+mode+".pdf"
+    if not combined:fpath = os.getcwd()+'/figs/'+"perm_importances_"+mode+".pdf"
+    else:fpath = os.getcwd()+'/figs/'+"perm_importances_combined_"+mode+".pdf"
     plt.savefig(fpath)
     plt.show()
 
+def analyze_perm_importance_all(mode:str or None="study_flux_xgboost",
+                            title="Permutation Importances (test set) for XGBoost model",
+                            combined=True):
+
+
+    df_imp = pd.DataFrame(columns = df.index)
+    # df_imp.columns = df.keys()
+    fig,ax = plt.subplots(ncols=1,nrows=1,figsize=(4.6,3.2))
+
+    fpath = os.getcwd()+'/'+'runs/'+f'combined_{mode}/' + "perm_importances.csv"
+    importances = pd.read_csv(fpath)
+    importances = importances.transpose()
+    # for key, val_dict in importances.iterrows():
+    # print(float(list(val_dict)[0]))
+    # ax.plot(key, float(list(val_dict)[0]),color='black')
+    print(importances[0])
+    ax.plot(
+        [features[idx] for idx in importances.index],
+        importances[0].values,color='black',marker='s',
+        ls='none',fillstyle='none',ms=12
+    )
+        # print(importances.iloc[0])
+        # df_imp[sim] = importances.iloc[0]
+        # df_imp = df_imp.merge(right=importances.iloc[0])
+        # print(importances)
+        # ax = importances.plot.box(ax=ax,vert=True, whis=10)
+        # break
+    # df_imp = df_imp.transpose()
+
+    ax.set_title(title,fontsize= 12)
+    ax.tick_params(labelsize=12,axis='both', which='both',direction='in',tick1On=True, tick2On=True)
+    # ax.tick_params(axis='x', which='minor', bottom=False)
+    # ax.grid()
+    # ax.minorticks_on()
+    # ax.axvline(x=0, color="k", linestyle="--")
+    ax.set_ylabel("Decrease in accuracy score",fontsize= 12)
+    ax.legend(**dict(fancybox=False,loc= 'upper left',columnspacing=0.4,
+                     #"bbox_to_anchor": (0.5, 1.2),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
+                     shadow=False, ncol= 1, fontsize= 12,framealpha=0., borderaxespad= 0., frameon=False)
+              )
+    # ax.figure.tight_layout()
+    if not combined:fpath = os.getcwd()+'/figs/'+"perm_importances_"+mode+".pdf"
+    else:fpath = os.getcwd()+'/figs/'+"perm_importances_combined_"+mode+".pdf"
+    plt.savefig(fpath)
+    plt.show()
 
 
 def plot_lcs_sim(sim_:str,mode="study_flux_xgboost"):
@@ -191,9 +260,10 @@ def plot_lcs_sim(sim_:str,mode="study_flux_xgboost"):
         plot_lcs(tasks,model,data,os.getcwd()+'/figs/'+sim+"_"+mode+"_lcs",ylim=(1e-4,3e3))
 
 
-def plot_shap_value(mode:str,title:str or None=None,color_bar_label:str=""):
-    from train_rf_optuna import Data
+def plot_shap_value(mode:str,color_bar_label:str,run:bool):
+    from train_xgb_peak import Data
 
+    # compute
     for sim, sim_dict in df.iterrows():
         text = texts[sim_dict['name']]
 
@@ -206,21 +276,66 @@ def plot_shap_value(mode:str,title:str or None=None,color_bar_label:str=""):
 
         model = joblib.load(fpath+"final_model.pkl")
 
-
         # explainer = shap.Explainer(model.predict,feature_names=data.features)
+        if run:
+            print("Creating Explainer")
+            explainer = shap.Explainer(
+                model.predict, X_norm, feature_names=[features[idx] for idx in data.features]
+            )
+            print(f"Computing Shap Values {sim} {mode}")
+            shap_values = explainer(X_norm)
+            joblib.dump(shap_values,os.getcwd()+'/output/'+f"{sim}_{mode}_shap_values.pkl")
+        else:
+            shap_values = joblib.load(os.getcwd()+'/output/'+f"{sim}_{mode}_shap_values.pkl")
+            print("Plotting")
+            print(shap_values)
+            fig,ax = plt.subplots(ncols=1,nrows=1,layout='constrained',figsize=(5,3))
+            plt.grid()
+            shap.plots.beeswarm(shap_values,color_bar_label=color_bar_label,show=False,log_scale=False,alpha=0.6,plot_size=(5,3),color='jet')
+            # shap.summary_plot(shap_values, X_norm)
+            # shap.summary_plot(shap_values[0], X_norm)
+            plt.savefig(os.getcwd()+'/figs/'+sim+"_"+mode+"_shap_values"+".pdf")
+            plt.show()
+
+            # shap.summary_plot(shap_values, plot_type='violin',color_bar_label=color_bar_label)
+            # plt.show()
+def plot_shap_value_all(mode:str,color_bar_label:str,run:bool):
+    from train_xgb_peak import Data
+
+    # compute
+
+    fpath = os.getcwd()+'/'+'runs/'+f'combined_{mode}/'
+
+    data = Data(working_dir=fpath)
+
+    # get data normalized according to the config files (from prep_data())
+    X_norm, y_norm = data.get_normalized_train_data()
+
+    model = joblib.load(fpath+"final_model.pkl")
+
+    # explainer = shap.Explainer(model.predict,feature_names=data.features)
+    if run:
         print("Creating Explainer")
-        explainer = shap.Explainer(model.predict, X_norm, feature_names=[features[idx] for idx in data.features])
-        print("Computing Shap Values")
+        explainer = shap.Explainer(
+            model.predict, X_norm, feature_names=[features[idx] for idx in data.features]
+        )
+        print(f"Computing Shap Values {'combined'} {mode}")
         shap_values = explainer(X_norm)
+        joblib.dump(shap_values,os.getcwd()+'/output/'+f"{'combined'}_{mode}_shap_values.pkl")
+    else:
+        shap_values = joblib.load(os.getcwd()+'/output/'+f"{'combined'}_{mode}_shap_values.pkl")
         print("Plotting")
         print(shap_values)
-        shap.plots.beeswarm(shap_values,color_bar_label=color_bar_label)
+        fig,ax = plt.subplots(ncols=1,nrows=1,layout='constrained',figsize=(5,3))
+        plt.grid()
+        shap.plots.beeswarm(shap_values,color_bar_label=color_bar_label,show=False,log_scale=False,alpha=0.6,plot_size=(5,3),color='jet')
         # shap.summary_plot(shap_values, X_norm)
         # shap.summary_plot(shap_values[0], X_norm)
+        plt.savefig(os.getcwd()+'/figs/'+'combined'+"_"+mode+"_shap_values"+".pdf")
         plt.show()
 
-        shap.summary_plot(shap_values, plot_type='violin',color_bar_label=color_bar_label)
-        plt.show()
+        # shap.summary_plot(shap_values, plot_type='violin',color_bar_label=color_bar_label)
+        # plt.show()
 
 
 class GRB170817A(object):
@@ -487,14 +602,21 @@ def compare_with_grb170817(sim_:str,mode="study_flux_xgboost"):
 
 if __name__ == '__main__':
     # create_peak_data()
+    # create_one_peak_data_dataframe()
 
-    # analyze_perm_importance(mode="xgb_model_peak_time",title=r"Permutation Importances for $t_{\rm peak}$")
-    # analyze_perm_importance(mode="xgb_model_peak_flux",title=r"Permutation Importances for $F_{\rm peak}$")
-    plot_lcs_sim(sim_="SFHo_13_14_res150")
-    # plot_shap_value(mode="study_flux_xgboost",#mode="xgb_model_peak_time",
-    #                 title=r"Permutation Importances for $t_{\rm peak}$",
-    #                 color_bar_label=r'$t_{\rm peak}$')
-
+    # analyze_perm_importance(mode="xgb_model_peak_time",title=r"Permutation Importances for $t_{\rm peak}$",combined=False)
+    # analyze_perm_importance(mode="xgb_model_peak_flux",title=r"Permutation Importances for $F_{\rm peak}$",combined=False)
+    # analyze_perm_importance_all(mode="time",title=r"Permutation Importances for $t_{\rm peak}$",combined=True)
+    # analyze_perm_importance_all(mode="flux",title=r"Permutation Importances for $F_{\rm peak}$",combined=True)
+    # plot_lcs_sim(sim_="SFHo_13_14_res150")
+    # plot_shap_value(mode="xgb_model_peak_time",
+    #                 color_bar_label=r'$t_{\rm peak}$',run=False)
+    # plot_shap_value(mode="xgb_model_peak_flux",
+    #                 color_bar_label=r'$F_{\rm peak}$',run=False)
+    plot_shap_value_all(mode="time",
+                    color_bar_label=r'$t_{\rm peak}$',run=True)
+    plot_shap_value_all(mode="flux",
+                    color_bar_label=r'$F_{\rm peak}$',run=True)
     exit(1)
 
     x = np.linspace(0, 10, 100)

@@ -34,16 +34,17 @@ get_runs_data = lambda name : os.getcwd()+'/runs/'+name+'/collated.parquet'
 # load the metadata
 with open(DATA_PATH+"metadata.json") as json_file:
     json_data = json.load(json_file)
-    print(json_data)
+    # print(json_data)
 SIMS = pd.DataFrame.from_dict(json_data).T
 SIMS.set_index("name")
 # select only new simulations
 df = SIMS[SIMS["given_time"] == "new"]
-
+print(df)
 # -------------------------------------------------------------------------------
 
 EJ_TEXT_PATH = str(__file__).split("analysis/kn/")[0] + "analysis/kn/ejecta/output/"
 df_text = pd.read_csv(EJ_TEXT_PATH+"ejecta_fasttail_vals_at_massmax.csv",index_col=0)
+df_ej = pd.read_csv(EJ_TEXT_PATH+"ejecta_vals_at_tend.csv",index_col=0)
 
 # -------------------------------------------------------------------------------
 
@@ -132,33 +133,89 @@ def prep_data(working_dir, df:pd.DataFrame, features_names:list, target:str):
             },
             outfile)
 
-def process_simulation_data(sim, sim_dict,
-                            features=("eps_e","eps_b","eps_t","n_ism","theta_obs","freq","p"),
-                            text:float or None = None,
-                            mode:str="flux"):
-    # load full paraquet file
-    fpath = os.getcwd()+'/runs/'+sim_dict['name']+'/collated.parquet'
-    df_data = pd.read_parquet(fpath)
-    print(f"File loaded: {fpath}")
+def process_simulation_data(features=("eps_e","eps_b","eps_t","n_ism","theta_obs","freq","p"),
+                            mode:str="flux",fit_func="3segFit"):
+    texts_dict = {"BHBLpTim326_135_135_45km_150mstg_B0_HLLC":30,
+             "DD2Tim326_135_135_0028_12.5mstg_B15.5_HLLD_CT_GS":22,
+             "SFHoTim276_12_15_0025_150mstg_B15_HLLD_CT_GS_onFugaku":28,
+             "SFHoTim276_13_14_0025_150mstg_B0_HLLC":26,
+             "SFHoTim276_135_135_45km_150mstg_B0_FUKA":32}
 
-    # remove unnecessary features
-    if (not ("text" in features)) and (not (text is None)):
-        print(f'Extraction times: {df_data["text"].unique()}')
-        texts = list(df_data["text"].unique())
+    df_fit = pd.read_csv(EJ_TEXT_PATH+f"piecewise_line_{fit_func}.csv",index_col=0)
+
+
+    # create combined dataframe
+    df_ = pd.merge(df,df_ej.drop(['name', 'label'],axis=1), left_index=True, right_index=True)
+    df_all= pd.DataFrame()
+    for sim, sim_dict in df_.iterrows():
+
+        df_fit_sim = df_fit.loc[sim]
+
+        # df_sim = pd.read_parquet(os.getcwd()+'/runs/'+sim_dict['name']+'/collated_peaks.parquet')
+        df_sim = pd.read_parquet(os.getcwd()+'/runs/'+sim_dict['name']+'/collated.parquet')
+        text = texts_dict[sim_dict['name']]
+        print(f'Extraction times: {df_sim["text"].unique()}')
+        texts = list(df_sim["text"].unique())
         if not text in texts:
             raise ValueError(f"Req. text={text} is not in dataframe_texts={texts}")
-        df_peak = df_data.loc[df_data["text"] == text]
-        df_peak.drop(["text"], axis=1, inplace=True)
-    elif ("text" in features) and (text is None):
-        print(f'Using text as a feature: {df_data["text"].unique()}')
-    else:
-        raise KeyError("Mode is not recognzied")
+        df_sim = df_sim.loc[df_sim["text"] == text]
+        df_sim.drop(["text"], axis=1, inplace=True)
+
+        # df_sim['ek'] = float(df_fit_sim['ek'])
+        df_sim['x0'] = float(df_fit_sim['x0'])
+        df_sim['x1'] = float(df_fit_sim['x1'])
+        df_sim['y0'] = np.log10( float(df_fit_sim['y0']) )
+        df_sim['k1'] = float(df_fit_sim['k1'])
+        df_sim['k2'] = float(df_fit_sim['k2'])
+        df_sim['k3'] = float(df_fit_sim['k3'])
+        df_all = df_all._append(df_sim)
+        # print(df_sim.duplicated().sum())
+        # print(df_all.duplicated().sum())
+    # print(df_all)
+    # print(df_all.columns)
+    # print(df_all.duplicated().sum())
+
+
+
+    df_peak = df_all
+
+    df_peak.replace([np.inf, -np.inf], np.nan, inplace=True)
+    df_peak.dropna(how="any", inplace=True)
 
     # get peak data
-    idx = df_data.groupby(list(features))["flux"].idxmax()
-    df_peak = df_data.loc[idx]
-    df_peak.to_parquet(os.getcwd()+'/runs/'+sim_dict['name']+'/collated_peaks.parquet')
-    print(f"Peak data extracted {df_data.shape} -> {df_peak.shape} ")
+    idx = df_peak.groupby(list(features))["flux"].idxmax()
+    df_peak = df_peak.loc[idx]
+    working_dir = os.getcwd()+'/runs/'+f'combined_{mode}/'
+    if not os.path.isdir(working_dir): os.mkdir(working_dir)
+    df_peak.to_parquet(working_dir+'collated_peaks.parquet')
+    # print(f"Peak data extracted {df_data.shape} -> {df_peak.shape} ")
+
+    print(df_peak.duplicated().sum())
+
+    def analyze_df(df : pd.DataFrame)->pd.DataFrame:
+        res = pd.DataFrame({
+            "is_unique": df.nunique() == len(df),
+            "unique": df.nunique(),
+            "with_nan":df.isna().any(),
+            "percent_nan":round((df.isnull().sum()/len(df))*100,4),
+            "min":df.min(),
+            "max":df.max(),
+            "dtype":df.dtypes
+        })
+        return res
+    print(analyze_df(df=df_peak))
+
+    print(f"--- Duplicated_rows --- ")
+    print(df_peak.duplicated().sum())
+    print(df_peak[df_peak.duplicated()])
+    print(f"--- Nans rows --- ")
+    df_peak.isnull().sum()/len(df_peak)
+    print(f"--- Inf rows --- ")
+    df_infs = df_peak.isin([np.inf, -np.inf, np.nan])
+    print(df_infs.sum())
+
+    # exit(1)
+
 
     if mode == "time" :
         print("Removing flux data from dataframe to predict time of the peak only")
@@ -168,9 +225,9 @@ def process_simulation_data(sim, sim_dict,
         df_peak.drop(["time"], axis=1, inplace=True)
 
     # save data (save X.h5 and Y.h5 files)
-    working_dir = fpath.replace('collated.parquet',f'xgb_model_peak_{mode}_text{text}/')
-    if os.path.isdir(working_dir): shutil.rmtree(working_dir)
-    if not os.path.isdir(working_dir): os.mkdir(working_dir)
+
+    # if os.path.isdir(working_dir): shutil.rmtree(working_dir)
+    # if not os.path.isdir(working_dir): os.mkdir(working_dir)
     prep_data(working_dir,df=df_peak,features_names=features,target=mode)
 
     # load X.h5 data and Y.h5
@@ -232,10 +289,13 @@ def process_simulation_data(sim, sim_dict,
     ax.figure.tight_layout()
     plt.savefig(working_dir+"perm_importances.png",dpi=256)
 
+
     del X_norm
     del y_norm
     gc.collect()
-    print(f"Analysis for {sim} is completed.")
+    print(f"Analysis for {'combined'} is completed for {mode}")
+
+
 
 def main():
     texts = {"BHBLpTim326_135_135_45km_150mstg_B0_HLLC":30,
@@ -244,27 +304,42 @@ def main():
              "SFHoTim276_13_14_0025_150mstg_B0_HLLC":26,
              "SFHoTim276_135_135_45km_150mstg_B0_FUKA":32}
 
-    for sim,sim_dict in df.iterrows():
-        process_simulation_data(sim=sim,sim_dict=sim_dict,
-                                features=("eps_e","eps_b","eps_t","n_ism","theta_obs","freq","p"),
-                                text=texts[sim_dict['name']],
-                                mode='flux')
-        process_simulation_data(sim=sim,sim_dict=sim_dict,
-                                features=("eps_e","eps_b","eps_t","n_ism","theta_obs","freq","p"),
-                                text=texts[sim_dict['name']],
-                                mode='time')
-        # break
-    # exit(1)
-    # special analysis of the SFHo q=1.08 data
-    sim = "SFHo_13_14_res150"
-    process_simulation_data(sim=sim,sim_dict=df.loc[sim],
-                            features=("eps_e","eps_b","eps_t","n_ism","theta_obs","freq","p","text"),
-                            text=None,
-                            mode='flux')
-    process_simulation_data(sim=sim,sim_dict=df.loc[sim],
-                            features=("eps_e","eps_b","eps_t","n_ism","theta_obs","freq","p","text"),
-                            text=None,
-                            mode='time')
+
+
+
+    process_simulation_data(features=("eps_e","eps_b","eps_t","n_ism","theta_obs","freq","p",
+                                      "y0","x0","x1","k1","k2","k3"), mode="flux")
+    process_simulation_data(features=("eps_e","eps_b","eps_t","n_ism","theta_obs","freq","p","y0",
+                                      "x0","x1","k1","k2","k3"), mode="time")
+    # df["text"] = [30., 26., 28., 30., 22.]
+    # print(df[["Lambda","q","text"]])
+
+
+
+    # for sim,sim_dict in df.iterrows():
+    #     process_simulation_data(sim=sim,sim_dict=sim_dict,
+    #                             features=("eps_e","eps_b","eps_t","n_ism","theta_obs","freq","p"),
+    #                             text=texts[sim_dict['name']],
+    #                             mode='flux')
+    #     process_simulation_data(sim=sim,sim_dict=sim_dict,
+    #                             features=("eps_e","eps_b","eps_t","n_ism","theta_obs","freq","p"),
+    #                             text=texts[sim_dict['name']],
+    #                             mode='time')
+    #     # break
+    # # exit(1)
+    # # special analysis of the SFHo q=1.08 data
+    # sim = "SFHo_13_14_res150"
+    # process_simulation_data(sim=sim,sim_dict=df.loc[sim],
+    #                         features=("eps_e","eps_b","eps_t","n_ism","theta_obs","freq","p","text"),
+    #                         text=None,
+    #                         mode='flux')
+    # process_simulation_data(sim=sim,sim_dict=df.loc[sim],
+    #                         features=("eps_e","eps_b","eps_t","n_ism","theta_obs","freq","p","text"),
+    #                         text=None,
+    #                         mode='time')
+
+
+
 
 if __name__ == '__main__':
     main()
