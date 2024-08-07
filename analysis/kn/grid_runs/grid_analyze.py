@@ -326,12 +326,15 @@ def plot_shap_value_all(mode:str,color_bar_label:str,run:bool):
         shap_values = joblib.load(os.getcwd()+'/output/'+f"{'combined'}_{mode}_shap_values.pkl")
         print("Plotting")
         print(shap_values)
-        fig,ax = plt.subplots(ncols=1,nrows=1,layout='constrained',figsize=(5,3))
+        fig,ax = plt.subplots(ncols=1,nrows=1,layout='constrained',figsize=(5,4))
         plt.grid()
-        shap.plots.beeswarm(shap_values,color_bar_label=color_bar_label,show=False,log_scale=False,alpha=0.6,plot_size=(5,3),color='jet')
+        shap.plots.beeswarm(shap_values,color_bar_label=color_bar_label,
+                            show=False,log_scale=False,alpha=0.6,plot_size=(5,3),color='jet',
+                            max_display=13)
         # shap.summary_plot(shap_values, X_norm)
         # shap.summary_plot(shap_values[0], X_norm)
         plt.savefig(os.getcwd()+'/figs/'+'combined'+"_"+mode+"_shap_values"+".pdf")
+        plt.savefig(os.getcwd()+'/figs/'+'combined'+"_"+mode+"_shap_values"+".png",dpi=256)
         plt.show()
 
         # shap.summary_plot(shap_values, plot_type='violin',color_bar_label=color_bar_label)
@@ -614,9 +617,9 @@ if __name__ == '__main__':
     # plot_shap_value(mode="xgb_model_peak_flux",
     #                 color_bar_label=r'$F_{\rm peak}$',run=False)
     plot_shap_value_all(mode="time",
-                    color_bar_label=r'$t_{\rm peak}$',run=True)
+                    color_bar_label=r'$t_{\rm peak}$',run=False)
     plot_shap_value_all(mode="flux",
-                    color_bar_label=r'$F_{\rm peak}$',run=True)
+                    color_bar_label=r'$F_{\rm peak}$',run=False)
     exit(1)
 
     x = np.linspace(0, 10, 100)
