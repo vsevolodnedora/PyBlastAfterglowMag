@@ -107,7 +107,7 @@ public:
         double theta_max = getDoublePar("theta_max", pars, AT,p_log,CGS::pi/2.,false);//pars.at("theta_max");
 
         // radiative losses
-        p_pars->eps_rad   = getDoublePar("epsilon_e_rad", pars, AT,p_log,0.,false);// pars.at("epsilon_e_rad");
+        p_pars->epsilon_rad_fs   = getDoublePar("epsilon_e_rad_fs", pars, AT, p_log, 0., true);// pars.at("epsilon_e_rad");
 
         // Mass accretion from ISM; set options
         std::string opt;
@@ -452,7 +452,7 @@ public:
             p_pars->shutOff = true;
             p_pars->m_type = BW_TYPES::iFS;
         }
-
+        p_pars->epsilon_rad_fs   = getDoublePar("epsilon_e_rad_fs", pars, AT,p_log,0.,true);// pars.at("epsilon_e_rad");
     }
 
     void setParamsDense(StrDbMap & pars, StrStrMap & opts){

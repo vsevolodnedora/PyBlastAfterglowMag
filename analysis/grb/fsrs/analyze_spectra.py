@@ -9,6 +9,9 @@ from scipy import special
 working_dir = os.getcwd()+'/tmp1/'
 fig_dir = os.getcwd()+'/figs/'
 
+t_cool = lambda gamma_e, B : 6. * PBA.utils.cgs.me * np.pi * PBA.utils.cgs.c / (gamma_e * PBA.utils.cgs.sigmaT * B**2)
+print(f"{t_cool(1e3, 100)}")
+exit(1)
 def nu_syn_aborb(B,gam1,gam2,dr_comov,n,nu1,nu2):
     pass
 def ssa_freq(r, n, B, gm, gc, dr_comov,p):

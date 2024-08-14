@@ -1655,8 +1655,8 @@ void BlastWave::rhs_fs(double * out_Y, size_t i, double x, double const * Y ) {
         dEad2dR = -(gammaAdi - 1.0) * Eint2 * dlnV2dR;
 
     // -- Radiative losses
-    double eps_rad = p_pars->eps_rad;
-    if (p_pars->eps_rad < 0){
+    double eps_rad = p_pars->epsilon_rad_fs;
+    if (p_pars->epsilon_rad_fs < 0){
         if (Eint2 < 0 || M2 < 0 || Gamma < 1){
             (*p_log)(LOG_ERR,AT) << " Eint="<<Eint2<<" M2="<<M2<<" Gamma="<<Gamma<<"\n";
             exit(1);
@@ -1988,8 +1988,8 @@ void BlastWave::rhs_fsrs(double * out_Y, size_t i, double x, double const * Y ) 
     }
 
     // -- Radiative losses
-    double eps_rad = p_pars->eps_rad;
-    if (p_pars->eps_rad < 0)
+    double eps_rad = p_pars->epsilon_rad_fs;
+    if (p_pars->epsilon_rad_fs < 0)
         eps_rad = p_pars->p_mphys->computeRadiationLoss(
                 dM2dR*p_pars->M0, dEsh2dR*p_pars->M0*CGS::c*CGS::c,
                 R, Gamma, GammaSh, gammaAdi, M2*p_pars->M0, Eint2*p_pars->M0*CGS::c*CGS::c,
@@ -2334,7 +2334,7 @@ void BlastWave::rhs_fs_dense(double * out_Y, size_t i, double x, double const * 
 
 //        double dEsh2dR  = (GammaRel - 1.0) * dM2dR; // Shocked energy;
     // -- Radiative losses
-    double dErad2dR = p_pars->eps_rad * dEsh2dR;
+    double dErad2dR = p_pars->epsilon_rad_fs * dEsh2dR;
     // -- Energy equation
     double dEint2dR = dEsh2dR + dEad2dR - dErad2dR + dEnucdR - dElumdR + dEingdR_abs_dop;// dEingdR_abs_dop; // / (m_pars.M0 * c ** 2)
 //        double _x = dEint2dR/Eint2;
@@ -2707,7 +2707,7 @@ void BlastWave::rhs_fs_dense_pwn(double * out_Y, size_t i, double x, double cons
     }
 
     // -- Radiative losses
-    double dErad2dR = p_pars->eps_rad * dEsh2dR;
+    double dErad2dR = p_pars->epsilon_rad_fs * dEsh2dR;
 
     // -- Energy equation
     double dEint2dR = dEsh2dR + dEad2dR - dErad2dR + dEnucdR - dElumdR + dEingdR_abs_dop;// dEingdR_abs_dop; // / (m_pars.M0 * c ** 2)

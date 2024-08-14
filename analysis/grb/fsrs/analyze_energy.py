@@ -189,7 +189,7 @@ def plot_fs_energy(pp:dict,plot:dict):
         delraR4 = pba.GRB.get_dyn_arr(v_n="deltaR4",ishell=0,ilayer=0)
         Rrs = pba.GRB.get_dyn_arr(v_n="Rsh_rs",ishell=0,ilayer=0)
 
-        gamAdi3 = gamma_adi(Gamma43, PBA.utils.get_beta(Gamma43))
+        gamAdi3 = gamma_adi(Gamma43, PBA.utils.BetaFromGamma(Gamma43))
         GammaEff3 = GammaEff(Gamma43, gamAdi3)
 
         GammaEff3[~np.isfinite(GammaEff3)] = 0.
@@ -212,10 +212,16 @@ def plot_fs_energy(pp:dict,plot:dict):
         axes[0].plot(R, Ekin4/E0, label=r"$E_{\rm kin; 4}$", color='green', ls="-.")
 
     if (pba.GRB.opts["do_rs"] == "yes"):
-        axes[0].plot(R, (Ekin2 + Eint2 + Ekin4 + Ekin3 + Eint3)/E0, ls='-', label=r"$E_{\rm tot}$", color='black')
+        Etot = Ekin2 + Eint2 + Ekin4 + Ekin3 + Eint3
+        axes[0].plot(R, Etot/E0, ls='-', label=r"$E_{\rm tot}$", color='black')
+        print(f"Energy conservation vialation (rs={pba.GRB.opts['do_rs']}) max: {max(abs(Etot-E0)/E0)*100:.1f} % ")
     else:
         axes[0].plot(R, Ekin4/E0, label=r"$E_{\rm kin; 3,4}$", color='blue', ls='-.')
-        axes[0].plot(R, (Ekin2 + Eint2 + Ekin4)/E0, ls='-', label=r"$E_{\rm tot}$", color='black')
+        Etot = (Ekin2 + Eint2 + Ekin4)
+        conservation =  Etot/E0
+        axes[0].plot(R, conservation, ls='-', label=r"$E_{\rm tot}$", color='black')
+        print(f"Energy conservation vialation (rs={pba.GRB.opts['do_rs']}) max: {max(abs(Etot-E0)/E0)*100:.1f} % ")
+
     # axes[0].set_ylim(*plot["ylim"])
     axes[0].set_ylabel(r"Energy/$E_0$", fontsize=12)
     # axes[0].axhline(y=1, color='black', linestyle='-', linewidth=0.5)
@@ -277,7 +283,7 @@ def plot_fs_energy(pp:dict,plot:dict):
         # axes[1].plot(tburst, thickness_rs, color='green', linestyle='-.', label=r"$\Delta_{\rm rs}$")
         # axes[1].plot(tburst, delraR4, color='green', linestyle=':', label=r"$\Delta_{4}$")
         # axes[1].plot(tburst, Rrs, color='green', linestyle='--', label=r"$R_{\rm rs}$")
-        axes[1].plot(R, Gamma43*PBA.utils.get_beta(Gamma43), color='green', linestyle='-', label=r"$\Gamma_{43}\beta_{43}$")
+        axes[1].plot(R, PBA.utils.MomFromGamma(Gamma43), color='green', linestyle='-', label=r"$\Gamma_{43}\beta_{43}$")
 
 
     axes[1].set_ylabel(r"$\Gamma\beta$",fontsize=12)
@@ -608,7 +614,7 @@ def plot_fs_energy2(pp:dict,plot:dict):
 def plot_fs_energy_rad(pp:dict,plot:dict,fs_or_rs="fs",ishell=0,ilayer=0):
 
     pba = PBA.wrappers.run_grb(working_dir=working_dir,
-                               P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad=-1,epsilon_e_rad_rs=-1,eats_type='a'))))
+                               P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad_fs=-1,epsilon_e_rad_rs=-1,eats_type='a'))))
 
 
     p = float(pba.GRB.pars["p_fs" if fs_or_rs == "fs" else "p_rs"])
@@ -717,7 +723,7 @@ def plot_fs_energy_rad(pp:dict,plot:dict,fs_or_rs="fs",ishell=0,ilayer=0):
     #              pba.GRB.get_dyn_arr(v_n="mom",ishell=0,ilayer=0),color='black',ls='--',label=r'$Semi-radiative$')
 
     pba = PBA.wrappers.run_grb(working_dir=working_dir,
-                               P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad=0,epsilon_e_rad_rs=0,eats_type='a'))))
+                               P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad_fs=0,epsilon_e_rad_rs=0,eats_type='a'))))
 
     mom_adi =  pba.GRB.get_dyn_arr(v_n="mom",ishell=0,ilayer=0)
     if (pba.GRB.opts["do_rs"] == "yes"):
@@ -728,7 +734,7 @@ def plot_fs_energy_rad(pp:dict,plot:dict,fs_or_rs="fs",ishell=0,ilayer=0):
     #              pba.GRB.get_dyn_arr(v_n="mom",ishell=0,ilayer=0),color='black',ls='-',label=r'$Adiabatic$')
 
     pba = PBA.wrappers.run_grb(working_dir=working_dir,
-                               P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad=1,epsilon_e_rad_rs=1,eats_type='a'))))
+                               P=d2d(default=pp, new=dict(grb=dict(epsilon_e_rad_fs=1,epsilon_e_rad_rs=1,eats_type='a'))))
 
     mom_rad = pba.GRB.get_dyn_arr(v_n="mom",ishell=0,ilayer=0)
     if (pba.GRB.opts["do_rs"] == "yes"):
@@ -741,9 +747,13 @@ def plot_fs_energy_rad(pp:dict,plot:dict,fs_or_rs="fs",ishell=0,ilayer=0):
 
     axes[0].plot(pba.GRB.get_dyn_arr(v_n="R",ishell=0,ilayer=0),
                  # mom_adi/mom_smi,color='black',ls='--',label=r'$\frac{\Gamma\beta|_{\rm adi}}{\Gamma\beta|_{\rm semi}}$')
-                 mom_adi/mom_smi,color='black',ls='--',label=r'adi/semi')
+                 mom_adi/mom_smi,color='black',ls='--',
+                 label=r'$(\Gamma\beta)_{\rm adi} / (\Gamma\beta)_{\rm semi}$',#r'adi/semi'
+                 )
     axes[0].plot(pba.GRB.get_dyn_arr(v_n="R",ishell=0,ilayer=0),
-                 mom_adi/mom_rad,color='black',ls='-.',label=r'adi/rad')
+                 mom_adi/mom_rad,color='black',ls='-.',
+                 label=r'$(\Gamma\beta)_{\rm adi} / (\Gamma\beta)_{\rm rad}$'#r'adi/rad'
+                 )
     if (pba.GRB.opts["do_rs"] == "yes"):
         axes[0].plot(pba.GRB.get_dyn_arr(v_n="R",ishell=0,ilayer=0),
                      mom_adi_rs/mom_smi_rs,color='gray',ls='--',label=r'$\frac{\Gamma_{43}\beta_{43}|_{\rm adi}}{\Gamma_{43}\beta_{43}|_{\rm semi}}$')
@@ -753,8 +763,8 @@ def plot_fs_energy_rad(pp:dict,plot:dict,fs_or_rs="fs",ishell=0,ilayer=0):
     axes[0].set_xlabel('$R$ [cm]',fontsize=12)
     axes[0].legend(fancybox=True, loc='upper left', columnspacing=0.8,
               # bbox_to_anchor=(0.5, 0.5),  # loc=(0.0, 0.6),  # (1.0, 0.3), # <-> |
-              shadow=False, ncol= 2,
-              fontsize=16,
+              shadow=False, ncol= 1,
+              fontsize=12,
               framealpha=0., borderaxespad=0.)
     axes[0].set_ylabel("Momentum ratio",fontsize=12)
     for i, ax in enumerate(axes):
@@ -842,14 +852,16 @@ def plot_id(pp:dict,plot:dict):
 if __name__ == '__main__':
     ''' -------- TOPHAT ---------- '''
     struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
-    plot_fs_energy(
-        pp = dict(main=dict(n_ism = 1, tb0=3e3),
-                  grb=dict(structure=struct,eats_type='a',save_dynamics='yes',do_mphys_in_situ="no",do_lc = "no",# method_spread='None'
-                           )),
-        plot=dict(figname = "tophat_fs_energy", text="FS",
-                  xlim=(1e14,1e19), ylim1=(1e-4,2), ylim2=(1e-3,1e3), rdec=True, bm=True,
-                  theta_spread_0=True, theta_spread_1=True)
-    )
+    # plot_fs_energy(
+    #     pp = dict(main=dict(n_ism = 1, tb0=3e3,ntb=5000,rtol=1e-7,),
+    #               grb=dict(structure=struct,eats_type='a',save_dynamics='yes',do_mphys_in_situ="no",do_lc = "no",# method_spread='None'
+    #                        # method_eos='Peer12'
+    #                        # method_Gamma_fs="s"
+    #                        )),
+    #     plot=dict(figname = "tophat_fs_energy", text="FS",
+    #               xlim=(1e14,1e19), ylim1=(1e-4,2), ylim2=(1e-3,1e3), rdec=True, bm=True,
+    #               theta_spread_0=True, theta_spread_1=True)
+    # )
     struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
     plot_fs_energy(
         pp = dict(main=dict(n_ism = 1., tb0=3e3, ntb=1000,rtol=1e-7,
@@ -860,7 +872,7 @@ if __name__ == '__main__':
                            )),
         plot=dict(figname = "tophat_fsrs_energy", text="FS \& RS",
                   xlim=(1e14,1e19), ylim1=(1e-4,2), ylim2=(1e-3,1e3), rdec=False, bm=True,method_ele_fs='mix',
-                  theta_spread_0=True, theta_spread_1=True)
+                  theta_spread_0=True, theta_spread_1=False)
     )
     ''' ---------- RAD.LOSSES -------- '''
     struct = dict(struct="tophat",Eiso_c=1.e53, Gamma0c= 400., M0c= -1.,theta_c= 0.1, theta_w= 0.1)

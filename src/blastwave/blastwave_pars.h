@@ -82,7 +82,9 @@ struct Pars{
     /// deceleration radius
     double Rd = -1;
 
-    double eps_rad = 0.;
+//    double eps_rad_fs = 0.;
+//    double eps_rad_rs = 0.;
+    double epsilon_rad_fs = 0.;
     double dEinjdt = 0.;
     double facPSRdep = 0.;
     double dEnuc = 0.;
