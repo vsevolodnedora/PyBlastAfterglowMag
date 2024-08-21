@@ -11,7 +11,7 @@ from PyBlastAfterglowMag.interface import PyBlastAfterglow
 from PyBlastAfterglowMag.utils import cgs
 from sklearn.metrics import mean_squared_error
 
-data_dir = "/media/vsevolod/T7/work/prj_grb_afterglow/GRB190114C/working_dirs/"
+#data_dir = "/media/vsevolod/T7/work/prj_grb_afterglow/GRB190114C/working_dirs/"
 
 class EBL:
     def __init__(self):
@@ -52,7 +52,7 @@ class EBL:
 
     def load(self):
         # load EBL table and compute absorbtion
-        ebl_table = np.loadtxt("../../../data/EBL/Franceschini18/table.txt")
+        ebl_table = np.loadtxt("../../../../data/EBL/Franceschini18/table.txt")
         self.ebl_z = ebl_table[0, 1:]
         self.ebl_en = ebl_table[1:, 0] * 1e12 # TeV -> eV
         self.ebl_table = ebl_table[1:,1:]
@@ -80,9 +80,10 @@ def integrated_spectrum(t1,t2,working_dir):
     integ_spec = np.trapz(spec,x=times[mask],axis=0)
     return freqs, integ_spec
 
-def compute_rms_scores_for_runs(data_freq, data_flux, t1, t2):
+def compute_rms_scores_for_runs(
+        working_dirs:list[str],
+        data_freq, data_flux, t1, t2):
     # load lightcurves
-    working_dirs = glob(data_dir + '*')
     scores = []
     for working_dir in working_dirs:
         # pba = PyBlastAfterglow(workingdir=working_dir+'/',readparfileforpaths=True)
@@ -101,11 +102,11 @@ def compute_rms_scores_for_runs(data_freq, data_flux, t1, t2):
     df = pd.DataFrame.from_dict({"workingdir":working_dirs,"rms":scores})
     df.to_csv("./runs.csv")
 
-def get_rms_scores_for_all_runs(data_freq:list[np.ndarray],
-                                data_flux:list[np.ndarray],
-                                t1s:list[float], t2s:list[float])->tuple[list[str],list[float]]:
+def get_rms_scores_for_all_runs(
+        working_dirs:list[str],
+        data_freq:list[np.ndarray],
+        data_flux:list[np.ndarray],t1s:list[float], t2s:list[float])->tuple[list[str],list[float]]:
     # load lightcurves
-    working_dirs = glob(data_dir + '*')
     scores = []
     min_score = np.inf
     for i, working_dir in enumerate(working_dirs):
@@ -163,14 +164,15 @@ def plot():
 
     # VHE intervals
     data = [
-        dict(name="int1",t1=68, t2=110, file='./magic_int1_points.txt',color='blue',label=r"$68-110$ [s]"),
-        dict(name="int2",t1=110, t2=180, file='./magic_int2_points.txt',color='orange',label=r"$180-360$ [s]"),
-        # dict(name="int3",t1=180, t2=360, file='./magic_int3_points.txt',color='red'),
-        # dict(name="int4",t1=360, t2=625, file='./magic_int4_points.txt',color='green'),
-        # dict(name="int5",t1=625, t2=2400, file='./magic_int5_points.txt',color='purple'),
+        dict(name="int1", t1=68, t2=110, file='observations/magic_int1_points.txt', color='blue', label=r"$68-110$ [s]"),
+        dict(name="int2", t1=110, t2=180, file='observations/magic_int2_points.txt', color='orange', label=r"$180-360$ [s]"),
+        # dict(name="int3",t1=180, t2=360, file='./observations/magic_int3_points.txt',color='red'),
+        # dict(name="int4",t1=360, t2=625, file='./observations/magic_int4_points.txt',color='green'),
+        # dict(name="int5",t1=625, t2=2400, file='./observations/magic_int5_points.txt',color='purple'),
     ]
 
     # process data
+    working_dir_root = os.getcwd()+'/working_dirs/'
 
     # freqs, obs_data, model_data = [], [], []
     # # process data for each time interval
@@ -183,14 +185,17 @@ def plot():
     #     data_i["fluxes"] = fluxes
     #
     # # compute error metric
+    # working_dirs = glob(working_dir_root + '*')
     # working_dirs, scores = get_rms_scores_for_all_runs(
+    #     working_dirs = working_dirs,
     #     data_freq=[data_i["freqs"] for data_i in data],
     #     data_flux=[data_i["fluxes"] for data_i in data],
     #     t1s=[data_i["t1"] for data_i in data],
     #     t2s=[data_i["t2"] for data_i in data],
     # )
-    # df = pd.DataFrame.from_dict({"workingdir":working_dirs,"rms":scores})
-    # df.to_csv("./runs.csv")
+    # df = pd.DataFrame.from_dict({"workingdir":[working_dir.split('/')[-1] for working_dir in working_dirs],
+    #                              "rms":scores})
+    # df.to_parquet(os.getcwd()+'/'+"runs.parquet")
 
     # plot results
 
@@ -216,14 +221,18 @@ def plot():
     # print(data_to_save)
 
     # plot best model (load, sort by score, plot)
-    df = pd.read_csv("./runs.csv",index_col=0)
+    df = pd.read_parquet(os.getcwd()+'/'+"runs.parquet")
     df.sort_values(by='rms',inplace=True)
     df.drop_duplicates('rms',inplace=True)
+
     for i, ls in zip((0,),['-','--',':']):
         working_dir, rms = df.iloc[i] # best model (lowest score)
         print(working_dir, rms)
         for data_i in data:
-            freqs, model_flux_dens = integrated_spectrum(t1=data_i['t1'],t2=data_i['t2'], working_dir=working_dir)
+            freqs, model_flux_dens = integrated_spectrum(
+                t1=data_i['t1'],t2=data_i['t2'],
+                working_dir=working_dir_root+'/'+working_dir
+            )
             ax.plot(freqs,model_flux_dens*freqs*1.e-26,color=data_i['color'],ls=ls)
 
 
@@ -274,7 +283,7 @@ def plot():
 
     # compute_rms_scores_for_runs(data_freq=freqs, data_flux=fluxes, t1=68, t2=110)
 
-    df = pd.read_csv("./runs.csv",index_col=0)
+    df = pd.read_csv("../../grid_runs/runs.csv", index_col=0)
     df.sort_values(by='rms',inplace=True)
 
     fig, ax = plt.subplots(ncols=1,nrows=1)
@@ -313,4 +322,6 @@ def plot():
 #     return (working_dirs, scores)
 
 if __name__ == '__main__':
+    # GRB 190114C
+    # grid_run_tophat(z=0.4245,d_l=2.3e9*cgs.pc) # https://www.aanda.org/articles/aa/pdf/2022/03/aa41788-21.pdf
     plot()

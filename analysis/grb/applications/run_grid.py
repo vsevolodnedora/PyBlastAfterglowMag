@@ -196,7 +196,7 @@ class DispatcherRunPyBlastAfterglow:
                 working_dir=working_dir,
                 P=P,
                 run=True,
-                process_skymaps=False,
+                process_skymaps= P["grb"]["do_skymap"]=="yes",
                 loglevel="err",
                 path_to_cpp=path_to_cpp_executable
             )
@@ -265,7 +265,7 @@ def grid_run_tophat(z:float,d_l:float,grid_runs_dir:str):
                  gam1_rs=1., gam2_rs=1e8, ngam_rs=401,
                  freq1_fs=1e6, freq2_fs=1e33, nfreq_fs=401,
                  freq1_rs=1e6, freq2_rs=1e33, nfreq_rs=401,
-                 # ebl_tbl_fpath="none"
+                 ebl_tbl_fpath="/home/enlil/vnedora/work_new/GIT/PyBlastAfterglowMag/data/EBL/Franceschini18/table.h5",
                  skymap_conf=dict(nx=128, ny=64, extend_grid=2, fwhm_fac=0.5, lat_dist_method="integ",
                                   intp_filter=dict(type='gaussian', size=2, sigma=1.5, mode='reflect'),  # "gaussian"
                                   hist_filter=dict(type='gaussian', size=2, sigma=1.5, mode='reflect'))
@@ -339,8 +339,7 @@ def grid_run_gauss(z:float,d_l:float,grid_runs_dir:str):
                  method_ssc_fs='none',method_pp_fs='none',use_ssa_fs='no',
                  method_ssc_rs='none',method_pp_rs='none',use_ssa_rs='no',
                  ebl_tbl_fpath='none',do_mphys_in_situ='no',do_mphys_in_ppr='yes',
-                 skymap_conf=skymap_conf
-                 )
+                 skymap_conf=skymap_conf )
     )
     if not os.path.isdir(P["working_dir"]):
         os.mkdir(P["working_dir"])
@@ -350,15 +349,15 @@ def grid_run_gauss(z:float,d_l:float,grid_runs_dir:str):
     # n_ism = 1 Eiso = 3e53
     # Angle: expected 13 https://www.aanda.org/articles/aa/pdf/2022/03/aa41788-21.pdf
     pars = {
-        "n_ism":    np.array([0.025,0.015]),
-        "theta_obs":np.array([20.,25.]) * np.pi / 180.0,  # [75*np.pi/180]#
-        "Eiso_c":   np.array([1e54,2e54]),
+        "n_ism":    np.array([0.025, 0.015]),
+        "theta_obs":np.array([20., 25.]) * np.pi / 180.0,  # [75*np.pi/180]#
+        "Eiso_c":   np.array([1e54, 2e54]),
         "Gamma0c":  np.array([300.]),
-        "theta_c":  np.array([3.,4.]) * np.pi / 180.,
-        "theta_w":  np.array([22.,28.]) * np.pi / 180.,
+        "theta_c":  np.array([3., 4.]) * np.pi / 180.,
+        "theta_w":  np.array([22., 28.]) * np.pi / 180.,
         "p_fs":     np.array([2.2, 2.3]),  # [2.05, 2.1, 2.2, 2.3, 2.4, 2.6, 2.8, 3.0],
-        "eps_e_fs": np.array([0.01,0.001]),  # [0.001, 0.005, 0.01, 0.05, 0.1, 0.2, 0.3, 0.5],
-        "eps_b_fs": np.array([1e-3,1e-4]),  # [0.001, 0.005, 0.01, 0.05, 0.1],
+        "eps_e_fs": np.array([0.01, 0.001]),  # [0.001, 0.005, 0.01, 0.05, 0.1, 0.2, 0.3, 0.5],
+        "eps_b_fs": np.array([1e-3, 1e-4]),  # [0.001, 0.005, 0.01, 0.05, 0.1],
     }
     ranges = [pars[key] for key in pars.keys()]
     pars_cobinations = []
@@ -391,4 +390,5 @@ if __name__ == '__main__':
     # grid_run_tophat(z=0.4245,d_l=2.3e9*cgs.pc) # https://www.aanda.org/articles/aa/pdf/2022/03/aa41788-21.pdf
     # GRB 221009A
     # grid_run_tophat(z=0.151,d_l=2.28e27,grid_runs_dir="working_dirs") # https://www.semanticscholar.org/reader/0301f515a7cc3f9bfc75de86c58e3abfb13ec13f
+
     grid_run_gauss(z=0.0099,d_l=1.27e+26,grid_runs_dir="working_dirs_gauss")

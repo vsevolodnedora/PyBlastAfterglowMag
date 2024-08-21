@@ -553,8 +553,34 @@ def compare_lcs_and_skymap_props(pp:dict, plot:dict,working_dir:str,run:bool=Tru
 if __name__ == '__main__':
     # https://arxiv.org/pdf/1808.00469
     # https://www.nature.com/articles/s41586-022-05145-7
-    # struct = dict(struct="gaussian",Eiso_c=np.power(10, 54.1), Gamma0c= 300., M0c= -1.,
-    #               theta_c= np.deg2rad(3.50), theta_w= np.deg2rad(25.))
+    struct = dict(struct="gaussian",Eiso_c=np.power(10, 54.1), Gamma0c= 300., M0c= -1.,
+                  theta_c= np.deg2rad(3.50), theta_w= np.deg2rad(25.))
+    skymap_conf=dict(nx=128, ny=64, extend_grid=2, fwhm_fac=0.5, lat_dist_method="integ",
+                     intp_filter=dict(type="gaussian", size=2, sigma=1.5, mode='reflect'),  # "gaussian"
+                     hist_filter=dict(type="gaussian", size=2, sigma=1.5, mode='reflect'))
+
+    compare_lcs_and_skymap_props(
+        # struct = dict(struct="gaussian",Eiso_c=1.e52, Gamma0c= 300., M0c= -1., theta_c= 0.085, theta_w= 0.2618),
+        pp = dict(main=dict(lc_freqs='array logspace 1e8 1e29 96',
+                            lc_times='array logspace 3e3 1e10 128',
+                            tb0=3e2,tb1=1e14,ntb=1000,
+                            skymap_freqs="array 4.5e9 4.6e14", # Radio of VLA and Optical of HST
+                            skymap_times="array logspace 1e3 1e8 100",
+                            n_ism = np.power(10, -1.60),theta_obs=np.deg2rad(20.8),d_l = 1.27e+26, z = 0.0099),
+                  grb=dict(structure=struct,eats_type='a',do_rs='no',bw_type='fs',do_lc='yes',do_skymap='yes',
+                           eps_e_fs = np.power(10,-3.42), eps_b_fs =np.power(10,-4.02), p_fs = 2.10,
+                           eps_e_rs = np.power(10,-3.42), eps_b_rs =np.power(10,-4.02), p_rs = 2.10,
+                           method_ssc_fs='none',method_pp_fs='none',use_ssa_fs='no',
+                           method_ssc_rs='none',method_pp_rs='none',use_ssa_rs='no',
+                           ebl_tbl_fpath='none',
+                           skymap_conf=skymap_conf)),
+        plot = dict(xlim=(4, -4), ylim=(-2, 2), show=True, figname="lcs_170817a_gauss"),
+        working_dir=working_dir+"tmp/",
+        run=False,process_skymaps=False
+    )
+
+    # struct = dict(struct="gaussian",Eiso_c=np.power(10, 54.2), Gamma0c= 300., M0c= -1.,
+    #               theta_c= np.deg2rad(4.0), theta_w= np.deg2rad(40.))
     # skymap_conf=dict(nx=128, ny=64, extend_grid=2, fwhm_fac=0.5, lat_dist_method="integ",
     #                  intp_filter=dict(type="gaussian", size=2, sigma=1.5, mode='reflect'),  # "gaussian"
     #                  hist_filter=dict(type="gaussian", size=2, sigma=1.5, mode='reflect'))
@@ -562,43 +588,18 @@ if __name__ == '__main__':
     #     # struct = dict(struct="gaussian",Eiso_c=1.e52, Gamma0c= 300., M0c= -1., theta_c= 0.085, theta_w= 0.2618),
     #     pp = dict(main=dict(lc_freqs='array logspace 1e8 1e29 96',
     #                         lc_times='array logspace 3e3 1e10 128',
-    #                         tb0=3e2,tb1=1e14,ntb=1000,
+    #                         tb0=3e1,tb1=1e15,ntb=2000,iout=2,
     #                         skymap_freqs="array 4.5e9 4.6e14", # Radio of VLA and Optical of HST
     #                         skymap_times="array logspace 1e3 1e8 100",
-    #                         n_ism = np.power(10, -1.60),theta_obs=np.deg2rad(20.8),d_l = 1.27e+26, z = 0.0099),
+    #                         n_ism = np.power(10, -1.95),theta_obs=np.deg2rad(20.),d_l = 1.27e+26, z = 0.0099),
     #               grb=dict(structure=struct,eats_type='a',do_rs='no',bw_type='fs',do_lc='yes',do_skymap='yes',
     #                        eps_e_fs = np.power(10,-3.42), eps_b_fs =np.power(10,-4.02), p_fs = 2.10,
     #                        eps_e_rs = np.power(10,-3.42), eps_b_rs =np.power(10,-4.02), p_rs = 2.10,
     #                        method_ssc_fs='none',method_pp_fs='none',use_ssa_fs='no',
     #                        method_ssc_rs='none',method_pp_rs='none',use_ssa_rs='no',
-    #                        ebl_tbl_fpath='none',
+    #                        ebl_tbl_fpath='none',do_mphys_in_situ='no',do_mphys_in_ppr='yes',
     #                        skymap_conf=skymap_conf)),
     #     plot = dict(xlim=(4, -4), ylim=(-2, 2), show=True, figname="lcs_170817a_gauss"),
     #     working_dir=working_dir+"tmp/",
-    #     run=False,process_skymaps=False
+    #     run=True,process_skymaps=True
     # )
-
-    struct = dict(struct="gaussian",Eiso_c=np.power(10, 54.5), Gamma0c= 300., M0c= -1.,
-                  theta_c= np.deg2rad(3.00), theta_w= np.deg2rad(25.))
-    skymap_conf=dict(nx=128, ny=64, extend_grid=2, fwhm_fac=0.5, lat_dist_method="integ",
-                     intp_filter=dict(type="gaussian", size=2, sigma=1.5, mode='reflect'),  # "gaussian"
-                     hist_filter=dict(type="gaussian", size=2, sigma=1.5, mode='reflect'))
-    compare_lcs_and_skymap_props(
-        # struct = dict(struct="gaussian",Eiso_c=1.e52, Gamma0c= 300., M0c= -1., theta_c= 0.085, theta_w= 0.2618),
-        pp = dict(main=dict(lc_freqs='array logspace 1e8 1e29 96',
-                            lc_times='array logspace 3e3 1e10 128',
-                            tb0=3e1,tb1=1e15,ntb=2000,iout=2,
-                            skymap_freqs="array 4.5e9 4.6e14", # Radio of VLA and Optical of HST
-                            skymap_times="array logspace 1e3 1e8 100",
-                            n_ism = np.power(10, -1.90),theta_obs=np.deg2rad(22.8),d_l = 1.27e+26, z = 0.0099),
-                  grb=dict(structure=struct,eats_type='a',do_rs='no',bw_type='fs',do_lc='yes',do_skymap='yes',
-                           eps_e_fs = np.power(10,-3.42), eps_b_fs =np.power(10,-4.02), p_fs = 2.10,
-                           eps_e_rs = np.power(10,-3.42), eps_b_rs =np.power(10,-4.02), p_rs = 2.10,
-                           method_ssc_fs='none',method_pp_fs='none',use_ssa_fs='no',
-                           method_ssc_rs='none',method_pp_rs='none',use_ssa_rs='no',
-                           ebl_tbl_fpath='none',do_mphys_in_situ='no',do_mphys_in_ppr='yes',
-                           skymap_conf=skymap_conf)),
-        plot = dict(xlim=(4, -4), ylim=(-2, 2), show=True, figname="lcs_170817a_gauss"),
-        working_dir=working_dir+"tmp/",
-        run=True,process_skymaps=True
-    )
