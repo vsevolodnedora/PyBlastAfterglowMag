@@ -9,29 +9,7 @@
 #include "pch.h"
 #include "utils.h"
 
-//static size_t findIndex( const double & x, const Vector & arr, size_t N ) {
-//    if(x <= arr[0])
-//        return 0;
-//    else if(x >= arr[N-1])
-//        return N-2;
-//
-//    unsigned int i = ((unsigned int) N) >> 1;
-//    unsigned int a = 0;
-//    unsigned int b = N-1;
-//
-//    // https://stackoverflow.com/questions/4192440/is-there-any-difference-between-1u-and-1-in-c/4192469
-//    // untill the m_size of b-a > 1 continue shrinking the array, approaching the 'x'
-//    while (b-a > 1u) // 1U is an unsigned value with the single bit 0 set
-//    {
-//        i = (b+a) >> 1; // ???
-//        if (arr[i] > x)
-//            b = i;
-//        else
-//            a = i;
-//    }
-//
-//    return (int)a;
-//}
+
 static size_t findIndex( const double & x, const Vector & arr, size_t N ) {
     if(x <= arr[0])
         return 0;

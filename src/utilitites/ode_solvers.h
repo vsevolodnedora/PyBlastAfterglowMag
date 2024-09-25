@@ -11,16 +11,10 @@
 
 #ifndef _restrict
 # if defined(_MSC_VER) && _MSC_VER >= 1400
-#  define _restrict __restrict
 # elif defined(__GNUC__)
 # define _restrict __restrict__
 # else
-#  define _restrict
 # endif
-#endif
-
-#ifndef unused
-# define unused(var) ((void) var)
 #endif
 
 namespace Detail {
@@ -2057,8 +2051,8 @@ public:
 //    void Integrate( const double &x0, const double &x1, double * Y0 ){
 //        m_method( x0, Y0, m_n_eq, m_Func, m_rhs_pars, x1-x0 );
 //    }
-    void SetIntegratorPars( const std::unordered_map<std::string, double> &pars ) { unused(pars); }
-    void SetIntegratorPars( Integrators::dop853_integrator::param_t & pars ) { unused(pars); }
+//    void SetIntegratorPars( const std::unordered_map<std::string, double> &pars ) { unused(pars); }
+//    void SetIntegratorPars( Integrators::dop853_integrator::param_t & pars ) { unused(pars); }
 
 };
 

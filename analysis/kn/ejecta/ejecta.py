@@ -1490,7 +1490,7 @@ def plot_sim_ekecta_mass_OLD(sim_:str or None):
     plt.show()
 def plot_sim_ekecta_mass(
         o_fit,sim_:str or None, plot_fit_coeffs:bool, plot_fit_ek:bool,plot_box_plots:bool,
-        save_fit_result:bool,figname:str):
+        save_fit_result:bool,figname:str,dist:str='uniform'):
 
     # fig, axes = plt.subplots(nrows=2,ncols=len(df) if not sim_ else 1,sharex='col',sharey='row',
     #                          layout='constrained',figsize=(12,4.5))
@@ -1511,13 +1511,15 @@ def plot_sim_ekecta_mass(
     ''' ----------- DEFINE ANGULAR SEGMENTS TO ANALYZE -------------  '''
 
     # segs = [(-.1,10.),(10,20.),(20.,30.),(30.,40,),(40.,50.),(50.,60.),(60.,70.),(70.,80.),(80.,91.)]
-    # segs = np.arange(start=0,stop=90+18,step=18)
-    # segs = [(low,up) for (low,up) in zip(segs[:-1],segs[1:])]
-    segs = [(0, 36.87),
-            (36.87, 53.13),
-            (53.13, 66.42),
-            (66.42, 78.46),
-            (78.46, 90.00)]
+    if dist == 'uniform':
+        segs = np.arange(start=0,stop=90+18,step=18)
+        segs = [(low,up) for (low,up) in zip(segs[:-1],segs[1:])]
+    else:
+        segs = [(0, 36.87),
+                (36.87, 53.13),
+                (53.13, 66.42),
+                (66.42, 78.46),
+                (78.46, 90.00)]
     csegs = [0.5*(seg[0]+seg[1]) for seg in segs]
 
     n_v = 80
@@ -1605,8 +1607,8 @@ def plot_sim_ekecta_mass(
             # -------- fit y0 from N SEGMENT fit ------
             angles = np.array( result_9seg[name].index, dtype=np.float64 )
             y0_s = do_log_y( np.array( result_9seg[name]["y0"] ) )
-            # slope, intercept, r_value, p_value, std_err = linregress(np.sin(angles*np.pi/180), y0_s)
-            slope, intercept, r_value, p_value, std_err = linregress(angles*np.pi/180, y0_s)
+            if dist == 'uniform': slope, intercept, r_value, p_value, std_err = linregress(np.sin(angles*np.pi/180)**(0.5), y0_s)
+            else: slope, intercept, r_value, p_value, std_err = linregress(angles*np.pi/180, y0_s)
             fit_dict["slope"] = slope
             fit_dict["intercept"] = intercept
 
@@ -1621,8 +1623,8 @@ def plot_sim_ekecta_mass(
         coeffs_tot = [np.average(np.array(result_9seg[name][key])) for key in o_fit.keys]
         for segment in segs:
             c_seg = float( (segment[1] + segment[0])*0.5 )
-            # y0_fit = slope * np.sin(c_seg*np.pi/180) + intercept
-            y0_fit = slope * c_seg*np.pi/180 + intercept
+            if dist == 'uniform': y0_fit = slope * np.sin(c_seg*np.pi/180)**(0.5) + intercept
+            else: y0_fit = slope * c_seg*np.pi/180 + intercept
             y0_fit = un_log_y(y0_fit)
             coeffs_tot[o_fit.keys.index("y0")] = y0_fit
             ek_fit = o_fit.piecewise_power(mom_fit, *np.array(coeffs_tot).flatten().tolist())
@@ -1735,8 +1737,8 @@ def plot_sim_ekecta_mass(
             angles = np.array( result_9seg[name].index, dtype=np.float64 )
             slope = np.float64( result_1seg[name]["slope"] )
             intercept = np.float64( result_1seg[name]["intercept"] )
-            # y0_fit = slope * np.sin( angles*np.pi/180 ) + intercept
-            y0_fit = slope * angles*np.pi/180 + intercept
+            if dist == 'uniform': y0_fit = slope * np.sin( angles*np.pi/180 )**(0.5) + intercept
+            else: y0_fit = slope * angles*np.pi/180 + intercept
 
             axes[o_fit.keys.index('y0')].plot(
                 angles, un_log_y( y0_fit ),ls=sim_dict['ls'],color=sim_dict['color'],fillstyle='none'
@@ -1840,9 +1842,9 @@ def plot_sim_ekecta_mass(
             ax.set_xscale("log")
             ax.set_yscale("log")
         for ax in axes:
-            ax.set_ylim(2e44,2e49)
+            ax.set_ylim(2e47,1e49)
         for ax in axes:
-            ax.set_xlim(2e-2,4)
+            ax.set_xlim(4e-2,1)
         axes[0].set_ylabel(r"$E_{\rm k}$ [erg]",fontsize=12)
         # axes[1,0].set_ylabel(r"$\Delta \log_{10}(E_{\rm k})$",fontsize=12)
         for ax, (sim,sim_dict) in zip(axes,df.iterrows()):
@@ -2587,7 +2589,8 @@ def plot_rho_mdot_rext(ylim=(1e-7, 1e-2), ylim2=(1, 6), xlim=(-2, 2.), crit="fas
                                  fpath_mdot=DATA_PATH+'/'+sim_dic["name"]+'/'+sim_dic["mdot_extract"])
         rext = sorted(data.get_rext())
         rext = rext[:-2][::-1]
-        norm = Normalize(vmin=0,vmax=len(rext)-2)
+        print(rext)
+        # norm = Normalize(vmin=0,vmax=len(rext)-2)
         colors=['red','orange','green','blue']
 
         time = data.df_mdot["time"]
@@ -2976,7 +2979,8 @@ if __name__ == '__main__':
     #                              ylim0=(2e43, 1e51),ylim1=(2e43, 4e49),ylim2=(-0.75,0.75), xlim=(2e-2, 4))
 
     plot_sim_ekecta_mass(figname="angular_dist",o_fit = Fit1D_3seg(),sim_=None,
-                         plot_fit_coeffs=True,plot_box_plots=True,plot_fit_ek=True,save_fit_result=True)
+                         plot_fit_coeffs=True,plot_box_plots=True,plot_fit_ek=True,save_fit_result=True,
+                         dist='cos_uniform')
     # plot_sim_ekecta_mass(o_fit = Fit1D_4seg(),sim_=None,
     #                      plot_fit_coeffs=True,plot_box_plots=True,plot_fit_ek=True,save_fit_result=True)
 
@@ -2991,4 +2995,4 @@ if __name__ == '__main__':
 
 
     ''' Mass flux & rho_max as a function of time '''
-    # plot_rho_mdot_rext()
+    plot_rho_mdot_rext()

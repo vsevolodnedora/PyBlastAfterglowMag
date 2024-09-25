@@ -1,3 +1,5 @@
+// This is not an original piece of code. See licence below.
+
 /*
  * The MIT License (MIT)
  *
@@ -31,6 +33,7 @@
  * https://github.com/stevenwalton/H5Easy
  * 
  */
+
 #ifndef H5RW_H
 #define H5RW_H
 

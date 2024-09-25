@@ -195,7 +195,7 @@ def plot_all_sim_ejecta_massave_vel(crit=None, yscale="linear", figsize=(5,10), 
     plt.savefig(os.getcwd() +'/figs/' + figname.replace(".png", ".pdf"))
     plt.show()
 
-def print_table(crit:str="fast",maximize:str="mass") -> pd.DataFrame:
+def print_table(crit:str or None="fast",maximize:str="mass") -> pd.DataFrame:
     df_res = { name : {} for name, sim_dic in df.iterrows()}
     for name, sim_dic in df.iterrows():
 
@@ -227,9 +227,14 @@ def print_table(crit:str="fast",maximize:str="mass") -> pd.DataFrame:
 
 if __name__ == '__main__':
 
-    # print("FAST TAIL PROPERTIES AT EXTRACTION TIME WHEN MASS IS MAX ")
-    # df_res = print_table(crit="fast", maximize='mom')
-    # df_res.to_csv(os.getcwd()+f'/output/'+"ejecta_fasttail_vals_at_massmax.csv",index=True)
+    print("FAST TAIL PROPERTIES AT EXTRACTION TIME WHEN MASS IS MAX ")
+    df_res = print_table(crit=None, maximize='mass')
+    df_res.to_csv(os.getcwd()+f'/output/'+"ejecta_vals_at_tend.csv",index=True)
+
+
+    print("FAST TAIL PROPERTIES AT EXTRACTION TIME WHEN MASS IS MAX ")
+    df_res = print_table(crit="fast", maximize='mom')
+    df_res.to_csv(os.getcwd()+f'/output/'+"ejecta_fasttail_vals_at_massmax.csv",index=True)
 
 
     ''' Ej. prop. as a function of extraction time '''

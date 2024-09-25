@@ -26,7 +26,7 @@ def get_str_val(v_n, val):
     elif ((v_n == "Eiso_c") or ((v_n == "Eiso_c"))):
         val = np.log10(val)
     elif (v_n == "d_l"):
-        val = val / 1.e6 / cgs.pc
+        val = "{:.1f}".format(np.log10(val))
     else:
         pass
     if len(str(val)) > 7:
@@ -392,7 +392,7 @@ class Defaults:
             eps_b_fs = 0.01,
             eps_t_fs = 0.,
             p_fs = 2.2,
-            epsilon_e_rad = -1,    # [FS] fraction of the Esh2 removed due to radiation per timestep (dynamics)
+            epsilon_e_rad_fs = -1, # [FS] fraction of the Esh2 removed due to radiation per timestep (dynamics)
             gamma_max_fs = 1e7,    # [numeric] Used only if 'method_gamma_max_fs=useConst'; must be < gam2
             max_substeps_fs = 2000,# [numeric] Number of cooling substeps in electron evolution (between evol.steps)
             gam1_fs = 1.,      # [numeric] lower lim for comoving electron spectrum
@@ -492,7 +492,7 @@ class Defaults:
             # --- Forward Shock ---
             # method_radius_fs = "useGammaR",       # [numeric] how to ge radius for forward shock (use GammaShock or not)
             use_adiabLoss = "yes",              # [numeric] include blast wave adiabatic lossess (FS)
-            method_Gamma_fs = "useGammaShock",  # [numeric] compute GammaShock via EOS or assume = to Gamma
+            # method_Gamma_fs = "useGammaShock",  # [numeric] compute GammaShock via EOS or assume = to Gamma (not used)
             method_Up_fs = "useEint2",          # [numeric] compute internal energy from Eint2 or Gamma
             method_thickness_fs = "useJoh06",   # [numeric] compute shock thickness dR, as 1/Gamma^2 or Johannesson paper
             method_vel_fs = "sameAsBW",         # [numeric] "shockVel" in EATS, compute abberation using GammaShock or Gamma
@@ -514,7 +514,7 @@ class Defaults:
             # --- Reverse Shock ---
             # method_radius_rs = "sameAsR",     # [numeric] how to ge radius for reverse shock (use GammaShock or not)
             use_adiabLoss_rs = "yes",           # [numeric] include blast wave adiabatic lossess (RS)
-            method_Gamma_rs = "useGammaShock",  # [numeric] compute GammaShock via EOS or assume = to Gamma
+            # method_Gamma_rs = "useGammaShock",  # [numeric] compute GammaShock via EOS or assume = to Gamma (not used)
             method_Up_rs = "useEint2",          # [numeric] compute internal energy from Eint2 or Gamma
             method_thickness_rs = "useJoh06",   # [numeric] compute shock thickness dR, as 1/Gamma^2 or Johannesson paper
             method_vel_rs = "sameAsBW",         # [numeric] compute shock thickness dR, as 1/Gamma^2 or Johannesson paper

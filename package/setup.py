@@ -7,11 +7,11 @@ setuptools.setup(
     name='PyBlastAfterglowMag',
     author='Vsevolod Nedora',
     author_email='vsevolod.nedora@gmail.com',
-    description='Interface to the output of the C++ code',
-    keywords='afterglow, GRB, numeric',
+    description='Python package that accompanies C++ PyBlastAfterglowMag code',
+    keywords='afterglow, GRB',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/tomchen/example_pypi_package',
+    url='https://github.com/PartumSomnia/PyBlastAfterglowMag',
     project_urls={
         'Documentation': 'https://github.com/PartumSomnia/PyBlastAfterglowMag',
         'Bug Reports':

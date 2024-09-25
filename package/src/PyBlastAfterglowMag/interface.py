@@ -792,16 +792,35 @@ class Ejecta(Base):
 
     def get_skymap_times(self, unique:bool=True) -> np.ndarray:
         self._check_if_loaded_skymap()
-        # print(self.ej_skymap.keys())
-        res = np.array(self.skymap_dfile["times"])
+        if not "times" in self.skymap_dfile.keys():
+            if self.verb: print("WARNING times is not in the skymap obj.")
+            times = []
+            for key in list(self.skymap_dfile.keys()):
+                skymap = self.skymap_dfile[key]
+                if list(skymap.keys()):
+                    times.append(float(skymap.attrs['time']))
+            res = np.array(times)
+        else:
+            res = np.array(self.skymap_dfile["times"])
         if unique: return np.unique(res)
         else: return res
 
     def get_skymap_freqs(self,unique:bool=True) -> np.ndarray:
         self._check_if_loaded_skymap()
-        res = np.array(self.skymap_dfile["freqs"])
-        if unique: return np.unique(res)
-        else: return res
+        if not "freqs" in self.skymap_dfile.keys():
+            if self.verb: print("WARNING freqs is not in the skymap obj.")
+            freqs = []
+            for key in list(self.skymap_dfile.keys()):
+                skymap = self.skymap_dfile[key]
+                if list(skymap.keys()):
+                    freqs.append(float(skymap.attrs['freq']))
+            res = np.array(freqs)
+        else:
+            res = np.array(self.skymap_dfile["freqs"])
+        if unique:
+            return np.unique(res)
+        else:
+            return res
 
     def check_skymap_time(self, time : float) -> float:
         times = self.get_skymap_times()

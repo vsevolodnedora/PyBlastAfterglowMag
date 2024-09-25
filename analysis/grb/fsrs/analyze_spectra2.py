@@ -1747,10 +1747,10 @@ def tasks_fs(do_run: bool, plot: bool, P: dict,
     )
     # raise ValueError("Computed!!! :) ")
 
-    # plot_cooling_terms(dyn_fs__rad_fs__num__ssa__ssc.GRB,fs_or_rs="fs",xlim=(3e3,1e9),
-    #                    task=dict(show=True,figname="ele_cool_terms",zlabel=r"$\dot{\gamma}$",title="Cooling terms",
-    #                              set_under='blue',set_over='red',
-    #                              plot_gm=True,plot_gc=True,plot_gM=True))
+    plot_cooling_terms(dyn_fs__rad_fs__num__ssa__ssc.GRB,fs_or_rs="fs",xlim=(3.5e3,1e9),
+                       task=dict(show=True,figname="ele_cool_terms",zlabel=r"$\dot{\gamma}$",title="Cooling terms",
+                                 set_under='blue',set_over='red',
+                                 plot_gm=True,plot_gc=True,plot_gM=True))
 
     # plot_emission_region_prop(dyn_fs__rad_fs__num__ssa__ssc.GRB,fs_or_rs="fs",xlim=(3e3,1e9),
     #                           task=dict(show=True,figname="rad_ele_energy_dens_fs"))
@@ -1819,10 +1819,10 @@ def tasks_rs(do_run: bool, plot: bool, P: dict) -> PBA.PyBlastAfterglow:
         run=do_run
     )
 
-    # plot_cooling_terms(dyn_fs__rad_rs__num__ssa__ssc.GRB,fs_or_rs="rs",xlim=(3e3,3e7),
-    #                    task=dict(show=True,figname="ele_cool_terms_rs",zlabel=r"$\dot{\gamma}$",title="Cooling terms",
-    #                              set_under='blue',set_over='red',
-    #                              plot_gm=True,plot_gc=True,plot_gM=True))
+    plot_cooling_terms(dyn_fs__rad_rs__num__ssa__ssc.GRB,fs_or_rs="rs",xlim=(3.5e3,3e7),
+                       task=dict(show=True,figname="ele_cool_terms_rs",zlabel=r"$\dot{\gamma}$",title="Cooling terms",
+                                 set_under='blue',set_over='red',
+                                 plot_gm=True,plot_gc=True,plot_gM=True))
 
     # plot_emission_region_prop(dyn_fs__rad_rs__num__ssa__ssc.GRB,fs_or_rs="rs",xlim=(3e3,3e7),
     #                           task=dict(show=True,figname="rad_ele_energy_dens_rs"))
@@ -2246,7 +2246,7 @@ if __name__ == '__main__':
     # tasks_fs_comparison(do_run=do_run, plot=plot, P=P)
 
     # --- fsrs -- rs ---
-    # pba_fsrs = tasks_rs(do_run=do_run, plot=plot, P=P)
+    pba_fsrs = tasks_rs(do_run=do_run, plot=plot, P=P)
     # tasks_rs_comparison(do_run=do_run, plot=plot, P=P)
 
     # plot_total_observed_spectrum(

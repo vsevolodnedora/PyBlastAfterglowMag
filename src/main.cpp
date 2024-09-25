@@ -216,11 +216,14 @@ int main(int argc, char** argv) {
 
         // analysis
 //        working_dir = "../analysis/grb/fsrs/tmp1/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_fs__num__ssa__ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_fs__num__ssa__ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_fs__num_ssa/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_fs__num__ssa__ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_fs__rad_rs__num__ssa__ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_spread_gp12/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../analysis/grb/applications/grb170817a/working_dirs/tmp/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+//        working_dir = "../analysis/kn/afg/working_dir_asym/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        working_dir = "../analysis/kn/afg/working_dirs/SFHo_13_14_res150_asym_marg21/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 
         // test cases || GRG
 //        working_dir = "../tst/grb/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO; // gauss, skymap
