@@ -1,5 +1,6 @@
-h5py==3.7.0
-matplotlib==3.6.2
-numpy==1.23.5
-scipy==1.9.3
-uncertainties==3.1.7
+h5py>=3.7.0
+matplotlib>=3.6.2
+numpy>=1.23.5
+scipy>=1.9.3
+uncertainties>=3.1.7
+tqdm

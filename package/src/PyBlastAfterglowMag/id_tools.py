@@ -5,22 +5,6 @@ import copy
 from .utils import cgs
 from scipy import interpolate
 
-rebin_paths = [
-    "../../../../../GIT/GitHub/rebin",
-    "/home/vsevolod/Work/GIT/GitHub/rebin",
-    "/home/enlil/vnedora/work/afterglow/rebin"
-]
-
-imported = False
-for path in rebin_paths:
-    if os.path.isdir(path):
-        sys.path.insert(1, path)
-        import rebin
-        imported = True
-        break
-if not imported:
-    raise ImportError("Faild to import rebin. Tried: these paths:{}".format(rebin_paths))
-
 def compute_ek_corr(_vinf, _mass):
     tmp_ek = []
     _vinf = copy.deepcopy(np.asarray(_vinf))

@@ -26,6 +26,11 @@ def run_grb(working_dir: str, P: dict, run: bool = True, process_skymaps: bool =
     if not os.path.isdir(working_dir):
         os.mkdir(working_dir)
 
+    # get path to the code executable
+    if path_to_cpp is None:
+        path_to_cpp = str(__file__).split("PyBlastAfterglowMag")[0]\
+                      +"PyBlastAfterglowMag/src/pba.out" # todo make it proper through bashrc and setting a path
+
     # generate initial data for blast waves
     P = copy.deepcopy(P)
     struct = copy.deepcopy(P["grb"]["structure"])
@@ -55,9 +60,14 @@ def run_grb(working_dir: str, P: dict, run: bool = True, process_skymaps: bool =
     else:
         type = P["grb"]["eats_type"]
         del P["grb"]["eats_type"]
+
     P["grb"]["fname_ejecta_id"] = "id_a.h5" if type == "a" else "id_pw.h5"
     P["grb"]["method_eats"] = "piece-wise" if type == "pw" else "adaptive"
     if (struct["struct"]=="tophat"): P["grb"]["nsublayers"] = 35 # for skymap resolution
+    if (not "ebl_tbl_fpath" in P["grb"]):
+        P["grb"]["ebl_tbl_fpath"] = path_to_cpp.split("PyBlastAfterglowMag")[0]\
+                             +"PyBlastAfterglowMag/data/EBL/Franceschini18/table.h5"
+
     grb_skymap_config = None
     if "skymap_conf" in P["grb"].keys():
         grb_skymap_config = copy.deepcopy(P["grb"]["skymap_conf"])
@@ -73,8 +83,7 @@ def run_grb(working_dir: str, P: dict, run: bool = True, process_skymaps: bool =
     if run:
         # this mess is because I did not figure out how $PATH thing works...
         # curdir = os.getcwd()
-        if path_to_cpp is None:
-            path_to_cpp = str(__file__).split("package")[0]+"src/pba.out" # todo make it proper through bashrc and setting a path
+
         # pbadir = curdir.split("PyBlastAfterglowMag")[0]
         # path_to_cpp_executable = pbadir+"PyBlastAfterglowMag"+"/src/pba.out"
         # print(os.getcwd())
