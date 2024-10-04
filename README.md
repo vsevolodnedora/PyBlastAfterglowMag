@@ -8,7 +8,8 @@ The code also includes several formulations of the same physics for testing, com
 
 _In summation:_ - PyBlastAfterglow is designed to stand in between full numeric radiation relativistic hydrodynamics codes (e.g., GAMMA, JET) and semi-analytic codes (e.g., afterglowpy, jetsimpy). It has more physics than the latter and is faster than the former. 
 
-__The code is under active development and is not yet released__.  
+__The code is under active development__ 
+  
 
 ## Repository structure
 
@@ -54,6 +55,24 @@ See examples in `/tst/` and `/notebooks/` for how to use the code.
 
 If you use the code, please consider citing  
 ```
+@ARTICLE{2024arXiv240916852N,
+       author = {{Nedora}, Vsevolod and {Crosato Menegazzi}, Ludovica and {Peretti}, Enrico and {Dietrich}, Tim and {Shibata}, Masaru},
+        title = "{Multi-physics framework for fast modeling of gamma-ray burst afterglows}",
+      journal = {arXiv e-prints},
+     keywords = {Astrophysics - High Energy Astrophysical Phenomena},
+         year = 2024,
+        month = sep,
+          eid = {arXiv:2409.16852},
+        pages = {arXiv:2409.16852},
+          doi = {10.48550/arXiv.2409.16852},
+archivePrefix = {arXiv},
+       eprint = {2409.16852},
+ primaryClass = {astro-ph.HE},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2024arXiv240916852N},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+
+
 @ARTICLE{2023MNRAS.tmp..259N,
        author = {{Nedora}, Vsevolod and {Dietrich}, Tim and {Shibata}, Masaru and {Pohl}, Martin and {Menegazzi}, Ludovica Crosato},
         title = "{Modeling kilonova afterglows: Effects of the thermal electron population and interaction with GRB outflows}",
