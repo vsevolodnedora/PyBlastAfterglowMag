@@ -1,5 +1,7 @@
 # PyBlastAfterglow
 
+> The code is under development. If there is a bug or missing feature, feel free to _create an issue_ in the repository
+
 PyBlastAfterglow is a C++ code with python interface designed to model electromagnetic signatures (light curves, spectra, sky maps) of gamma-ray bursts and kilonova afterglows. The model approximates the hydrodynamics of the fluid flow by treating each fluid element as an independent element, a system comprised of forward shock, contact discontinuity, and reverse shock (a blastwave).  
 
 At these hydrodynamic shocks, collisionless shocks form where electrons that cross shocks' front are accelerated and seed magnetic fields are amplified. The code _numerically_ follows the evolution of electron distribution in shocks' downstream, accounting for radiation and adiabatic cooling. Afterwards, the comoving synchrotron and synchrotron self-Compton (SSC) emission are computed numerically. Synchrotron-self absorption and pair-production are included in an approximate form. The observed emission is obtained via equal-time arrival surface integration. The code is modular and designed so that new physics (e.g., new radiation methods, energy injection) can be easily incorporated.  
@@ -7,14 +9,12 @@ At these hydrodynamic shocks, collisionless shocks form where electrons that cro
 The code also includes several formulations of the same physics for testing, comparison, and analysis. For example analytical model of electron distribution and synchrotron radiation, only forward shock dynamics, two methods to discretize a jet into lateral layers (see paper).  
 
 _In summation:_ - PyBlastAfterglow is designed to stand in between full numeric radiation relativistic hydrodynamics codes (e.g., GAMMA, JET) and semi-analytic codes (e.g., afterglowpy, jetsimpy). It has more physics than the latter and is faster than the former. 
-
-__The code is under active development__ 
   
 
 ## Repository structure
 
 * `/analysis/` contains the simulation analysis  
-*  `/data/` contains tabulated data used by the code (e.g., EBL table)  
+* `/data/` contains tabulated data used by the code (e.g., EBL table)  
 * `/notebooks/` contains .ipynb files with examples on how to run/use the code  
 * `/package/` contains python library that allows to easily launch runs and process simulation output
 * `/sandbox/` contains experiments with the code
