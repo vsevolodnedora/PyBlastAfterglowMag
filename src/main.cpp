@@ -49,6 +49,13 @@
 //#include "model_h"
 
 class PyBlastAfterglow{
+    std::unique_ptr<EvolveODEsystem> p_model;
+    std::unique_ptr<Ejecta> p_grb;
+    std::unique_ptr<Ejecta> p_ej;
+    std::unique_ptr<Magnetar> p_mag;
+    std::unique_ptr<PWNset> p_ej_pwn;
+    std::unique_ptr<Ejecta> p_ej_pwn2;
+
     struct Pars{
         double tb0{}; double tb1{}; int ntb{}; int iout{};
         Integrators::METHODS integrator = Integrators::METHODS::RK4;
@@ -57,15 +64,9 @@ class PyBlastAfterglow{
         int loglevel{};
         bool do_average_solution = false;
     };
+
     std::unique_ptr<logger> p_log;
     std::unique_ptr<Pars> p_pars;
-    std::unique_ptr<EvolveODEsystem> p_model;
-    std::unique_ptr<Output> p_out;
-    std::unique_ptr<Magnetar> p_mag;
-    std::unique_ptr<Ejecta> p_grb;
-    std::unique_ptr<Ejecta> p_ej;
-    std::unique_ptr<Ejecta> p_ej_pwn2;
-    std::unique_ptr<PWNset> p_ej_pwn;
     Vector _t_grid;
     Vector t_grid;
     int m_loglevel;
