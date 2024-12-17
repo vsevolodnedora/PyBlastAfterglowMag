@@ -1006,7 +1006,8 @@ private:
         double vperp = sqrt(gammaAdi * (gammaAdi - 1.0) * (Gamma - 1.0) / (1.0 + gammaAdi * (Gamma - 1.0))) * CGS::c;
         //        return vperp / R / Gamma / betaSh / cgs.c if (theta < thetamax) & useSpread else 0.
         double beta = EQS::BetaFromGamma(Gamma);
-        return (theta < m_theta_max) ? (vperp / R / Gamma / beta / CGS::c) : 0.0;
+        // see Eq.4 in Mon. Not. R. Astron. Soc. 354, 86–100 (2004)
+        return (theta < m_theta_max) ? std::cos(theta) * std::cos(theta) * (vperp / R / Gamma / beta / CGS::c) : 0.0;
     }
 
     /**

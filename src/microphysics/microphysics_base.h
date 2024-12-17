@@ -897,10 +897,17 @@ protected:
                     accel_frac = gamma_min;
                     break;
                 case iuseAyache:
+                    if (p < 2.){
+                        (*p_log)(LOG_ERR,AT) << "When setting p < 2, Newtonain regime is not available." <<"\n";
+                        exit(1);
+                    }
                     accel_frac = accel_frac_ayache;
                     break;
                 case iuseSironi: // Sironi et al 2013
-//                    accel_frac = (p - 2.0) / (p - 1.0) * eps_e * CGS::mp / CGS::me * (GammaSh - 1.0) / 1.;
+                    if (p < 2.){
+                        (*p_log)(LOG_ERR,AT) << "When setting p < 2, Newtonain regime is not available." <<"\n";
+                        exit(1);
+                    }
                     accel_frac = accel_frac_sironi;
                     break;
             }
@@ -909,7 +916,7 @@ protected:
         }
 
         /// check
-        if (!std::isfinite(gamma_min) || (!std::isfinite(accel_frac))){
+        if (!std::isfinite(gamma_min) || (!std::isfinite(accel_frac)  || accel_frac < 0)){
             (*p_log)(LOG_ERR,AT) << " Wrong value gamma_min="<<gamma_min<<" accel_frac="<<accel_frac<<"\n";
             exit(1);
         }

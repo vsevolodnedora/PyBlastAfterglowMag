@@ -4,6 +4,7 @@ import shutil
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
+from scipy.interpolate import interp1d
 import os
 
 import package.src.PyBlastAfterglowMag as PBA
@@ -12,7 +13,7 @@ from package.src.PyBlastAfterglowMag.utils import cgs
 try:
     import afterglowpy as grb
 except:
-    print("Error! could not import afteglowpy")
+    raise ImportError("Error! could not import afteglowpy")
 
 curdir = os.getcwd() + '/' #"/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglow_dev/PyBlastAfterglow/src/PyBlastAfterglow/tests/dyn/"
 
@@ -261,7 +262,7 @@ def plot_jetsim_skymap(ax, image):
 def compare_lcs(pp:dict, plot:dict,working_dir:str, run:bool=True):
 
     fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(5.2, 3.4))
-    ax = axes
+    ax = axes[0]
 
     # prepare initial data (piecewise and adaptive)
 
@@ -318,6 +319,8 @@ def compare_lcs(pp:dict, plot:dict,working_dir:str, run:bool=True):
         lls.append(_ll)
         lbls.append(r"$\nu=$" + r"${}$ Hz ".format(PBA.utils.latex_float(i_freq))
                     + r"$\theta_{\rm obs}=$" + r"{:.1f} deg".format(i_thetaobs * 180 / np.pi))
+
+
 
         ''' -------------------- PIECE - WISE ------------------- '''
 
@@ -645,6 +648,456 @@ def compare_lcs(pp:dict, plot:dict,working_dir:str, run:bool=True):
         plt.savefig(fig_dir+plot["figname"]+'.pdf')
     if plot["show"]: plt.show()
 
+def compare_lcs_panels(pp:dict, plot:dict,working_dir:str, run:bool=True):
+
+    def _run_plot_afgpy(ax_, pba:PBA,i_freq, i_ls, color='black', label:str or None=None):
+        # ----------- REFERENCE ------------
+        t_, f_ = run_afgpy(i_freq, pp["grb"]["structure"], pba)
+        _ll, = ax.plot(t_ / PBA.utils.cgs.day, f_, color=color, ls=i_ls, lw=.8)
+
+        ax_.plot(
+            pba.GRB.get_lc_times() / PBA.utils.cgs.day,
+            (pba.GRB.get_lc(freq=i_freq) - interp1d(t_,f_,kind='linear',bounds_error=False)(pba.GRB.get_lc_times()))
+            / pba.GRB.get_lc(freq=i_freq),
+            color=color, ls=i_ls, lw=.8, label='afterglowpy' if label is None else label
+        )
+
+
+    fig, axes = plt.subplots(ncols=len(plot["iters"]), nrows=2, figsize=(2.5*len(plot["iters"]), 5.),
+                             gridspec_kw={'height_ratios': [3, 1],'hspace': 0.02, 'wspace': 0.01},
+                             sharex='col', sharey='row',)
+
+    # prepare initial data (piecewise and adaptive)
+
+    lls, lbls = [], []
+    # for (i_thetaobs, i_freq, i_ls) in [
+    #     # (thetaObs, freqobs, "blue"),
+    #     (0.16, 1e9, "-"),
+    #     (0, 1e18, "--"),
+    #     (0.16, 1.e18, "-."),
+    #     (0, 1e9, ":")
+    # ]:z
+
+    for i, iter in enumerate(plot["iters"]):
+        i_freq,i_thetaobs = iter["freq"], iter["theta_obs"]
+
+        ax = axes[0, i]
+        ax_ = axes[1, i]
+
+        # default : Analytic
+        if plot["plot_analytic"]:
+            for i_ls, spread in zip(['--','-'],['None','AFGPY']):
+                pba = PBA.wrappers.run_grb(
+                    working_dir=working_dir+f'analytic_{i}_spread_{spread}/',
+                    run=run, P=mrg(pp, {
+                    "main":{"theta_obs":i_thetaobs, "lc_freqs":f"array {i_freq}"},
+                    "grb":{"method_ele_fs":"analytic",
+                           "method_synchrotron_fs":"WSPN99", 'method_gamma_min_fs':'useU_e',
+                           #"method_thickness_fs":'useVE12','method_gamma_c_fs':'useTe',
+                           'method_spread':spread
+                           }}))
+                ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
+                        pba.GRB.get_lc(freq=i_freq), color='red', ls=i_ls, lw=1.,
+                        # label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq)
+                        # label="Analytic setting " + "(spread)" if not spread is 'None' else '(no spread)'
+                        label="An. " + "(spread)" if not spread is 'None' else "An. " +'(no spread)'
+                        )
+
+                # ----------- REFERENCE ------------
+                _run_plot_afgpy(ax_, pba, i_freq, i_ls,
+                                color='black', label = "spread" if not spread is 'None' else 'no spread')
+
+        # default : Semi-Analytic
+        if plot["plot_semi_analytic"]:
+            pba = PBA.wrappers.run_grb(working_dir=working_dir+f'mix_{i}/',run=run, P=mrg(pp, {
+                "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
+                "grb":{"method_ele_fs":"mix"}})) # "method_synchrotron_fs":"GSL"
+            ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
+                    pba.GRB.get_lc(freq=i_freq), color='green', ls='-', lw=1.,
+                    # label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq)
+                    label="Semi-analytic setting"
+                    )
+
+        # default : Numeric
+        if plot["plot_numeric"]:
+            pba = PBA.wrappers.run_grb(working_dir=working_dir+f'num_{i}/', run=run, P=mrg(pp, {
+                "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
+                "grb":{}}))
+            ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
+                    pba.GRB.get_lc(freq=i_freq), color='blue', ls='-', lw=1.,
+                    # label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq)
+                    label="Numeric setting"
+                    )
+            # ----------- REFERENCE ------------
+            _run_plot_afgpy(ax_, pba, i_freq, 0,
+                            color='black', label = None)
+        ''' -------------------- REFERENCES --------------- '''
+        # for i_ls, spread in zip(['--','-'],['None','AFGPY']):
+        #     pba.GRB.opts['method_spread'] = spread
+        #     t_, f_ = run_afgpy(i_freq, pp["grb"]["structure"], pba)
+        #     _ll, = ax.plot(t_ / PBA.utils.cgs.day, f_, color='black', ls=i_ls, lw=.8)
+        #
+        #     ax_.plot(
+        #         pba.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #         (pba.GRB.get_lc(freq=i_freq) - interp1d(t_,f_,kind='linear',bounds_error=False)(pba.GRB.get_lc_times()))
+        #         / pba.GRB.get_lc(freq=i_freq),
+        #         color='black', ls=i_ls, lw=.8, label='afterglowpy'
+        #     )
+        #
+        # t_, f_ = run_jetsim(i_freq,  pp["grb"]["structure"], pba)
+        # _ll, = ax.plot(t_ / PBA.utils.cgs.day, f_, color='gray', ls='-', lw=.8)
+        #
+        # ax_.plot(
+        #     pba.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #     (pba.GRB.get_lc(freq=i_freq) - interp1d(t_,f_,kind='linear',bounds_error=False)(pba.GRB.get_lc_times()))
+        #     / pba.GRB.get_lc(freq=i_freq),
+        #     color='gray', ls='-', lw=.8, label='jetsimpy'
+        # )
+        #
+        # lls.append(_ll)
+        # lbls.append(r"$\nu=$" + r"${}$ Hz ".format(PBA.utils.latex_float(i_freq))
+        #             + r"$\theta_{\rm obs}=$" + r"{:.1f} deg".format(i_thetaobs * 180 / np.pi))
+
+
+
+        ''' -------------------- PIECE - WISE ------------------- '''
+
+        # pba = run(working_dir=working_dir,struct=struct, type="pw", P=P|{
+        #     "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
+        #     "grb":{"method_comp_mode":"observFlux","method_eats":"piece-wise","method_ele_fs":"analytic"}})
+        # ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #         pba.GRB.get_lc(freq=i_freq), color=i_color, ls=':', lw=.5,
+        #         label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+        #
+        # pba = run(working_dir=working_dir,struct=struct, type="pw", P=P|{
+        #     "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
+        #     "grb":{"method_comp_mode":"observFlux","method_eats":"piece-wise","method_ne_fs":"usenprime",
+        #            "method_ele_fs":"analytic"}})
+        # ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #         pba.GRB.get_lc(freq=i_freq), color=i_color, ls=':', lw=1.,
+        #         label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+        #
+        # pba = run(working_dir=working_dir,struct=struct, type="pw", P=P|{
+        #     "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
+        #     "grb":{"method_comp_mode":"observFlux","method_eats":"piece-wise","method_ne_fs":"useNe",
+        #            "method_ele_fs":"analytic"}})
+        # ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #         pba.GRB.get_lc(freq=i_freq), color=i_color, ls=':', lw=1.5,
+        #         label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+        #
+        # pba = run(working_dir=working_dir,struct=struct, type="pw", P=P|{
+        #     "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
+        #     "grb":{"method_comp_mode":"comovSpec","method_eats":"piece-wise","method_ne_fs":"usenprime",
+        #            "method_ele_fs":"analytic"}})
+        # ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #         pba.GRB.get_lc(freq=i_freq), color=i_color, ls=':', lw=1.5,
+        #         label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+        #
+        # ''' -------------------- ADAPTIVE ------------------- '''
+        #
+        # pba = run(working_dir=working_dir,struct=struct, type="pw", P=P|{
+        #     "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
+        #     "grb":{"method_comp_mode":"observFlux","method_ele_fs":"analytic"}})
+        # ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #         pba.GRB.get_lc(freq=i_freq), color=i_color, ls=':', lw=.5,
+        #         label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+        #
+        # pba = run(working_dir=working_dir,struct=struct, type="pw", P=P|{
+        #     "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
+        #     "grb":{"method_comp_mode":"observFlux","method_ne_fs":"usenprime","method_ele_fs":"analytic"}})
+        # ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #         pba.GRB.get_lc(freq=i_freq), color=i_color, ls=':', lw=1.,
+        #         label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+        #
+        # pba = run(working_dir=working_dir,struct=struct, type="pw", P=P|{
+        #     "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
+        #     "grb":{"method_comp_mode":"observFlux","method_ne_fs":"useNe","method_ele_fs":"analytic"}})
+        # ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #         pba.GRB.get_lc(freq=i_freq), color=i_color, ls=':', lw=1.5,
+        #         label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+        #
+        # pba = run(working_dir=working_dir,struct=struct, type="pw", P=P|{
+        #     "main":{"theta_obs":i_thetaobs,"lc_freqs":f"array {i_freq}"},
+        #     "grb":{"method_comp_mode":"comovSpec","method_ne_fs":"usenprime","method_ele_fs":"analytic"}})
+        # ax.plot(pba.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #         pba.GRB.get_lc(freq=i_freq), color=i_color, ls=':', lw=1.5,
+        #         label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+
+
+        #
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main", newpars={"theta_obs":i_thetaobs},newopts={},
+        #                        parfile="default_parfile.par", newparfile="parfile.par", keep_old=True)
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb", newpars={},
+        #                        newopts={"method_synchrotron_fs":"Joh06",
+        #                                 "method_comp_mode":"observFlux",
+        #                                 "method_eats":"piece-wise",
+        #                                 "method_ne_fs":"useNe",
+        #                                 "method_ele_fs":"analytic",
+        #                                 "fname_ejecta_id":"tophat_grb_id_pw.h5",
+        #                                 "fname_light_curve":"tophat_{}_pw.h5".format( str(i_thetaobs).replace(".",""))},
+        #                        parfile="parfile.par", newparfile="parfile.par", keep_old=False)
+        #
+        #
+        # pba_pw = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
+        # pba_pw.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
+        # ax.plot(pba_pw.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #         pba_pw.GRB.get_lc(freq=i_freq), color=i_color, ls=':', lw=1.,
+        #         label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+        # pba_pw.clear()
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main", newpars={"theta_obs":i_thetaobs},newopts={},
+        #                                          parfile="default_parfile.par", newparfile="parfile.par", keep_old=True)
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb", newpars={},
+        #                                          newopts={"method_synchrotron_fs":"Joh06",
+        #                                                   "method_comp_mode":"observFlux",
+        #                                                   "method_eats":"piece-wise",
+        #                                                   "method_ne_fs":"usenprime",
+        #                                                   "method_ele_fs":"analytic",
+        #                                                   "fname_ejecta_id":"tophat_grb_id_pw.h5",
+        #                                                   "fname_light_curve":"tophat_{}_pw.h5".format( str(i_thetaobs).replace(".",""))},
+        #                                          parfile="parfile.par", newparfile="parfile.par", keep_old=False)
+        # pba_pw = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
+        # # pba.reload_parfile()
+        # pba_pw.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
+        # ax.plot(pba_pw.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #         pba_pw.GRB.get_lc(freq=i_freq), color=i_color, ls=':', lw=1.0,
+        #         label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+        # pba_pw.clear()
+        # # # -------------------------------------------------------
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main", newpars={"theta_obs":i_thetaobs},newopts={},
+        #                                          parfile="default_parfile.par", newparfile="parfile.par", keep_old=True)
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb", newpars={},
+        #                                          newopts={"method_synchrotron_fs":"WSPN99",
+        #                                                   "method_comp_mode":"comovSpec",
+        #                                                   "method_eats":"piece-wise",
+        #                                                   "method_ne_fs":"useNe",
+        #                                                   "method_ele_fs":"analytic",
+        #                                                   "fname_ejecta_id":"tophat_grb_id_pw.h5",
+        #                                                   "fname_light_curve":"tophat_{}_pw.h5".format( str(i_thetaobs).replace(".",""))},
+        #                                          parfile="parfile.par", newparfile="parfile.par", keep_old=False)
+        # pba_pw2 = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
+        # pba_pw2.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
+        # ax.plot(pba_pw2.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #         pba_pw2.GRB.get_lc(freq=i_freq), color=i_color, ls=':', lw=1.5)
+        # pba_pw2.clear()
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main", newpars={"theta_obs":i_thetaobs},newopts={},
+        #                                          parfile="default_parfile.par", newparfile="parfile.par", keep_old=True)
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb", newpars={},
+        #                                          newopts={"method_synchrotron_fs":"Joh06",
+        #                                                   "method_comp_mode":"comovSpec",
+        #                                                   "method_eats":"piece-wise",
+        #                                                   "method_ne_fs":"usenprime",
+        #                                                   "method_ele_fs":"analytic",
+        #                                                   "fname_ejecta_id":"tophat_grb_id_pw.h5",
+        #                                                   "fname_light_curve":"tophat_{}_pw.h5".format( str(i_thetaobs).replace(".",""))},
+        #                                          parfile="parfile.par", newparfile="parfile.par", keep_old=False)
+        # pba_pw2 = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
+        # # pba.reload_parfile()
+        # pba_pw2.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
+        # ax.plot(pba_pw2.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #         pba_pw2.GRB.get_lc(freq=i_freq), color=i_color, ls=':', lw=2.0)
+        # pba_pw2.clear()
+
+        # --------------------------------------------------------
+
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main", newpars={"theta_obs":i_thetaobs},newopts={},
+        #                                          parfile="default_parfile.par", newparfile="parfile.par", keep_old=True)
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb", newpars={},
+        #                                          newopts={"method_synchrotron_fs":"Dermer09",
+        #                                                   "method_comp_mode":"comovSpec",
+        #                                                   "method_eats":"piece-wise",
+        #                                                   "method_ne_fs":"useNe",
+        #                                                   "method_ele_fs":"numeric",
+        #                                                   "fname_ejecta_id":"tophat_grb_id_pw.h5",
+        #                                                   "fname_light_curve":"tophat_{}_pw.h5".format( str(i_thetaobs).replace(".",""))},
+        #                                          parfile="parfile.par", newparfile="parfile.par", keep_old=False)
+        # pba_pw2 = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
+        # # pba.reload_parfile()
+        # pba_pw2.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
+        # ax.plot(pba_pw2.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #         pba_pw2.GRB.get_lc_totalflux(freq=i_freq), color=i_color, ls='-.', lw=1.0)
+        # pba_pw2.clear()
+
+        # ========================================================
+        #
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main",newpars={"theta_obs":i_thetaobs},newopts={},
+        #                        parfile="default_parfile.par", newparfile="parfile.par", keep_old=True)
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",newpars={},
+        #                        newopts={"method_synchrotron_fs":"Joh06",
+        #                                 "method_comp_mode":"observFlux",
+        #                                 "method_eats":"adaptive",
+        #                                 "method_ne_fs":"useNe",
+        #                                 "method_ele_fs":"analytic",
+        #                                 "fname_ejecta_id":"tophat_grb_id_a.h5",
+        #                                 "fname_light_curve":"tophat_{}_a.h5"
+        #                        .format( str(i_thetaobs).replace(".",""))},
+        #                        parfile="parfile.par", newparfile="parfile.par", keep_old=False)
+        # pba_a = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
+        # pba_a.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
+        # ax.plot(pba_a.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #         pba_a.GRB.get_lc(freq=i_freq), color=i_color, ls='--', lw=0.5, # densely dashed
+        #         label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+        # pba_a.clear()
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main",newpars={"theta_obs":i_thetaobs},newopts={},
+        #                                          parfile="default_parfile.par", newparfile="parfile.par", keep_old=True)
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",newpars={},
+        #                                          newopts={"method_synchrotron_fs":"WSPN99",
+        #                                                   "method_comp_mode":"observFlux",
+        #                                                   "method_eats":"adaptive",
+        #                                                   "method_ne_fs":"usenprime",
+        #                                                   "method_ele_fs":"analytic",
+        #                                                   "fname_ejecta_id":"tophat_grb_id_a.h5",
+        #                                                   "fname_light_curve":"tophat_{}_a.h5"
+        #                                          .format( str(i_thetaobs).replace(".",""))},
+        #                                          parfile="parfile.par", newparfile="parfile.par", keep_old=False)
+        # pba_a = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
+        # pba_a.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
+        # ax.plot(pba_a.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #         pba_a.GRB.get_lc(freq=i_freq), color=i_color, ls='--', lw=1.0,
+        #         label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+        # pba_a.clear()
+        # # # -------------------------------------------------------
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main",newpars={"theta_obs":i_thetaobs},newopts={},
+        #                                          parfile="default_parfile.par", newparfile="parfile.par", keep_old=True)
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",newpars={},
+        #                                          newopts={"method_synchrotron_fs":"WSPN99",
+        #                                                   "method_comp_mode":"comovSpec",
+        #                                                   "method_eats":"adaptive",
+        #                                                   "method_ne_fs":"useNe",
+        #                                                   "method_ele_fs":"analytic",
+        #                                                   "fname_ejecta_id":"tophat_grb_id_a.h5",
+        #                                                   "fname_light_curve":"tophat_{}_a.h5"
+        #                                          .format( str(i_thetaobs).replace(".",""))},
+        #                                          parfile="parfile.par", newparfile="parfile.par", keep_old=False)
+        # pba_a2 = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
+        # pba_a2.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
+        # ax.plot(pba_a2.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #         pba_a2.GRB.get_lc(freq=i_freq), color=i_color, ls='--', lw=1.5, # densely dashed
+        #         label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+        # pba_a2.clear()
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main",newpars={"theta_obs":i_thetaobs},newopts={},
+        #                                          parfile="default_parfile.par", newparfile="parfile.par", keep_old=True)
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",newpars={},
+        #                                          newopts={"method_synchrotron_fs":"Joh06",
+        #                                                   "method_comp_mode":"comovSpec",
+        #                                                   "method_eats":"adaptive",
+        #                                                   "method_ne_fs":"usenprime",
+        #                                                   "method_ele_fs":"analytic",
+        #                                                   "fname_ejecta_id":"tophat_grb_id_a.h5",
+        #                                                   "fname_light_curve":"tophat_{}_a.h5"
+        #                                          .format( str(i_thetaobs).replace(".",""))},
+        #                                          parfile="parfile.par", newparfile="parfile.par", keep_old=False)
+        # pba_a2 = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
+        # pba_a2.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
+        # ax.plot(pba_a2.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #         pba_a2.GRB.get_lc(freq=i_freq), color=i_color, ls='--', lw=2,
+        #         label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+        # pba_a2.clear()
+
+
+        # -------------------------------------------------------
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main",newpars={"theta_obs":i_thetaobs},newopts={},
+        #                                          parfile="default_parfile.par", newparfile="parfile.par", keep_old=True)
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
+        #                                          newpars={"gam1":1,"gam2":1e8,"ngam":250},
+        #                                          newopts={"method_synchrotron_fs":"Dermer09",
+        #                                                   "method_comp_mode":"comovSpec",
+        #                                                   "method_eats":"adaptive",
+        #                                                   "method_ne_fs":"useNe",
+        #                                                   "method_ele_fs":"mix",
+        #                                                   "fname_ejecta_id":"tophat_grb_id_a.h5",
+        #                                                   "fname_light_curve":"tophat_{}_a.h5"
+        #                                          .format( str(i_thetaobs).replace(".",""))},
+        #                                          parfile="parfile.par", newparfile="parfile.par", keep_old=False)
+        # pba_a2 = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
+        # pba_a2.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
+        # ax.plot(pba_a2.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #         pba_a2.GRB.get_lc(freq=i_freq), color=i_color, ls='-.', lw=1,
+        #         label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+        # pba_a2.clear()
+        #
+        # # -------------------------------------------------------
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="main",newpars={"theta_obs":i_thetaobs},newopts={},
+        #                                          parfile="default_parfile.par", newparfile="parfile.par", keep_old=True)
+        # PBA.parfile_tools.modify_parfile_par_opt(workingdir=os.getcwd()+"/", part="grb",
+        #                                          newpars={"gam1":1,"gam2":1e8,"ngam":250},
+        #                                          newopts={"method_synchrotron_fs":"Dermer09",
+        #                                                   "method_comp_mode":"comovSpec",
+        #                                                   "method_eats":"adaptive",
+        #                                                   "method_ne_fs":"useNe",
+        #                                                   "method_ele_fs":"numeric",
+        #                                                   "fname_ejecta_id":"tophat_grb_id_a.h5",
+        #                                                   "fname_light_curve":"tophat_{}_a.h5"
+        #                                          .format( str(i_thetaobs).replace(".",""))},
+        #                                          parfile="parfile.par", newparfile="parfile.par", keep_old=False)
+        # pba_a2 = PBA.interface.PyBlastAfterglow(workingdir=os.getcwd()+"/", parfile="parfile.par")
+        # pba_a2.run(path_to_cpp_executable="/home/vsevolod/Work/GIT/GitHub/PyBlastAfterglowMag/src/pba.out",loglevel="info")
+        # ax.plot(pba_a2.GRB.get_lc_times() / PBA.utils.cgs.day,
+        #         pba_a2.GRB.get_lc(freq=i_freq), color=i_color, ls='-.', lw=2,
+        #         label=r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+        # pba_a2.clear()
+
+        # break
+        ax.set_title(r"$\theta_{obs}=$" + "{:.2f}".format(i_thetaobs) + r" $\nu$={:.1e}".format(i_freq))
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.minorticks_on()
+        if i == 0 : ax.set_ylabel(r"$F_{\nu}$ [mJy]",fontsize=13)
+        if i == 0:
+            ax.legend(loc="lower left", fancybox=False, shadow=False, ncol=1,
+                      fontsize=10, framealpha=0, borderaxespad=0., frameon=False)
+        ax.set_xlim(plot["xlim"])
+        ax.set_ylim(plot["ylim"])
+
+        ax_.set_xlabel(r"$t_{\rm obs}$ [day]",fontsize=13)
+        ax_.minorticks_on()
+        if i == 0 : ax_.set_ylabel(r"$\Delta F_{\nu} / F_{\nu}$",fontsize=13)
+        if i == 0:
+            ax_.legend(loc="lower left", fancybox=False, shadow=False, ncol=1,
+                      fontsize=10, framealpha=0, borderaxespad=0., frameon=False)
+        ax_.axhline(0,linewidth=1.2,color='black')
+        ax_.set_ylim(-2.,2.)
+        ax_.grid(ls=':')
+
+    # l11, = ax.plot([-1., -1.], [-2., -2.], color='gray', ls='-', lw=1.)
+    # l12, = ax.plot([-1., -1.], [-2., -2.], color='black', ls='-', lw=1.)
+    # l13, = ax.plot([-1., -1.], [-2., -2.], color='red', ls='-',  lw=1.)
+    # l14, = ax.plot([-1., -1.], [-2., -2.], color='green', ls='-',  lw=1.)
+    # l15, = ax.plot([-1., -1.], [-2., -2.], color='blue', ls='-',  lw=1.)
+    # lines, labels = [l11, l12], [r"\texttt{jetsimpy}", r"\texttt{afterglowpy}"]
+    # if plot["plot_analytic"]:
+    #     lines.append(l13)
+    #     labels.append(r"\texttt{PyBlastAfterglow}*")
+    # if plot["plot_semi_analytic"]:
+    #     lines.append(l14)
+    #     labels.append(r"\texttt{PyBlastAfterglow}")
+    # if plot["plot_numeric"]:
+    #     lines.append(l15)
+    #     labels.append(r"\texttt{PyBlastAfterglow}")
+    # legend1 = plt.legend(lines, labels,
+    #                      loc="center", bbox_to_anchor=plot["bbox_to_anchor_1"], fancybox=False, shadow=False, ncol=1,
+    #                      fontsize=10, framealpha=0, borderaxespad=0., frameon=False)
+    # legend2 = plt.legend(lls, lbls,
+    #                      loc="center", bbox_to_anchor=plot["bbox_to_anchor_2"], fancybox=False, shadow=False, ncol=1,
+    #                      fontsize=10, framealpha=0, borderaxespad=0., frameon=False)
+
+    # ax.add_artist(legend1)
+    # ax.add_artist(legend2)
+    # ax.plot([-1., -1.], [-2., -2.], color='gray', ls='--', label=r"afterglowpy")
+
+    # ax.set_title(r"Comparison with afterglowpy (e.g. Fig.2)")
+    # ax.tick_params(axis='both', which='both', labelleft=True,
+    #                labelright=False, tick1On=True, tick2On=True,
+    #                labelsize=13,
+    #                direction='in',
+    #                bottom=True, top=True, left=True, right=True)
+
+    # ax.legend()
+    # plt.tight_layout()
+    # if save_figs: plt.savefig(PAPERPATH + save)
+    if "figname" in plot.keys():
+        plt.savefig(fig_dir+plot["figname"]+'.png',dpi=256)
+        plt.savefig(fig_dir+plot["figname"]+'.pdf')
+    if plot["show"]: plt.show()
 
 
 def compare_dyn(pp:dict, plot:dict,working_dir:str):
@@ -836,15 +1289,17 @@ if __name__ == '__main__':
     # )
 
     struct = dict(struct="tophat",Eiso_c=1.e52, Gamma0c= 350., M0c= -1.,theta_c= 0.1, theta_w= 0.1)
-    compare_lcs(
+    compare_lcs_panels(
         pp = dict(main=dict(n_ism = 1e-2,ntb=3000),
-                  grb=dict(structure=struct,eats_type='a',ebl_tbl_fpath='none')),
-        plot = dict(plot_analytic=True,plot_semi_analytic=False,plot_numeric=False,iters=[
-            dict(theta_obs=0.16,freq=1.e9,ls='-'),
-            dict(theta_obs=0.0,freq=1.e18,ls='--'),
-            dict(theta_obs=0.16,freq=1.e18,ls='-.'),
-            dict(theta_obs=0.0,freq=1.e9,ls=':')
-        ], xlim=(1e-1, 1e3), ylim=(1e-9, 5e2),
+                  grb=dict(p_fs=1.9,structure=struct,eats_type='a',ebl_tbl_fpath='none',
+                           method_vel_fs='shockVel',method_nonrel_dist_fs='none')),
+        plot = dict(plot_analytic=False,plot_semi_analytic=False,plot_numeric=True,iters=[
+            dict(theta_obs=0.16,freq=1.e9),
+            dict(theta_obs=0.0,freq=1.e18),
+            dict(theta_obs=0.16,freq=1.e18),
+            dict(theta_obs=0.0,freq=1.e9)
+        ],
+                    xlim=(1e-1, 3e3), ylim=(1e-9, 5e2),
                     bbox_to_anchor_2=(0.35, 0.16), bbox_to_anchor_1=(0.78, 0.52), show=show, figname="lcs_tophat"),
         working_dir=working_dir+"tmp_tophat_",
         run=True
@@ -882,6 +1337,23 @@ if __name__ == '__main__':
     #     run=False
     # )
     # struct = dict(struct="gaussian",Eiso_c=1.e52, Gamma0c= 300., M0c= -1., theta_c= 0.085, theta_w= 0.2618)
+    compare_lcs_panels(
+        pp = dict(main=dict(n_ism = 1e-2,ntb=3000, lc_times = "array logspace 3.e3 1.e10 300"),
+                  grb=dict(structure=struct,eats_type='a',ebl_tbl_fpath='none',
+                           method_vel_fs='shockVel'
+                           )),
+        plot = dict(plot_analytic=True,plot_semi_analytic=False,plot_numeric=False,iters=[
+            dict(theta_obs=0.16,freq=1.e9),
+            dict(theta_obs=0.0,freq=1.e18),
+            dict(theta_obs=0.16,freq=1.e18),
+            dict(theta_obs=0.0,freq=1.e9)
+        ],
+                    xlim=(1e-1, 3e3), ylim=(1e-7, 1e2),
+                    bbox_to_anchor_2=(0.35, 0.16), bbox_to_anchor_1=(0.78, 0.52), show=show, figname="lcs_gaussian"),
+        working_dir=working_dir+"tmp_gaussian_",
+        run=False
+    )
+
     # compare_skymaps(
     #     pp = dict(main=dict(n_ism = 0.00031,d_l = 1.27e+26, z = 0.0099, theta_obs = 0.3752,
     #                         skymap_freqs=f"array 1.e9", skymap_times=f"array {75.*86400.}"),

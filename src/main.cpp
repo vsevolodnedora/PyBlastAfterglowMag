@@ -224,7 +224,7 @@ int main(int argc, char** argv) {
 //        working_dir = "../analysis/grb/fsrs/working_dirs/dyn_spread_gp12/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../analysis/grb/applications/grb170817a/working_dirs/tmp/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 //        working_dir = "../analysis/kn/afg/working_dir_asym/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
-        working_dir = "../analysis/kn/afg/working_dirs/SFHo_13_14_res150_asym_marg21/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
+        // working_dir = "../analysis/kn/afg/working_dirs/SFHo_13_14_res150_asym_marg21/"; parfilename = "parfile.par"; loglevel=LOG_INFO;
 
         // test cases || GRG
 //        working_dir = "../tst/grb/grbafg_skymap/"; parfilename = "parfile.par"; loglevel=LOG_INFO; // gauss, skymap
@@ -232,6 +232,7 @@ int main(int argc, char** argv) {
 //        working_dir = "../tst/grb/tophat_spec/"; parfilename = "parfile.par"; loglevel=LOG_INFO; // tophat, lcs
 //        working_dir = "../tst/grb/tophat_spec/working_dir/"; parfilename = "parfile_logn-30_th00_rsdyn-yes_rsrad-yes_ssa-yes_adi-yes_num.par"; loglevel=LOG_INFO; // tophat, lcs
 //        working_dir = "../tst/grb/tophat_fsrs/"; parfilename = "parfile.par"; loglevel=LOG_INFO; // tophat, lcs
+        working_dir = "../../tst/grb/compare_jetsim_afgpy/working_dirs/tmp_tophat_num_0/"; parfilename = "parfile.par"; loglevel=LOG_INFO; // tophat, lcs
 
         // project test cases || GRB
 //        working_dir = "../../PBA_projects/grbafg/tophat_ssc/"; parfilename = "parfile.par"; loglevel=LOG_INFO; // tophat, lcs

@@ -850,7 +850,7 @@ public: // ---------------------- FOR EATS -------------------------------- //
                              * ne
                              / (2. * CGS::pi * (1. - std::cos(theta) / ncells))
                              / Gamma
-                             / (1.0 - mu * beta_shock);
+                             / ashock;
 //                if (eats_method==EjectaID2::STUCT_TYPE::iadaptive)
 //                    luminocity /= (2. * CGS::pi * (1. - std::cos(theta_h)/ncells));
 //                else
