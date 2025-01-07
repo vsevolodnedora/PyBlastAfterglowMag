@@ -443,7 +443,7 @@ public: // -------------------- NUMERIC -------------------------------- //
 //        ChangCooper model = ChangCooper(source, ele, syn, ssc, syn_kernel, ssc_kernel);
 
         /// compute radiation numerically from ANALYTIC electron distribution or evolve electron distribution
-        if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleMix ) // || gamma_min == 1.
+        if (m_eleMethod==METHODS_SHOCK_ELE::iShockEleMix || gamma_min <= 2 ) // || gamma_min == 1.
             for (size_t i = 0; i < ele.numbins; i++)
                 ele.f[i] = tmp[i];
         /// evolve electron distribution via Chang Cooper Scheme
