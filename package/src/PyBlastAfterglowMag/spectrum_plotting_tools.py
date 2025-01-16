@@ -24,7 +24,7 @@ def _normalize_spec(spec: np.ndarray, xs: np.ndarray, norm_method: None or str, 
         spec = spec / np.trapz(y=spec, x=xs, axis=0)[:, np.newaxis]
         spec *= np.power(xs, 2)[:, np.newaxis]
     elif norm_method == "/integ *y":
-        integ = integrate.simps(y=spec, x=xs, axis=0)
+        integ = integrate.simpson(y=spec, x=xs, axis=0)
         spec = spec / integ[np.newaxis, :]
         spec = spec * np.power(xs, 1)[:, np.newaxis]
     elif norm_method == "*y /integ":
@@ -341,7 +341,7 @@ class PlotSpectra:
             # if np.sum(np.asarray(spec,dtype='int')) :
             #     raise ValueError("nothing to plot")
             # _c = ax.pcolormesh(xs, ys, spec, cmap=cmap, norm=norm)
-
+        print(f"Spec lims {spec.min()} - {spec.max()}")
         if task_i["mode"] == "contour":
             _c = ax.contourf(times, ys, spec, cmap=cmap, locator=ticker.LogLocator(), norm=norm,extend='min')
             # _c.cmap.set_under(task_i.get("set_under", 'white'))

@@ -8,7 +8,7 @@ import subprocess
 
 from .utils import cgs, find_nearest_index
 from .parfile_tools import read_parfile
-from .OLD_skymap_tools import compute_position_of_the_flux_centroid
+# from .OLD_skymap_tools import compute_position_of_the_flux_centroid
 from .skymap_process import ProcessRawSkymap
 from .id_analytic import JetStruct
 from .parfile_tools import create_parfile
